@@ -5,19 +5,23 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.lumora.R
 import com.lumora.model.Channel
+import com.lumora.model.MediaType
 import com.lumora.util.PosterLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /** Flat, vertically-scrolling poster grid - used for a single selected category
- *  (Films/Series), where a horizontal shelf strip isn't enough room to browse in. */
+ *  (Films/Series), where a horizontal shelf strip isn't enough room to browse in, and
+ *  for global search results (which mix Live/Film/Series, hence [showTypeBadge]). */
 class PosterGridAdapter(
+    private val showTypeBadge: Boolean = false,
     private val onItemClick: (Channel) -> Unit
 ) : ListAdapter<Channel, PosterGridAdapter.ViewHolder>(DiffCallback()) {
 
@@ -35,6 +39,7 @@ class PosterGridAdapter(
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val posterImage: ImageView = itemView.findViewById(R.id.itemPoster)
         private val titleText: TextView = itemView.findViewById(R.id.itemTitle)
+        private val typeBadge: TextView = itemView.findViewById(R.id.itemTypeBadge)
         private var current: Channel? = null
 
         init {
@@ -44,6 +49,19 @@ class PosterGridAdapter(
         fun bind(channel: Channel) {
             current = channel
             titleText.text = channel.name
+
+            if (showTypeBadge) {
+                typeBadge.visibility = View.VISIBLE
+                val (label, colorRes) = when (channel.mediaType) {
+                    MediaType.LIVE -> "Live" to R.color.live_red
+                    MediaType.MOVIE -> "Film" to R.color.info_cyan
+                    MediaType.SERIES -> "Series" to R.color.primary
+                }
+                typeBadge.text = label
+                typeBadge.backgroundTintList = ContextCompat.getColorStateList(itemView.context, colorRes)
+            } else {
+                typeBadge.visibility = View.GONE
+            }
 
             val url = channel.posterUrl ?: channel.logoUrl
             posterImage.setImageDrawable(null)

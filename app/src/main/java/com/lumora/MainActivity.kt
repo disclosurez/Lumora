@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity() {
     private val trackController = PlayerTrackController()
     private val qrManager by lazy { QrPairingManager(this) }
     private var activeSettingsOverlay: FullScreenOverlay? = null
+    private var activeSearchOverlay: FullScreenOverlay? = null
 
     // Live TV inline preview: a separate, muted player instance so browsing the
     // channel list doesn't touch the main PlayerManager used for fullscreen playback.
@@ -383,6 +384,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
+        else if (activeSearchOverlay != null) activeSearchOverlay?.dismiss()
         else if (isPlayerVisible) hidePlayer()
         else if (isContentDetailVisible) hideContentDetail()
         else super.onBackPressed()
@@ -1112,7 +1114,7 @@ class MainActivity : AppCompatActivity() {
         val widthPx = recyclerView.width.takeIf { it > 0 }
             ?: (resources.displayMetrics.widthPixels - resources.getDimensionPixelSize(R.dimen.category_sidebar_width))
         val widthDp = widthPx / resources.displayMetrics.density
-        return (widthDp / 150f).toInt().coerceAtLeast(1)
+        return (widthDp / 128f).toInt().coerceAtLeast(1)
     }
 
     /** "See All" on a shelf header - same vertical grid a sidebar category pick opens,
@@ -1277,6 +1279,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun selectHome() {
         activeSettingsOverlay?.dismiss()
+        activeSearchOverlay?.dismiss()
         showingHome = true
         showingDownloads = false
         releaseLivePreview()
@@ -1290,6 +1293,7 @@ class MainActivity : AppCompatActivity() {
      *  the live/series/films lists entirely - it's not part of the categorized catalog. */
     private fun selectDownloads() {
         activeSettingsOverlay?.dismiss()
+        activeSearchOverlay?.dismiss()
         showingDownloads = true
         releaseLivePreview()
         binding.contentRow.visibility = View.VISIBLE
@@ -1353,6 +1357,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun selectTab(index: Int) {
         activeSettingsOverlay?.dismiss()
+        activeSearchOverlay?.dismiss()
         activeTab = index
         showingDownloads = false
         binding.contentRow.visibility = View.VISIBLE
@@ -1842,28 +1847,28 @@ class MainActivity : AppCompatActivity() {
     // ── Search ───────────────────────────────────────
 
     private fun showSearchDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_search, null)
-        val input = dialogView.findViewById<EditText>(R.id.searchInput)
-        val statusText = dialogView.findViewById<TextView>(R.id.searchStatus)
-        val resultsList = dialogView.findViewById<RecyclerView>(R.id.searchResults)
+        val searchView = layoutInflater.inflate(R.layout.dialog_search, null)
+        val input = searchView.findViewById<EditText>(R.id.searchInput)
+        val statusText = searchView.findViewById<TextView>(R.id.searchStatus)
+        val resultsList = searchView.findViewById<RecyclerView>(R.id.searchResults)
 
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setNegativeButton("Close", null)
-            .create()
-        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
-        dialog.show()
-
-        // The dialog's own RecyclerView isn't laid out yet right after show(), so
-        // gridSpanCount() (which reads actual width) isn't usable here - estimate off
-        // full screen width instead, no sidebar to subtract in a dialog.
-        val dialogSpanCount = (resources.displayMetrics.widthPixels / resources.displayMetrics.density / 150f).toInt().coerceAtLeast(2)
+        val dialogSpanCount = (resources.displayMetrics.widthPixels / resources.displayMetrics.density / 128f).toInt().coerceAtLeast(2)
         resultsList.layoutManager = GridLayoutManager(this, dialogSpanCount)
-        val resultsAdapter = PosterGridAdapter { item ->
-            dialog.dismiss()
-            showContentDetail(item)
+        val resultsAdapter = PosterGridAdapter(showTypeBadge = true) { item ->
+            activeSearchOverlay?.dismiss()
+            if (item.mediaType == MediaType.LIVE) playItem(item) else showContentDetail(item)
         }
         resultsList.adapter = resultsAdapter
+
+        val overlay = FullScreenOverlay(
+            binding.searchContainer,
+            searchView,
+            closeButton = searchView.findViewById(R.id.searchCloseButton),
+            initialFocus = input
+        )
+        binding.homeContent.visibility = View.GONE
+        binding.contentRow.visibility = View.GONE
+        binding.emptyState.visibility = View.GONE
 
         var searchRunnable: Runnable? = null
         input.addTextChangedListener(object : android.text.TextWatcher {
@@ -1873,17 +1878,40 @@ class MainActivity : AppCompatActivity() {
                 searchRunnable?.let { mainHandler.removeCallbacks(it) }
                 val query = s?.toString()?.trim().orEmpty()
                 if (query.length < 2) {
-                    statusText.text = "Type at least 2 characters"
+                    statusText.text = "Type to search"
                     statusText.visibility = View.VISIBLE
                     resultsList.visibility = View.GONE
                     return
                 }
+                // Fires as-you-type with a short debounce, not on submit - a large catalog
+                // filter is cheap enough (Dispatchers.Default, a few thousand items) that
+                // waiting for the user to stop typing is the only real cost here.
                 val runnable = Runnable { runSearch(query, resultsAdapter, statusText, resultsList) }
                 searchRunnable = runnable
-                mainHandler.postDelayed(runnable, 300)
+                mainHandler.postDelayed(runnable, 200)
             }
         })
-        dialog.setOnDismissListener { searchRunnable?.let { mainHandler.removeCallbacks(it) } }
+        overlay.setOnDismissListener {
+            searchRunnable?.let { mainHandler.removeCallbacks(it) }
+            activeSearchOverlay = null
+            if (showingHome) selectHome() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
+        }
+        activeSearchOverlay = overlay
+        overlay.show()
+    }
+
+    /** Ranks a title's relevance to [query] (lower is better) - exact match first, then
+     *  "starts with", then matching at a word boundary ("man" hits "Iron Man" but not
+     *  "Batman"), plain substring last. Word-boundary keeps a query like "man" usable on
+     *  a catalog with thousands of vaguely-matching substrings instead of it being buried. */
+    private fun searchRank(name: String, query: String): Int {
+        val lower = name.lowercase()
+        return when {
+            lower == query -> 0
+            lower.startsWith(query) -> 1
+            Regex("\\b${Regex.escape(query)}").containsMatchIn(lower) -> 2
+            else -> 3
+        }
     }
 
     private fun runSearch(query: String, adapter: PosterGridAdapter, statusText: TextView, resultsList: RecyclerView) {
@@ -1893,9 +1921,9 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             val results = withContext(Dispatchers.Default) {
                 val lower = query.lowercase()
-                (filmList + seriesList)
+                (liveChannels + filmList + seriesList)
                     .filter { it.name.lowercase().contains(lower) }
-                    .sortedWith(compareBy({ !it.name.lowercase().startsWith(lower) }, { it.name.lowercase() }))
+                    .sortedWith(compareBy({ searchRank(it.name, lower) }, { it.name.lowercase() }))
                     .take(150)
             }
             if (results.isEmpty()) {
@@ -1903,7 +1931,8 @@ class MainActivity : AppCompatActivity() {
                 statusText.visibility = View.VISIBLE
                 resultsList.visibility = View.GONE
             } else {
-                statusText.visibility = View.GONE
+                statusText.text = "${results.size} result${if (results.size == 1) "" else "s"}"
+                statusText.visibility = View.VISIBLE
                 resultsList.visibility = View.VISIBLE
                 adapter.submitList(results)
             }
@@ -2587,10 +2616,17 @@ class MainActivity : AppCompatActivity() {
      *  background/size overrides were applied on its Window - not something
      *  window.setLayout(MATCH_PARENT, MATCH_PARENT) can escape - so this skips Dialog
      *  entirely instead of fighting it. */
-    private class FullScreenOverlay(private val container: FrameLayout, val view: View) {
-        val saveButton: View = view.findViewById(R.id.settingsSaveButton)
-        val cancelButton: View = view.findViewById(R.id.settingsCancelButton)
+    private class FullScreenOverlay(
+        private val container: FrameLayout,
+        val view: View,
+        closeButton: View,
+        private val initialFocus: View? = null
+    ) {
         private var dismissListener: (() -> Unit)? = null
+
+        init {
+            closeButton.setOnClickListener { dismiss() }
+        }
 
         fun setOnDismissListener(listener: () -> Unit) { dismissListener = listener }
 
@@ -2598,8 +2634,7 @@ class MainActivity : AppCompatActivity() {
             view.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             container.addView(view)
             container.visibility = View.VISIBLE
-            cancelButton.setOnClickListener { dismiss() }
-            view.post { view.findViewById<View>(R.id.settingsProviderTypeSpinner)?.requestFocus() }
+            initialFocus?.let { target -> view.post { target.requestFocus() } }
         }
 
         fun dismiss() {
@@ -2695,7 +2730,12 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        val dialog = FullScreenOverlay(binding.settingsContainer, dialogView)
+        val dialog = FullScreenOverlay(
+            binding.settingsContainer,
+            dialogView,
+            closeButton = dialogView.findViewById(R.id.settingsCancelButton),
+            initialFocus = dialogView.findViewById(R.id.settingsProviderTypeSpinner)
+        )
 
         jellyfinQuickConnectButton.setOnClickListener {
             val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
@@ -3126,7 +3166,7 @@ class MainActivity : AppCompatActivity() {
 
         // The Save button's listener validates and keeps the overlay open on error instead
         // of dismissing unconditionally.
-        dialog.saveButton.setOnClickListener {
+        dialogView.findViewById<View>(R.id.settingsSaveButton).setOnClickListener {
             when (currentType) {
                 "m3u" -> {
                     val url = m3uUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }

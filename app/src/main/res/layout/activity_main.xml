@@ -336,6 +336,14 @@
             android:layout_weight="1"
             android:visibility="gone" />
 
+        <!-- Search: same content-slot pattern as Settings, same reason. -->
+        <FrameLayout
+            android:id="@+id/searchContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
         <!-- Content row: category sidebar + active tab's list/grid -->
         <LinearLayout
             android:id="@+id/contentRow"
