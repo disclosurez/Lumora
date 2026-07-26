@@ -178,9 +178,11 @@ class XtreamClient(private val client: OkHttpClient) {
             genre = info.optString("genre", "").ifBlank { null },
             backdropUrl = backdrop?.ifBlank { null },
             rating = info.optString("rating", "").ifBlank { null },
-            // Movies use "release_date", series use "releaseDate" - provider isn't
-            // consistent about which, so try both.
-            releaseDate = info.optString("release_date", info.optString("releaseDate", "")).ifBlank { null }
+            // Confirmed against a live provider: movies actually use "releasedate" (all
+            // lowercase, no separator) - "release_date"/"releaseDate" never matched
+            // anything there. Kept as fallbacks in case another provider spells it
+            // differently.
+            releaseDate = info.optString("releasedate", info.optString("release_date", info.optString("releaseDate", ""))).ifBlank { null }
         )
     }
 
