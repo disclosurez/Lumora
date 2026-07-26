@@ -5,8 +5,9 @@
     android:background="@color/canvas"
     android:orientation="horizontal">
 
-    <!-- Nav rail -->
+    <!-- Nav rail - hidden entirely until a provider is configured (see showProviderSettings()) -->
     <LinearLayout
+        android:id="@+id/settingsNavRail"
         android:layout_width="220dp"
         android:layout_height="match_parent"
         android:background="@color/canvas_elevated"
@@ -54,10 +55,21 @@
             <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="EPG Sources" />
         </LinearLayout>
 
+        <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6">
+            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_5" />
+            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Downloads" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
+            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
+            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="About" />
+        </LinearLayout>
+
     </LinearLayout>
 
     <!-- Thin vertical divider -->
     <View
+        android:id="@+id/settingsNavDivider"
         android:layout_width="1dp"
         android:layout_height="match_parent"
         android:background="@color/divider" />
@@ -547,6 +559,83 @@
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/add_epg_source" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Pane: Downloads -->
+            <LinearLayout
+                android:id="@+id/paneDownloads"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView
+                    android:id="@+id/settingsDownloadsEmptyText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="No downloads yet"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/settingsDownloadsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+            </LinearLayout>
+
+            <!-- Pane: About -->
+            <LinearLayout
+                android:id="@+id/paneAbout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="About" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/card_surface_background"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Version" android:textColor="@color/text_primary" android:textSize="14sp" />
+                    <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/settingsGithubLink"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp"
+                    android:stateListAnimator="@animator/focus_scale">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="GitHub" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="github.com/disclosurez/Lumora" android:textColor="@color/primary_light" android:textSize="12sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/settingsCheckUpdate"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale">
+                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Check for Updates" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 

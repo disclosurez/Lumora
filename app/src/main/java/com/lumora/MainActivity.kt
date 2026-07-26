@@ -7,7 +7,9 @@ import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.net.Uri
 import android.os.Build
+import java.io.File
 import android.util.Rational
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -389,6 +391,16 @@ class MainActivity : AppCompatActivity() {
 
     // ── Provider Loading ───────────────────────────
 
+    /** Fixed, no-picker-required fallback location for devices (Fire TV, most Android TV
+     *  boxes) with no Storage Access Framework document picker installed at all. */
+    private fun localBackupFile(): File {
+        val dir = File(getExternalFilesDir(null), "backups").apply { mkdirs() }
+        return File(dir, "lumora_backup.json")
+    }
+
+    private fun hasProviderConfigured(): Boolean =
+        (provider.type == ProviderType.XTREAM && provider.serverUrl != null) || !provider.m3uUrl.isNullOrBlank()
+
     private fun loadSavedProvider() {
         val type = prefs.getString("provider_type", "m3u") ?: "m3u"
         provider = when (type) {
@@ -420,9 +432,7 @@ class MainActivity : AppCompatActivity() {
                 userAgent = prefs.getString("user_agent", null)
             )
         }
-        val hasProvider = (provider.type == ProviderType.XTREAM && provider.serverUrl != null) ||
-            !provider.m3uUrl.isNullOrBlank()
-        if (!hasProvider) { showProviderSettings(); return }
+        if (!hasProviderConfigured()) { showProviderSettings(); return }
 
         setStatus("Loading...", visible = true)
         scope.launch {
@@ -2522,16 +2532,47 @@ class MainActivity : AppCompatActivity() {
                 type = "application/json"
                 putExtra(android.content.Intent.EXTRA_TITLE, "lumora_backup.json")
             }
-            startActivityForResult(intent, REQUEST_EXPORT_BACKUP)
-            pendingBackupManager = backupManager
+            try {
+                startActivityForResult(intent, REQUEST_EXPORT_BACKUP)
+                pendingBackupManager = backupManager
+            } catch (e: android.content.ActivityNotFoundException) {
+                // Fire TV and most Android TV boxes ship no document picker at all - SAF
+                // just isn't there to launch. Fall back to a fixed app-storage location
+                // that works on every device, no picker required.
+                scope.launch {
+                    val file = localBackupFile()
+                    val success = withContext(Dispatchers.IO) { backupManager.exportTo(Uri.fromFile(file)) }
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (success) "Backup saved to ${file.absolutePath}" else "Export failed",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         }
         dialogView.findViewById<View>(R.id.settingsImportBackup).setOnClickListener {
             val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(android.content.Intent.CATEGORY_OPENABLE)
                 type = "application/json"
             }
-            startActivityForResult(intent, REQUEST_IMPORT_BACKUP)
-            pendingBackupManager = backupManager
+            try {
+                startActivityForResult(intent, REQUEST_IMPORT_BACKUP)
+                pendingBackupManager = backupManager
+            } catch (e: android.content.ActivityNotFoundException) {
+                val file = localBackupFile()
+                if (!file.exists()) {
+                    Toast.makeText(this@MainActivity, "No backup file found at ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                } else {
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { backupManager.importFrom(Uri.fromFile(file)) }
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Imported: ${result.providersImported} providers, ${result.epgSourcesImported} EPG sources, ${result.customGroupsImported} groups",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
         }
 
         // EPG Source
@@ -2657,7 +2698,9 @@ class MainActivity : AppCompatActivity() {
             R.id.navFilters to R.id.paneFilters,
             R.id.navPrivacy to R.id.panePrivacy,
             R.id.navBackup to R.id.paneBackup,
-            R.id.navEpg to R.id.paneEpg
+            R.id.navEpg to R.id.paneEpg,
+            R.id.navDownloads to R.id.paneDownloads,
+            R.id.navAbout to R.id.paneAbout
         ).map { (navId, paneId) -> dialogView.findViewById<View>(navId) to dialogView.findViewById<View>(paneId) }
         fun selectSection(index: Int) {
             navRows.forEachIndexed { i, (row, pane) ->
@@ -2667,6 +2710,65 @@ class MainActivity : AppCompatActivity() {
         }
         navRows.forEachIndexed { i, (row, _) -> row.setOnClickListener { selectSection(i) } }
         selectSection(0)
+
+        // A TV box has nowhere meaningful to browse a downloaded file (same reasoning
+        // as the Downloads tab being mobile-only).
+        dialogView.findViewById<View>(R.id.navDownloads).visibility = if (isTv) View.GONE else View.VISIBLE
+
+        // First-run: force the user through provider setup before anything else is even
+        // reachable - the rest of Settings assumes a working provider already exists.
+        val providerConfigured = hasProviderConfigured()
+        dialogView.findViewById<View>(R.id.settingsNavRail).visibility = if (providerConfigured) View.VISIBLE else View.GONE
+        dialogView.findViewById<View>(R.id.settingsNavDivider).visibility = if (providerConfigured) View.VISIBLE else View.GONE
+
+        // Downloads pane reuses the exact same adapter/data as the Downloads tab -
+        // RecyclerView supports multiple views sharing one adapter instance fine.
+        dialogView.findViewById<RecyclerView>(R.id.settingsDownloadsList).apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = downloadAdapter
+        }
+        val settingsDownloadsEmptyText = dialogView.findViewById<TextView>(R.id.settingsDownloadsEmptyText)
+        if (!isTv) {
+            scope.launch {
+                val records = withContext(Dispatchers.IO) { DownloadStore.getAll(this@MainActivity) }
+                settingsDownloadsEmptyText.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
+        refreshDownloadsList()
+
+        // About pane
+        dialogView.findViewById<TextView>(R.id.settingsAppVersion).text = try {
+            val info = packageManager.getPackageInfo(packageName, 0)
+            "${info.versionName} (${info.versionCode})"
+        } catch (e: Exception) { "unknown" }
+        dialogView.findViewById<View>(R.id.settingsGithubLink).setOnClickListener {
+            try {
+                startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://github.com/disclosurez/Lumora")))
+            } catch (e: android.content.ActivityNotFoundException) {
+                Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
+            }
+        }
+        val checkUpdateLabel = dialogView.findViewById<TextView>(R.id.settingsCheckUpdateLabel)
+        dialogView.findViewById<View>(R.id.settingsCheckUpdate).setOnClickListener {
+            checkUpdateLabel.text = "Checking…"
+            scope.launch {
+                val updater = AppUpdateChecker(this@MainActivity)
+                val info = withContext(Dispatchers.IO) { updater.checkForUpdate() }
+                checkUpdateLabel.text = "Check for Updates"
+                when {
+                    info == null -> Toast.makeText(this@MainActivity, "Couldn't check for updates", Toast.LENGTH_SHORT).show()
+                    info.isUpdateAvailable && info.downloadUrl.isNotBlank() -> {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Update available")
+                            .setMessage("Lumora v${info.latestVersion} is available.\nCurrent: v${info.currentVersion}\n\n${info.releaseNotes.take(200)}")
+                            .setPositiveButton("Update") { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
+                            .setNegativeButton("Later", null)
+                            .show()
+                    }
+                    else -> Toast.makeText(this@MainActivity, "You're on the latest version", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
         // Init UI
         selectType(currentType)
