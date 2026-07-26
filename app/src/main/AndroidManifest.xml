@@ -21,7 +21,7 @@
     <application
         android:name=".BaseApplication"
         android:allowBackup="true"
-        android:banner="@drawable/banner_tv"
+        android:banner="@mipmap/banner_tv"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
