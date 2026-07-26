@@ -287,6 +287,7 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:clipChildren="false"
             android:clipToPadding="false"
             android:paddingHorizontal="16dp"
             android:visibility="gone" />
@@ -475,6 +476,7 @@
                     android:id="@+id/seriesContent"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:clipChildren="false"
                     android:clipToPadding="false"
                     android:defaultFocusHighlightEnabled="true"
                     android:paddingHorizontal="10dp"
@@ -486,6 +488,7 @@
                     android:id="@+id/filmsContent"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:clipChildren="false"
                     android:clipToPadding="false"
                     android:defaultFocusHighlightEnabled="true"
                     android:paddingHorizontal="10dp"
@@ -892,16 +895,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/grad_player_bottom"
-                android:paddingTop="28dp">
+                android:paddingTop="18dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_margin="12dp"
+                    android:layout_margin="8dp"
                     android:background="@drawable/bg_player_bottom"
                     android:orientation="vertical"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="10dp">
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp">
 
                     <!-- Info card: logo + program title/time on the left, channel name + badges on the right -->
                     <LinearLayout
@@ -983,38 +986,38 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="6dp"
                         android:gravity="center"
                         android:orientation="horizontal">
                         <ImageButton
                             android:id="@+id/btnPrevChannel"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:background="@drawable/bg_toolbar_button"
                             android:clickable="true"
                             android:contentDescription="Previous"
                             android:focusable="true"
-                            android:padding="12dp"
+                            android:padding="10dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@android:drawable/ic_media_previous"
                             android:tint="@color/text_primary" />
                         <ImageButton
                             android:id="@+id/btnPlayPause"
-                            android:layout_width="54dp"
-                            android:layout_height="54dp"
-                            android:layout_marginHorizontal="20dp"
+                            android:layout_width="46dp"
+                            android:layout_height="46dp"
+                            android:layout_marginHorizontal="16dp"
                             android:background="@drawable/bg_play_button"
                             android:clickable="true"
                             android:contentDescription="Play/Pause"
                             android:focusable="true"
-                            android:padding="13dp"
+                            android:padding="11dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@drawable/ic_play"
                             android:tint="@android:color/white" />
                         <ImageButton
                             android:id="@+id/btnNextChannel"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:background="@drawable/bg_toolbar_button"
                             android:clickable="true"
                             android:contentDescription="Next"
@@ -1028,7 +1031,7 @@
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp">
+                        android:layout_marginTop="4dp">
                         <TextView
                             android:id="@+id/currentTime"
                             android:layout_width="wrap_content"
@@ -1059,7 +1062,7 @@
                     <HorizontalScrollView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:overScrollMode="never"
                         android:scrollbars="none">
 

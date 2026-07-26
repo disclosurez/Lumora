@@ -384,19 +384,25 @@ class MainActivity : AppCompatActivity() {
 
     /** DPAD up/down channel-surfs while fullscreen on a live channel, without needing the on-screen controls. */
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        // Live channel-surf stays a blind shortcut regardless of controls visibility -
+        // checked first so the generic "reveal controls" fallback below never steals it.
         if (isPlayerVisible && nowPlayingChannel?.mediaType == MediaType.LIVE) {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP -> { navigateChannel(-1); return true }
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { navigateChannel(1); return true }
             }
         }
-        // Fire TV remote's center/select button - only intercept while the overlay is
-        // hidden (reveal it); if it's already showing, let the press through normally so
-        // it activates whatever button is currently focused instead of eating the click.
-        if (isPlayerVisible &&
-            (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER) &&
-            binding.controlsOverlay.visibility != View.VISIBLE
-        ) {
+        // Any other D-pad press reveals the controls when they're hidden - was
+        // center-only, so a movie/series (no channel-surf shortcut to fall back on) had
+        // literally no key that showed them at all. First press just reveals; doesn't
+        // also perform whatever that direction would otherwise do, same as it not also
+        // clicking the button it lands focus on.
+        val isDirectionalKey = keyCode in intArrayOf(
+            android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+            android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+            android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER
+        )
+        if (isPlayerVisible && isDirectionalKey && binding.controlsOverlay.visibility != View.VISIBLE) {
             showControls()
             return true
         }
@@ -2362,6 +2368,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showControls() {
         binding.controlsOverlay.visibility = View.VISIBLE
+        // Becoming visible doesn't hand D-pad focus to anything by itself - without an
+        // explicit request nothing in the overlay is reachable at all, since no view had
+        // focus while it was hidden.
+        if (!binding.btnPlayPause.isFocused) binding.btnPlayPause.requestFocus()
         mainHandler.removeCallbacks(hideControlsRunnable)
         mainHandler.postDelayed(hideControlsRunnable, 4000)
     }
