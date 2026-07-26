@@ -139,6 +139,10 @@ class MainActivity : AppCompatActivity() {
     private val longStallCheckRunnable = Runnable { attemptBufferFailover() }
 
     private var provider: Provider = Provider()
+    // Kept around after a successful Jellyfin content load so a series' detail page can
+    // fetch its episodes without re-authenticating - Jellyfin's episode API has no
+    // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
+    private var jellyfinClient: JellyfinProvider? = null
     private var currentIndex = -1
     // Which episode queue (if any) is currently playing, so Next/Prev and
     // auto-advance-on-end know what "next episode" means. -1 = not playing an episode.
@@ -485,12 +489,20 @@ class MainActivity : AppCompatActivity() {
     private suspend fun loadJellyfinContent() {
         setStatus("Connecting to Jellyfin...", visible = true)
         try {
-            val username = provider.username ?: run { setStatus("No username", visible = true); return }
             val jellyfin = JellyfinProvider(BaseApplication.instance.okHttpClient)
-            val authResult = withContext(Dispatchers.IO) {
-                jellyfin.authenticate(provider.serverUrl ?: "", username, provider.password.orEmpty())
+            val savedToken = prefs.getString("jellyfin_token", null)
+            val savedUserId = prefs.getString("jellyfin_userid", null)
+            if (!savedToken.isNullOrBlank() && !savedUserId.isNullOrBlank()) {
+                // Quick Connect never yields a password to re-authenticate with later -
+                // reuse the session it already gave us instead.
+                jellyfin.restoreSession(provider.serverUrl ?: "", savedToken, savedUserId)
+            } else {
+                val username = provider.username ?: run { setStatus("No username", visible = true); return }
+                val authResult = withContext(Dispatchers.IO) {
+                    jellyfin.authenticate(provider.serverUrl ?: "", username, provider.password.orEmpty())
+                }
+                if (authResult.isFailure) { setStatus("Jellyfin auth error: ${authResult.exceptionOrNull()?.message?.take(60)}", visible = true); return }
             }
-            if (authResult.isFailure) { setStatus("Jellyfin auth error: ${authResult.exceptionOrNull()?.message?.take(60)}", visible = true); return }
 
             setStatus("Loading content...", visible = true)
             val items: List<Channel> = withContext(Dispatchers.IO) {
@@ -499,6 +511,9 @@ class MainActivity : AppCompatActivity() {
                 val series = jellyfin.getSeries().map { JellyfinProvider.toChannel(it, provider) }
                 liveItems + movies + series
             }
+            // Kept alive for fetching a Jellyfin series' episodes when its detail page
+            // opens - that has no Xtream equivalent path to fall back to.
+            jellyfinClient = jellyfin
             allChannels = items
             classifyAndShow()
             withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
@@ -1503,10 +1518,51 @@ class MainActivity : AppCompatActivity() {
         }
 
         val requestedItemId = item.id
+        val isJellyfin = provider.m3uUrl?.startsWith("jellyfin://") == true
         scope.launch {
             try {
                 val client = XtreamClient(BaseApplication.instance.okHttpClient)
-                if (isSeries) {
+                if (isSeries && isJellyfin) {
+                    sectionLabel.text = "Episodes"
+                    // The series list call that built `item` already carried its own
+                    // plot/genre/rating/backdrop - no separate per-series detail
+                    // endpoint needed like Xtream has.
+                    applyDetails(
+                        XtreamClient.ContentDetails(
+                            plot = item.description,
+                            genre = item.categoryName,
+                            rating = item.rating,
+                            backdropUrl = item.backdropUrl,
+                            releaseDate = item.releaseDate
+                        )
+                    )
+                    val jellyfin = jellyfinClient
+                    val episodes = if (jellyfin != null) withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) } else emptyList()
+                    if (nowShowingDetailId != requestedItemId) return@launch
+                    if (episodes.isEmpty()) {
+                        statusText.text = "No episodes found"
+                    } else {
+                        statusText.visibility = View.GONE
+                        itemsList.visibility = View.VISIBLE
+                        val seasons = episodes
+                            .groupBy { it.seasonNumber ?: 0 }
+                            .toSortedMap()
+                            .map { (num, eps) -> "Season $num" to eps.map { JellyfinProvider.toChannel(it, provider) } }
+                        if (seasons.size > 1) {
+                            seasonScroll.visibility = View.VISIBLE
+                            seasons.forEachIndexed { index, (label, _) ->
+                                val chip = layoutInflater.inflate(R.layout.item_category, seasonRow, false) as TextView
+                                chip.text = label
+                                chip.layoutParams = LinearLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                                ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
+                                chip.setOnClickListener { showSeason(seasons, index) }
+                                seasonRow.addView(chip)
+                            }
+                        }
+                        showSeason(seasons, 0)
+                    }
+                } else if (isSeries) {
                     sectionLabel.text = "Episodes"
                     val info = withContext(Dispatchers.IO) { client.getSeriesFull(provider, item.id) }
                     if (nowShowingDetailId != requestedItemId) return@launch
@@ -2433,6 +2489,8 @@ class MainActivity : AppCompatActivity() {
         val jellyfinUrl = dialogView.findViewById<EditText>(R.id.settingsJellyfinUrl)
         val jellyfinUser = dialogView.findViewById<EditText>(R.id.settingsJellyfinUser)
         val jellyfinPass = dialogView.findViewById<EditText>(R.id.settingsJellyfinPass)
+        val jellyfinQuickConnectLabel = dialogView.findViewById<TextView>(R.id.settingsJellyfinQuickConnectLabel)
+        val jellyfinQuickConnectButton = dialogView.findViewById<View>(R.id.settingsJellyfinQuickConnect)
         val hideNonEnglish = dialogView.findViewById<CheckBox>(R.id.settingsHideNonEnglish)
         val clearHistory = dialogView.findViewById<View>(R.id.settingsClearHistory)
         clearHistory.setOnClickListener {
@@ -2458,6 +2516,56 @@ class MainActivity : AppCompatActivity() {
         // it's sized - drop both so this renders as a genuine full screen instead.
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(getColor(R.color.canvas)))
         dialog.window?.setDimAmount(0f)
+
+        jellyfinQuickConnectButton.setOnClickListener {
+            val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
+            if (url.isBlank()) {
+                Toast.makeText(this, "Enter a server URL first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
+            scope.launch {
+                jellyfinQuickConnectLabel.text = "Starting…"
+                val (code, secret) = withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
+                    ?: run {
+                        jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
+                        Toast.makeText(this@MainActivity, "Couldn't start Quick Connect - check the server URL", Toast.LENGTH_LONG).show()
+                        return@launch
+                    }
+                jellyfinQuickConnectLabel.text = "Enter code $code on your Jellyfin server"
+                val deadline = System.currentTimeMillis() + 120_000L
+                var approved = false
+                while (System.currentTimeMillis() < deadline) {
+                    delay(2000)
+                    if (withContext(Dispatchers.IO) { qc.isQuickConnectApproved(url, secret) }) { approved = true; break }
+                }
+                if (!approved) {
+                    jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
+                    Toast.makeText(this@MainActivity, "Quick Connect timed out", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                jellyfinQuickConnectLabel.text = "Signing in…"
+                val authResult = withContext(Dispatchers.IO) { qc.completeQuickConnect(url, secret) }
+                val auth = authResult.getOrNull()
+                if (auth == null || auth.token == null || auth.userId == null) {
+                    jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
+                    Toast.makeText(this@MainActivity, "Quick Connect sign-in failed", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
+                // No password to save here - the token itself is the credential from now on.
+                prefs.edit()
+                    .putString("jellyfin_url", url)
+                    .putString("jellyfin_token", auth.token)
+                    .putString("jellyfin_userid", auth.userId)
+                    .putString("provider_type", "jellyfin")
+                    .apply()
+                provider = Provider(name = auth.serverName ?: "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url")
+                dialog.dismiss()
+                Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
+                loadM3uPlaylist(provider.m3uUrl!!)
+            }
+        }
 
         var serverRunning = false
         var currentType = if (provider.type == ProviderType.XTREAM) "xtream" else "m3u"

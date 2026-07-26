@@ -398,6 +398,26 @@
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
                         android:textSize="11sp" />
+
+                    <LinearLayout
+                        android:id="@+id/settingsJellyfinQuickConnect"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:stateListAnimator="@animator/focus_scale">
+                        <TextView
+                            android:id="@+id/settingsJellyfinQuickConnectLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Sign in with Quick Connect"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 

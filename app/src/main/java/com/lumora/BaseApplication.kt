@@ -2,6 +2,7 @@ package com.lumora
 
 import android.app.Application
 import com.lumora.data.local.LumoraDatabase
+import com.lumora.data.remote.jellyfin.JellyfinAuthInterceptor
 import com.lumora.data.sync.EpgSyncWorker
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -26,6 +27,7 @@ class BaseApplication : Application() {
             .followSslRedirects(true)
             .connectionPool(okhttp3.ConnectionPool(4, 30, TimeUnit.SECONDS))
             .dns(okhttp3.internal.platform.Platform.get().let { okhttp3.Dns.SYSTEM })
+            .addInterceptor(JellyfinAuthInterceptor())
             .build()
 
         database = LumoraDatabase.getInstance(this)
