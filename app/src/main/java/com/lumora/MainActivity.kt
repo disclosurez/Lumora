@@ -433,7 +433,8 @@ class MainActivity : AppCompatActivity() {
                 type = ProviderType.M3U,
                 m3uUrl = "jellyfin://" + (prefs.getString("jellyfin_url", "") ?: ""),
                 serverUrl = prefs.getString("jellyfin_url", null)?.let { normalizeServerUrl(it) },
-                username = prefs.getString("jellyfin_user", null)
+                username = prefs.getString("jellyfin_user", null),
+                password = prefs.getString("jellyfin_pass", null)
             )
             else -> Provider(
                 name = prefs.getString("provider_name", "M3U") ?: "M3U",
@@ -2850,7 +2851,7 @@ class MainActivity : AppCompatActivity() {
                     val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                     val user = jellyfinUser.text.toString().trim(); val pass = jellyfinPass.text.toString().trim()
-                    prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("provider_type", "jellyfin").apply()
+                    prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
                     provider = Provider(name = "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
                     dialog.dismiss()
                     Toast.makeText(this, "Jellyfin provider saved. Loading...", Toast.LENGTH_SHORT).show()
