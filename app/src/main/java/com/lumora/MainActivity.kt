@@ -1384,6 +1384,7 @@ class MainActivity : AppCompatActivity() {
         val castText = binding.detailCast
         val plotLabel = binding.detailPlotLabel
         val castLabel = binding.detailCastLabel
+        val releaseDateText = binding.detailReleaseDate
         val sectionLabel = binding.detailSectionLabel
         val statusText = binding.detailStatus
         val itemsList = binding.detailItemsList
@@ -1403,6 +1404,7 @@ class MainActivity : AppCompatActivity() {
         castText.visibility = View.GONE
         plotLabel.visibility = View.GONE
         castLabel.visibility = View.GONE
+        releaseDateText.visibility = View.GONE
         playButton.visibility = View.GONE
         favoriteButton.visibility = View.GONE
         downloadButton.visibility = View.GONE
@@ -1467,6 +1469,10 @@ class MainActivity : AppCompatActivity() {
 
         fun applyDetails(details: XtreamClient.ContentDetails?) {
             if (details == null) return
+            if (!details.releaseDate.isNullOrBlank()) {
+                releaseDateText.text = "Released: ${details.releaseDate}"
+                releaseDateText.visibility = View.VISIBLE
+            }
             if (!details.plot.isNullOrBlank()) {
                 plotText.text = details.plot
                 plotText.visibility = View.VISIBLE

@@ -596,6 +596,17 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/detailReleaseDate"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_tertiary"
+                            android:textSize="10sp"
+                            android:visibility="gone" />
+
+                        <TextView
                             android:id="@+id/detailPlotLabel"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

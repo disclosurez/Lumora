@@ -53,7 +53,8 @@ class XtreamClient(private val client: OkHttpClient) {
         val director: String? = null,
         val genre: String? = null,
         val backdropUrl: String? = null,
-        val rating: String? = null
+        val rating: String? = null,
+        val releaseDate: String? = null
     )
 
     /** Authenticate and get server info. */
@@ -176,7 +177,10 @@ class XtreamClient(private val client: OkHttpClient) {
             director = info.optString("director", "").ifBlank { null },
             genre = info.optString("genre", "").ifBlank { null },
             backdropUrl = backdrop?.ifBlank { null },
-            rating = info.optString("rating", "").ifBlank { null }
+            rating = info.optString("rating", "").ifBlank { null },
+            // Movies use "release_date", series use "releaseDate" - provider isn't
+            // consistent about which, so try both.
+            releaseDate = info.optString("release_date", info.optString("releaseDate", "")).ifBlank { null }
         )
     }
 

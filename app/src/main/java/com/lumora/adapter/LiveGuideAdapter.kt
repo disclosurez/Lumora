@@ -123,7 +123,7 @@ class LiveGuideAdapter(
         fun bind(channel: Channel) {
             current = channel
             numberText.text = channel.tvgChno?.takeIf { it.isNotBlank() } ?: ""
-            nameText.text = channel.name.let { if (it.length > 30) it.take(29) + "…" else it }
+            nameText.text = channel.name.let { if (it.length > 50) it.take(49) + "…" else it }
 
             val initial = channel.name.firstOrNull()?.uppercase() ?: "?"
             initialText.text = initial
