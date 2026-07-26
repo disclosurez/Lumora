@@ -1,0 +1,78 @@
+package com.lumora.download
+
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import com.lumora.model.Channel
+import com.lumora.model.MediaType
+
+private val FILENAME_UNSAFE_REGEX = Regex("""[^A-Za-z0-9._-]+""")
+
+/** Wraps Android's system DownloadManager - it survives app kill, shows system download
+ *  progress, and needs no storage permission when writing to the app's own external dir. */
+object VodDownloader {
+
+    fun enqueue(context: Context, channel: Channel): DownloadRecord {
+        val extension = channel.url.substringAfterLast('.', "mp4").takeIf { it.length in 2..4 } ?: "mp4"
+        val filename = FILENAME_UNSAFE_REGEX.replace(channel.name, "_").take(80) + "_${channel.id}.$extension"
+
+        val request = DownloadManager.Request(Uri.parse(channel.url))
+            .setTitle(channel.name)
+            .setDestinationInExternalFilesDir(context, "downloads", filename)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val downloadManagerId = downloadManager.enqueue(request)
+
+        val record = DownloadRecord(
+            id = channel.id,
+            title = channel.name,
+            subtitle = if (channel.mediaType == MediaType.SERIES) channel.categoryName ?: "Episode" else "Movie",
+            posterUrl = channel.posterUrl ?: channel.logoUrl,
+            mediaType = channel.mediaType.name,
+            downloadManagerId = downloadManagerId,
+            status = DownloadStatus.QUEUED
+        )
+        DownloadStore.add(context, record)
+        return record
+    }
+
+    /** Polls DownloadManager for this record's current state. Only writes back to disk on a status change, not every tick. */
+    fun refreshStatus(context: Context, record: DownloadRecord): DownloadRecord {
+        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val cursor = downloadManager.query(DownloadManager.Query().setFilterById(record.downloadManagerId)) ?: return record
+        cursor.use {
+            if (!it.moveToFirst()) return record.copy(status = DownloadStatus.FAILED)
+
+            val statusIdx = it.getColumnIndex(DownloadManager.COLUMN_STATUS)
+            val downloadedIdx = it.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+            val totalIdx = it.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+            val localUriIdx = it.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+
+            val dmStatus = it.getInt(statusIdx)
+            val downloaded = it.getLong(downloadedIdx)
+            val total = it.getLong(totalIdx)
+            val progress = if (total > 0) ((downloaded * 100) / total).toInt() else 0
+
+            val newStatus = when (dmStatus) {
+                DownloadManager.STATUS_SUCCESSFUL -> DownloadStatus.COMPLETE
+                DownloadManager.STATUS_FAILED -> DownloadStatus.FAILED
+                DownloadManager.STATUS_RUNNING -> DownloadStatus.DOWNLOADING
+                else -> DownloadStatus.QUEUED
+            }
+            val localPath = if (newStatus == DownloadStatus.COMPLETE) {
+                Uri.parse(it.getString(localUriIdx))?.path
+            } else null
+
+            val updated = record.copy(status = newStatus, progressPercent = progress, localFilePath = localPath ?: record.localFilePath)
+            if (newStatus != record.status) DownloadStore.update(context, updated)
+            return updated
+        }
+    }
+
+    fun delete(context: Context, record: DownloadRecord) {
+        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        runCatching { downloadManager.remove(record.downloadManagerId) }
+        DownloadStore.remove(context, record.id)
+    }
+}

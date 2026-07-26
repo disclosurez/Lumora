@@ -1,0 +1,11 @@
+.gradle/
+build/
+local.properties
+.slim/deepwork/
+*.iml
+.idea/
+
+# Signing - never commit the release key or its credentials
+*.jks
+*.keystore
+keystore.properties

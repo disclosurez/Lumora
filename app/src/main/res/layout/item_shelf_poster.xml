@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="140dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="12dp"
+    android:background="@drawable/bg_grid_card"
+    android:clickable="true"
+    android:focusable="true"
+    android:padding="3dp"
+    android:stateListAnimator="@animator/focus_scale">
+
+    <ImageView
+        android:id="@+id/itemPoster"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:background="@color/surface"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/grad_poster_scrim" />
+
+    <TextView
+        android:id="@+id/itemTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:padding="8dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:lineSpacingExtra="1dp"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+</FrameLayout>

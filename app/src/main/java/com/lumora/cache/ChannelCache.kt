@@ -1,0 +1,102 @@
+package com.lumora.cache
+
+import android.content.Context
+import android.util.Log
+import com.lumora.model.Channel
+import com.lumora.model.MediaType
+import java.io.BufferedReader
+import java.io.File
+
+private const val TAG = "ChannelCache"
+private const val CACHE_FILE = "channels_cache.txt"
+private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
+private const val FIELD_SEP = ''
+private const val FIELD_COUNT = 16
+
+/**
+ * Persists the last successfully loaded channel list to disk so re-opening the
+ * app shows content instantly instead of re-fetching the whole catalog every time.
+ *
+ * Plain delimited text, not JSON: org.json's tree parser was the dominant cost in
+ * "instant" cached loads once the catalog grew into the tens of thousands of items
+ * (a ~20MB JSON file took many seconds just to parse). A flat one-line-per-channel
+ * format needs only String.split() per line, no parser/DOM overhead.
+ */
+object ChannelCache {
+
+    fun save(context: Context, channels: List<Channel>) {
+        try {
+            val sb = StringBuilder(channels.size * 96)
+            for (ch in channels) {
+                sb.append(clean(ch.id)).append(FIELD_SEP)
+                sb.append(clean(ch.name)).append(FIELD_SEP)
+                sb.append(clean(ch.url)).append(FIELD_SEP)
+                sb.append(clean(ch.logoUrl)).append(FIELD_SEP)
+                sb.append(clean(ch.posterUrl)).append(FIELD_SEP)
+                sb.append(clean(ch.backdropUrl)).append(FIELD_SEP)
+                sb.append(clean(ch.group)).append(FIELD_SEP)
+                sb.append(clean(ch.tvgId)).append(FIELD_SEP)
+                sb.append(clean(ch.tvgName)).append(FIELD_SEP)
+                sb.append(clean(ch.tvgChno)).append(FIELD_SEP)
+                sb.append(ch.mediaType.name).append(FIELD_SEP)
+                sb.append(clean(ch.categoryId)).append(FIELD_SEP)
+                sb.append(clean(ch.categoryName)).append(FIELD_SEP)
+                sb.append(clean(ch.description)).append(FIELD_SEP)
+                sb.append(clean(ch.year)).append(FIELD_SEP)
+                sb.append(clean(ch.rating)).append('\n')
+            }
+            File(context.filesDir, CACHE_FILE).writeText(sb.toString())
+            runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save cache: ${e.message}")
+        }
+    }
+
+    fun load(context: Context): List<Channel>? {
+        val file = File(context.filesDir, CACHE_FILE)
+        if (!file.exists()) return null
+        return try {
+            val result = ArrayList<Channel>(50_000)
+            file.bufferedReader().use { reader: BufferedReader ->
+                reader.forEachLine { line ->
+                    if (line.isBlank()) return@forEachLine
+                    val f = line.split(FIELD_SEP)
+                    if (f.size < FIELD_COUNT) return@forEachLine
+                    result.add(
+                        Channel(
+                            id = f[0],
+                            name = f[1],
+                            url = f[2],
+                            logoUrl = f[3].ifEmpty { null },
+                            posterUrl = f[4].ifEmpty { null },
+                            backdropUrl = f[5].ifEmpty { null },
+                            group = f[6].ifEmpty { null },
+                            tvgId = f[7].ifEmpty { null },
+                            tvgName = f[8].ifEmpty { null },
+                            tvgChno = f[9].ifEmpty { null },
+                            mediaType = runCatching { MediaType.valueOf(f[10]) }.getOrDefault(MediaType.LIVE),
+                            categoryId = f[11].ifEmpty { null },
+                            categoryName = f[12].ifEmpty { null },
+                            description = f[13].ifEmpty { null },
+                            year = f[14].ifEmpty { null },
+                            rating = f[15].ifEmpty { null }
+                        )
+                    )
+                }
+            }
+            result
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load cache: ${e.message}")
+            null
+        }
+    }
+
+    fun clear(context: Context) {
+        runCatching { File(context.filesDir, CACHE_FILE).delete() }
+        runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
+    }
+
+    /** Strips characters that would corrupt the line/field format; real channel data never needs them. */
+    private fun clean(value: String?): String =
+        value?.replace(FIELD_SEP, ' ')?.replace('\n', ' ')?.replace('\r', ' ') ?: ""
+}

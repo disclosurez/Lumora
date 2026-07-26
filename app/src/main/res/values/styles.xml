@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Settings nav rail row (icon chip + label), StreamVault-style -->
+    <style name="Widget.Lumora.SettingsNavRow" parent="@android:style/Widget">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:background">@drawable/nav_rail_item_background</item>
+        <item name="android:focusable">true</item>
+        <item name="android:clickable">true</item>
+        <item name="android:layout_marginBottom">4dp</item>
+    </style>
+
+    <style name="Widget.Lumora.SettingsNavIcon" parent="@android:style/Widget">
+        <item name="android:layout_width">26dp</item>
+        <item name="android:layout_height">26dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/shape_square_chip</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="Widget.Lumora.SettingsNavLabel" parent="@android:style/Widget">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">12dp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <!-- Settings section title, shown at the top of each content pane -->
+    <style name="TextAppearance.Lumora.SettingsTitle" parent="@android:style/TextAppearance">
+        <item name="android:textSize">21sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:paddingBottom">16dp</item>
+    </style>
+
+    <style name="TextAppearance.Lumora.SettingsSubtitle" parent="@android:style/TextAppearance">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:paddingBottom">16dp</item>
+    </style>
+
+</resources>

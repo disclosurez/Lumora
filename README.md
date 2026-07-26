@@ -1,0 +1,114 @@
+# Lumora
+
+**Lumora** is a fast, lightweight IPTV client for Android, Android TV, and Fire TV. It's built as a native XML/View app (no Jetpack Compose) specifically to stay smooth on low-powered TV boxes and streaming sticks, where heavier UI frameworks can pin the CPU and tank playback performance.
+
+Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, and brings Live TV, Movies, and Series together under one clean, D-pad-friendly interface.
+
+## Features
+
+### Live TV
+- **Xtream Codes, M3U/M3U8, Stalker Portal, and Jellyfin** provider support
+- **Smart channel merging** — automatically collapses duplicate channel feeds (different quality tiers, source tags, or provider re-listings of the same channel) into a single entry, auto-selecting the best available quality (4K/UHD → FHD → HD → SD), with instant manual fallback to any other version mid-playback
+- **Dynamic categories** — Sports, News, Music, and Cinema surface automatically at the top of the channel list, pulling in matching content regardless of which raw provider category it's filed under; everything else cascades below
+- **Brand/franchise clustering** — channel families (e.g. all Sky Sports or TNT Sports feeds) group into a single expandable category automatically
+- **Live EPG guide** — scrollable program grid with per-channel schedules, "now playing" info, and program reminders
+- **Picture-in-picture live preview** while browsing the channel list
+- **Timeshift/catch-up** playback where the provider supports it
+- **DVR recording** — schedule and manage recordings directly from the guide
+
+### Movies & Series
+- Full VOD library browsing with Netflix-style category shelves
+- Duplicate/version merging for movies re-listed under multiple source tags
+- Season/episode browser with **episode-level "Continue Watching"** — resumes the exact episode you left off on, and auto-advances to the next episode when one finishes
+- Poster grid view for browsing a full category, plus a global search with poster results
+- Pin, hide, and "See All" controls on every category shelf
+
+### Playback
+- Built on **Media3 (ExoPlayer)** with HLS, DASH, and RTSP support
+- Adjustable playback speed, sleep timer, aspect ratio control, audio/subtitle track selection
+- Automatic quality/source failover on stream error or sustained buffering
+- Google Cast support
+- Android TV **TV Input Framework** integration (live channels surface in the system TV app) and **Watch Next** row support
+
+### Other
+- QR-code pairing — configure a provider on your phone, scan to push it to the TV instantly
+- Parental controls with PIN-gated adult content filtering
+- Non-English content filtering
+- Local backup/restore (JSON export/import) plus optional Google Drive backup
+- Downloads manager for offline movie/episode playback (phone only)
+- Custom EPG source support (XMLTV)
+
+## Tech Stack
+
+- **Language:** Kotlin
+- **UI:** Android Views/XML (deliberately not Compose — see [Why not Compose?](#why-not-compose) below)
+- **Playback:** [AndroidX Media3](https://developer.android.com/media/media3) (ExoPlayer)
+- **Persistence:** Room, WorkManager (background sync), SharedPreferences
+- **Networking:** OkHttp
+- **Min SDK:** 25 (Android 7.1) · **Target SDK:** 36
+
+## Why not Compose?
+
+Lumora targets real-world Android TV/Fire TV hardware, including budget MediaTek-based streaming sticks. In practice, Compose-based UI on this class of device — particularly around video playback surfaces and frequent recomposition in list-heavy screens — can pin the CPU and cause dropped frames or stutter during playback. Lumora's UI is built entirely on the classic View system to keep the app responsive on the hardware people actually watch TV on.
+
+## Building from Source
+
+```bash
+git clone https://github.com/disclosurez/lumora.git
+cd lumora
+./gradlew :app:assembleDebug
+```
+
+The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Release builds
+
+Release builds are signed using a keystore referenced by `keystore.properties` in the project root (not committed — see `.gitignore`). To build a release APK yourself, create your own keystore and a `keystore.properties` file:
+
+```properties
+storeFile=path/to/your.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
+
+Then run:
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+## Installation
+
+Grab the latest signed APK from the [Releases](https://github.com/disclosurez/lumora/releases) page and sideload it. Lumora checks GitHub Releases on launch and will prompt you when a new version is available.
+
+## Project Structure
+
+```
+app/src/main/java/com/lumora/
+├── adapter/       RecyclerView adapters (channels, categories, shelves, episodes, ...)
+├── cache/         Local caches (favorites, playback position, watch history, ...)
+├── data/          Providers, Room database, backup, sync workers, update checker
+├── download/      Offline download manager
+├── model/         Core data models (Channel, Provider, CategoryFilter, ...)
+├── pairing/       QR provider-pairing flow
+├── parser/        M3U / Xtream Codes parsing
+├── player/        Playback stack (ExoPlayer wrapper, Cast, subtitles, media session)
+├── plugin/        Provider plugin interface
+├── recording/      DVR scheduling and capture
+├── reminder/      Program reminder scheduling
+├── tv/            Android TV Input Framework integration
+└── util/          Shared helpers (content grouping/dedup, URL utils, ...)
+```
+
+## Contributing
+
+Issues and pull requests are welcome. Please open an issue describing the change before submitting a large PR.
+
+## Disclaimer
+
+Lumora is a generic IPTV client. It does not host, provide, or endorse any specific content or IPTV service — it simply plays streams from whatever provider (Xtream Codes, M3U playlist, Stalker Portal, or Jellyfin server) you configure it with. You are responsible for ensuring you have the right to access any content you stream through it.
+
+## License
+
+No license has been specified for this project yet. All rights reserved by the author unless/until a license is added.

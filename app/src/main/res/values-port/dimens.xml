@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Portrait phone screens are typically 360-430dp wide - the TV-sized 240dp sidebar
+         plus a 144dp fixed guide column left near nothing for actual content, causing
+         cutoff/overlap. Scale everything down to fit a phone-width screen. -->
+    <dimen name="category_sidebar_width">200dp</dimen>
+    <dimen name="live_preview_width">140dp</dimen>
+    <dimen name="live_preview_height">79dp</dimen>
+    <dimen name="guide_channel_column_width">220dp</dimen>
+</resources>
