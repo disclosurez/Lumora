@@ -452,7 +452,7 @@ class MainActivity : AppCompatActivity() {
                 name = prefs.getString("provider_name", "Jellyfin") ?: "Jellyfin",
                 type = ProviderType.M3U,
                 m3uUrl = "jellyfin://" + (prefs.getString("jellyfin_url", "") ?: ""),
-                serverUrl = prefs.getString("jellyfin_url", null)?.let { normalizeServerUrl(it) },
+                serverUrl = prefs.getString("jellyfin_url", null)?.let { normalizeServerUrl(it, defaultScheme = "https") },
                 username = prefs.getString("jellyfin_user", null),
                 password = prefs.getString("jellyfin_pass", null)
             )
@@ -480,6 +480,23 @@ class MainActivity : AppCompatActivity() {
                 "jellyfin" -> loadJellyfinContent()
                 else -> loadM3uPlaylist(provider.m3uUrl!!)
             }
+        }
+    }
+
+    /** Reloads whatever's currently configured in [provider], routed by actual provider
+     *  type - Stalker/Jellyfin are both stored as ProviderType.M3U with a "stalker://"/
+     *  "jellyfin://" marker prefix on m3uUrl (there's no dedicated ProviderType for them),
+     *  so passing that string straight to loadM3uPlaylist() sends it to OkHttp as a literal
+     *  URL and fails immediately with "Expected URL scheme 'http' or 'https' but was
+     *  'jellyfin'" - every call site that just finished setting up one of those two needs
+     *  this instead of assuming M3U. */
+    private fun loadConfiguredProvider() {
+        when {
+            provider.type == ProviderType.XTREAM -> loadXtreamContent()
+            provider.m3uUrl?.startsWith("stalker://") == true -> scope.launch { loadStalkerContent() }
+            provider.m3uUrl?.startsWith("jellyfin://") == true -> scope.launch { loadJellyfinContent() }
+            !provider.m3uUrl.isNullOrBlank() -> loadM3uPlaylist(provider.m3uUrl!!)
+            else -> showProviderSettings()
         }
     }
 
@@ -1960,10 +1977,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun reloadCurrentProvider() {
-        when (provider.type) {
-            ProviderType.XTREAM -> if (provider.serverUrl != null) loadXtreamContent() else showProviderSettings()
-            ProviderType.M3U -> if (!provider.m3uUrl.isNullOrBlank()) loadM3uPlaylist(provider.m3uUrl!!) else showProviderSettings()
-        }
+        if (!hasProviderConfigured()) { showProviderSettings(); return }
+        loadConfiguredProvider()
     }
 
     // ── Player ─────────────────────────────────────
@@ -2736,6 +2751,27 @@ class MainActivity : AppCompatActivity() {
         val jellyfinQuickConnectButton = dialogView.findViewById<View>(R.id.settingsJellyfinQuickConnect)
         val hideNonEnglish = dialogView.findViewById<CheckBox>(R.id.settingsHideNonEnglish)
         val clearHistory = dialogView.findViewById<View>(R.id.settingsClearHistory)
+
+        // Current-provider summary + remove - the only "manage what's already configured"
+        // affordance previously was silently overwriting it by re-saving through the same
+        // form; this makes what's active visible and lets it actually be cleared.
+        val currentProviderCard = dialogView.findViewById<View>(R.id.settingsCurrentProviderCard)
+        val currentProviderName = dialogView.findViewById<TextView>(R.id.settingsCurrentProviderName)
+        val currentProviderDetail = dialogView.findViewById<TextView>(R.id.settingsCurrentProviderDetail)
+        val removeProviderButton = dialogView.findViewById<View>(R.id.settingsRemoveProvider)
+        val currentProviderTypeLabel = when (prefs.getString("provider_type", "m3u")) {
+            "xtream" -> "Xtream"
+            "stalker" -> "Stalker Portal"
+            "jellyfin" -> "Jellyfin"
+            else -> "M3U Playlist"
+        }
+        if (hasProviderConfigured()) {
+            currentProviderCard.visibility = View.VISIBLE
+            currentProviderName.text = "Current provider: $currentProviderTypeLabel"
+            currentProviderDetail.text = (provider.serverUrl ?: provider.m3uUrl ?: "").removePrefix("jellyfin://").removePrefix("stalker://")
+        } else {
+            currentProviderCard.visibility = View.GONE
+        }
         clearHistory.setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle("Clear watch history?")
@@ -2757,8 +2793,37 @@ class MainActivity : AppCompatActivity() {
             initialFocus = dialogView.findViewById(R.id.settingsProviderTypeSpinner)
         )
 
+        removeProviderButton.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Remove provider?")
+                .setMessage("Clears the saved $currentProviderTypeLabel server/login details. You'll need to add a provider again to keep watching.")
+                .setPositiveButton("Remove") { _, _ ->
+                    prefs.edit()
+                        .remove("provider_type")
+                        .remove("m3u_url").remove("user_agent")
+                        .remove("xtream_url").remove("xtream_user").remove("xtream_pass")
+                        .remove("xtream_exp_date").remove("xtream_is_trial")
+                        .remove("stalker_url").remove("stalker_mac").remove("stalker_serial")
+                        .remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
+                        .remove("jellyfin_token").remove("jellyfin_userid")
+                        .apply()
+                    provider = Provider(name = "", type = ProviderType.M3U)
+                    jellyfinClient = null
+                    allChannels = emptyList()
+                    liveChannels = emptyList(); filmList = emptyList(); seriesList = emptyList()
+                    ChannelCache.clear(this)
+                    binding.emptyState.visibility = View.VISIBLE
+                    binding.contentRow.visibility = View.GONE
+                    binding.homeContent.visibility = View.GONE
+                    Toast.makeText(this, "Provider removed", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
         jellyfinQuickConnectButton.setOnClickListener {
-            val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
+            val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
             if (url.isBlank()) {
                 Toast.makeText(this, "Enter a server URL first", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -2770,7 +2835,7 @@ class MainActivity : AppCompatActivity() {
                 if (ok) {
                     dialog.dismiss()
                     Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
-                    loadM3uPlaylist(provider.m3uUrl!!)
+                    loadJellyfinContent()
                 } else {
                     Toast.makeText(this@MainActivity, lastMsg, Toast.LENGTH_LONG).show()
                 }
@@ -2778,7 +2843,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         var serverRunning = false
-        var currentType = if (provider.type == ProviderType.XTREAM) "xtream" else "m3u"
+        // provider.type only distinguishes XTREAM from "everything else stored as an M3U
+        // url" (Stalker/Jellyfin both are, via a "stalker://"/"jellyfin://" prefix) - the
+        // saved provider_type pref is the one place that actually says which of those it
+        // is, and is what should decide which fields the settings screen opens showing.
+        var currentType = prefs.getString("provider_type", "m3u") ?: "m3u"
 
         fun selectType(type: String) {
             currentType = type
@@ -2857,13 +2926,13 @@ class MainActivity : AppCompatActivity() {
                         // still handling the phone's POST, so the code can be shown on both
                         // screens) and calls onProviderReceived with type "jellyfin_quickconnect"
                         // instead. This path is password-only.
-                        val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
+                        val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it, defaultScheme = "https") } ?: return@runOnUiThread
                         val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
                         provider = Provider(name = form["name"] ?: "QR Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
                         prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
                         stopQrServer()
                         dialog.dismiss()
-                        loadM3uPlaylist(provider.m3uUrl!!)
+                        scope.launch { loadJellyfinContent() }
                     }
                     "jellyfin_quickconnect" -> {
                         val url = form["serverUrl"] ?: return@runOnUiThread
@@ -2877,7 +2946,7 @@ class MainActivity : AppCompatActivity() {
                                 stopQrServer()
                                 dialog.dismiss()
                                 Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
-                                loadM3uPlaylist(provider.m3uUrl!!)
+                                loadJellyfinContent()
                             } else {
                                 qrStatus.text = lastMsg
                             }
@@ -3214,17 +3283,17 @@ class MainActivity : AppCompatActivity() {
                     provider = Provider(name = "Stalker", type = ProviderType.M3U, m3uUrl = "stalker://$url", userAgent = mac)
                     dialog.dismiss()
                     Toast.makeText(this, "Stalker provider saved. Loading...", Toast.LENGTH_SHORT).show()
-                    loadM3uPlaylist(provider.m3uUrl!!)
+                    scope.launch { loadStalkerContent() }
                 }
                 "jellyfin" -> {
-                    val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
+                    val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                     val user = jellyfinUser.text.toString().trim(); val pass = jellyfinPass.text.toString().trim()
                     prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
                     provider = Provider(name = "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
                     dialog.dismiss()
                     Toast.makeText(this, "Jellyfin provider saved. Loading...", Toast.LENGTH_SHORT).show()
-                    loadM3uPlaylist(provider.m3uUrl!!)
+                    scope.launch { loadJellyfinContent() }
                 }
             }
         }

@@ -102,7 +102,8 @@ class JellyfinProvider(private val client: OkHttpClient) {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                return Result.failure(Exception("Auth failed: HTTP ${response.code}"))
+                val detail = response.body?.string()?.take(160)?.takeIf { it.isNotBlank() }
+                return Result.failure(Exception("Auth failed: HTTP ${response.code}" + (detail?.let { ": $it" } ?: "")))
             }
 
             val body = response.body?.string() ?: return Result.failure(Exception("Empty response"))
@@ -122,7 +123,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
                 Result.failure(Exception("Invalid auth response"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            // Bare exception messages from OkHttp ("Unable to resolve host", a TLS
+            // handshake failure, connection refused) are exactly what's needed to tell a
+            // wrong-scheme/unreachable-server problem apart from a real auth rejection -
+            // surfaced as-is instead of swallowed, since there's nowhere else (no log
+            // access on a TV) a user could see this otherwise.
+            Result.failure(Exception(e.message ?: e.toString(), e))
         }
     }
 
@@ -214,7 +220,10 @@ class JellyfinProvider(private val client: OkHttpClient) {
                 .build()
 
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return Result.failure(Exception("Quick Connect login failed: HTTP ${response.code}"))
+            if (!response.isSuccessful) {
+                val detail = response.body?.string()?.take(160)?.takeIf { it.isNotBlank() }
+                return Result.failure(Exception("Quick Connect login failed: HTTP ${response.code}" + (detail?.let { ": $it" } ?: "")))
+            }
             val body = response.body?.string() ?: return Result.failure(Exception("Empty response"))
             val json = JSONObject(body)
 

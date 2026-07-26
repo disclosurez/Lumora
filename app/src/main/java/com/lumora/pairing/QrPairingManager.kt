@@ -203,7 +203,7 @@ class QrPairingManager(private val context: Context) {
                         // synchronously, so the same code/secret pair can be shown on the
                         // phone (this response) and handed to the TV to poll/complete,
                         // instead of each side minting its own separate code.
-                        val serverUrl = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it) } ?: ""
+                        val serverUrl = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it, defaultScheme = "https") } ?: ""
                         val starter = onJellyfinQuickConnect
                         val result = starter?.invoke(serverUrl)
                         if (result?.code == null || result.secret == null) {
