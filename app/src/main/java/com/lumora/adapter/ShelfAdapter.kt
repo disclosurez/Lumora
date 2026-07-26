@@ -93,14 +93,20 @@ class ShelfAdapter(
         }
 
         private fun wireVerticalFocus() {
-            val outerRv = outerRecyclerView ?: return
+            val outerRv = outerRecyclerView
             val pos = bindingAdapterPosition
-            if (pos == RecyclerView.NO_POSITION) return
-            val targetId = if (pos == 0) {
-                topAnchorViewId.takeIf { it != View.NO_ID }
-            } else {
-                (outerRv.findViewHolderForAdapterPosition(pos - 1) as? ShelfViewHolder)?.let { ensureViewId(it.itemsList) }
-            } ?: return
+            // Always assign - including View.NO_ID on failure - rather than returning early
+            // and leaving whatever was set before. This ShelfViewHolder instance gets
+            // recycled to render different shelves as the list scrolls; if a stale target
+            // (e.g. the tab bar, from when this same instance was rendering shelf 0) were
+            // left in place because the lookup below happened to fail on a later bind, UP
+            // would jump to the wrong place - it did, this is why.
+            val targetId = when {
+                outerRv == null || pos == RecyclerView.NO_POSITION -> View.NO_ID
+                pos == 0 -> topAnchorViewId
+                else -> (outerRv.findViewHolderForAdapterPosition(pos - 1) as? ShelfViewHolder)
+                    ?.let { ensureViewId(it.itemsList) } ?: View.NO_ID
+            }
             posterAdapter.nextFocusUpTargetId = targetId
         }
 

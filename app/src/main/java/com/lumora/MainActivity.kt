@@ -1704,7 +1704,24 @@ class MainActivity : AppCompatActivity() {
                         showSeason(info.seasons, 0)
                     }
                 } else {
-                    val details = withContext(Dispatchers.IO) { client.getVodInfo(provider, item.id) }
+                    // Xtream has a separate get_vod_info call for a film's plot/cast/genre;
+                    // Jellyfin has no equivalent (nor any need for one) - the item already
+                    // carries all of that from the catalog fetch, same as the series branch
+                    // above. Calling getVodInfo() here regardless of provider used to send
+                    // an Xtream-shaped request with a Jellyfin item id to an Xtream-only
+                    // endpoint, which is why overview/cast/genre came back empty for every
+                    // Jellyfin film.
+                    val details = if (isJellyfin) {
+                        XtreamClient.ContentDetails(
+                            plot = item.description,
+                            genre = item.categoryName,
+                            rating = item.rating,
+                            backdropUrl = item.backdropUrl,
+                            releaseDate = item.releaseDate
+                        )
+                    } else {
+                        withContext(Dispatchers.IO) { client.getVodInfo(provider, item.id) }
+                    }
                     if (nowShowingDetailId != requestedItemId) return@launch
                     applyDetails(details)
                     val versions = filmVersions[item.id] ?: listOf(item)
