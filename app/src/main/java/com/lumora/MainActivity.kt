@@ -386,6 +386,16 @@ class MainActivity : AppCompatActivity() {
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { navigateChannel(1); return true }
             }
         }
+        // Fire TV remote's center/select button - only intercept while the overlay is
+        // hidden (reveal it); if it's already showing, let the press through normally so
+        // it activates whatever button is currently focused instead of eating the click.
+        if (isPlayerVisible &&
+            (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER) &&
+            binding.controlsOverlay.visibility != View.VISIBLE
+        ) {
+            showControls()
+            return true
+        }
         return super.onKeyDown(keyCode, event)
     }
 
