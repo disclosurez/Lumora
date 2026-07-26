@@ -387,9 +387,11 @@ class MainActivity : AppCompatActivity() {
 
     /** DPAD up/down channel-surfs while fullscreen on a live channel, without needing the on-screen controls. */
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
-        // Live channel-surf stays a blind shortcut regardless of controls visibility -
-        // checked first so the generic "reveal controls" fallback below never steals it.
-        if (isPlayerVisible && nowPlayingChannel?.mediaType == MediaType.LIVE) {
+        // Live channel-surf is a blind shortcut only while the controls are hidden - once
+        // they're showing, UP/DOWN needs to navigate between buttons (transport row ->
+        // seek bar -> Speed/Sleep/Cast/...) instead of surfing channels out from under
+        // whatever the user's trying to select.
+        if (isPlayerVisible && nowPlayingChannel?.mediaType == MediaType.LIVE && binding.controlsOverlay.visibility != View.VISIBLE) {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP -> { navigateChannel(-1); return true }
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { navigateChannel(1); return true }
@@ -915,10 +917,18 @@ class MainActivity : AppCompatActivity() {
      *  lookup flashing onto the sidebar as a real, visible submitList(). */
     private suspend fun rebuildCategoriesForActiveTab(): List<CategoryFilter> {
         val categories = buildCategoriesForActiveTab()
+        submitCategories(categories)
+        return categories
+    }
+
+    /** Just the sidebar-render step, split out so a caller that already has a freshly-built
+     *  list (selectTab()'s default-category lookup) can render it without recomputing -
+     *  buildCategoriesForActiveTab() rescans every channel in the tab (brand clustering in
+     *  particular is O(channel count)), so on a large catalog that's real time saved. */
+    private fun submitCategories(categories: List<CategoryFilter>) {
         binding.categorySidebar.visibility = if (categories.size > 1) View.VISIBLE else View.GONE
         categoryAdapter.setSelected(selectedRowId)
         categoryAdapter.submitList(categories)
-        return categories
     }
 
     private suspend fun buildCategoriesForActiveTab(): List<CategoryFilter> {
@@ -1203,7 +1213,8 @@ class MainActivity : AppCompatActivity() {
         // First tap on a parent just selects/filters it - expand only toggles on a second
         // tap while it's already the selected row, so picking a category doesn't also
         // dump its whole child list open unasked for.
-        if (category.isParent && selectedRowId == category.id) {
+        val expandChanged = category.isParent && selectedRowId == category.id
+        if (expandChanged) {
             val id = category.id!!
             if (!expandedGroupKeys.remove(id)) expandedGroupKeys.add(id)
         }
@@ -1212,9 +1223,20 @@ class MainActivity : AppCompatActivity() {
         selectedCategoryLabel = category.name
         selectedBrandChannelIds = category.channelIds.ifEmpty { null }
         selectedCategoryIds = if (category.id == null || category.channelIds.isNotEmpty()) null else category.matchIds
-        scope.launch {
-            rebuildCategoriesForActiveTab()
-            applyCategoryFilter()
+        if (expandChanged) {
+            // Which rows exist actually changes (children appear/disappear) - needs a
+            // real rebuild.
+            scope.launch {
+                rebuildCategoriesForActiveTab()
+                applyCategoryFilter()
+            }
+        } else {
+            // Just the highlighted row + filtered content changed, not which rows exist -
+            // rebuilding the whole list (rescans every channel in the tab) for that alone
+            // is exactly the "picking a category takes forever" complaint. setSelected()
+            // already re-renders the sidebar's highlight on its own.
+            categoryAdapter.setSelected(selectedRowId)
+            scope.launch { applyCategoryFilter() }
         }
     }
 
@@ -1363,32 +1385,28 @@ class MainActivity : AppCompatActivity() {
             // seconds on a large catalog - show the same loading indicator as app startup
             // instead of leaving the tab looking empty/frozen while it works.
             setStatus("Loading...", visible = true)
-            // Look up the target category with the side-effect-free builder first - using
-            // rebuildCategoriesForActiveTab() (which submits to the sidebar) for these
-            // intermediate lookups would render each one, flashing "All" and then an
-            // expanded-but-nothing-selected Sports bucket before finally landing on Sky
-            // Sports a moment later.
-            var categories = buildCategoriesForActiveTab()
             // Live TV opens straight into Sky Sports (under the Sports bucket) rather than
-            // the unfiltered "All" list - that's what people actually came here for. Falls
-            // through to the Sports bucket itself, then to All, if either's missing (e.g.
-            // classic layout, or no matching channels in the catalog).
+            // the unfiltered "All" list - that's what people actually came here for. The
+            // Sports bucket's id is deterministic ("dynbucket:Sports"), so it's expanded
+            // *before* the one build call below instead of building once to discover it
+            // exists and again with it expanded - buildCategoriesForActiveTab() rescans
+            // every channel in the tab (brand clustering especially), so on a large catalog
+            // halving those passes is a real difference in how long the tab takes to open.
+            if (index == 0) expandedGroupKeys.add("dynbucket:Sports")
+            val categories = buildCategoriesForActiveTab()
             if (index == 0) {
-                val sportsBucket = categories.firstOrNull { it.id == "dynbucket:Sports" }
-                var target: CategoryFilter? = sportsBucket
-                if (sportsBucket != null) {
-                    expandedGroupKeys.add(sportsBucket.id!!)
-                    categories = buildCategoriesForActiveTab()
-                    categories.firstOrNull { it.isChild && it.name.lowercase().startsWith("sky sports") }?.let { target = it }
-                }
+                // Falls through to the bucket itself, then to All, if either's missing
+                // (e.g. classic layout, or no matching channels in the catalog).
+                val target = categories.firstOrNull { it.isChild && it.name.lowercase().startsWith("sky sports") }
+                    ?: categories.firstOrNull { it.id == "dynbucket:Sports" }
                 if (target != null) {
-                    selectedRowId = target!!.id
-                    selectedCategoryLabel = target!!.name
-                    selectedBrandChannelIds = target!!.channelIds.ifEmpty { null }
-                    selectedCategoryIds = if (target!!.channelIds.isNotEmpty()) null else target!!.matchIds
+                    selectedRowId = target.id
+                    selectedCategoryLabel = target.name
+                    selectedBrandChannelIds = target.channelIds.ifEmpty { null }
+                    selectedCategoryIds = if (target.channelIds.isNotEmpty()) null else target.matchIds
                 }
             }
-            rebuildCategoriesForActiveTab()
+            submitCategories(categories)
             applyCategoryFilter(focusFirstLiveChannel = index == 0)
             binding.categorySidebar.scrollToPosition(0)
             setStatus("", visible = false)
@@ -2147,6 +2165,12 @@ class MainActivity : AppCompatActivity() {
         val versions = liveVersions[channel.id]
         currentVersionGroup = versions ?: listOf(channel)
         currentVersionIndex = 0
+        // channel.name is the cleaned/generic representative name (guide/shelf display) -
+        // the player card shows the exact raw version actually playing instead, same as
+        // switchToVersionIndex() does on failover/manual switch.
+        if (channel.mediaType == MediaType.LIVE) {
+            binding.playerChannelName.text = currentVersionGroup.getOrNull(0)?.name ?: channel.name
+        }
 
         resetStallTracking()
         binding.playerAspectContainer.videoAspectRatio = 0f
@@ -2173,6 +2197,7 @@ class MainActivity : AppCompatActivity() {
         val next = currentVersionGroup[index]
         resetStallTracking()
         binding.playerAspectContainer.videoAspectRatio = 0f
+        binding.playerChannelName.text = next.name
         Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
         binding.bufferingSpinner.visibility = View.VISIBLE
         playerManager.playUrl(next.url, provider.userAgent)
