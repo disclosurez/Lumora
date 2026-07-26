@@ -59,7 +59,8 @@ class CategoryAdapter(
             // A negative count is a sentinel for non-filtering utility rows (e.g. the
             // classic-layout toggle) that have nothing meaningful to count.
             val countSuffix = if (category.count >= 0) " (${category.count})" else ""
-            textView.text = "$chevron$pinPrefix${category.name}$countSuffix"
+            val name = category.name.let { if (it.length > 40) it.take(39) + "…" else it }
+            textView.text = "$chevron$pinPrefix$name$countSuffix"
             textView.isSelected = selected
             textView.setTextColor(
                 textView.context.getColor(if (selected) R.color.text_primary else R.color.text_secondary)

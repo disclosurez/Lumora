@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- TV/landscape defaults - plenty of width to spare for a persistent sidebar + overlay preview. -->
-    <dimen name="category_sidebar_width">300dp</dimen>
+    <dimen name="category_sidebar_width">220dp</dimen>
     <dimen name="live_preview_width">240dp</dimen>
     <dimen name="live_preview_height">126dp</dimen>
-    <dimen name="guide_channel_column_width">260dp</dimen>
+    <dimen name="guide_channel_column_width">170dp</dimen>
 </resources>
