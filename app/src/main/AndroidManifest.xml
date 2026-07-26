@@ -43,6 +43,19 @@
             </intent-filter>
         </activity>
 
+        <!-- APK downloaded by AppUpdateInstaller lives in public Downloads; this is what
+             lets the system package installer read it via a content:// URI on API 24+
+             instead of a raw file:// path, which is blocked since Android N. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Reminder receivers -->
         <receiver android:name=".reminder.ReminderAlarmReceiver" android:exported="false" />
         <receiver android:name=".reminder.ReminderBootReceiver" android:exported="false">

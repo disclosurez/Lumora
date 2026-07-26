@@ -256,6 +256,7 @@ class MainActivity : AppCompatActivity() {
         setupToolbar()
         loadSavedProvider()
         requestNotificationPermissionIfNeeded()
+        checkAndPromptUpdate()
 
         // Downloads are a mobile-only affordance - a TV box has nowhere meaningful to
         // browse a downloaded file, and it's not what "download for offline" means there.
@@ -278,6 +279,47 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
+    }
+
+    /** Checked once per launch, straight off GitHub Releases - not tucked inside Settings. */
+    private fun checkAndPromptUpdate() {
+        scope.launch {
+            val updater = AppUpdateChecker(this@MainActivity)
+            val info = withContext(Dispatchers.IO) { updater.checkForUpdate() } ?: return@launch
+            if (!info.isUpdateAvailable || info.downloadUrl.isBlank()) return@launch
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Update available")
+                .setMessage("Lumora v${info.latestVersion} is available.\nCurrent: v${info.currentVersion}\n\n${info.releaseNotes.take(200)}")
+                .setPositiveButton("Update") { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
+                .setNegativeButton("Later", null)
+                .show()
+        }
+    }
+
+    /** Downloads the release APK via DownloadManager, then hands it to the system package
+     *  installer as soon as the download finishes - no separate "tap to install" step. */
+    private fun downloadAndInstallUpdate(downloadUrl: String, versionName: String) {
+        val installer = AppUpdateInstaller(this)
+        val downloadId = installer.downloadApk(downloadUrl, versionName)
+        Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show()
+        scope.launch {
+            while (true) {
+                delay(1000)
+                if (installer.isDownloadFailed(downloadId)) {
+                    Toast.makeText(this@MainActivity, "Update download failed", Toast.LENGTH_SHORT).show()
+                    break
+                }
+                if (installer.isDownloadComplete(downloadId)) {
+                    val path = installer.getDownloadedFilePath(downloadId)
+                    if (path != null) {
+                        installer.installApk(path)
+                    } else {
+                        Toast.makeText(this@MainActivity, "Update download failed", Toast.LENGTH_SHORT).show()
+                    }
+                    break
+                }
+            }
         }
     }
 
@@ -2521,26 +2563,6 @@ class MainActivity : AppCompatActivity() {
                 val date = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
                     .format(java.util.Date(backupStatus.lastPushAt!!))
                 findViewById<TextView>(R.id.settingsExportBackup).text = "Drive backup ($date)"
-            }
-        }
-
-        // App Update Checker
-        scope.launch {
-            val updater = com.lumora.data.update.AppUpdateChecker(this@MainActivity)
-            val info = withContext(Dispatchers.IO) { updater.checkForUpdate() }
-            if (info?.isUpdateAvailable == true) {
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Update available")
-                    .setMessage("Lumora v${info.latestVersion} is available.\nCurrent: v${info.currentVersion}\n\n${info.releaseNotes.take(200)}")
-                    .setPositiveButton("Download") { _, _ ->
-                        if (info.downloadUrl.isNotBlank()) {
-                            val installer = com.lumora.data.update.AppUpdateInstaller(this@MainActivity)
-                            val downloadId = installer.downloadApk(info.downloadUrl, info.latestVersion)
-                            Toast.makeText(this@MainActivity, "Downloading update...", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                    .setNegativeButton("Later", null)
-                    .show()
             }
         }
 

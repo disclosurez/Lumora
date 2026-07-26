@@ -77,6 +77,20 @@ class AppUpdateInstaller(private val context: Context) {
         }
     }
 
+    /** Distinct from "not complete yet" - a caller polling isDownloadComplete() alone
+     *  would spin forever on a failed/cancelled download without this. */
+    fun isDownloadFailed(downloadId: Long): Boolean {
+        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val cursor = downloadManager.query(
+            DownloadManager.Query().setFilterById(downloadId)
+        )
+        cursor.use {
+            if (!it.moveToFirst()) return true
+            val status = it.getInt(it.getColumnIndex(DownloadManager.COLUMN_STATUS))
+            return status == DownloadManager.STATUS_FAILED
+        }
+    }
+
     /**
      * Get the file path of a completed download.
      */

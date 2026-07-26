@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 class AppUpdateChecker(private val context: Context) {
 
     private val TAG = "AppUpdate"
-    private val GITHUB_REPO = "disclosurez/lumora"
+    private val GITHUB_REPO = "disclosurez/Lumora"
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -68,7 +68,7 @@ class AppUpdateChecker(private val context: Context) {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
             } catch (e: Exception) { "1.0" }
 
-            val isUpdate = latestTag != null && latestTag > currentVersion
+            val isUpdate = latestTag != null && isNewerVersion(latestTag, currentVersion)
 
             UpdateInfo(
                 latestVersion = latestTag ?: currentVersion,
@@ -81,5 +81,18 @@ class AppUpdateChecker(private val context: Context) {
             Log.w(TAG, "Update check failed: ${e.message}")
             null
         }
+    }
+
+    /** Numeric, part-by-part comparison - a plain string ">" breaks past single digits
+     *  ("1.10" < "1.9" lexically, even though 1.10 is the newer release). */
+    private fun isNewerVersion(latest: String, current: String): Boolean {
+        val latestParts = latest.split(".").mapNotNull { it.toIntOrNull() }
+        val currentParts = current.split(".").mapNotNull { it.toIntOrNull() }
+        for (i in 0 until maxOf(latestParts.size, currentParts.size)) {
+            val l = latestParts.getOrElse(i) { 0 }
+            val c = currentParts.getOrElse(i) { 0 }
+            if (l != c) return l > c
+        }
+        return false
     }
 }
