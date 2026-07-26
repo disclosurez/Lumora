@@ -62,6 +62,7 @@ import com.lumora.util.extractLeadingTag
 import com.lumora.util.deriveBrandCategories
 import com.lumora.util.groupCategories
 import com.lumora.util.CategoryGroup
+import com.lumora.util.topSeriesByBrand
 import com.lumora.util.isAdultCategory
 import com.lumora.util.isTvDevice
 import com.lumora.util.normalizeServerUrl
@@ -1290,6 +1291,10 @@ class MainActivity : AppCompatActivity() {
         val favIds = FavoritesStore.getFavoriteSeriesIds(this)
         val favItems = seriesList.filter { it.id in favIds }
         if (favItems.isNotEmpty()) shelves.add(ContentShelf("Favorites", favItems))
+
+        topSeriesByBrand(seriesList).forEach { (brand, items) ->
+            shelves.add(ContentShelf("Top 10 $brand", items))
+        }
 
         return shelves.filter { it.title !in hidden }
     }

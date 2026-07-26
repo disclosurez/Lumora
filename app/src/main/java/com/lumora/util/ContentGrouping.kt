@@ -296,6 +296,25 @@ private val BRAND_KEYWORDS = linkedMapOf(
     "Discovery+" to listOf("discovery")
 )
 
+private val HOME_TOP_BRANDS = listOf("Netflix", "Disney", "Apple TV", "Amazon / Prime Video", "HBO / Max")
+
+/** Top-rated series per major streaming brand, matched off the provider's own category
+ *  naming (e.g. a category literally called "HBO MAX SERIES") - same keyword matching
+ *  groupCategories() already uses to cluster the sidebar, just aimed at a "Top 10
+ *  Netflix/Disney/..." home shelf per brand instead. Only real ratings the provider
+ *  actually supplied are used for ranking - nothing here is a live "trending" feed,
+ *  it's the user's own catalog filtered and sorted by brand. */
+fun topSeriesByBrand(series: List<Channel>, limit: Int = 10): List<Pair<String, List<Channel>>> =
+    HOME_TOP_BRANDS.mapNotNull { brand ->
+        val keywords = BRAND_KEYWORDS[brand] ?: return@mapNotNull null
+        val matches = series.filter { ch ->
+            val name = (ch.categoryName ?: ch.group ?: "").lowercase()
+            keywords.any { name.contains(it) }
+        }
+        if (matches.isEmpty()) return@mapNotNull null
+        brand to matches.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }.take(limit)
+    }
+
 private fun cleanGroupLabel(raw: String): String =
     normalizeLiveChannelName(raw)
         .split(" ")
