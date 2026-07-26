@@ -10,14 +10,14 @@ Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, an
 - **Xtream Codes, M3U/M3U8, Stalker Portal, and Jellyfin** provider support
 - **Smart channel merging** — automatically collapses duplicate channel feeds (different quality tiers, source tags, or provider re-listings of the same channel) into a single entry, auto-selecting the best available quality (4K/UHD → FHD → HD → SD), with instant manual fallback to any other version mid-playback
 - **Dynamic categories** — Sports, News, Music, and Cinema surface automatically at the top of the channel list, pulling in matching content regardless of which raw provider category it's filed under; everything else cascades below
-- **Brand/franchise clustering** — channel families (e.g. all Sky Sports or TNT Sports feeds) group into a single expandable category automatically
+- **Brand/franchise clustering** — channel families (e.g. all feeds of the same sports network) group into a single expandable category automatically
 - **Live EPG guide** — scrollable program grid with per-channel schedules, "now playing" info, and program reminders
 - **Picture-in-picture live preview** while browsing the channel list
 - **Timeshift/catch-up** playback where the provider supports it
 - **DVR recording** — schedule and manage recordings directly from the guide
 
 ### Movies & Series
-- Full VOD library browsing with Netflix-style category shelves
+- Full VOD library browsing with category shelves
 - Duplicate/version merging for movies re-listed under multiple source tags
 - Season/episode browser with **episode-level "Continue Watching"** — resumes the exact episode you left off on, and auto-advances to the next episode when one finishes
 - Poster grid view for browsing a full category, plus a global search with poster results
