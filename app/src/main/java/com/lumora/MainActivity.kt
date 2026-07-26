@@ -118,6 +118,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var database: LumoraDatabase
     private val trackController = PlayerTrackController()
     private val qrManager by lazy { QrPairingManager(this) }
+    private var activeSettingsOverlay: FullScreenOverlay? = null
 
     // Live TV inline preview: a separate, muted player instance so browsing the
     // channel list doesn't touch the main PlayerManager used for fullscreen playback.
@@ -378,7 +379,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (isPlayerVisible) hidePlayer()
+        if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
+        else if (isPlayerVisible) hidePlayer()
         else if (isContentDetailVisible) hideContentDetail()
         else super.onBackPressed()
     }
@@ -2483,6 +2485,68 @@ class MainActivity : AppCompatActivity() {
 
     // ── Provider Settings (QR + Manual entry) ─────
 
+    /** Lightweight stand-in for AlertDialog that mimics just what showProviderSettings()
+     *  needs - dismiss()/setOnDismissListener()/show() plus a Save/Cancel button pair -
+     *  while actually adding the content view full-screen onto the activity's own root.
+     *  A real AlertDialog window here always rendered as a small centered floating box
+     *  with the platform's own button panel no matter what background/size overrides were
+     *  applied on its Window: the floating-dialog chrome (minimum width, its own buttons)
+     *  isn't something window.setLayout(MATCH_PARENT, MATCH_PARENT) can escape. */
+    private class FullScreenOverlay(private val root: FrameLayout, val view: View) {
+        val saveButton: View = view.findViewById(R.id.settingsSaveButton)
+        val cancelButton: View = view.findViewById(R.id.settingsCancelButton)
+        private var dismissListener: (() -> Unit)? = null
+
+        fun setOnDismissListener(listener: () -> Unit) { dismissListener = listener }
+
+        fun show() {
+            view.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            root.addView(view)
+            cancelButton.setOnClickListener { dismiss() }
+            view.post { view.findViewById<View>(R.id.settingsProviderTypeSpinner)?.requestFocus() }
+        }
+
+        fun dismiss() {
+            if (view.parent === root) root.removeView(view)
+            dismissListener?.invoke()
+        }
+    }
+
+    /** Runs the Jellyfin Quick Connect handshake against [url]: starts a code, polls for
+     *  server-side approval, then exchanges it for a session. On success, persists the
+     *  session and sets [provider]. Reports progress via [onStatus] so callers (the manual
+     *  settings button and the QR-pairing receive handler) can show it wherever's relevant. */
+    private suspend fun performJellyfinQuickConnect(url: String, onStatus: (String) -> Unit): Boolean {
+        val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
+        onStatus("Starting…")
+        val (code, secret) = withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
+            ?: run { onStatus(qc.lastQuickConnectError ?: "Couldn't start Quick Connect - check the server URL"); return false }
+        onStatus("Enter code $code on your Jellyfin server")
+        val deadline = System.currentTimeMillis() + 120_000L
+        var approved = false
+        while (System.currentTimeMillis() < deadline) {
+            delay(2000)
+            if (withContext(Dispatchers.IO) { qc.isQuickConnectApproved(url, secret) }) { approved = true; break }
+        }
+        if (!approved) { onStatus("Quick Connect timed out"); return false }
+        onStatus("Signing in…")
+        val authResult = withContext(Dispatchers.IO) { qc.completeQuickConnect(url, secret) }
+        val auth = authResult.getOrNull()
+        if (auth == null || auth.token == null || auth.userId == null) {
+            onStatus("Quick Connect sign-in failed")
+            return false
+        }
+        // No password to save here - the token itself is the credential from now on.
+        prefs.edit()
+            .putString("jellyfin_url", url)
+            .putString("jellyfin_token", auth.token)
+            .putString("jellyfin_userid", auth.userId)
+            .putString("provider_type", "jellyfin")
+            .apply()
+        provider = Provider(name = auth.serverName ?: "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url")
+        return true
+    }
+
     @Suppress("DEPRECATION")
     private fun showProviderSettings() {
         val dialogView = layoutInflater.inflate(R.layout.activity_settings, null)
@@ -2526,15 +2590,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setPositiveButton("Save", null)
-            .setNegativeButton("Cancel", null)
-            .create()
-        // A rounded floating window + dimmed backdrop reads as a popup no matter how big
-        // it's sized - drop both so this renders as a genuine full screen instead.
-        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(getColor(R.color.canvas)))
-        dialog.window?.setDimAmount(0f)
+        val dialog = FullScreenOverlay(binding.root, dialogView)
 
         jellyfinQuickConnectButton.setOnClickListener {
             val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
@@ -2542,47 +2598,17 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Enter a server URL first", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
             scope.launch {
-                jellyfinQuickConnectLabel.text = "Starting…"
-                val (code, secret) = withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
-                    ?: run {
-                        jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
-                        Toast.makeText(this@MainActivity, "Couldn't start Quick Connect - check the server URL", Toast.LENGTH_LONG).show()
-                        return@launch
-                    }
-                jellyfinQuickConnectLabel.text = "Enter code $code on your Jellyfin server"
-                val deadline = System.currentTimeMillis() + 120_000L
-                var approved = false
-                while (System.currentTimeMillis() < deadline) {
-                    delay(2000)
-                    if (withContext(Dispatchers.IO) { qc.isQuickConnectApproved(url, secret) }) { approved = true; break }
-                }
-                if (!approved) {
-                    jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
-                    Toast.makeText(this@MainActivity, "Quick Connect timed out", Toast.LENGTH_LONG).show()
-                    return@launch
-                }
-                jellyfinQuickConnectLabel.text = "Signing in…"
-                val authResult = withContext(Dispatchers.IO) { qc.completeQuickConnect(url, secret) }
-                val auth = authResult.getOrNull()
-                if (auth == null || auth.token == null || auth.userId == null) {
-                    jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
-                    Toast.makeText(this@MainActivity, "Quick Connect sign-in failed", Toast.LENGTH_LONG).show()
-                    return@launch
-                }
+                var lastMsg = ""
+                val ok = performJellyfinQuickConnect(url) { msg -> lastMsg = msg; jellyfinQuickConnectLabel.text = msg }
                 jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
-                // No password to save here - the token itself is the credential from now on.
-                prefs.edit()
-                    .putString("jellyfin_url", url)
-                    .putString("jellyfin_token", auth.token)
-                    .putString("jellyfin_userid", auth.userId)
-                    .putString("provider_type", "jellyfin")
-                    .apply()
-                provider = Provider(name = auth.serverName ?: "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url")
-                dialog.dismiss()
-                Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
-                loadM3uPlaylist(provider.m3uUrl!!)
+                if (ok) {
+                    dialog.dismiss()
+                    Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
+                    loadM3uPlaylist(provider.m3uUrl!!)
+                } else {
+                    Toast.makeText(this@MainActivity, lastMsg, Toast.LENGTH_LONG).show()
+                }
             }
         }
 
@@ -2595,7 +2621,7 @@ class MainActivity : AppCompatActivity() {
             xtreamGroup.visibility = if (type == "xtream") View.VISIBLE else View.GONE
             stalkerGroup.visibility = if (type == "stalker") View.VISIBLE else View.GONE
             jellyfinGroup.visibility = if (type == "jellyfin") View.VISIBLE else View.GONE
-            showQrButton.visibility = if (type in listOf("m3u", "xtream")) View.VISIBLE else View.GONE
+            showQrButton.visibility = if (type in listOf("m3u", "xtream", "jellyfin")) View.VISIBLE else View.GONE
         }
 
         fun stopQrServer() {
@@ -2659,6 +2685,31 @@ class MainActivity : AppCompatActivity() {
                         stopQrServer()
                         dialog.dismiss()
                         loadXtreamContent()
+                    }
+                    "jellyfin" -> {
+                        val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
+                        if (form["authMethod"] == "quickconnect") {
+                            qrStatus.text = "Starting Quick Connect…"
+                            scope.launch {
+                                var lastMsg = ""
+                                val ok = performJellyfinQuickConnect(url) { msg -> lastMsg = msg; qrStatus.text = msg }
+                                if (ok) {
+                                    stopQrServer()
+                                    dialog.dismiss()
+                                    Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
+                                    loadM3uPlaylist(provider.m3uUrl!!)
+                                } else {
+                                    qrStatus.text = lastMsg
+                                }
+                            }
+                        } else {
+                            val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
+                            provider = Provider(name = form["name"] ?: "QR Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
+                            prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
+                            stopQrServer()
+                            dialog.dismiss()
+                            loadM3uPlaylist(provider.m3uUrl!!)
+                        }
                     }
                 }
             }
@@ -2937,14 +2988,13 @@ class MainActivity : AppCompatActivity() {
 
         // Init UI
         selectType(currentType)
-        dialog.setOnDismissListener { qrManager.stop() }
+        dialog.setOnDismissListener { qrManager.stop(); activeSettingsOverlay = null }
+        activeSettingsOverlay = dialog
         dialog.show()
-        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
-        // QR is opt-in (via showQrButton) - the positive button is bound after show()
-        // so its listener can validate and keep the dialog open on error instead of the
-        // default auto-dismiss-on-click AlertDialog buttons do.
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        // The Save button's listener validates and keeps the overlay open on error instead
+        // of dismissing unconditionally.
+        dialog.saveButton.setOnClickListener {
             when (currentType) {
                 "m3u" -> {
                     val url = m3uUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }

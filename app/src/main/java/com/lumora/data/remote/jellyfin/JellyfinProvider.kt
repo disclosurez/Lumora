@@ -25,6 +25,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
     val currentAccessToken: String? get() = accessToken
     val currentUserId: String? get() = userId
 
+    /** Set by startQuickConnect() on failure so callers can show *why* instead of a generic
+     *  message - e.g. distinguishing "server unreachable" from "Quick Connect disabled on
+     *  server", which look identical from the Pair<String,String>? return alone. */
+    var lastQuickConnectError: String? = null
+        private set
+
     data class AuthResult(
         val success: Boolean = false,
         val token: String? = null,
@@ -129,6 +135,7 @@ class JellyfinProvider(private val client: OkHttpClient) {
      * and the secret to poll with.
      */
     suspend fun startQuickConnect(serverUrl: String): Pair<String, String>? {
+        lastQuickConnectError = null
         return try {
             val base = serverUrl.trimEnd('/')
             val request = Request.Builder()
@@ -139,14 +146,26 @@ class JellyfinProvider(private val client: OkHttpClient) {
                 .build()
 
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
+            if (!response.isSuccessful) {
+                lastQuickConnectError = "Server returned HTTP ${response.code}"
+                return null
+            }
+            val body = response.body?.string()
+            if (body.isNullOrBlank()) {
+                lastQuickConnectError = "Server returned an empty response"
+                return null
+            }
             val json = JSONObject(body)
 
-            val secret = json.optString("Secret", null) ?: return null
-            val code = json.optString("Code", null) ?: return null
+            val secret = json.optString("Secret").takeIf { it.isNotBlank() }
+            val code = json.optString("Code").takeIf { it.isNotBlank() }
+            if (secret == null || code == null) {
+                lastQuickConnectError = "Quick Connect isn't enabled on this server"
+                return null
+            }
             code to secret
         } catch (e: Exception) {
+            lastQuickConnectError = e.message ?: "Couldn't reach server"
             null
         }
     }

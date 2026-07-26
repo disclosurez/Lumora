@@ -103,7 +103,7 @@
         <LinearLayout
             android:id="@+id/tabBar"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
+            android:layout_height="68dp"
             android:background="@android:color/transparent"
             android:orientation="horizontal"
             android:paddingHorizontal="10dp"
@@ -119,15 +119,15 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="26dp"
+                android:paddingHorizontal="28dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabDownloads"
                 android:nextFocusRight="@id/tabLive"
                 android:stateListAnimator="@animator/focus_scale"
-                android:text="Home"
+                android:text="🏠 Home"
                 android:textAllCaps="true"
                 android:textColor="@color/text_primary"
-                android:textSize="11sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -140,15 +140,15 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="26dp"
+                android:paddingHorizontal="28dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/tabSeries"
                 android:stateListAnimator="@animator/focus_scale"
-                android:text="Live TV"
+                android:text="📡 Live TV"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/tabSeries"
@@ -160,15 +160,15 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="26dp"
+                android:paddingHorizontal="28dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabLive"
                 android:nextFocusRight="@id/tabFilms"
                 android:stateListAnimator="@animator/focus_scale"
-                android:text="Series"
+                android:text="📺 Series"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/tabFilms"
@@ -180,15 +180,15 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="26dp"
+                android:paddingHorizontal="28dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabSeries"
                 android:nextFocusRight="@id/tabDownloads"
                 android:stateListAnimator="@animator/focus_scale"
-                android:text="Films"
+                android:text="🎬 Films"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/tabDownloads"
@@ -200,15 +200,15 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="26dp"
+                android:paddingHorizontal="28dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabFilms"
                 android:nextFocusRight="@id/tabHome"
                 android:stateListAnimator="@animator/focus_scale"
-                android:text="Downloads"
+                android:text="⬇️ Downloads"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp"
+                android:textSize="13sp"
                 android:visibility="gone" />
         </LinearLayout>
 

@@ -328,6 +328,7 @@ button:active{background:#1565c0}
 <select name="type" id="type" onchange="updateType()">
   <option value="m3u" ${if (presetType == "m3u") "selected" else ""}>M3U Playlist URL</option>
   <option value="xtream" ${if (presetType == "xtream") "selected" else ""}>Xtream Codes</option>
+  <option value="jellyfin" ${if (presetType == "jellyfin") "selected" else ""}>Jellyfin</option>
 </select>
 <label>Name (optional)</label>
 <input name="name" placeholder="My Provider">
@@ -344,13 +345,35 @@ button:active{background:#1565c0}
   <label>Password</label>
   <input name="password" type="password">
 </div>
+<div id="jellyfinFields" class="field-group ${if (presetType == "jellyfin") "active" else ""}">
+  <label>Server URL</label>
+  <input name="jellyfinServerUrl" placeholder="http://192.168.1.100:8096">
+  <label>Sign in with</label>
+  <select name="authMethod" id="authMethod" onchange="updateAuthMethod()">
+    <option value="password">Username &amp; Password</option>
+    <option value="quickconnect">Quick Connect</option>
+  </select>
+  <div id="jellyfinPasswordFields" class="field-group active">
+    <label>Username</label>
+    <input name="jellyfinUsername">
+    <label>Password</label>
+    <input name="jellyfinPassword" type="password">
+  </div>
+  <div id="jellyfinQuickConnectHint" class="field-group">
+    <div class="hint">After sending, a code appears on your TV screen - enter it on your Jellyfin server's Quick Connect page to finish signing in.</div>
+  </div>
+</div>
 <button type="submit">Send to TV</button>
 </form>
 </main>
 <script>
 function updateType(){const t=document.getElementById('type').value;
 document.getElementById('m3uFields').classList.toggle('active',t==='m3u');
-document.getElementById('xtreamFields').classList.toggle('active',t==='xtream');}
+document.getElementById('xtreamFields').classList.toggle('active',t==='xtream');
+document.getElementById('jellyfinFields').classList.toggle('active',t==='jellyfin');}
+function updateAuthMethod(){const m=document.getElementById('authMethod').value;
+document.getElementById('jellyfinPasswordFields').classList.toggle('active',m==='password');
+document.getElementById('jellyfinQuickConnectHint').classList.toggle('active',m==='quickconnect');}
 </script>
 </body></html>
 """.trimIndent()
