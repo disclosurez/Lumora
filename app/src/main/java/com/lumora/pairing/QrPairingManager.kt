@@ -9,6 +9,7 @@ import android.util.Log
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import com.lumora.util.normalizeServerUrl
 import kotlinx.coroutines.*
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -47,6 +48,15 @@ class QrPairingManager(private val context: Context) {
     var onProviderReceived: ((type: String, formData: Map<String, String>) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
     var onServerReady: ((url: String, port: Int) -> Unit)? = null
+
+    /** Starts a Jellyfin Quick Connect session against the submitted server URL - wired by
+     *  MainActivity (which owns the actual Jellyfin network client) so this class stays
+     *  provider-agnostic. Called synchronously while handling the phone's POST /submit, so
+     *  the resulting code/secret can be shown in the response *and* handed to the TV -
+     *  both sides need the same pair, not two independently-started ones. */
+    var onJellyfinQuickConnect: (suspend (serverUrl: String) -> QuickConnectStart)? = null
+
+    data class QuickConnectStart(val code: String?, val secret: String?, val error: String?)
 
     data class PairingResult(
         val url: String,
@@ -145,7 +155,7 @@ class QrPairingManager(private val context: Context) {
         }
     }
 
-    private fun handleClient(client: java.net.Socket) {
+    private suspend fun handleClient(client: java.net.Socket) {
         client.use { c ->
             val reader = BufferedReader(InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))
             val requestLine = reader.readLine() ?: return
@@ -188,8 +198,27 @@ class QrPairingManager(private val context: Context) {
                     }
                     val type = form["type"] ?: "m3u"
                     Log.d(TAG, "Provider submitted: type=$type name=${form["name"]}")
-                    onProviderReceived?.invoke(type, form)
-                    writeHtml(c.getOutputStream(), 200, successPage("Provider details received! Check your TV."))
+                    if (type == "jellyfin" && form["authMethod"] == "quickconnect") {
+                        // Quick Connect's code has to match on both screens - start it here,
+                        // synchronously, so the same code/secret pair can be shown on the
+                        // phone (this response) and handed to the TV to poll/complete,
+                        // instead of each side minting its own separate code.
+                        val serverUrl = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it) } ?: ""
+                        val starter = onJellyfinQuickConnect
+                        val result = starter?.invoke(serverUrl)
+                        if (result?.code == null || result.secret == null) {
+                            writeHtml(c.getOutputStream(), 200, errorPage(result?.error ?: "Couldn't start Quick Connect - check the server URL"))
+                        } else {
+                            onProviderReceived?.invoke(
+                                "jellyfin_quickconnect",
+                                form + mapOf("serverUrl" to serverUrl, "code" to result.code, "secret" to result.secret)
+                            )
+                            writeHtml(c.getOutputStream(), 200, quickConnectPage(result.code))
+                        }
+                    } else {
+                        onProviderReceived?.invoke(type, form)
+                        writeHtml(c.getOutputStream(), 200, successPage("Provider details received! Check your TV."))
+                    }
                 }
                 else -> writeHtml(c.getOutputStream(), 404, "Not found")
             }
@@ -360,7 +389,7 @@ button:active{background:#1565c0}
     <input name="jellyfinPassword" type="password">
   </div>
   <div id="jellyfinQuickConnectHint" class="field-group">
-    <div class="hint">After sending, a code appears on your TV screen - enter it on your Jellyfin server's Quick Connect page to finish signing in.</div>
+    <div class="hint">After sending, a code appears here and on your TV - enter it on your Jellyfin server's Quick Connect page to finish signing in.</div>
   </div>
 </div>
 <button type="submit">Send to TV</button>
@@ -384,6 +413,21 @@ document.getElementById('jellyfinQuickConnectHint').classList.toggle('active',m=
 main{max-width:520px;margin:auto;background:#1a1a1a;border-radius:16px;padding:24px}
 h1{color:#4caf50}</style>
 </head><body><main><h1>Sent to TV</h1><p>${msg.escapeHtml()}</p></main></body></html>"""
+
+    private fun quickConnectPage(code: String) = """<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lumora Pairing</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0d0d0d;color:#eee;padding:28px;text-align:center}
+main{max-width:520px;margin:auto;background:#1a1a1a;border-radius:16px;padding:28px}
+h1{color:#fff;font-size:20px;margin:0 0 4px}
+p{color:#9e9e9e;line-height:1.4}
+.code{font-size:48px;font-weight:700;letter-spacing:6px;color:#2979ff;background:#0d0d0d;border-radius:12px;padding:20px;margin:20px 0}
+</style></head><body><main>
+<h1>Quick Connect</h1>
+<p>Enter this code on your Jellyfin server to finish signing in on your TV.</p>
+<div class="code">${code.escapeHtml()}</div>
+<p>This page can be closed once you've entered it.</p>
+</main></body></html>"""
 
     private fun errorPage(msg: String) = """<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">

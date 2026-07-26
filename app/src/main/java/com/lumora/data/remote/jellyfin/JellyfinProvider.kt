@@ -147,7 +147,8 @@ class JellyfinProvider(private val client: OkHttpClient) {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                lastQuickConnectError = "Server returned HTTP ${response.code}"
+                val detail = response.body?.string()?.take(160)?.takeIf { it.isNotBlank() }
+                lastQuickConnectError = "Server returned HTTP ${response.code}" + (detail?.let { ": $it" } ?: "")
                 return null
             }
             val body = response.body?.string()

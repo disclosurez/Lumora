@@ -2581,15 +2581,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Runs the Jellyfin Quick Connect handshake against [url]: starts a code, polls for
-     *  server-side approval, then exchanges it for a session. On success, persists the
+    /** Runs the Jellyfin Quick Connect handshake against [url]: starts a code (or reuses
+     *  [existing] if the QR flow already started one and showed it on the phone - starting
+     *  a second one here would mint a different code than what's on screen there), polls
+     *  for server-side approval, then exchanges it for a session. On success, persists the
      *  session and sets [provider]. Reports progress via [onStatus] so callers (the manual
      *  settings button and the QR-pairing receive handler) can show it wherever's relevant. */
-    private suspend fun performJellyfinQuickConnect(url: String, onStatus: (String) -> Unit): Boolean {
+    private suspend fun performJellyfinQuickConnect(
+        url: String,
+        existing: Pair<String, String>? = null,
+        onStatus: (String) -> Unit
+    ): Boolean {
         val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
-        onStatus("Starting…")
-        val (code, secret) = withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
-            ?: run { onStatus(qc.lastQuickConnectError ?: "Couldn't start Quick Connect - check the server URL"); return false }
+        val (code, secret) = existing ?: run {
+            onStatus("Starting…")
+            withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
+                ?: run { onStatus(qc.lastQuickConnectError ?: "Couldn't start Quick Connect - check the server URL"); return false }
+        }
         onStatus("Enter code $code on your Jellyfin server")
         val deadline = System.currentTimeMillis() + 120_000L
         var approved = false
@@ -2756,31 +2764,49 @@ class MainActivity : AppCompatActivity() {
                         loadXtreamContent()
                     }
                     "jellyfin" -> {
+                        // Quick Connect never reaches this branch - QrPairingManager
+                        // special-cases it (needs to start the session synchronously, while
+                        // still handling the phone's POST, so the code can be shown on both
+                        // screens) and calls onProviderReceived with type "jellyfin_quickconnect"
+                        // instead. This path is password-only.
                         val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
-                        if (form["authMethod"] == "quickconnect") {
-                            qrStatus.text = "Starting Quick Connect…"
-                            scope.launch {
-                                var lastMsg = ""
-                                val ok = performJellyfinQuickConnect(url) { msg -> lastMsg = msg; qrStatus.text = msg }
-                                if (ok) {
-                                    stopQrServer()
-                                    dialog.dismiss()
-                                    Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
-                                    loadM3uPlaylist(provider.m3uUrl!!)
-                                } else {
-                                    qrStatus.text = lastMsg
-                                }
+                        val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
+                        provider = Provider(name = form["name"] ?: "QR Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
+                        prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
+                        stopQrServer()
+                        dialog.dismiss()
+                        loadM3uPlaylist(provider.m3uUrl!!)
+                    }
+                    "jellyfin_quickconnect" -> {
+                        val url = form["serverUrl"] ?: return@runOnUiThread
+                        val code = form["code"] ?: return@runOnUiThread
+                        val secret = form["secret"] ?: return@runOnUiThread
+                        qrStatus.text = "Enter code $code on your Jellyfin server"
+                        scope.launch {
+                            var lastMsg = ""
+                            val ok = performJellyfinQuickConnect(url, existing = code to secret) { msg -> lastMsg = msg; qrStatus.text = msg }
+                            if (ok) {
+                                stopQrServer()
+                                dialog.dismiss()
+                                Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
+                                loadM3uPlaylist(provider.m3uUrl!!)
+                            } else {
+                                qrStatus.text = lastMsg
                             }
-                        } else {
-                            val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
-                            provider = Provider(name = form["name"] ?: "QR Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
-                            prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
-                            stopQrServer()
-                            dialog.dismiss()
-                            loadM3uPlaylist(provider.m3uUrl!!)
                         }
                     }
                 }
+            }
+        }
+
+        qrManager.onJellyfinQuickConnect = { url ->
+            // url is already normalized by QrPairingManager before it gets here.
+            val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
+            val pair = withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
+            if (pair != null) {
+                QrPairingManager.QuickConnectStart(pair.first, pair.second, null)
+            } else {
+                QrPairingManager.QuickConnectStart(null, null, qc.lastQuickConnectError ?: "Couldn't start Quick Connect - check the server URL")
             }
         }
 
