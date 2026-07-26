@@ -1359,6 +1359,10 @@ class MainActivity : AppCompatActivity() {
         selectedShelfItems = null
         expandedGroupKeys.clear()
         scope.launch {
+            // Building categories/filtering thousands of channels can take a couple of
+            // seconds on a large catalog - show the same loading indicator as app startup
+            // instead of leaving the tab looking empty/frozen while it works.
+            setStatus("Loading...", visible = true)
             // Look up the target category with the side-effect-free builder first - using
             // rebuildCategoriesForActiveTab() (which submits to the sidebar) for these
             // intermediate lookups would render each one, flashing "All" and then an
@@ -1387,6 +1391,7 @@ class MainActivity : AppCompatActivity() {
             rebuildCategoriesForActiveTab()
             applyCategoryFilter(focusFirstLiveChannel = index == 0)
             binding.categorySidebar.scrollToPosition(0)
+            setStatus("", visible = false)
         }
     }
 
@@ -2099,8 +2104,8 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val isPoster = channel.mediaType != MediaType.LIVE
         binding.playerLogoBox.layoutParams = binding.playerLogoBox.layoutParams.apply {
-            width = ((if (isPoster) 40 else 44) * density).toInt()
-            height = ((if (isPoster) 60 else 44) * density).toInt()
+            width = ((if (isPoster) 34 else 36) * density).toInt()
+            height = ((if (isPoster) 50 else 36) * density).toInt()
         }
         binding.playerChannelLogo.scaleType = if (isPoster) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
         val logoPadding = if (isPoster) 0 else (6 * density).toInt()

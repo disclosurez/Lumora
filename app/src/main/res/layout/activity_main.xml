@@ -225,11 +225,15 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text -->
+        <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text.
+             Fills the same content slot every tab uses (0dp/weight=1) so a "Loading..."
+             message - startup or switching tabs - renders big and dead-center on screen
+             instead of a small line pinned under the tab bar. -->
         <LinearLayout
             android:id="@+id/statusRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:gravity="center"
             android:orientation="horizontal"
             android:padding="10dp"
@@ -237,9 +241,9 @@
 
             <ProgressBar
                 android:id="@+id/statusSpinner"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:layout_marginEnd="8dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="14dp"
                 android:indeterminate="true"
                 android:indeterminateTint="@color/primary_light"
                 android:visibility="gone" />
@@ -250,7 +254,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:textColor="@color/primary_light"
-                android:textSize="10sp" />
+                android:textSize="16sp" />
         </LinearLayout>
 
         <!-- Empty state / QR prompt when no channels -->
@@ -913,7 +917,7 @@
 
             <RelativeLayout
                 android:layout_width="match_parent"
-                android:layout_height="88dp"
+                android:layout_height="64dp"
                 android:background="@drawable/grad_player_top"
                 android:paddingHorizontal="16dp">
                 <ImageButton
@@ -937,16 +941,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/grad_player_bottom"
-                android:paddingTop="18dp">
+                android:paddingTop="10dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_margin="8dp"
+                    android:layout_margin="6dp"
                     android:background="@drawable/bg_player_bottom"
                     android:orientation="vertical"
                     android:paddingHorizontal="12dp"
-                    android:paddingVertical="6dp">
+                    android:paddingVertical="4dp">
 
                     <!-- Info card: logo + program title/time on the left, channel name + badges on the right -->
                     <LinearLayout
@@ -957,8 +961,8 @@
 
                         <FrameLayout
                             android:id="@+id/playerLogoBox"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
                             android:background="@drawable/shape_logo_box"
                             android:clipToOutline="true"
                             android:elevation="2dp">
@@ -1039,6 +1043,8 @@
                             android:clickable="true"
                             android:contentDescription="Previous"
                             android:focusable="true"
+                            android:nextFocusRight="@id/btnPlayPause"
+                            android:nextFocusDown="@id/btnSpeed"
                             android:padding="10dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@android:drawable/ic_media_previous"
@@ -1052,6 +1058,9 @@
                             android:clickable="true"
                             android:contentDescription="Play/Pause"
                             android:focusable="true"
+                            android:nextFocusLeft="@id/btnPrevChannel"
+                            android:nextFocusRight="@id/btnNextChannel"
+                            android:nextFocusDown="@id/seekBar"
                             android:padding="11dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@drawable/ic_play"
@@ -1064,6 +1073,8 @@
                             android:clickable="true"
                             android:contentDescription="Next"
                             android:focusable="true"
+                            android:nextFocusLeft="@id/btnPlayPause"
+                            android:nextFocusDown="@id/btnCast"
                             android:padding="12dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@android:drawable/ic_media_next"
@@ -1073,7 +1084,7 @@
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp">
+                        android:layout_marginTop="2dp">
                         <TextView
                             android:id="@+id/currentTime"
                             android:layout_width="wrap_content"
@@ -1086,6 +1097,8 @@
                             android:id="@+id/seekBar"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:nextFocusUp="@id/btnPlayPause"
+                            android:nextFocusDown="@id/btnSpeed"
                             android:paddingStart="48dp"
                             android:paddingEnd="48dp"
                             android:progressTint="@color/primary"
@@ -1118,12 +1131,14 @@
                             <TextView
                                 android:id="@+id/btnSpeed"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
+                                android:nextFocusRight="@id/btnSleepTimer"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
                                 android:text="1.0x"
@@ -1134,12 +1149,15 @@
                             <TextView
                                 android:id="@+id/btnSleepTimer"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
+                                android:nextFocusLeft="@id/btnSpeed"
+                                android:nextFocusRight="@id/btnCast"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
                                 android:text="Sleep"
@@ -1150,12 +1168,15 @@
                             <TextView
                                 android:id="@+id/btnCast"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/btnNextChannel"
+                                android:nextFocusLeft="@id/btnSleepTimer"
+                                android:nextFocusRight="@id/btnDiagnostics"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
                                 android:text="Cast"
@@ -1166,12 +1187,14 @@
                             <TextView
                                 android:id="@+id/btnDiagnostics"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
+                                android:nextFocusLeft="@id/btnCast"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
                                 android:text="Diag"
@@ -1182,7 +1205,7 @@
                             <TextView
                                 android:id="@+id/btnRecord"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1199,7 +1222,7 @@
                             <TextView
                                 android:id="@+id/btnLiveVersions"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1215,7 +1238,7 @@
                             <TextView
                                 android:id="@+id/btnAspectRatio"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1231,7 +1254,7 @@
                             <TextView
                                 android:id="@+id/btnAudioTrack"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1247,7 +1270,7 @@
                             <TextView
                                 android:id="@+id/btnSubtitleTrack"
                                 android:layout_width="wrap_content"
-                                android:layout_height="34dp"
+                                android:layout_height="30dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
                                 android:focusable="true"
