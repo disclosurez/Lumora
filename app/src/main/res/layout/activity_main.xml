@@ -119,7 +119,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="26dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabDownloads"
                 android:nextFocusRight="@id/tabLive"
@@ -127,7 +127,7 @@
                 android:text="Home"
                 android:textAllCaps="true"
                 android:textColor="@color/text_primary"
-                android:textSize="9sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -140,7 +140,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="26dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/tabSeries"
@@ -148,7 +148,7 @@
                 android:text="Live TV"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="9sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tabSeries"
@@ -160,7 +160,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="26dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabLive"
                 android:nextFocusRight="@id/tabFilms"
@@ -168,7 +168,7 @@
                 android:text="Series"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="9sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tabFilms"
@@ -180,7 +180,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="26dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabSeries"
                 android:nextFocusRight="@id/tabDownloads"
@@ -188,7 +188,7 @@
                 android:text="Films"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="9sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tabDownloads"
@@ -200,7 +200,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="26dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabFilms"
                 android:nextFocusRight="@id/tabHome"
@@ -208,7 +208,7 @@
                 android:text="Downloads"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="9sp"
+                android:textSize="11sp"
                 android:visibility="gone" />
         </LinearLayout>
 
