@@ -1194,7 +1194,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun setStatus(text: String, visible: Boolean) {
         binding.statusText.text = text
-        binding.statusText.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.statusRow.visibility = if (visible) View.VISIBLE else View.GONE
+        // In-progress messages ("Loading...", "Connecting...") get a spinner; final
+        // results ("N items", errors) don't - "..." is what already distinguishes them
+        // at every call site, no need for a second parameter everywhere.
+        binding.statusSpinner.visibility = if (visible && text.trimEnd().endsWith("...")) View.VISIBLE else View.GONE
     }
 
     // ── Tabs ───────────────────────────────────────

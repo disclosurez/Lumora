@@ -111,15 +111,15 @@
 
             <TextView
                 android:id="@+id/tabHome"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginEnd="3dp"
-                android:layout_weight="1"
                 android:background="@drawable/bg_select_item"
                 android:clickable="true"
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:paddingHorizontal="14dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabDownloads"
                 android:nextFocusRight="@id/tabLive"
@@ -132,15 +132,15 @@
 
             <TextView
                 android:id="@+id/tabLive"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginHorizontal="3dp"
-                android:layout_weight="1"
                 android:background="@drawable/bg_select_item"
                 android:clickable="true"
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:paddingHorizontal="14dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/tabSeries"
@@ -152,15 +152,15 @@
 
             <TextView
                 android:id="@+id/tabSeries"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginHorizontal="3dp"
-                android:layout_weight="1"
                 android:background="@drawable/bg_select_item"
                 android:clickable="true"
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:paddingHorizontal="14dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabLive"
                 android:nextFocusRight="@id/tabFilms"
@@ -172,15 +172,15 @@
 
             <TextView
                 android:id="@+id/tabFilms"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginStart="3dp"
-                android:layout_weight="1"
                 android:background="@drawable/bg_select_item"
                 android:clickable="true"
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:paddingHorizontal="14dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabSeries"
                 android:nextFocusRight="@id/tabDownloads"
@@ -192,15 +192,15 @@
 
             <TextView
                 android:id="@+id/tabDownloads"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginStart="3dp"
-                android:layout_weight="1"
                 android:background="@drawable/bg_select_item"
                 android:clickable="true"
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:paddingHorizontal="14dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabFilms"
                 android:nextFocusRight="@id/tabHome"
@@ -212,16 +212,33 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Status text -->
-        <TextView
-            android:id="@+id/statusText"
+        <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text -->
+        <LinearLayout
+            android:id="@+id/statusRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
+            android:orientation="horizontal"
             android:padding="10dp"
-            android:textColor="@color/primary_light"
-            android:textSize="10sp"
-            android:visibility="gone" />
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/statusSpinner"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="8dp"
+                android:indeterminate="true"
+                android:indeterminateTint="@color/primary_light"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="@color/primary_light"
+                android:textSize="10sp" />
+        </LinearLayout>
 
         <!-- Empty state / QR prompt when no channels -->
         <LinearLayout
@@ -480,7 +497,8 @@
                     android:clipToPadding="false"
                     android:defaultFocusHighlightEnabled="true"
                     android:paddingHorizontal="10dp"
-                    android:paddingBottom="4dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
                     android:visibility="gone" />
 
                 <!-- Content area: Films grid -->
@@ -492,7 +510,8 @@
                     android:clipToPadding="false"
                     android:defaultFocusHighlightEnabled="true"
                     android:paddingHorizontal="10dp"
-                    android:paddingBottom="4dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
                     android:visibility="gone" />
 
                 <!-- Content area: Downloads list (mobile only) -->
