@@ -102,7 +102,6 @@ class ShelfAdapter(
                 (outerRv.findViewHolderForAdapterPosition(pos - 1) as? ShelfViewHolder)?.let { ensureViewId(it.itemsList) }
             } ?: return
             posterAdapter.nextFocusUpTargetId = targetId
-            for (i in 0 until itemsList.childCount) itemsList.getChildAt(i).nextFocusUpId = targetId
         }
 
         private fun ensureViewId(view: View): Int {
@@ -124,10 +123,10 @@ private class ShelfPosterAdapter(
     private val scope = CoroutineScope(Dispatchers.Main)
 
     /** Where D-pad UP should go from any poster in this row - set by the owning
-     *  ShelfViewHolder once it knows its position among sibling shelves. Applied to
-     *  every bind, not just the currently-visible children, so a poster scrolled into
-     *  view later (this row scrolls horizontally, independent of vertical shelf order)
-     *  still gets it. */
+     *  ShelfViewHolder once it knows its position among sibling shelves, read live by each
+     *  poster's OnKeyListener (see ViewHolder init) rather than baked in at bind time, so a
+     *  poster scrolled into view later (this row scrolls horizontally, independent of
+     *  vertical shelf order) still gets the current value, not a stale one. */
     var nextFocusUpTargetId: Int = View.NO_ID
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -137,7 +136,6 @@ private class ShelfPosterAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
-        if (nextFocusUpTargetId != View.NO_ID) holder.itemView.nextFocusUpId = nextFocusUpTargetId
     }
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -147,6 +145,19 @@ private class ShelfPosterAdapter(
 
         init {
             itemView.setOnClickListener { current?.let(onItemClick) }
+            // RecyclerView.focusSearch() scopes its own findNextFocus() call to itself as
+            // root, so nextFocusUpId pointing outside this RecyclerView (let alone outside
+            // the *outer* shelf-list RecyclerView this row is nested inside) never actually
+            // resolves - the search silently comes up empty and UP does nothing. Handling
+            // the key directly and jumping focus manually sidesteps that scoping entirely.
+            itemView.setOnKeyListener { v, keyCode, event ->
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.action == android.view.KeyEvent.ACTION_DOWN &&
+                    nextFocusUpTargetId != View.NO_ID
+                ) {
+                    v.rootView.findViewById<View>(nextFocusUpTargetId)?.let { it.requestFocus(); return@setOnKeyListener true }
+                }
+                false
+            }
         }
 
         fun bind(channel: Channel) {

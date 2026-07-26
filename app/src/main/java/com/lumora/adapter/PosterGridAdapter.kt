@@ -32,7 +32,11 @@ class PosterGridAdapter(
      *  something reasonably column-aligned above it, and depending which column a poster's
      *  in, nothing up there (tab bar/search box) may be close enough to win, especially
      *  since the tab bar centered itself instead of spanning full width. Set both together
-     *  whenever the grid is (re)built, since span count changes with screen width/rotation. */
+     *  whenever the grid is (re)built, since span count changes with screen width/rotation.
+     *  Handled via OnKeyListener rather than nextFocusUpId - RecyclerView.focusSearch()
+     *  scopes its own findNextFocus() to itself as root, so a target outside the RecyclerView
+     *  (the tab bar always is) never actually resolves that way; UP just silently does
+     *  nothing instead of erroring, which is what made this easy to miss. */
     var spanCount: Int = 1
     var topRowFocusUpTargetId: Int = View.NO_ID
 
@@ -43,11 +47,6 @@ class PosterGridAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
-        holder.itemView.nextFocusUpId = if (topRowFocusUpTargetId != View.NO_ID && position < spanCount) {
-            topRowFocusUpTargetId
-        } else {
-            View.NO_ID
-        }
     }
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -58,6 +57,14 @@ class PosterGridAdapter(
 
         init {
             itemView.setOnClickListener { current?.let(onItemClick) }
+            itemView.setOnKeyListener { v, keyCode, event ->
+                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.action == android.view.KeyEvent.ACTION_DOWN &&
+                    topRowFocusUpTargetId != View.NO_ID && bindingAdapterPosition in 0 until spanCount
+                ) {
+                    v.rootView.findViewById<View>(topRowFocusUpTargetId)?.let { it.requestFocus(); return@setOnKeyListener true }
+                }
+                false
+            }
         }
 
         fun bind(channel: Channel) {
