@@ -909,7 +909,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Building the category list scans the whole active tab's content - real work on a big catalog. */
+    /** rebuildCategoriesForActiveTab() plus submitting the result to the sidebar - split out
+     *  so callers that need to inspect/compute a target category *before* anything renders
+     *  (see selectTab()'s default-Sports-category lookup) can do so without each intermediate
+     *  lookup flashing onto the sidebar as a real, visible submitList(). */
     private suspend fun rebuildCategoriesForActiveTab(): List<CategoryFilter> {
+        val categories = buildCategoriesForActiveTab()
+        binding.categorySidebar.visibility = if (categories.size > 1) View.VISIBLE else View.GONE
+        categoryAdapter.setSelected(selectedRowId)
+        categoryAdapter.submitList(categories)
+        return categories
+    }
+
+    private suspend fun buildCategoriesForActiveTab(): List<CategoryFilter> {
         val list = activeFullList()
         val pinned = getPinnedCategories()
         val hiddenIds = getHiddenCategories()
@@ -1078,10 +1090,6 @@ class MainActivity : AppCompatActivity() {
             }
             result
         }
-
-        binding.categorySidebar.visibility = if (categories.size > 1) View.VISIBLE else View.GONE
-        categoryAdapter.setSelected(selectedRowId)
-        categoryAdapter.submitList(categories)
         return categories
     }
 
@@ -1109,7 +1117,7 @@ class MainActivity : AppCompatActivity() {
     // specific category from the sidebar swaps that tab's RecyclerView to a vertical,
     // scrollable poster grid instead - a horizontal strip isn't enough room to browse
     // a whole category in. Filtering the full catalog is real work, so it runs off-main.
-    private suspend fun applyCategoryFilter() {
+    private suspend fun applyCategoryFilter(focusFirstLiveChannel: Boolean = false) {
         val matchIds = selectedCategoryIds
         val tab = activeTab
         when (tab) {
@@ -1126,7 +1134,22 @@ class MainActivity : AppCompatActivity() {
                         else -> source.filter { it.filterKey() in matchIds }
                     }
                 }
-                liveAdapter.submitList(filtered)
+                liveAdapter.submitList(filtered) {
+                    if (!focusFirstLiveChannel) return@submitList
+                    val first = filtered.firstOrNull() ?: return@submitList
+                    requestPreviewLoad(first)
+                    // submitList's commit callback fires once the diff is applied, but the
+                    // row's ViewHolder isn't necessarily laid out yet on this same frame - a
+                    // single post() still occasionally lands before RecyclerView's own
+                    // pending layout pass, so nest two: the first just waits for that layout
+                    // request to be queued, the second runs after it's actually done.
+                    binding.liveContent.post {
+                        binding.liveContent.post {
+                            (binding.liveContent.findViewHolderForAdapterPosition(0) as? LiveGuideAdapter.RowViewHolder)
+                                ?.requestChannelFocus()
+                        }
+                    }
+                }
                 binding.liveContent.scrollToPosition(0)
             }
             1 -> {
@@ -1336,21 +1359,22 @@ class MainActivity : AppCompatActivity() {
         selectedShelfItems = null
         expandedGroupKeys.clear()
         scope.launch {
-            var categories = rebuildCategoriesForActiveTab()
+            // Look up the target category with the side-effect-free builder first - using
+            // rebuildCategoriesForActiveTab() (which submits to the sidebar) for these
+            // intermediate lookups would render each one, flashing "All" and then an
+            // expanded-but-nothing-selected Sports bucket before finally landing on Sky
+            // Sports a moment later.
+            var categories = buildCategoriesForActiveTab()
             // Live TV opens straight into Sky Sports (under the Sports bucket) rather than
             // the unfiltered "All" list - that's what people actually came here for. Falls
             // through to the Sports bucket itself, then to All, if either's missing (e.g.
             // classic layout, or no matching channels in the catalog).
-            // categoryAdapter.currentList isn't used here - ListAdapter.submitList() diffs
-            // asynchronously, so currentList lags behind what was just submitted; the
-            // freshly-built list from rebuildCategoriesForActiveTab()'s return is what's
-            // actually current.
             if (index == 0) {
                 val sportsBucket = categories.firstOrNull { it.id == "dynbucket:Sports" }
                 var target: CategoryFilter? = sportsBucket
                 if (sportsBucket != null) {
                     expandedGroupKeys.add(sportsBucket.id!!)
-                    categories = rebuildCategoriesForActiveTab()
+                    categories = buildCategoriesForActiveTab()
                     categories.firstOrNull { it.isChild && it.name.lowercase().startsWith("sky sports") }?.let { target = it }
                 }
                 if (target != null) {
@@ -1358,10 +1382,10 @@ class MainActivity : AppCompatActivity() {
                     selectedCategoryLabel = target!!.name
                     selectedBrandChannelIds = target!!.channelIds.ifEmpty { null }
                     selectedCategoryIds = if (target!!.channelIds.isNotEmpty()) null else target!!.matchIds
-                    rebuildCategoriesForActiveTab()
                 }
             }
-            applyCategoryFilter()
+            rebuildCategoriesForActiveTab()
+            applyCategoryFilter(focusFirstLiveChannel = index == 0)
             binding.categorySidebar.scrollToPosition(0)
         }
     }
