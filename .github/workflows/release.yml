@@ -28,7 +28,7 @@ jobs:
         run: ./gradlew :app:assembleRelease --no-daemon
 
       - name: Install matching build-tools
-        run: yes | sdkmanager "build-tools;35.0.0"
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
 
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
