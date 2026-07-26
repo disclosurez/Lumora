@@ -52,6 +52,8 @@ import com.lumora.model.ContentShelf
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
 import com.lumora.model.ProviderType
+import com.lumora.model.IptvProviderConfig
+import com.lumora.data.IptvProviderStore
 import com.lumora.pairing.QrPairingManager
 import com.lumora.parser.M3uParser
 import com.lumora.parser.XtreamClient
@@ -428,220 +430,195 @@ class MainActivity : AppCompatActivity() {
         return File(dir, "lumora_backup.json")
     }
 
-    private fun hasProviderConfigured(): Boolean =
-        (provider.type == ProviderType.XTREAM && provider.serverUrl != null) || !provider.m3uUrl.isNullOrBlank()
+    /** IPTV (Xtream/M3U/Stalker - still mutually exclusive among themselves, that's what
+     *  [provider] represents) and Jellyfin are independent provider slots that can each be
+     *  configured and enabled at the same time - their catalogs get merged. */
+    private fun hasIptvConfigured(): Boolean = IptvProviderStore.load(prefs).isNotEmpty()
+
+    private fun hasJellyfinConfigured(): Boolean =
+        !prefs.getString("jellyfin_url", null).isNullOrBlank()
+
+    private fun isJellyfinEnabled(): Boolean = prefs.getBoolean("jellyfin_provider_enabled", true)
+
+    private fun hasProviderConfigured(): Boolean = hasIptvConfigured() || hasJellyfinConfigured()
 
     private fun loadSavedProvider() {
-        val type = prefs.getString("provider_type", "m3u") ?: "m3u"
-        provider = when (type) {
-            "xtream" -> Provider(
-                name = prefs.getString("provider_name", "Xtream") ?: "Xtream",
-                type = ProviderType.XTREAM,
-                serverUrl = prefs.getString("xtream_url", null)?.let { normalizeServerUrl(it) },
-                username = prefs.getString("xtream_user", null),
-                password = prefs.getString("xtream_pass", null)
-            )
-            "stalker" -> Provider(
-                name = prefs.getString("provider_name", "Stalker") ?: "Stalker",
-                type = ProviderType.M3U,
-                m3uUrl = "stalker://" + (prefs.getString("stalker_url", "") ?: ""),
-                serverUrl = prefs.getString("stalker_url", null)?.let { normalizeServerUrl(it) },
-                userAgent = prefs.getString("stalker_mac", null)
-            )
-            "jellyfin" -> Provider(
-                name = prefs.getString("provider_name", "Jellyfin") ?: "Jellyfin",
-                type = ProviderType.M3U,
-                m3uUrl = "jellyfin://" + (prefs.getString("jellyfin_url", "") ?: ""),
-                serverUrl = prefs.getString("jellyfin_url", null)?.let { normalizeServerUrl(it, defaultScheme = "https") },
-                username = prefs.getString("jellyfin_user", null),
-                password = prefs.getString("jellyfin_pass", null)
-            )
-            else -> Provider(
-                name = prefs.getString("provider_name", "M3U") ?: "M3U",
-                type = ProviderType.M3U,
-                m3uUrl = prefs.getString("m3u_url", null)?.let { normalizeServerUrl(it) },
-                userAgent = prefs.getString("user_agent", null)
-            )
-        }
-        if (!hasProviderConfigured()) { showProviderSettings(); return }
+        loadAllConfiguredProviders()
+    }
 
+    private sealed class FetchResult {
+        data class Success(val channels: List<Channel>) : FetchResult()
+        data class Failure(val message: String) : FetchResult()
+    }
+
+    /** The one place that loads whatever's configured+enabled across every IPTV provider
+     *  (any number of them now, not just one) plus Jellyfin, and merges the result - every
+     *  settings Save/Quick Connect/reload call site routes through here instead of assuming
+     *  a single active provider. [forceRefresh] skips the on-disk cache (used after a
+     *  settings change, where showing stale content would be actively wrong) and re-fetches
+     *  from the network(s) directly. */
+    private fun loadAllConfiguredProviders(forceRefresh: Boolean = false) {
+        if (!hasProviderConfigured()) { showProviderSettings(); return }
         setStatus("Loading...", visible = true)
         scope.launch {
-            val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
-            if (!cached.isNullOrEmpty()) {
-                allChannels = cached
-                classifyAndShow()
-                setStatus("", visible = false)
-                return@launch
+            if (!forceRefresh) {
+                val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
+                if (!cached.isNullOrEmpty()) {
+                    allChannels = cached
+                    classifyAndShow()
+                    setStatus("", visible = false)
+                    return@launch
+                }
             }
-            when (type) {
-                "xtream" -> loadXtreamContent()
-                "stalker" -> loadStalkerContent()
-                "jellyfin" -> loadJellyfinContent()
-                else -> loadM3uPlaylist(provider.m3uUrl!!)
+
+            val combined = mutableListOf<Channel>()
+            val errors = mutableListOf<String>()
+            var expiryText: String? = null
+
+            for (config in IptvProviderStore.load(prefs).filter { it.enabled }) {
+                setStatus("Connecting to ${config.name}...", visible = true)
+                val result = when (config.type) {
+                    "xtream" -> fetchXtreamChannels(config) { expiryText = it }
+                    "stalker" -> fetchStalkerChannels(config)
+                    else -> fetchM3uChannels(config)
+                }
+                when (result) {
+                    is FetchResult.Success -> combined += result.channels
+                    is FetchResult.Failure -> errors += "${config.name}: ${result.message}"
+                }
             }
-        }
-    }
+            if (hasJellyfinConfigured() && isJellyfinEnabled()) {
+                setStatus("Connecting to Jellyfin...", visible = true)
+                when (val result = fetchJellyfinChannels()) {
+                    is FetchResult.Success -> combined += result.channels
+                    is FetchResult.Failure -> errors += result.message
+                }
+            }
 
-    /** Reloads whatever's currently configured in [provider], routed by actual provider
-     *  type - Stalker/Jellyfin are both stored as ProviderType.M3U with a "stalker://"/
-     *  "jellyfin://" marker prefix on m3uUrl (there's no dedicated ProviderType for them),
-     *  so passing that string straight to loadM3uPlaylist() sends it to OkHttp as a literal
-     *  URL and fails immediately with "Expected URL scheme 'http' or 'https' but was
-     *  'jellyfin'" - every call site that just finished setting up one of those two needs
-     *  this instead of assuming M3U. */
-    private fun loadConfiguredProvider() {
-        when {
-            provider.type == ProviderType.XTREAM -> loadXtreamContent()
-            provider.m3uUrl?.startsWith("stalker://") == true -> scope.launch { loadStalkerContent() }
-            provider.m3uUrl?.startsWith("jellyfin://") == true -> scope.launch { loadJellyfinContent() }
-            !provider.m3uUrl.isNullOrBlank() -> loadM3uPlaylist(provider.m3uUrl!!)
-            else -> showProviderSettings()
-        }
-    }
-
-    private suspend fun loadStalkerContent() {
-        setStatus("Connecting to Stalker Portal...", visible = true)
-        try {
-            val mac = provider.userAgent ?: run { setStatus("No MAC address", visible = true); return }
-            val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
-            val result = withContext(Dispatchers.IO) { stalker.loadContent(provider) }
-            if (result.isFailure) { setStatus("Stalker error: ${result.exceptionOrNull()?.message?.take(60)}", visible = true); return }
-            val content = result.getOrThrow()
-            allChannels = content.live + content.films + content.series
+            allChannels = combined
             classifyAndShow()
             withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
-            prefs.edit().putString("provider_type", "stalker").apply()
-            setStatus("${allChannels.size} items", visible = true)
-            mainHandler.postDelayed({ setStatus("", visible = false) }, 2000)
-        } catch (e: Exception) {
-            setStatus("Error: ${e.message?.take(60)}", visible = true)
+
+            if (combined.isEmpty()) {
+                setStatus(errors.joinToString(" · ").ifBlank { "No providers returned any content" }, visible = true)
+            } else {
+                val summary = "${combined.size} items" +
+                    (expiryText?.let { "  ·  $it" } ?: "") +
+                    (errors.takeIf { it.isNotEmpty() }?.let { "  ·  ⚠ " + it.joinToString(", ") } ?: "")
+                setStatus(summary, visible = true)
+                if (errors.isEmpty()) mainHandler.postDelayed({ setStatus("", visible = false) }, 4000)
+            }
         }
     }
 
-    private suspend fun loadJellyfinContent() {
-        setStatus("Connecting to Jellyfin...", visible = true)
-        try {
+    private suspend fun fetchStalkerChannels(config: IptvProviderConfig): FetchResult {
+        return try {
+            val mac = config.userAgent ?: return FetchResult.Failure("no MAC address")
+            val stalkerProvider = Provider(
+                name = config.name, type = ProviderType.M3U,
+                serverUrl = config.url?.let { normalizeServerUrl(it) }, userAgent = mac
+            )
+            val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
+            val result = withContext(Dispatchers.IO) { stalker.loadContent(stalkerProvider) }
+            if (result.isFailure) return FetchResult.Failure(result.exceptionOrNull()?.message?.take(60) ?: "error")
+            val content = result.getOrThrow()
+            FetchResult.Success((content.live + content.films + content.series).map { it.copy(streamUserAgent = mac) })
+        } catch (e: Exception) {
+            FetchResult.Failure(e.message?.take(60) ?: "error")
+        }
+    }
+
+    /** Kept alive post-load for fetching a Jellyfin series' episodes when its detail page
+     *  opens - that has no Xtream equivalent path to fall back to. */
+    private suspend fun fetchJellyfinChannels(): FetchResult {
+        val url = prefs.getString("jellyfin_url", null)?.let { normalizeServerUrl(it, defaultScheme = "https") }
+            ?: return FetchResult.Failure("Jellyfin: no server URL")
+        return try {
             val jellyfin = JellyfinProvider(BaseApplication.instance.okHttpClient)
             val savedToken = prefs.getString("jellyfin_token", null)
             val savedUserId = prefs.getString("jellyfin_userid", null)
             if (!savedToken.isNullOrBlank() && !savedUserId.isNullOrBlank()) {
                 // Quick Connect never yields a password to re-authenticate with later -
                 // reuse the session it already gave us instead.
-                jellyfin.restoreSession(provider.serverUrl ?: "", savedToken, savedUserId)
+                jellyfin.restoreSession(url, savedToken, savedUserId)
             } else {
-                val username = provider.username ?: run { setStatus("No username", visible = true); return }
-                val authResult = withContext(Dispatchers.IO) {
-                    jellyfin.authenticate(provider.serverUrl ?: "", username, provider.password.orEmpty())
-                }
-                if (authResult.isFailure) { setStatus("Jellyfin auth error: ${authResult.exceptionOrNull()?.message?.take(60)}", visible = true); return }
+                val username = prefs.getString("jellyfin_user", null) ?: return FetchResult.Failure("Jellyfin: no username")
+                val password = prefs.getString("jellyfin_pass", null).orEmpty()
+                val authResult = withContext(Dispatchers.IO) { jellyfin.authenticate(url, username, password) }
+                if (authResult.isFailure) return FetchResult.Failure("Jellyfin: ${authResult.exceptionOrNull()?.message?.take(60)}")
             }
-
-            setStatus("Loading content...", visible = true)
+            // toChannel() only reads serverUrl off this - a minimal stand-in instead of the
+            // shared `provider` field, which now belongs solely to the IPTV slots.
+            val jellyfinProviderStub = Provider(name = "Jellyfin", type = ProviderType.M3U, serverUrl = url)
             val items: List<Channel> = withContext(Dispatchers.IO) {
-                val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, provider) }
-                val movies = jellyfin.getMovies().map { JellyfinProvider.toChannel(it, provider) }
-                val series = jellyfin.getSeries().map { JellyfinProvider.toChannel(it, provider) }
+                val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, jellyfinProviderStub) }
+                val movies = jellyfin.getMovies().map { JellyfinProvider.toChannel(it, jellyfinProviderStub) }
+                val series = jellyfin.getSeries().map { JellyfinProvider.toChannel(it, jellyfinProviderStub) }
                 liveItems + movies + series
             }
-            // Kept alive for fetching a Jellyfin series' episodes when its detail page
-            // opens - that has no Xtream equivalent path to fall back to.
             jellyfinClient = jellyfin
-            allChannels = items
-            classifyAndShow()
-            withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
-            prefs.edit().putString("provider_type", "jellyfin").apply()
-            setStatus("${allChannels.size} items", visible = true)
-            mainHandler.postDelayed({ setStatus("", visible = false) }, 2000)
+            FetchResult.Success(items)
         } catch (e: Exception) {
-            setStatus("Error: ${e.message?.take(60)}", visible = true)
+            FetchResult.Failure("Jellyfin: ${e.message?.take(60)}")
         }
     }
 
-    private fun loadM3uPlaylist(url: String) {
-        setStatus("Loading M3U...", visible = true)
-        scope.launch {
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient)
-                }
-                allChannels = result.channels
-                classifyAndShow()
-                withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
-                prefs.edit().putString("m3u_url", url).putString("provider_type", "m3u").apply()
-                setStatus("${allChannels.size} items", visible = true)
-                mainHandler.postDelayed({ setStatus("", visible = false) }, 2000)
-            } catch (e: Exception) {
-                setStatus("Error: ${e.message?.take(60)}", visible = true)
-            }
+    private suspend fun fetchM3uChannels(config: IptvProviderConfig): FetchResult {
+        val url = config.url ?: return FetchResult.Failure("no URL")
+        return try {
+            val result = withContext(Dispatchers.IO) { M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient) }
+            FetchResult.Success(result.channels.map { it.copy(streamUserAgent = config.userAgent) })
+        } catch (e: Exception) {
+            FetchResult.Failure(e.message?.take(60) ?: "error")
         }
     }
 
-    private fun loadXtreamContent() {
-        setStatus("Connecting to Xtream...", visible = true)
-        scope.launch {
-            try {
-                val client = XtreamClient(BaseApplication.instance.okHttpClient)
-                val authResult = withContext(Dispatchers.IO) { client.authenticate(provider) }
-                val auth = authResult.getOrElse { error ->
-                    setStatus("Auth error: ${error.message?.take(60)}", visible = true)
-                    return@launch
+    private suspend fun fetchXtreamChannels(config: IptvProviderConfig, onExpiry: (String?) -> Unit): FetchResult {
+        return try {
+            val xtreamProvider = Provider(
+                name = config.name, type = ProviderType.XTREAM,
+                serverUrl = config.url?.let { normalizeServerUrl(it) },
+                username = config.username, password = config.password
+            )
+            val client = XtreamClient(BaseApplication.instance.okHttpClient)
+            val authResult = withContext(Dispatchers.IO) { client.authenticate(xtreamProvider) }
+            val auth = authResult.getOrElse { return FetchResult.Failure(it.message?.take(60) ?: "auth error") }
+            if (!auth.valid) return FetchResult.Failure("auth failed - check server URL and credentials")
+            // Remembered for EPG lookups and the subscription-expiry line, both inherently
+            // "the" Xtream account concepts - first enabled Xtream provider wins if there's
+            // more than one configured.
+            provider = xtreamProvider
+
+            val live: List<Channel>
+            val films: List<Channel>
+            val series: List<Channel>
+            withContext(Dispatchers.IO) {
+                val liveCatsDeferred = async { runCatching { client.getLiveCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val vodCatsDeferred = async { runCatching { client.getVodCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val seriesCatsDeferred = async { runCatching { client.getSeriesCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val liveDeferred = async { client.getLiveStreams(xtreamProvider) }
+                val filmsDeferred = async { client.getVodStreams(xtreamProvider) }
+                val seriesDeferred = async { client.getSeries(xtreamProvider) }
+
+                val liveCatNames = liveCatsDeferred.await().toMap()
+                val vodCatNames = vodCatsDeferred.await().toMap()
+                val seriesCatNames = seriesCatsDeferred.await().toMap()
+
+                live = liveDeferred.await().map { ch ->
+                    liveCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
                 }
-                if (!auth.valid) { setStatus("Auth failed - check server URL and credentials", visible = true); return@launch }
-
-                setStatus("Loading content...", visible = true)
-                val live: List<Channel>
-                val films: List<Channel>
-                val series: List<Channel>
-                withContext(Dispatchers.IO) {
-                    val liveCatsDeferred = async { runCatching { client.getLiveCategories(provider) }.getOrDefault(emptyList()) }
-                    val vodCatsDeferred = async { runCatching { client.getVodCategories(provider) }.getOrDefault(emptyList()) }
-                    val seriesCatsDeferred = async { runCatching { client.getSeriesCategories(provider) }.getOrDefault(emptyList()) }
-                    val liveDeferred = async { client.getLiveStreams(provider) }
-                    val filmsDeferred = async { client.getVodStreams(provider) }
-                    val seriesDeferred = async { client.getSeries(provider) }
-
-                    val liveCatNames = liveCatsDeferred.await().toMap()
-                    val vodCatNames = vodCatsDeferred.await().toMap()
-                    val seriesCatNames = seriesCatsDeferred.await().toMap()
-
-                    live = liveDeferred.await().map { ch ->
-                        liveCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
-                    }
-                    films = filmsDeferred.await().map { ch ->
-                        vodCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
-                    }
-                    series = seriesDeferred.await().map { ch ->
-                        seriesCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
-                    }
+                films = filmsDeferred.await().map { ch ->
+                    vodCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
                 }
-
-                allChannels = live + films + series
-                classifyAndShow()
-                withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
-
-                val expiryText = formatSubscriptionStatus(auth.expDateSeconds, auth.isTrial)
-                prefs.edit()
-                    .putString("provider_type", "xtream")
-                    .putString("xtream_url", provider.serverUrl)
-                    .putString("xtream_user", provider.username)
-                    .putString("xtream_pass", provider.password)
-                    .putString("xtream_exp_date", auth.expDateSeconds?.toString() ?: "")
-                    .putBoolean("xtream_is_trial", auth.isTrial)
-                    .apply()
-
-                val isExpired = auth.expDateSeconds != null && auth.expDateSeconds < System.currentTimeMillis() / 1000
-                if (allChannels.isEmpty()) {
-                    setStatus("Connected, but no channels returned by server", visible = true)
-                } else {
-                    val summary = "${allChannels.size} items" + (expiryText?.let { "  ·  $it" } ?: "")
-                    setStatus(summary, visible = true)
-                    // Don't auto-hide an expiry warning - that's the whole point of surfacing it.
-                    if (!isExpired) mainHandler.postDelayed({ setStatus("", visible = false) }, 4000)
+                series = seriesDeferred.await().map { ch ->
+                    seriesCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
                 }
-            } catch (e: Exception) {
-                setStatus("Error: ${e.message?.take(60)}", visible = true)
             }
+
+            onExpiry(formatSubscriptionStatus(auth.expDateSeconds, auth.isTrial))
+            FetchResult.Success(live + films + series)
+        } catch (e: Exception) {
+            FetchResult.Failure(e.message?.take(60) ?: "error")
         }
     }
 
@@ -1635,7 +1612,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val requestedItemId = item.id
-        val isJellyfin = provider.m3uUrl?.startsWith("jellyfin://") == true
+        val isJellyfin = item.isJellyfin
         scope.launch {
             try {
                 val client = XtreamClient(BaseApplication.instance.okHttpClient)
@@ -1994,8 +1971,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun reloadCurrentProvider() {
-        if (!hasProviderConfigured()) { showProviderSettings(); return }
-        loadConfiguredProvider()
+        loadAllConfiguredProviders(forceRefresh = true)
     }
 
     // ── Player ─────────────────────────────────────
@@ -2261,7 +2237,7 @@ class MainActivity : AppCompatActivity() {
         playerManager.setSurfaceView(binding.playerSurface)
         showControls()
         binding.bufferingSpinner.visibility = View.VISIBLE
-        playerManager.playUrl(channel.url, provider.userAgent)
+        playerManager.playUrl(channel.url, channel.streamUserAgent)
     }
 
     /** Retries playback with the next-best quality version of the current live channel, if any. */
@@ -2284,7 +2260,7 @@ class MainActivity : AppCompatActivity() {
         binding.playerChannelName.text = next.name
         Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
         binding.bufferingSpinner.visibility = View.VISIBLE
-        playerManager.playUrl(next.url, provider.userAgent)
+        playerManager.playUrl(next.url, next.streamUserAgent)
     }
 
     /** Lets the user manually pick a specific quality/source version of the currently playing
@@ -2515,7 +2491,7 @@ class MainActivity : AppCompatActivity() {
         binding.previewNowPlaying.visibility = View.GONE
         binding.previewNowPlayingTime.visibility = View.GONE
         binding.previewBuffering.visibility = View.VISIBLE
-        ensurePreviewPlayer().playUrl(channel.url, provider.userAgent)
+        ensurePreviewPlayer().playUrl(channel.url, channel.streamUserAgent)
 
         scope.launch {
             val program = runCatching { resolveCurrentProgram(channel.id) }.getOrNull()
@@ -2700,7 +2676,9 @@ class MainActivity : AppCompatActivity() {
      *  [existing] if the QR flow already started one and showed it on the phone - starting
      *  a second one here would mint a different code than what's on screen there), polls
      *  for server-side approval, then exchanges it for a session. On success, persists the
-     *  session and sets [provider]. Reports progress via [onStatus] so callers (the manual
+     *  session - Jellyfin is a fully independent provider slot now (can be configured and
+     *  active at the same time as an IPTV one), so this no longer touches the shared
+     *  `provider` field at all. Reports progress via [onStatus] so callers (the manual
      *  settings button and the QR-pairing receive handler) can show it wherever's relevant. */
     private suspend fun performJellyfinQuickConnect(
         url: String,
@@ -2733,9 +2711,8 @@ class MainActivity : AppCompatActivity() {
             .putString("jellyfin_url", url)
             .putString("jellyfin_token", auth.token)
             .putString("jellyfin_userid", auth.userId)
-            .putString("provider_type", "jellyfin")
+            .putBoolean("jellyfin_provider_enabled", true)
             .apply()
-        provider = Provider(name = auth.serverName ?: "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url")
         return true
     }
 
@@ -2760,7 +2737,6 @@ class MainActivity : AppCompatActivity() {
         val xtreamPass = dialogView.findViewById<EditText>(R.id.settingsXtreamPass)
         val stalkerUrl = dialogView.findViewById<EditText>(R.id.settingsStalkerUrl)
         val stalkerMac = dialogView.findViewById<EditText>(R.id.settingsStalkerMac)
-        val stalkerSerial = dialogView.findViewById<EditText>(R.id.settingsStalkerSerial)
         val jellyfinUrl = dialogView.findViewById<EditText>(R.id.settingsJellyfinUrl)
         val jellyfinUser = dialogView.findViewById<EditText>(R.id.settingsJellyfinUser)
         val jellyfinPass = dialogView.findViewById<EditText>(R.id.settingsJellyfinPass)
@@ -2769,26 +2745,15 @@ class MainActivity : AppCompatActivity() {
         val hideNonEnglish = dialogView.findViewById<CheckBox>(R.id.settingsHideNonEnglish)
         val clearHistory = dialogView.findViewById<View>(R.id.settingsClearHistory)
 
-        // Current-provider summary + remove - the only "manage what's already configured"
-        // affordance previously was silently overwriting it by re-saving through the same
-        // form; this makes what's active visible and lets it actually be cleared.
-        val currentProviderCard = dialogView.findViewById<View>(R.id.settingsCurrentProviderCard)
-        val currentProviderName = dialogView.findViewById<TextView>(R.id.settingsCurrentProviderName)
-        val currentProviderDetail = dialogView.findViewById<TextView>(R.id.settingsCurrentProviderDetail)
-        val removeProviderButton = dialogView.findViewById<View>(R.id.settingsRemoveProvider)
-        val currentProviderTypeLabel = when (prefs.getString("provider_type", "m3u")) {
-            "xtream" -> "Xtream"
-            "stalker" -> "Stalker Portal"
-            "jellyfin" -> "Jellyfin"
-            else -> "M3U Playlist"
-        }
-        if (hasProviderConfigured()) {
-            currentProviderCard.visibility = View.VISIBLE
-            currentProviderName.text = "Current provider: $currentProviderTypeLabel"
-            currentProviderDetail.text = (provider.serverUrl ?: provider.m3uUrl ?: "").removePrefix("jellyfin://").removePrefix("stalker://")
-        } else {
-            currentProviderCard.visibility = View.GONE
-        }
+        val iptvProviderListContainer = dialogView.findViewById<LinearLayout>(R.id.settingsIptvProviderList)
+        val iptvProviderListEmpty = dialogView.findViewById<View>(R.id.settingsIptvProviderListEmpty)
+        val addIptvProviderButton = dialogView.findViewById<View>(R.id.settingsAddIptvProvider)
+        val iptvFormSection = dialogView.findViewById<View>(R.id.settingsIptvFormSection)
+        val iptvFormTitle = dialogView.findViewById<TextView>(R.id.settingsIptvFormTitle)
+        val iptvFormCancel = dialogView.findViewById<View>(R.id.settingsIptvFormCancel)
+        val providerNameInput = dialogView.findViewById<EditText>(R.id.settingsProviderName)
+        val jellyfinEnabled = dialogView.findViewById<CheckBox>(R.id.settingsJellyfinEnabled)
+
         clearHistory.setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle("Clear watch history?")
@@ -2807,37 +2772,8 @@ class MainActivity : AppCompatActivity() {
             binding.settingsContainer,
             dialogView,
             closeButton = dialogView.findViewById(R.id.settingsCancelButton),
-            initialFocus = dialogView.findViewById(R.id.settingsProviderTypeSpinner)
+            initialFocus = addIptvProviderButton
         )
-
-        removeProviderButton.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Remove provider?")
-                .setMessage("Clears the saved $currentProviderTypeLabel server/login details. You'll need to add a provider again to keep watching.")
-                .setPositiveButton("Remove") { _, _ ->
-                    prefs.edit()
-                        .remove("provider_type")
-                        .remove("m3u_url").remove("user_agent")
-                        .remove("xtream_url").remove("xtream_user").remove("xtream_pass")
-                        .remove("xtream_exp_date").remove("xtream_is_trial")
-                        .remove("stalker_url").remove("stalker_mac").remove("stalker_serial")
-                        .remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
-                        .remove("jellyfin_token").remove("jellyfin_userid")
-                        .apply()
-                    provider = Provider(name = "", type = ProviderType.M3U)
-                    jellyfinClient = null
-                    allChannels = emptyList()
-                    liveChannels = emptyList(); filmList = emptyList(); seriesList = emptyList()
-                    ChannelCache.clear(this)
-                    binding.emptyState.visibility = View.VISIBLE
-                    binding.contentRow.visibility = View.GONE
-                    binding.homeContent.visibility = View.GONE
-                    Toast.makeText(this, "Provider removed", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
 
         jellyfinQuickConnectButton.setOnClickListener {
             val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
@@ -2852,7 +2788,7 @@ class MainActivity : AppCompatActivity() {
                 if (ok) {
                     dialog.dismiss()
                     Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
-                    loadJellyfinContent()
+                    loadAllConfiguredProviders(forceRefresh = true)
                 } else {
                     Toast.makeText(this@MainActivity, lastMsg, Toast.LENGTH_LONG).show()
                 }
@@ -2860,19 +2796,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         var serverRunning = false
-        // provider.type only distinguishes XTREAM from "everything else stored as an M3U
-        // url" (Stalker/Jellyfin both are, via a "stalker://"/"jellyfin://" prefix) - the
-        // saved provider_type pref is the one place that actually says which of those it
-        // is, and is what should decide which fields the settings screen opens showing.
-        var currentType = prefs.getString("provider_type", "m3u") ?: "m3u"
+        // Jellyfin is its own independent slot now (see settingsJellyfinEnabled) - this
+        // type only ever covers the mutually-exclusive IPTV choices, one form shared by
+        // an arbitrary number of saved IptvProviderConfig entries (see editingProviderId).
+        var currentType = "m3u"
+        var editingProviderId: String? = null
 
         fun selectType(type: String) {
             currentType = type
             m3uGroup.visibility = if (type == "m3u") View.VISIBLE else View.GONE
             xtreamGroup.visibility = if (type == "xtream") View.VISIBLE else View.GONE
             stalkerGroup.visibility = if (type == "stalker") View.VISIBLE else View.GONE
-            jellyfinGroup.visibility = if (type == "jellyfin") View.VISIBLE else View.GONE
-            showQrButton.visibility = if (type in listOf("m3u", "xtream", "jellyfin")) View.VISIBLE else View.GONE
+            showQrButton.visibility = if (type in listOf("m3u", "xtream")) View.VISIBLE else View.GONE
         }
 
         fun stopQrServer() {
@@ -2923,19 +2858,23 @@ class MainActivity : AppCompatActivity() {
                 when (type) {
                     "m3u" -> {
                         val url = form["m3uUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
-                        provider = Provider(name = form["name"] ?: "QR M3U", type = ProviderType.M3U, m3uUrl = url, userAgent = form["userAgent"])
-                        prefs.edit().putString("m3u_url", url).putString("provider_type", "m3u").apply()
+                        IptvProviderStore.upsert(prefs, IptvProviderConfig(
+                            id = IptvProviderStore.newId(), type = "m3u", name = form["name"]?.takeIf { it.isNotBlank() } ?: "QR M3U",
+                            enabled = true, url = url, userAgent = form["userAgent"]
+                        ))
                         stopQrServer()
                         dialog.dismiss()
-                        loadM3uPlaylist(url)
+                        loadAllConfiguredProviders(forceRefresh = true)
                     }
                     "xtream" -> {
                         val su = form["serverUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
-                        provider = Provider(name = form["name"] ?: "QR Xtream", type = ProviderType.XTREAM, serverUrl = su, username = form["username"], password = form["password"])
-                        prefs.edit().putString("xtream_url", su).putString("xtream_user", form["username"]).putString("xtream_pass", form["password"]).putString("provider_type", "xtream").apply()
+                        IptvProviderStore.upsert(prefs, IptvProviderConfig(
+                            id = IptvProviderStore.newId(), type = "xtream", name = form["name"]?.takeIf { it.isNotBlank() } ?: "QR Xtream",
+                            enabled = true, url = su, username = form["username"], password = form["password"]
+                        ))
                         stopQrServer()
                         dialog.dismiss()
-                        loadXtreamContent()
+                        loadAllConfiguredProviders(forceRefresh = true)
                     }
                     "jellyfin" -> {
                         // Quick Connect never reaches this branch - QrPairingManager
@@ -2945,11 +2884,10 @@ class MainActivity : AppCompatActivity() {
                         // instead. This path is password-only.
                         val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it, defaultScheme = "https") } ?: return@runOnUiThread
                         val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
-                        provider = Provider(name = form["name"] ?: "QR Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
-                        prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
+                        prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putBoolean("jellyfin_provider_enabled", true).apply()
                         stopQrServer()
                         dialog.dismiss()
-                        scope.launch { loadJellyfinContent() }
+                        loadAllConfiguredProviders(forceRefresh = true)
                     }
                     "jellyfin_quickconnect" -> {
                         val url = form["serverUrl"] ?: return@runOnUiThread
@@ -2963,7 +2901,7 @@ class MainActivity : AppCompatActivity() {
                                 stopQrServer()
                                 dialog.dismiss()
                                 Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
-                                loadJellyfinContent()
+                                loadAllConfiguredProviders(forceRefresh = true)
                             } else {
                                 qrStatus.text = lastMsg
                             }
@@ -2988,8 +2926,8 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { qrStatus.text = msg }
         }
 
-        val providerTypeLabels = listOf("M3U URL", "Xtream", "Stalker Portal", "Jellyfin")
-        val providerTypeValues = listOf("m3u", "xtream", "stalker", "jellyfin")
+        val providerTypeLabels = listOf("M3U URL", "Xtream", "Stalker Portal")
+        val providerTypeValues = listOf("m3u", "xtream", "stalker")
         val spinnerAdapter = ArrayAdapter(this, R.layout.item_spinner_selected, providerTypeLabels).apply {
             setDropDownViewResource(R.layout.item_spinner_dropdown)
         }
@@ -3008,6 +2946,80 @@ class MainActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
         showQrButton.setOnClickListener { startQrServer(currentType) }
+
+        fun closeIptvForm() {
+            editingProviderId = null
+            iptvFormSection.visibility = View.GONE
+            if (serverRunning) stopQrServer()
+        }
+
+        fun openIptvForm(existing: IptvProviderConfig?) {
+            editingProviderId = existing?.id
+            iptvFormTitle.text = if (existing == null) "Add IPTV Provider" else "Edit IPTV Provider"
+            providerNameInput.setText(existing?.name ?: "")
+            val type = existing?.type ?: "m3u"
+            providerTypeSpinner.setSelection(providerTypeValues.indexOf(type).coerceAtLeast(0))
+            selectType(type)
+            m3uUrl.setText(if (type == "m3u") existing?.url ?: "" else "")
+            uaInput.setText(if (type == "m3u") existing?.userAgent ?: "" else "")
+            xtreamUrl.setText(if (type == "xtream") existing?.url ?: "" else "")
+            xtreamUser.setText(if (type == "xtream") existing?.username ?: "" else "")
+            xtreamPass.setText(if (type == "xtream") existing?.password ?: "" else "")
+            stalkerUrl.setText(if (type == "stalker") existing?.url ?: "" else "")
+            stalkerMac.setText(if (type == "stalker") existing?.userAgent ?: "" else "")
+            iptvFormSection.visibility = View.VISIBLE
+        }
+
+        fun renderIptvProviderList() {
+            iptvProviderListContainer.removeAllViews()
+            val list = IptvProviderStore.load(prefs)
+            iptvProviderListEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            for (cfg in list) {
+                val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
+                row.findViewById<CheckBox>(R.id.rowEnabled).apply {
+                    setOnCheckedChangeListener(null)
+                    isChecked = cfg.enabled
+                    setOnCheckedChangeListener { _, checked ->
+                        IptvProviderStore.setEnabled(prefs, cfg.id, checked)
+                        loadAllConfiguredProviders(forceRefresh = true)
+                    }
+                }
+                row.findViewById<TextView>(R.id.rowName).text = cfg.name
+                val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U" }
+                row.findViewById<TextView>(R.id.rowDetail).text = "$typeLabel · ${cfg.url ?: ""}"
+                row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openIptvForm(cfg) }
+                row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
+                    AlertDialog.Builder(this)
+                        .setTitle("Remove ${cfg.name}?")
+                        .setMessage("This provider's channels will no longer appear.")
+                        .setPositiveButton("Remove") { _, _ ->
+                            IptvProviderStore.remove(prefs, cfg.id)
+                            renderIptvProviderList()
+                            loadAllConfiguredProviders(forceRefresh = true)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+                iptvProviderListContainer.addView(row)
+            }
+        }
+
+        addIptvProviderButton.setOnClickListener { openIptvForm(null) }
+        iptvFormCancel.setOnClickListener { closeIptvForm() }
+
+        renderIptvProviderList()
+        // First run, nothing configured at all yet - the empty list + tiny "+ Add" button
+        // would leave the user staring at nothing to interact with, so open the form
+        // immediately (matches the old single-slot behavior of showing fields right away).
+        if (IptvProviderStore.load(prefs).isEmpty() && !hasJellyfinConfigured()) {
+            openIptvForm(null)
+        }
+
+        jellyfinEnabled.isChecked = isJellyfinEnabled()
+        jellyfinEnabled.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
+            loadAllConfiguredProviders(forceRefresh = true)
+        }
 
         // Backup & Restore
         val backupManager = BackupManager(this)
@@ -3116,15 +3128,8 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // Pre-fill existing values
-        m3uUrl.setText(prefs.getString("m3u_url", ""))
-        uaInput.setText(prefs.getString("user_agent", ""))
-        xtreamUrl.setText(prefs.getString("xtream_url", ""))
-        xtreamUser.setText(prefs.getString("xtream_user", ""))
-        xtreamPass.setText(prefs.getString("xtream_pass", ""))
-        stalkerUrl.setText(prefs.getString("stalker_url", ""))
-        stalkerMac.setText(prefs.getString("stalker_mac", ""))
-        stalkerSerial.setText(prefs.getString("stalker_serial", "000000000000"))
+        // Jellyfin is a single independent slot (unlike IPTV, which is a list managed via
+        // openIptvForm()/renderIptvProviderList() above), so its fields still pre-fill directly.
         jellyfinUrl.setText(prefs.getString("jellyfin_url", ""))
         jellyfinUser.setText(prefs.getString("jellyfin_user", ""))
 
@@ -3270,49 +3275,56 @@ class MainActivity : AppCompatActivity() {
         activeSettingsOverlay = dialog
         dialog.show()
 
-        // The Save button's listener validates and keeps the overlay open on error instead
-        // of dismissing unconditionally.
+        // The Save button's listener validates and keeps the form open on error instead of
+        // dismissing unconditionally. Only acts when the add/edit form is actually open -
+        // the same footer button is shared by every nav pane, most of which have nothing
+        // for it to save. Jellyfin is independent and saves via settingsJellyfinSaveButton
+        // below, without closing this screen.
         dialogView.findViewById<View>(R.id.settingsSaveButton).setOnClickListener {
+            if (iptvFormSection.visibility != View.VISIBLE) return@setOnClickListener
+            val name = providerNameInput.text.toString().trim()
+            val id = editingProviderId ?: IptvProviderStore.newId()
             when (currentType) {
                 "m3u" -> {
                     val url = m3uUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
                     if (url.isBlank()) {
                         Toast.makeText(this, "Enter an M3U URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener
                     }
-                    prefs.edit().putString("m3u_url", url).putString("user_agent", uaInput.text.toString().trim()).putString("provider_type", "m3u").apply()
-                    provider = Provider(name = "M3U", type = ProviderType.M3U, m3uUrl = url, userAgent = uaInput.text.toString().trim().ifBlank { null })
-                    dialog.dismiss(); loadM3uPlaylist(url)
+                    IptvProviderStore.upsert(prefs, IptvProviderConfig(
+                        id = id, type = "m3u", name = name.ifBlank { "M3U Playlist" }, enabled = true,
+                        url = url, userAgent = uaInput.text.toString().trim().ifBlank { null }
+                    ))
                 }
                 "xtream" -> {
                     val url = xtreamUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-                    val user = xtreamUser.text.toString().trim(); val pass = xtreamPass.text.toString().trim()
-                    prefs.edit().putString("xtream_url", url).putString("xtream_user", user).putString("xtream_pass", pass).putString("provider_type", "xtream").apply()
-                    provider = Provider(name = "Xtream", type = ProviderType.XTREAM, serverUrl = url, username = user, password = pass)
-                    dialog.dismiss(); loadXtreamContent()
+                    IptvProviderStore.upsert(prefs, IptvProviderConfig(
+                        id = id, type = "xtream", name = name.ifBlank { "Xtream" }, enabled = true,
+                        url = url, username = xtreamUser.text.toString().trim(), password = xtreamPass.text.toString().trim()
+                    ))
                 }
                 "stalker" -> {
                     val url = stalkerUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-                    val mac = stalkerMac.text.toString().trim()
-                    val serial = stalkerSerial.text.toString().trim().ifBlank { "000000000000" }
-                    prefs.edit().putString("stalker_url", url).putString("stalker_mac", mac).putString("stalker_serial", serial).putString("provider_type", "stalker").apply()
-                    provider = Provider(name = "Stalker", type = ProviderType.M3U, m3uUrl = "stalker://$url", userAgent = mac)
-                    dialog.dismiss()
-                    Toast.makeText(this, "Stalker provider saved. Loading...", Toast.LENGTH_SHORT).show()
-                    scope.launch { loadStalkerContent() }
-                }
-                "jellyfin" -> {
-                    val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
-                    if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-                    val user = jellyfinUser.text.toString().trim(); val pass = jellyfinPass.text.toString().trim()
-                    prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putString("provider_type", "jellyfin").apply()
-                    provider = Provider(name = "Jellyfin", type = ProviderType.M3U, m3uUrl = "jellyfin://$url", username = user, password = pass)
-                    dialog.dismiss()
-                    Toast.makeText(this, "Jellyfin provider saved. Loading...", Toast.LENGTH_SHORT).show()
-                    scope.launch { loadJellyfinContent() }
+                    IptvProviderStore.upsert(prefs, IptvProviderConfig(
+                        id = id, type = "stalker", name = name.ifBlank { "Stalker Portal" }, enabled = true,
+                        url = url, userAgent = stalkerMac.text.toString().trim()
+                    ))
                 }
             }
+            closeIptvForm()
+            renderIptvProviderList()
+            Toast.makeText(this, "Provider saved. Loading...", Toast.LENGTH_SHORT).show()
+            loadAllConfiguredProviders(forceRefresh = true)
+        }
+
+        dialogView.findViewById<View>(R.id.settingsJellyfinSaveButton).setOnClickListener {
+            val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
+            if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            val user = jellyfinUser.text.toString().trim(); val pass = jellyfinPass.text.toString().trim()
+            prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putBoolean("jellyfin_provider_enabled", true).apply()
+            Toast.makeText(this, "Jellyfin provider saved. Loading...", Toast.LENGTH_SHORT).show()
+            loadAllConfiguredProviders(forceRefresh = true)
         }
     }
 

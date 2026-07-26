@@ -5,6 +5,9 @@ local.properties
 *.iml
 .idea/
 
+# Claude Code project instructions - local-only, not committed
+CLAUDE.md
+
 # Signing - never commit the release key or its credentials
 *.jks
 *.keystore

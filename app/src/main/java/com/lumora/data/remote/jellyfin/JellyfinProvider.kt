@@ -426,7 +426,8 @@ class JellyfinProvider(private val client: OkHttpClient) {
                 categoryName = item.genres.firstOrNull(),
                 mediaType = mediaType,
                 rating = item.rating?.toString(),
-                releaseDate = item.releaseDate
+                releaseDate = item.releaseDate,
+                isJellyfin = true
             )
         }
     }

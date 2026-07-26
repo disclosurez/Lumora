@@ -102,93 +102,50 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="IPTV Provider"
+                    android:text="Providers"
                     style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="-12dp"
-                    android:text="Select provider type, scan QR with phone, or enter manually"
+                    android:text="Run multiple IPTV providers and Jellyfin together - enable or disable each independently"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
 
-                <!-- Current provider summary + remove - only visible when one's configured,
-                     see hasProviderConfigured() in showProviderSettings(). -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="IPTV PROVIDERS"
+                    android:letterSpacing="0.08"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <!-- Populated at runtime from IptvProviderStore - see renderIptvProviderList()
+                     in showProviderSettings(). -->
                 <LinearLayout
-                    android:id="@+id/settingsCurrentProviderCard"
+                    android:id="@+id/settingsIptvProviderList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:background="@drawable/bg_category_panel"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:padding="14dp"
-                    android:visibility="gone">
+                    android:layout_marginTop="10dp"
+                    android:orientation="vertical" />
 
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/settingsCurrentProviderName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:ellipsize="end"
-                            android:maxLines="1"
-                            android:textColor="@color/text_primary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/settingsCurrentProviderDetail"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:ellipsize="end"
-                            android:maxLines="1"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/settingsRemoveProvider"
-                        android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:layout_marginStart="12dp"
-                        android:background="@drawable/card_surface_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:paddingHorizontal="14dp"
-                        android:stateListAnimator="@animator/focus_scale">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Remove"
-                            android:textColor="@color/live_red"
-                            android:textSize="10sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Provider Type Selector -->
-                <Spinner
-                    android:id="@+id/settingsProviderTypeSpinner"
+                <TextView
+                    android:id="@+id/settingsIptvProviderListEmpty"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:background="@drawable/bg_dropdown_input"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="40dp"
-                    android:spinnerMode="dropdown" />
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="No IPTV providers added yet"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
 
                 <LinearLayout
-                    android:id="@+id/settingsShowQrButton"
+                    android:id="@+id/settingsAddIptvProvider"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="12dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -198,234 +155,332 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Show phone QR pairing code"
-                        android:textColor="@color/text_primary"
+                        android:text="+ Add IPTV Provider"
+                        android:textColor="@color/accent"
                         android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- QR Code Section -->
+                <!-- Add/Edit form - hidden until "+ Add" or a row's Edit button is tapped;
+                     see openIptvForm()/closeIptvForm() in showProviderSettings(). -->
                 <LinearLayout
-                    android:id="@+id/settingsQrSection"
+                    android:id="@+id/settingsIptvFormSection"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:gravity="center"
+                    android:background="@drawable/bg_category_panel"
                     android:orientation="vertical"
+                    android:padding="14dp"
                     android:visibility="gone">
 
                     <TextView
-                        android:id="@+id/settingsQrStatus"
-                        android:layout_width="match_parent"
+                        android:id="@+id/settingsIptvFormTitle"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:textColor="@color/text_secondary"
+                        android:text="Add IPTV Provider"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Name" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                    <EditText
+                        android:id="@+id/settingsProviderName"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input"
+                        android:hint="e.g. My IPTV"
+                        android:importantForAutofill="no"
+                        android:inputType="text"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
                         android:textSize="11sp" />
 
-                    <FrameLayout
-                        android:id="@+id/settingsQrFrame"
-                        android:layout_width="192dp"
-                        android:layout_height="192dp"
-                        android:layout_marginTop="12dp"
-                        android:background="@android:color/white"
-                        android:padding="10dp"
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Type" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                    <Spinner
+                        android:id="@+id/settingsProviderTypeSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_dropdown_input"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="40dp"
+                        android:spinnerMode="dropdown" />
+
+                    <LinearLayout
+                        android:id="@+id/settingsShowQrButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:stateListAnimator="@animator/focus_scale">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Show phone QR pairing code"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- QR Code Section -->
+                    <LinearLayout
+                        android:id="@+id/settingsQrSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:gravity="center"
+                        android:orientation="vertical"
                         android:visibility="gone">
 
-                        <ImageView
-                            android:id="@+id/settingsQrImage"
+                        <TextView
+                            android:id="@+id/settingsQrStatus"
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:scaleType="fitCenter" />
-                    </FrameLayout>
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
 
-                    <TextView
-                        android:id="@+id/settingsQrTimer"
-                        android:layout_width="wrap_content"
+                        <FrameLayout
+                            android:id="@+id/settingsQrFrame"
+                            android:layout_width="192dp"
+                            android:layout_height="192dp"
+                            android:layout_marginTop="12dp"
+                            android:background="@android:color/white"
+                            android:padding="10dp"
+                            android:visibility="gone">
+
+                            <ImageView
+                                android:id="@+id/settingsQrImage"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="fitCenter" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:id="@+id/settingsQrTimer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textColor="@color/accent"
+                            android:textSize="10sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <!-- Divider: OR enter manually -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textColor="@color/accent"
-                        android:textSize="10sp"
-                        android:visibility="gone" />
-                </LinearLayout>
+                        android:layout_marginTop="16dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
 
-                <!-- Divider: OR enter manually -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center"
-                    android:orientation="horizontal">
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingHorizontal="12dp"
+                            android:text="OR enter manually"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
+                        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
+                    </LinearLayout>
 
-                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingHorizontal="12dp"
-                        android:text="OR enter manually"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp" />
-                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
-                </LinearLayout>
-
-                <!-- M3U Fields -->
-                <LinearLayout
-                    android:id="@+id/settingsM3uGroup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:orientation="vertical">
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/m3u_url" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsM3uUrl"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="@string/m3u_url_hint"
-                        android:importantForAutofill="no"
-                        android:inputType="textUri"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsUserAgent"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="@string/user_agent_hint"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <!-- Xtream Fields -->
-                <LinearLayout
-                    android:id="@+id/settingsXtreamGroup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsXtreamUrl"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="http://example.com:8080"
-                        android:importantForAutofill="no"
-                        android:inputType="textUri"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsXtreamUser"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="Username"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsXtreamPass"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="Password"
-                        android:importantForAutofill="no"
-                        android:inputType="textPassword"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView
-                        android:id="@+id/settingsSubscriptionStatus"
+                    <!-- M3U Fields -->
+                    <LinearLayout
+                        android:id="@+id/settingsM3uGroup"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/m3u_url" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsM3uUrl"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/m3u_url_hint"
+                            android:importantForAutofill="no"
+                            android:inputType="textUri"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsUserAgent"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/user_agent_hint"
+                            android:importantForAutofill="no"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <!-- Xtream Fields -->
+                    <LinearLayout
+                        android:id="@+id/settingsXtreamGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsXtreamUrl"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="http://example.com:8080"
+                            android:importantForAutofill="no"
+                            android:inputType="textUri"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsXtreamUser"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="Username"
+                            android:importantForAutofill="no"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsXtreamPass"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="Password"
+                            android:importantForAutofill="no"
+                            android:inputType="textPassword"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/settingsSubscriptionStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <!-- Stalker Fields -->
+                    <LinearLayout
+                        android:id="@+id/settingsStalkerGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsStalkerUrl"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="http://example.com:8080"
+                            android:importantForAutofill="no"
+                            android:inputType="textUri"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_mac" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsStalkerMac"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="@string/stalker_mac_hint"
+                            android:importantForAutofill="no"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/settingsIptvFormCancel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:padding="6dp"
+                        android:text="Cancel"
                         android:textColor="@color/text_secondary"
                         android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:visibility="gone" />
+                        android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- Stalker Fields -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="24dp"
+                    android:background="@color/divider" />
+
+                <!-- Jellyfin - independent slot, always visible, own enable toggle -->
                 <LinearLayout
-                    android:id="@+id/settingsStalkerGroup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
+                    android:layout_marginTop="20dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsStalkerUrl"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="http://example.com:8080"
-                        android:importantForAutofill="no"
-                        android:inputType="textUri"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="JELLYFIN"
+                        android:letterSpacing="0.08"
+                        android:textColor="@color/text_tertiary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_mac" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsStalkerMac"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="@string/stalker_mac_hint"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_serial" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsStalkerSerial"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="Default: 000000000000"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:padding="12dp"
+                    <CheckBox
+                        android:id="@+id/settingsJellyfinEnabled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Enabled"
                         android:textColor="@color/text_primary"
                         android:textSize="11sp" />
                 </LinearLayout>
 
-                <!-- Jellyfin Fields -->
                 <LinearLayout
                     android:id="@+id/settingsJellyfinGroup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone">
+                    android:layout_marginTop="10dp"
+                    android:orientation="vertical">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsJellyfinUrl"
                         android:layout_width="match_parent"
@@ -482,6 +537,25 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Sign in with Quick Connect"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/settingsJellyfinSaveButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_play_button"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:stateListAnimator="@animator/focus_scale">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Save Jellyfin"
                             android:textColor="@color/text_primary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
