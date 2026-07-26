@@ -280,6 +280,9 @@ class XtreamClient(private val client: OkHttpClient) {
         val categoryName = obj.optString("category_name", "")
         val rating = obj.optString("rating", "")
         val year = obj.optString("year", "")
+        // Bulk get_series actually carries a real release date (unlike movies, which
+        // only expose one per-item) - confirmed against a live provider.
+        val releaseDate = obj.optString("releaseDate", obj.optString("release_date", ""))
         return Channel(
             id = seriesId,
             name = name,
@@ -290,7 +293,8 @@ class XtreamClient(private val client: OkHttpClient) {
             categoryName = categoryName,
             mediaType = MediaType.SERIES,
             rating = rating.ifBlank { null },
-            year = year.ifBlank { null }
+            year = year.ifBlank { null },
+            releaseDate = releaseDate.ifBlank { null }
         )
     }
 

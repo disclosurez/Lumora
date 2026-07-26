@@ -673,7 +673,10 @@ class MainActivity : AppCompatActivity() {
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
             .filterNot { isAdult(it) }
             .map { it.withResolvedYear() }
-        val series = groupDuplicateSeries(rawSeries).sortedByDescending { it.year?.toIntOrNull() ?: -1 }
+        // Real release date (from the provider's bulk series list) sorts more precisely
+        // than year alone; falls back to year for anything that came back without one.
+        val series = groupDuplicateSeries(rawSeries)
+            .sortedWith(compareByDescending<Channel> { it.releaseDate ?: "" }.thenByDescending { it.year?.toIntOrNull() ?: -1 })
         // Favourited series get their own shelf pinned above everything else in the
         // Series tab itself, not just on Home.
         val favoriteSeriesIds = FavoritesStore.getFavoriteSeriesIds(this)
