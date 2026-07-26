@@ -298,22 +298,21 @@ private val BRAND_KEYWORDS = linkedMapOf(
 
 private val HOME_TOP_BRANDS = listOf("Netflix", "Disney", "Apple TV", "Amazon / Prime Video", "HBO / Max")
 
-/** Top-rated series per major streaming brand, matched off the provider's own category
- *  naming (e.g. a category literally called "HBO MAX SERIES") - same keyword matching
- *  groupCategories() already uses to cluster the sidebar, just aimed at a "Top 10
- *  Netflix/Disney/..." home shelf per brand instead. Only real ratings the provider
- *  actually supplied are used for ranking - nothing here is a live "trending" feed,
- *  it's the user's own catalog filtered and sorted by brand. */
-fun topSeriesByBrand(series: List<Channel>, limit: Int = 10): List<Pair<String, List<Channel>>> =
-    HOME_TOP_BRANDS.mapNotNull { brand ->
-        val keywords = BRAND_KEYWORDS[brand] ?: return@mapNotNull null
-        val matches = series.filter { ch ->
+/** "Newest" shelf (Series/Films): each major streaming brand's own [limit] newest
+ *  releases, matched off the provider's own category naming (e.g. a category literally
+ *  called "HBO MAX SERIES") - same keyword matching groupCategories() uses to cluster
+ *  the sidebar - pooled together and re-sorted by release date descending overall, so
+ *  brands with a bigger catalog on this provider don't just drown out the others. */
+fun newestByBrand(items: List<Channel>, limit: Int = 10): List<Channel> {
+    fun dateKey(ch: Channel): String = ch.releaseDate?.takeIf { it.isNotBlank() } ?: ch.year?.let { "$it-01-01" } ?: ""
+    return HOME_TOP_BRANDS.flatMap { brand ->
+        val keywords = BRAND_KEYWORDS[brand] ?: return@flatMap emptyList()
+        items.filter { ch ->
             val name = (ch.categoryName ?: ch.group ?: "").lowercase()
             keywords.any { name.contains(it) }
-        }
-        if (matches.isEmpty()) return@mapNotNull null
-        brand to matches.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }.take(limit)
-    }
+        }.sortedByDescending { dateKey(it) }.take(limit)
+    }.sortedByDescending { dateKey(it) }
+}
 
 private fun cleanGroupLabel(raw: String): String =
     normalizeLiveChannelName(raw)

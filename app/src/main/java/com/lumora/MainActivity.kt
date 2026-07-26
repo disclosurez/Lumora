@@ -62,7 +62,7 @@ import com.lumora.util.extractLeadingTag
 import com.lumora.util.deriveBrandCategories
 import com.lumora.util.groupCategories
 import com.lumora.util.CategoryGroup
-import com.lumora.util.topSeriesByBrand
+import com.lumora.util.newestByBrand
 import com.lumora.util.isAdultCategory
 import com.lumora.util.isTvDevice
 import com.lumora.util.normalizeServerUrl
@@ -699,7 +699,15 @@ class MainActivity : AppCompatActivity() {
             .map { it.withResolvedYear() }
         val (groupedFilms, versions) = groupDuplicateMovies(rawFilms)
         val films = groupedFilms.sortedByDescending { it.year?.toIntOrNull() ?: -1 }
-        val filmShelvesLocal = buildShelves(films, tab = 2)
+        // "Newest" pools each major streaming brand's own newest releases (by release
+        // date, not rating) into one shelf pinned at the top - this used to be separate
+        // "Top 10 Netflix"/"Top 10 Disney"/etc shelves on Home; moved into Films/Series
+        // themselves (see the same treatment on seriesShelvesLocal below) and merged into
+        // a single dated feed instead of splitting one shelf per brand.
+        val newestFilms = newestByBrand(films)
+        val filmShelvesLocal = buildShelves(films, tab = 2).let { shelves ->
+            if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms)) + shelves
+        }
 
         val rawSeries = allChannels.filter { it.mediaType == MediaType.SERIES }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
@@ -713,7 +721,10 @@ class MainActivity : AppCompatActivity() {
         // Series tab itself, not just on Home.
         val favoriteSeriesIds = FavoritesStore.getFavoriteSeriesIds(this)
         val favoriteSeries = series.filter { it.id in favoriteSeriesIds }
+        val newestSeries = newestByBrand(series)
         val seriesShelvesLocal = buildShelves(series, tab = 1).let { shelves ->
+            (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries)) + shelves)
+        }.let { shelves ->
             if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
         }
 
@@ -1347,10 +1358,6 @@ class MainActivity : AppCompatActivity() {
         val favIds = FavoritesStore.getFavoriteSeriesIds(this)
         val favItems = seriesList.filter { it.id in favIds }
         if (favItems.isNotEmpty()) shelves.add(ContentShelf("Favorites", favItems))
-
-        topSeriesByBrand(seriesList).forEach { (brand, items) ->
-            shelves.add(ContentShelf("Top 10 $brand", items))
-        }
 
         return shelves.filter { it.title !in hidden }
     }
