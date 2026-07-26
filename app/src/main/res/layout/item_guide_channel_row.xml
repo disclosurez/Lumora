@@ -16,14 +16,15 @@
         android:gravity="center_vertical"
         android:minHeight="42dp"
         android:orientation="horizontal"
-        android:paddingHorizontal="6dp"
+        android:paddingHorizontal="4dp"
         android:paddingVertical="4dp"
         android:stateListAnimator="@animator/focus_scale">
 
         <TextView
             android:id="@+id/guideChannelNumber"
-            android:layout_width="18dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:minWidth="10dp"
             android:gravity="center"
             android:textColor="@color/text_tertiary"
             android:textSize="8sp"
