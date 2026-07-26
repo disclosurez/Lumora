@@ -1228,6 +1228,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectHome() {
+        activeSettingsOverlay?.dismiss()
         showingHome = true
         showingDownloads = false
         releaseLivePreview()
@@ -1240,6 +1241,7 @@ class MainActivity : AppCompatActivity() {
     /** Downloads reuses the contentRow's FrameLayout but skips the category sidebar and
      *  the live/series/films lists entirely - it's not part of the categorized catalog. */
     private fun selectDownloads() {
+        activeSettingsOverlay?.dismiss()
         showingDownloads = true
         releaseLivePreview()
         binding.contentRow.visibility = View.VISIBLE
@@ -1302,6 +1304,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectTab(index: Int) {
+        activeSettingsOverlay?.dismiss()
         activeTab = index
         showingDownloads = false
         binding.contentRow.visibility = View.VISIBLE
@@ -1389,6 +1392,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupChannelList() {
         binding.liveContent.layoutManager = LinearLayoutManager(this)
+        binding.liveContent.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) { updateGuideRowWrap() }
+        })
+        binding.liveContent.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
+            override fun onChildViewAttachedToWindow(view: View) { binding.liveContent.post { updateGuideRowWrap() } }
+            override fun onChildViewDetachedFromWindow(view: View) {}
+        })
         binding.seriesContent.layoutManager = LinearLayoutManager(this)
         binding.filmsContent.layoutManager = LinearLayoutManager(this)
         binding.categorySidebar.layoutManager = LinearLayoutManager(this)
@@ -2284,7 +2294,7 @@ class MainActivity : AppCompatActivity() {
     private fun ensurePreviewPlayer(): PlayerManager {
         previewPlayerManager?.let { return it }
         val manager = PlayerManager(this)
-        manager.setVolume(0f)
+        manager.setVolume(1f)
         manager.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 binding.previewBuffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
@@ -2302,6 +2312,31 @@ class MainActivity : AppCompatActivity() {
         binding.livePreviewGutter.visibility = View.VISIBLE
         binding.livePreviewPane.visibility = View.VISIBLE
         ensurePreviewPlayer().setTextureView(binding.previewSurface)
+        binding.liveContent.post { updateGuideRowWrap() }
+    }
+
+    /** The preview pane floats over the top-right corner of the guide instead of reserving
+     *  a permanent column, so rows read like text wrapping around it: whichever rows are
+     *  currently scrolled behind it get a right-side margin to clear it, every row below
+     *  goes back to full width. Recomputed on scroll and whenever a row is (re)bound, since
+     *  which channel occupies "behind the preview" changes as the guide scrolls. */
+    private val previewGlobalRect = android.graphics.Rect()
+    private val guideRowGlobalRect = android.graphics.Rect()
+    private fun updateGuideRowWrap() {
+        val showingPreview = binding.livePreviewGutter.visibility == View.VISIBLE
+        val reservedPx = if (showingPreview) {
+            binding.livePreviewPane.getGlobalVisibleRect(previewGlobalRect)
+            resources.getDimensionPixelSize(R.dimen.live_preview_width) + (16 * resources.displayMetrics.density).toInt()
+        } else 0
+        for (i in 0 until binding.liveContent.childCount) {
+            val child = binding.liveContent.getChildAt(i)
+            val overlapsPreview = showingPreview && run {
+                child.getGlobalVisibleRect(guideRowGlobalRect)
+                guideRowGlobalRect.bottom > previewGlobalRect.top && guideRowGlobalRect.top < previewGlobalRect.bottom
+            }
+            (binding.liveContent.getChildViewHolder(child) as? LiveGuideAdapter.RowViewHolder)
+                ?.setReservedEnd(if (overlapsPreview) reservedPx else 0)
+        }
     }
 
     private fun releaseLivePreview() {
@@ -2310,6 +2345,7 @@ class MainActivity : AppCompatActivity() {
         previewChannelId = null
         binding.livePreviewGutter.visibility = View.GONE
         binding.livePreviewPane.visibility = View.GONE
+        updateGuideRowWrap()
         // A hardware-overlay SurfaceView can keep compositing its last frame even
         // after the Java view tree is hidden; explicitly stop playback and hide the
         // surface itself (not just its parent) so it actually goes away.
@@ -2487,12 +2523,14 @@ class MainActivity : AppCompatActivity() {
 
     /** Lightweight stand-in for AlertDialog that mimics just what showProviderSettings()
      *  needs - dismiss()/setOnDismissListener()/show() plus a Save/Cancel button pair -
-     *  while actually adding the content view full-screen onto the activity's own root.
-     *  A real AlertDialog window here always rendered as a small centered floating box
-     *  with the platform's own button panel no matter what background/size overrides were
-     *  applied on its Window: the floating-dialog chrome (minimum width, its own buttons)
-     *  isn't something window.setLayout(MATCH_PARENT, MATCH_PARENT) can escape. */
-    private class FullScreenOverlay(private val root: FrameLayout, val view: View) {
+     *  while actually adding the content view into [container] (the same "swap the active
+     *  tab's content region" slot every other tab uses), so the toolbar + tab bar above
+     *  stay visible and usable while Settings is open. A real AlertDialog rendered as a
+     *  small centered floating box with the platform's own button panel no matter what
+     *  background/size overrides were applied on its Window - not something
+     *  window.setLayout(MATCH_PARENT, MATCH_PARENT) can escape - so this skips Dialog
+     *  entirely instead of fighting it. */
+    private class FullScreenOverlay(private val container: FrameLayout, val view: View) {
         val saveButton: View = view.findViewById(R.id.settingsSaveButton)
         val cancelButton: View = view.findViewById(R.id.settingsCancelButton)
         private var dismissListener: (() -> Unit)? = null
@@ -2501,13 +2539,15 @@ class MainActivity : AppCompatActivity() {
 
         fun show() {
             view.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            root.addView(view)
+            container.addView(view)
+            container.visibility = View.VISIBLE
             cancelButton.setOnClickListener { dismiss() }
             view.post { view.findViewById<View>(R.id.settingsProviderTypeSpinner)?.requestFocus() }
         }
 
         fun dismiss() {
-            if (view.parent === root) root.removeView(view)
+            if (view.parent === container) container.removeView(view)
+            container.visibility = View.GONE
             dismissListener?.invoke()
         }
     }
@@ -2590,7 +2630,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        val dialog = FullScreenOverlay(binding.root, dialogView)
+        val dialog = FullScreenOverlay(binding.settingsContainer, dialogView)
 
         jellyfinQuickConnectButton.setOnClickListener {
             val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
@@ -2988,7 +3028,16 @@ class MainActivity : AppCompatActivity() {
 
         // Init UI
         selectType(currentType)
-        dialog.setOnDismissListener { qrManager.stop(); activeSettingsOverlay = null }
+        // Hide whatever the active tab is showing so it doesn't render doubled-up behind
+        // Settings in the same weight=1 slot - restored on dismiss below.
+        binding.homeContent.visibility = View.GONE
+        binding.contentRow.visibility = View.GONE
+        binding.emptyState.visibility = View.GONE
+        dialog.setOnDismissListener {
+            qrManager.stop()
+            activeSettingsOverlay = null
+            if (showingHome) selectHome() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
+        }
         activeSettingsOverlay = dialog
         dialog.show()
 

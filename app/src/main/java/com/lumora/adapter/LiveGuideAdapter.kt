@@ -120,6 +120,17 @@ class LiveGuideAdapter(
             loadJob = null
         }
 
+        /** Reserves [px] of end margin so this row's content clears the floating preview
+         *  pane - 0 once the row is no longer behind it. Driven by MainActivity's
+         *  updateGuideRowWrap(), which knows the preview's on-screen position. */
+        fun setReservedEnd(px: Int) {
+            val lp = itemView.layoutParams as? ViewGroup.MarginLayoutParams ?: return
+            if (lp.marginEnd != px) {
+                lp.marginEnd = px
+                itemView.layoutParams = lp
+            }
+        }
+
         fun bind(channel: Channel) {
             current = channel
             numberText.text = channel.tvgChno?.takeIf { it.isNotBlank() } ?: ""
@@ -219,6 +230,10 @@ class LiveGuideAdapter(
                 lp.width = widthPx
                 block.layoutParams = lp
                 block.setOnClickListener { onChannelClick(channel) }
+                // D-pad RIGHT off the channel column moves focus into these program blocks -
+                // without this, the preview pane only ever updated while focus sat on the
+                // channel name itself and otherwise went stale/blank while browsing the guide.
+                block.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) onChannelFocused?.invoke(channel) }
                 block.setOnLongClickListener {
                     if (program != null && program.startTimestamp > nowSeconds) {
                         onProgramLongPress?.invoke(channel, program)

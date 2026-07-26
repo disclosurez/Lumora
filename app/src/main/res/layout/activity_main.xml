@@ -42,22 +42,34 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <!-- Search button -->
+                <!-- Search button: icon + label box so it reads as "there's a search here"
+                     rather than a bare, easy-to-miss icon. -->
                 <LinearLayout
                     android:id="@+id/btnSearch"
-                    android:layout_width="48dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
                     android:background="@drawable/bg_toolbar_button"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
+                    android:paddingHorizontal="14dp"
+                    android:nextFocusLeft="@id/tabFilms"
                     android:nextFocusRight="@id/btnSettings">
 
                     <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
                         android:src="@android:drawable/ic_menu_search"
                         android:tint="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="Search"
+                        android:textColor="@color/text_primary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
 
                 <!-- Settings button -->
@@ -105,6 +117,7 @@
             android:layout_width="match_parent"
             android:layout_height="68dp"
             android:background="@android:color/transparent"
+            android:gravity="center_horizontal"
             android:orientation="horizontal"
             android:paddingHorizontal="10dp"
             android:paddingBottom="6dp">
@@ -119,7 +132,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="28dp"
+                android:paddingHorizontal="36dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabDownloads"
                 android:nextFocusRight="@id/tabLive"
@@ -140,7 +153,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="28dp"
+                android:paddingHorizontal="36dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/tabSeries"
@@ -160,7 +173,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="28dp"
+                android:paddingHorizontal="36dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabLive"
                 android:nextFocusRight="@id/tabFilms"
@@ -180,7 +193,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="28dp"
+                android:paddingHorizontal="36dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabSeries"
                 android:nextFocusRight="@id/tabDownloads"
@@ -200,7 +213,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="28dp"
+                android:paddingHorizontal="36dp"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabFilms"
                 android:nextFocusRight="@id/tabHome"
@@ -309,6 +322,16 @@
             android:paddingHorizontal="16dp"
             android:visibility="gone" />
 
+        <!-- Settings: content added/removed at runtime by showProviderSettings(). Lives here
+             (rather than covering the whole screen) so the toolbar + tab bar above stay
+             visible and usable while Settings is open, same as every other tab. -->
+        <FrameLayout
+            android:id="@+id/settingsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
         <!-- Content row: category sidebar + active tab's list/grid -->
         <LinearLayout
             android:id="@+id/contentRow"
@@ -344,76 +367,75 @@
                     android:layout_height="match_parent"
                     android:visibility="visible">
 
-                    <!-- Guide column (weighted) + a permanently reserved gutter column for the
-                         preview pane - the guide's program rows are narrower for their whole
-                         height now, so they run beside the preview the entire time instead of
-                         disappearing under it whenever a row happened to scroll into that corner. -->
+                    <!-- Guide runs full width by default; the preview pane floats on top in the
+                         top-right corner instead of reserving a permanent side column. Rows
+                         that are actually behind the preview get a right-side reservation added
+                         at runtime (see updateGuideRowWrap() in MainActivity) so the guide reads
+                         as text wrapping around the preview - narrow while a row overlaps it,
+                         full width again for every row below it. -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:orientation="horizontal"
+                        android:orientation="vertical"
                         android:paddingHorizontal="16dp">
 
+                        <!-- Guide time ruler: spacer matches the channel-info column width so
+                             time labels line up with the program blocks, not the channel names. -->
                         <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="match_parent"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
+                            android:layout_width="match_parent"
+                            android:layout_height="22dp"
+                            android:orientation="horizontal">
 
-                            <!-- Guide time ruler: spacer matches the channel-info column width so
-                                 time labels line up with the program blocks, not the channel names. -->
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="22dp"
-                                android:orientation="horizontal">
+                            <View
+                                android:layout_width="@dimen/guide_channel_column_width"
+                                android:layout_height="match_parent" />
 
-                                <View
-                                    android:layout_width="@dimen/guide_channel_column_width"
-                                    android:layout_height="match_parent" />
+                            <HorizontalScrollView
+                                android:id="@+id/guideHeaderScroll"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:overScrollMode="never"
+                                android:scrollbars="none">
 
-                                <HorizontalScrollView
-                                    android:id="@+id/guideHeaderScroll"
-                                    android:layout_width="0dp"
+                                <LinearLayout
+                                    android:id="@+id/guideHeaderRow"
+                                    android:layout_width="wrap_content"
                                     android:layout_height="match_parent"
-                                    android:layout_weight="1"
-                                    android:overScrollMode="never"
-                                    android:scrollbars="none">
+                                    android:orientation="horizontal" />
+                            </HorizontalScrollView>
+                        </LinearLayout>
 
-                                    <LinearLayout
-                                        android:id="@+id/guideHeaderRow"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="match_parent"
-                                        android:orientation="horizontal" />
-                                </HorizontalScrollView>
-                            </LinearLayout>
+                        <FrameLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1">
 
                             <androidx.recyclerview.widget.RecyclerView
                                 android:id="@+id/liveContent"
                                 android:layout_width="match_parent"
-                                android:layout_height="0dp"
-                                android:layout_weight="1"
+                                android:layout_height="match_parent"
                                 android:layout_marginTop="4dp"
                                 android:clipToPadding="false"
                                 android:defaultFocusHighlightEnabled="true"
                                 android:paddingBottom="4dp" />
-                        </LinearLayout>
 
-                        <FrameLayout
-                            android:id="@+id/livePreviewGutter"
-                            android:layout_width="@dimen/live_preview_width"
-                            android:layout_height="match_parent"
-                            android:layout_marginStart="16dp"
-                            android:visibility="gone">
-
-                            <LinearLayout
-                                android:id="@+id/livePreviewPane"
-                                android:layout_width="match_parent"
+                            <FrameLayout
+                                android:id="@+id/livePreviewGutter"
+                                android:layout_width="@dimen/live_preview_width"
                                 android:layout_height="wrap_content"
-                                android:layout_gravity="top"
-                                android:layout_marginTop="26dp"
-                                android:background="@drawable/bg_category_panel"
-                                android:orientation="vertical"
-                                android:padding="10dp">
+                                android:layout_gravity="top|end"
+                                android:layout_marginTop="4dp"
+                                android:visibility="gone">
+
+                                <LinearLayout
+                                    android:id="@+id/livePreviewPane"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="top"
+                                    android:background="@drawable/bg_category_panel"
+                                    android:orientation="vertical"
+                                    android:padding="10dp">
 
                                 <FrameLayout
                                     android:layout_width="match_parent"
@@ -484,6 +506,7 @@
                                     android:textSize="9sp"
                                     android:visibility="gone" />
                             </LinearLayout>
+                        </FrameLayout>
                         </FrameLayout>
                     </LinearLayout>
                 </FrameLayout>
