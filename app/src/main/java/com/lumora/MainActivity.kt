@@ -994,7 +994,15 @@ class MainActivity : AppCompatActivity() {
             } else {
                 emptyList<CategoryFilter>() to emptySet()
             }
+            // Series/Films: merged (grouped) categories surface above plain single-provider
+            // leaves, alphabetical within each cluster - sorted here, at the unit level,
+            // so an expanded parent's own children stay adjacent to it (sorting the already-
+            // flattened rows would scatter them back in with unrelated leaves by name).
             val remainderUnits = allUnits.filter { it.first.id !in bucketedIds }
+                .let { units ->
+                    if (tab != 0) units.sortedWith(compareBy({ if (it.first.isParent) 0 else 1 }, { it.first.name.lowercase() }))
+                    else units
+                }
             val cascadeRows = remainderUnits.flatMap(::expandUnit)
 
             val (pinnedRows, unpinnedRows) = cascadeRows.partition { it.pinned }
@@ -1026,7 +1034,9 @@ class MainActivity : AppCompatActivity() {
             result += if (tab == 0) {
                 unpinnedRows.sortedWith(compareBy({ liveCategoryPriority(it.name) }, { it.name.lowercase() }))
             } else {
-                unpinnedRows.sortedBy { it.name.lowercase() }
+                // Already unit-sorted above (grouped categories first, then leaves,
+                // alphabetical within each) - re-sorting here would undo that.
+                unpinnedRows
             }
             result
         }
@@ -1129,7 +1139,10 @@ class MainActivity : AppCompatActivity() {
             scope.launch { rebuildCategoriesForActiveTab() }
             return
         }
-        if (category.isParent) {
+        // First tap on a parent just selects/filters it - expand only toggles on a second
+        // tap while it's already the selected row, so picking a category doesn't also
+        // dump its whole child list open unasked for.
+        if (category.isParent && selectedRowId == category.id) {
             val id = category.id!!
             if (!expandedGroupKeys.remove(id)) expandedGroupKeys.add(id)
         }
@@ -1525,7 +1538,7 @@ class MainActivity : AppCompatActivity() {
                         versions.forEachIndexed { index, version ->
                             val chip = layoutInflater.inflate(R.layout.item_category, versionsRow, false) as TextView
                             chip.text = extractLeadingTag(version.name) ?: "Version ${index + 1}"
-                            chip.textSize = 12f
+                            chip.textSize = 10f
                             chip.setPadding(
                                 (12 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt(),
                                 (12 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt()
@@ -1959,8 +1972,8 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val isPoster = channel.mediaType != MediaType.LIVE
         binding.playerLogoBox.layoutParams = binding.playerLogoBox.layoutParams.apply {
-            width = ((if (isPoster) 48 else 52) * density).toInt()
-            height = ((if (isPoster) 72 else 52) * density).toInt()
+            width = ((if (isPoster) 40 else 44) * density).toInt()
+            height = ((if (isPoster) 60 else 44) * density).toInt()
         }
         binding.playerChannelLogo.scaleType = if (isPoster) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
         val logoPadding = if (isPoster) 0 else (6 * density).toInt()
@@ -2193,6 +2206,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showLivePreviewPane() {
         if (liveChannels.isEmpty()) return
+        binding.livePreviewGutter.visibility = View.VISIBLE
         binding.livePreviewPane.visibility = View.VISIBLE
         ensurePreviewPlayer().setTextureView(binding.previewSurface)
     }
@@ -2201,6 +2215,7 @@ class MainActivity : AppCompatActivity() {
         previewLoadRunnable?.let { mainHandler.removeCallbacks(it) }
         previewLoadRunnable = null
         previewChannelId = null
+        binding.livePreviewGutter.visibility = View.GONE
         binding.livePreviewPane.visibility = View.GONE
         // A hardware-overlay SurfaceView can keep compositing its last frame even
         // after the Java view tree is hidden; explicitly stop playback and hide the
@@ -2419,7 +2434,10 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save", null)
             .setNegativeButton("Cancel", null)
             .create()
-        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
+        // A rounded floating window + dimmed backdrop reads as a popup no matter how big
+        // it's sized - drop both so this renders as a genuine full screen instead.
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(getColor(R.color.canvas)))
+        dialog.window?.setDimAmount(0f)
 
         var serverRunning = false
         var currentType = if (provider.type == ProviderType.XTREAM) "xtream" else "m3u"

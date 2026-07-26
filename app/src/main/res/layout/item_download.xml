@@ -34,7 +34,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_primary"
-            android:textSize="15sp"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
         <TextView
@@ -45,7 +45,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:textSize="10sp" />
 
         <ProgressBar
             android:id="@+id/downloadProgress"

@@ -12,4 +12,4 @@
     android:paddingVertical="12dp"
     android:stateListAnimator="@animator/focus_scale"
     android:textColor="@color/text_secondary"
-    android:textSize="13sp" />
+    android:textSize="10sp" />

@@ -138,7 +138,10 @@ private val SYMBOL_NOISE_REGEX = Regex("""[^\p{L}\p{Nd}\s+]""")
 // of those collapse into one entry the same way movie titles do.
 private val LIVE_LEADING_TAG_REGEX = Regex("""(?i)^(?:[a-z0-9+]{1,8}[|:]\s*)+""")
 
-private fun stripDecorativeTags(name: String): String {
+/** Strips leading source tags ("UK:", "VIP:", "NOW|") and quality/codec noise ("HEVC",
+ *  "4K", "UHD", "RAW", pixel-resolution tags...) for display - keeps original casing,
+ *  unlike normalizeLiveChannelName/Key which lowercase and light-stem for matching. */
+fun stripDecorativeTags(name: String): String {
     var n = LIVE_LEADING_TAG_REGEX.replace(deSuperscript(name), "")
     n = DECORATIVE_TOKEN_REGEX.replace(n, " ")
     n = HASH_BORDER_REGEX.replace(n, " ")
@@ -207,8 +210,13 @@ fun groupLiveQualityVersions(channels: List<Channel>): Pair<List<Channel>, Map<S
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (versions in groups.values) {
         val ranked = versions.sortedByDescending { liveQualityScore(it.name) }
-        representatives.add(ranked.first())
-        if (ranked.size > 1) versionsById[ranked.first().id] = ranked
+        val best = ranked.first()
+        // Version list (picker/failover) keeps full raw names, since "NOW:" vs "VIP:"
+        // is a real distinguishing detail there - only the row people actually browse
+        // shows the cleaned name.
+        val cleanedName = stripDecorativeTags(best.name).ifBlank { best.name }
+        representatives.add(if (cleanedName != best.name) best.copy(name = cleanedName) else best)
+        if (ranked.size > 1) versionsById[best.id] = ranked
     }
     return representatives to versionsById
 }

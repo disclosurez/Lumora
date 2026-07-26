@@ -13,7 +13,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/text_primary"
-        android:textSize="18sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
     <TextView
@@ -24,7 +24,7 @@
         android:gravity="center"
         android:text="@string/loading"
         android:textColor="@color/text_secondary"
-        android:textSize="14sp" />
+        android:textSize="11sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/episodeListContent"

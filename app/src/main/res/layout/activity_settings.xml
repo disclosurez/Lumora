@@ -22,7 +22,7 @@
             android:layout_marginBottom="16dp"
             android:text="Settings"
             android:textColor="@color/text_primary"
-            android:textSize="18sp"
+            android:textSize="14sp"
             android:textStyle="bold" />
 
         <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0">
@@ -132,7 +132,7 @@
                         android:layout_height="wrap_content"
                         android:text="Show phone QR pairing code"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -152,12 +152,12 @@
                         android:layout_height="wrap_content"
                         android:gravity="center"
                         android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
                     <FrameLayout
                         android:id="@+id/settingsQrFrame"
-                        android:layout_width="240dp"
-                        android:layout_height="240dp"
+                        android:layout_width="192dp"
+                        android:layout_height="192dp"
                         android:layout_marginTop="12dp"
                         android:background="@android:color/white"
                         android:padding="10dp"
@@ -176,7 +176,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:textColor="@color/accent"
-                        android:textSize="12sp"
+                        android:textSize="10sp"
                         android:visibility="gone" />
                 </LinearLayout>
 
@@ -195,7 +195,7 @@
                         android:paddingHorizontal="12dp"
                         android:text="OR enter manually"
                         android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
+                        android:textSize="10sp" />
                     <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
                 </LinearLayout>
 
@@ -207,7 +207,7 @@
                     android:layout_marginTop="12dp"
                     android:orientation="vertical">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/m3u_url" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/m3u_url" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsM3uUrl"
                         android:layout_width="match_parent"
@@ -219,9 +219,9 @@
                         android:inputType="textUri"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsUserAgent"
                         android:layout_width="match_parent"
@@ -233,7 +233,7 @@
                         android:inputType="text"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <!-- Xtream Fields -->
@@ -244,7 +244,7 @@
                     android:orientation="vertical"
                     android:visibility="gone">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsXtreamUrl"
                         android:layout_width="match_parent"
@@ -256,9 +256,9 @@
                         android:inputType="textUri"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsXtreamUser"
                         android:layout_width="match_parent"
@@ -270,9 +270,9 @@
                         android:inputType="text"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsXtreamPass"
                         android:layout_width="match_parent"
@@ -284,7 +284,7 @@
                         android:inputType="textPassword"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
                     <TextView
                         android:id="@+id/settingsSubscriptionStatus"
@@ -293,7 +293,7 @@
                         android:layout_marginTop="12dp"
                         android:gravity="center"
                         android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
+                        android:textSize="10sp"
                         android:textStyle="bold"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -306,7 +306,7 @@
                     android:orientation="vertical"
                     android:visibility="gone">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsStalkerUrl"
                         android:layout_width="match_parent"
@@ -318,9 +318,9 @@
                         android:inputType="textUri"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_mac" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_mac" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsStalkerMac"
                         android:layout_width="match_parent"
@@ -332,9 +332,9 @@
                         android:inputType="text"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_serial" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_serial" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsStalkerSerial"
                         android:layout_width="match_parent"
@@ -346,7 +346,7 @@
                         android:inputType="text"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <!-- Jellyfin Fields -->
@@ -357,7 +357,7 @@
                     android:orientation="vertical"
                     android:visibility="gone">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsJellyfinUrl"
                         android:layout_width="match_parent"
@@ -369,9 +369,9 @@
                         android:inputType="textUri"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsJellyfinUser"
                         android:layout_width="match_parent"
@@ -383,9 +383,9 @@
                         android:inputType="text"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="10sp" />
                     <EditText
                         android:id="@+id/settingsJellyfinPass"
                         android:layout_width="match_parent"
@@ -397,7 +397,7 @@
                         android:inputType="textPassword"
                         android:padding="12dp"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -420,7 +420,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/recording_storage" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/recording_storage" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -433,7 +433,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playback settings" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playback settings" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -454,7 +454,7 @@
                     android:checked="true"
                     android:text="Hide non-English movies/series"
                     android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
+                    android:textSize="11sp" />
             </LinearLayout>
 
             <!-- Pane: Privacy -->
@@ -474,7 +474,7 @@
                     android:checked="true"
                     android:text="Hide adult categories"
                     android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
+                    android:textSize="11sp" />
 
                 <LinearLayout
                     android:id="@+id/settingsParentalPin"
@@ -486,7 +486,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Set parental PIN" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Set parental PIN" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -499,7 +499,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clear watch history" android:textColor="@color/live_red" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clear watch history" android:textColor="@color/live_red" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -522,7 +522,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/export_backup" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/export_backup" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -535,7 +535,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/import_backup" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/import_backup" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -558,7 +558,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/add_epg_source" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/add_epg_source" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -578,7 +578,7 @@
                     android:layout_height="wrap_content"
                     android:text="No downloads yet"
                     android:textColor="@color/text_secondary"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
@@ -605,8 +605,8 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Version" android:textColor="@color/text_primary" android:textSize="14sp" />
-                    <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="14sp" />
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Version" android:textColor="@color/text_primary" android:textSize="11sp" />
+                    <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="11sp" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -621,8 +621,8 @@
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="GitHub" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="github.com/disclosurez/Lumora" android:textColor="@color/primary_light" android:textSize="12sp" />
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="GitHub" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="github.com/disclosurez/Lumora" android:textColor="@color/primary_light" android:textSize="10sp" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -635,7 +635,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale">
-                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Check for Updates" android:textColor="@color/text_primary" android:textSize="14sp" android:textStyle="bold" />
+                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Check for Updates" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 

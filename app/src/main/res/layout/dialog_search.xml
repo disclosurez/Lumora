@@ -19,7 +19,7 @@
         android:singleLine="true"
         android:textColor="@color/text_primary"
         android:textColorHint="@color/text_tertiary"
-        android:textSize="16sp" />
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/searchStatus"
@@ -29,7 +29,7 @@
         android:gravity="center"
         android:text="Type at least 2 characters"
         android:textColor="@color/text_secondary"
-        android:textSize="14sp" />
+        android:textSize="11sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/searchResults"

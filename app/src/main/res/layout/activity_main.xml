@@ -33,7 +33,7 @@
                 android:layout_weight="1"
                 android:text="@string/app_name"
                 android:textColor="@color/text_primary"
-                android:textSize="18sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -127,7 +127,7 @@
                 android:text="Home"
                 android:textAllCaps="true"
                 android:textColor="@color/text_primary"
-                android:textSize="11sp"
+                android:textSize="9sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -148,7 +148,7 @@
                 android:text="Live TV"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="9sp" />
 
             <TextView
                 android:id="@+id/tabSeries"
@@ -168,7 +168,7 @@
                 android:text="Series"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="9sp" />
 
             <TextView
                 android:id="@+id/tabFilms"
@@ -188,7 +188,7 @@
                 android:text="Films"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="9sp" />
 
             <TextView
                 android:id="@+id/tabDownloads"
@@ -208,7 +208,7 @@
                 android:text="Downloads"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp"
+                android:textSize="9sp"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -220,7 +220,7 @@
             android:gravity="center"
             android:padding="10dp"
             android:textColor="@color/primary_light"
-            android:textSize="13sp"
+            android:textSize="10sp"
             android:visibility="gone" />
 
         <!-- Empty state / QR prompt when no channels -->
@@ -238,7 +238,7 @@
                 android:layout_height="wrap_content"
                 android:text="No provider configured"
                 android:textColor="@color/text_secondary"
-                android:textSize="16sp" />
+                android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -246,7 +246,7 @@
                 android:layout_marginTop="20dp"
                 android:text="Press Settings to add a playlist URL"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="10sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -276,7 +276,7 @@
                         android:layout_marginStart="8dp"
                         android:text="Pair with Phone (QR)"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
@@ -326,131 +326,147 @@
                     android:layout_height="match_parent"
                     android:visibility="visible">
 
+                    <!-- Guide column (weighted) + a permanently reserved gutter column for the
+                         preview pane - the guide's program rows are narrower for their whole
+                         height now, so they run beside the preview the entire time instead of
+                         disappearing under it whenever a row happened to scroll into that corner. -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
                         android:paddingHorizontal="16dp">
 
-                        <!-- Guide time ruler: spacer matches the channel-info column width so
-                             time labels line up with the program blocks, not the channel names. -->
                         <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="22dp"
-                            android:orientation="horizontal">
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
 
-                            <View
-                                android:layout_width="@dimen/guide_channel_column_width"
-                                android:layout_height="match_parent" />
+                            <!-- Guide time ruler: spacer matches the channel-info column width so
+                                 time labels line up with the program blocks, not the channel names. -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="22dp"
+                                android:orientation="horizontal">
 
-                            <HorizontalScrollView
-                                android:id="@+id/guideHeaderScroll"
-                                android:layout_width="0dp"
-                                android:layout_height="match_parent"
-                                android:layout_weight="1"
-                                android:overScrollMode="never"
-                                android:scrollbars="none">
+                                <View
+                                    android:layout_width="@dimen/guide_channel_column_width"
+                                    android:layout_height="match_parent" />
 
-                                <LinearLayout
-                                    android:id="@+id/guideHeaderRow"
-                                    android:layout_width="wrap_content"
+                                <HorizontalScrollView
+                                    android:id="@+id/guideHeaderScroll"
+                                    android:layout_width="0dp"
                                     android:layout_height="match_parent"
-                                    android:orientation="horizontal" />
-                            </HorizontalScrollView>
+                                    android:layout_weight="1"
+                                    android:overScrollMode="never"
+                                    android:scrollbars="none">
+
+                                    <LinearLayout
+                                        android:id="@+id/guideHeaderRow"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="match_parent"
+                                        android:orientation="horizontal" />
+                                </HorizontalScrollView>
+                            </LinearLayout>
+
+                            <androidx.recyclerview.widget.RecyclerView
+                                android:id="@+id/liveContent"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:layout_marginTop="4dp"
+                                android:clipToPadding="false"
+                                android:defaultFocusHighlightEnabled="true"
+                                android:paddingBottom="4dp" />
                         </LinearLayout>
 
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/liveContent"
-                            android:layout_width="match_parent"
-                            android:layout_height="0dp"
-                            android:layout_weight="1"
-                            android:layout_marginTop="4dp"
-                            android:clipToPadding="false"
-                            android:defaultFocusHighlightEnabled="true"
-                            android:paddingBottom="4dp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/livePreviewPane"
-                        android:layout_width="@dimen/live_preview_width"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="top|end"
-                        android:layout_marginTop="26dp"
-                        android:layout_marginEnd="16dp"
-                        android:background="@drawable/bg_category_panel"
-                        android:elevation="8dp"
-                        android:orientation="vertical"
-                        android:padding="10dp"
-                        android:visibility="gone">
-
                         <FrameLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="@dimen/live_preview_height"
-                            android:background="@color/canvas">
+                            android:id="@+id/livePreviewGutter"
+                            android:layout_width="@dimen/live_preview_width"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="16dp"
+                            android:visibility="gone">
 
-                            <TextureView
-                                android:id="@+id/previewSurface"
+                            <LinearLayout
+                                android:id="@+id/livePreviewPane"
                                 android:layout_width="match_parent"
-                                android:layout_height="match_parent" />
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="top"
+                                android:layout_marginTop="26dp"
+                                android:background="@drawable/bg_category_panel"
+                                android:orientation="vertical"
+                                android:padding="10dp">
 
-                            <ProgressBar
-                                android:id="@+id/previewBuffering"
-                                android:layout_width="28dp"
-                                android:layout_height="28dp"
-                                android:layout_gravity="center"
-                                android:indeterminate="true"
-                                android:indeterminateTint="@color/primary"
-                                android:visibility="gone" />
+                                <FrameLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="@dimen/live_preview_height"
+                                    android:background="@color/canvas">
+
+                                    <TextureView
+                                        android:id="@+id/previewSurface"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent" />
+
+                                    <ProgressBar
+                                        android:id="@+id/previewBuffering"
+                                        android:layout_width="28dp"
+                                        android:layout_height="28dp"
+                                        android:layout_gravity="center"
+                                        android:indeterminate="true"
+                                        android:indeterminateTint="@color/primary"
+                                        android:visibility="gone" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/previewChannelName"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/previewChannelGroup"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp" />
+
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:layout_marginTop="8dp"
+                                    android:background="@color/divider" />
+
+                                <TextView
+                                    android:id="@+id/previewNowPlaying"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:ellipsize="end"
+                                    android:maxLines="2"
+                                    android:textColor="@color/info_cyan"
+                                    android:textSize="10sp"
+                                    android:visibility="gone" />
+
+                                <TextView
+                                    android:id="@+id/previewNowPlayingTime"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textColor="@color/text_tertiary"
+                                    android:textSize="9sp"
+                                    android:visibility="gone" />
+                            </LinearLayout>
                         </FrameLayout>
-
-                        <TextView
-                            android:id="@+id/previewChannelName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:ellipsize="end"
-                            android:maxLines="1"
-                            android:textColor="@color/text_primary"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/previewChannelGroup"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:ellipsize="end"
-                            android:maxLines="1"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1dp"
-                            android:layout_marginTop="8dp"
-                            android:background="@color/divider" />
-
-                        <TextView
-                            android:id="@+id/previewNowPlaying"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:ellipsize="end"
-                            android:maxLines="2"
-                            android:textColor="@color/info_cyan"
-                            android:textSize="13sp"
-                            android:visibility="gone" />
-
-                        <TextView
-                            android:id="@+id/previewNowPlayingTime"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:ellipsize="end"
-                            android:maxLines="1"
-                            android:textColor="@color/text_tertiary"
-                            android:textSize="11sp"
-                            android:visibility="gone" />
                     </LinearLayout>
                 </FrameLayout>
 
@@ -494,7 +510,7 @@
                     android:layout_gravity="center"
                     android:text="No downloads yet"
                     android:textColor="@color/text_secondary"
-                    android:textSize="14sp"
+                    android:textSize="11sp"
                     android:visibility="gone" />
 
             </FrameLayout>
@@ -562,7 +578,7 @@
                             android:ellipsize="end"
                             android:maxLines="2"
                             android:textColor="@color/text_primary"
-                            android:textSize="22sp"
+                            android:textSize="18sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -576,7 +592,7 @@
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="5dp"
                             android:textColor="@color/primary_light"
-                            android:textSize="12sp"
+                            android:textSize="10sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -587,7 +603,7 @@
                             android:text="Overview"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
-                            android:textSize="11sp"
+                            android:textSize="9sp"
                             android:textStyle="bold"
                             android:visibility="gone" />
 
@@ -600,7 +616,7 @@
                             android:maxLines="5"
                             android:lineSpacingExtra="3dp"
                             android:textColor="@color/text_secondary"
-                            android:textSize="13sp"
+                            android:textSize="10sp"
                             android:visibility="gone" />
 
                         <TextView
@@ -611,7 +627,7 @@
                             android:text="Cast"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
-                            android:textSize="11sp"
+                            android:textSize="9sp"
                             android:textStyle="bold"
                             android:visibility="gone" />
 
@@ -623,7 +639,7 @@
                             android:ellipsize="end"
                             android:maxLines="3"
                             android:textColor="@color/text_tertiary"
-                            android:textSize="12sp"
+                            android:textSize="10sp"
                             android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
@@ -667,7 +683,7 @@
                                 android:text="Play"
                                 android:textAllCaps="true"
                                 android:textColor="@android:color/white"
-                                android:textSize="15sp"
+                                android:textSize="12sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
 
@@ -689,7 +705,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="☆"
                                 android:textColor="@color/text_primary"
-                                android:textSize="22sp" />
+                                android:textSize="18sp" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -741,7 +757,7 @@
                         android:layout_marginTop="18dp"
                         android:textAllCaps="true"
                         android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
 
                     <HorizontalScrollView
@@ -767,7 +783,7 @@
                         android:gravity="center"
                         android:text="@string/loading"
                         android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        android:textSize="11sp" />
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/detailItemsList"
@@ -865,16 +881,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/grad_player_bottom"
-                android:paddingTop="40dp">
+                android:paddingTop="28dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_margin="16dp"
+                    android:layout_margin="12dp"
                     android:background="@drawable/bg_player_bottom"
                     android:orientation="vertical"
                     android:paddingHorizontal="16dp"
-                    android:paddingVertical="14dp">
+                    android:paddingVertical="10dp">
 
                     <!-- Info card: logo + program title/time on the left, channel name + badges on the right -->
                     <LinearLayout
@@ -885,8 +901,8 @@
 
                         <FrameLayout
                             android:id="@+id/playerLogoBox"
-                            android:layout_width="52dp"
-                            android:layout_height="52dp"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
                             android:background="@drawable/shape_logo_box"
                             android:clipToOutline="true"
                             android:elevation="2dp">
@@ -897,7 +913,7 @@
                                 android:layout_height="match_parent"
                                 android:gravity="center"
                                 android:textColor="@color/text_primary"
-                                android:textSize="18sp"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
 
                             <ImageView
@@ -923,7 +939,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="1"
                                 android:textColor="@color/text_primary"
-                                android:textSize="17sp"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -934,7 +950,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="1"
                                 android:textColor="@color/text_secondary"
-                                android:textSize="13sp"
+                                android:textSize="10sp"
                                 android:visibility="gone" />
                         </LinearLayout>
 
@@ -949,50 +965,50 @@
                             android:text="@string/live_badge"
                             android:textAllCaps="true"
                             android:textColor="@android:color/white"
-                            android:textSize="11sp"
+                            android:textSize="9sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
+                        android:layout_marginTop="10dp"
                         android:gravity="center"
                         android:orientation="horizontal">
                         <ImageButton
                             android:id="@+id/btnPrevChannel"
-                            android:layout_width="52dp"
-                            android:layout_height="52dp"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
                             android:background="@drawable/bg_toolbar_button"
                             android:clickable="true"
                             android:contentDescription="Previous"
                             android:focusable="true"
-                            android:padding="14dp"
+                            android:padding="12dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@android:drawable/ic_media_previous"
                             android:tint="@color/text_primary" />
                         <ImageButton
                             android:id="@+id/btnPlayPause"
-                            android:layout_width="64dp"
-                            android:layout_height="64dp"
-                            android:layout_marginHorizontal="24dp"
+                            android:layout_width="54dp"
+                            android:layout_height="54dp"
+                            android:layout_marginHorizontal="20dp"
                             android:background="@drawable/bg_play_button"
                             android:clickable="true"
                             android:contentDescription="Play/Pause"
                             android:focusable="true"
-                            android:padding="16dp"
+                            android:padding="13dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@drawable/ic_play"
                             android:tint="@android:color/white" />
                         <ImageButton
                             android:id="@+id/btnNextChannel"
-                            android:layout_width="52dp"
-                            android:layout_height="52dp"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
                             android:background="@drawable/bg_toolbar_button"
                             android:clickable="true"
                             android:contentDescription="Next"
                             android:focusable="true"
-                            android:padding="14dp"
+                            android:padding="12dp"
                             android:stateListAnimator="@animator/focus_scale"
                             android:src="@android:drawable/ic_media_next"
                             android:tint="@color/text_primary" />
@@ -1001,7 +1017,7 @@
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp">
+                        android:layout_marginTop="6dp">
                         <TextView
                             android:id="@+id/currentTime"
                             android:layout_width="wrap_content"
@@ -1009,7 +1025,7 @@
                             android:layout_gravity="start|center_vertical"
                             android:text="0:00"
                             android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:textSize="10sp" />
                         <SeekBar
                             android:id="@+id/seekBar"
                             android:layout_width="match_parent"
@@ -1026,13 +1042,13 @@
                             android:layout_gravity="end|center_vertical"
                             android:text="0:00"
                             android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:textSize="10sp" />
                     </FrameLayout>
 
                     <HorizontalScrollView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="6dp"
                         android:overScrollMode="never"
                         android:scrollbars="none">
 
@@ -1046,7 +1062,7 @@
                             <TextView
                                 android:id="@+id/btnSpeed"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1057,12 +1073,12 @@
                                 android:text="1.0x"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnSleepTimer"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1073,12 +1089,12 @@
                                 android:text="Sleep"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnCast"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1089,12 +1105,12 @@
                                 android:text="Cast"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnDiagnostics"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1105,12 +1121,12 @@
                                 android:text="Diag"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnRecord"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1121,13 +1137,13 @@
                                 android:text="REC"
                                 android:textAllCaps="true"
                                 android:textColor="@color/live_red"
-                                android:textSize="11sp"
+                                android:textSize="9sp"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/btnLiveVersions"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1138,12 +1154,12 @@
                                 android:text="Versions"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnAspectRatio"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1154,12 +1170,12 @@
                                 android:text="Fit"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnAudioTrack"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:layout_marginEnd="4dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
@@ -1170,12 +1186,12 @@
                                 android:text="Audio"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
 
                             <TextView
                                 android:id="@+id/btnSubtitleTrack"
                                 android:layout_width="wrap_content"
-                                android:layout_height="40dp"
+                                android:layout_height="34dp"
                                 android:background="@drawable/bg_toolbar_button"
                                 android:clickable="true"
                                 android:focusable="true"
@@ -1185,7 +1201,7 @@
                                 android:text="CC"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="11sp" />
+                                android:textSize="9sp" />
                         </LinearLayout>
                     </HorizontalScrollView>
                 </LinearLayout>

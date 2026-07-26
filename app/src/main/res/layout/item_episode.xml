@@ -43,7 +43,7 @@
         android:ellipsize="end"
         android:maxLines="2"
         android:textColor="@color/text_primary"
-        android:textSize="14sp" />
+        android:textSize="11sp" />
 
     <ImageButton
         android:id="@+id/episodeDownloadButton"
