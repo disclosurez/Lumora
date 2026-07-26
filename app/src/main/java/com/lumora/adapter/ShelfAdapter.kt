@@ -18,7 +18,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.lumora.util.PosterLoader
 
-/** Netflix-style vertical stack of horizontally-scrolling category shelves. */
+/** Netflix-style vertical stack of horizontally-scrolling category shelves.
+ *  [topAnchorViewId] is where D-pad UP from the very first shelf's posters should land
+ *  (the tab bar button for whichever tab hosts this adapter) - without it, UP finds
+ *  whatever's geometrically nearest, which is that same shelf's own See All/Pin/Hide
+ *  row, not the tab bar above it. Every other shelf's posters get wired the same way
+ *  to the *previous* shelf's poster row, for the same reason - see wireVerticalFocus(). */
 class ShelfAdapter(
     private val onItemClick: (Channel) -> Unit,
     private val onPinClick: (ContentShelf) -> Unit = {},
@@ -27,12 +32,24 @@ class ShelfAdapter(
     // Pinning only means something for real provider categories (Series/Films) - the
     // synthetic Home shelves (Continue Watching/Recently Played/Favorites) already have
     // a fixed, meaningful order, so the star has nothing to do there.
-    private val showPinButton: Boolean = true
+    private val showPinButton: Boolean = true,
+    private val topAnchorViewId: Int = View.NO_ID
 ) : ListAdapter<ContentShelf, ShelfAdapter.ShelfViewHolder>(DiffCallback()) {
 
     // Shared across every shelf row so scrolling vertically past a shelf and
     // back doesn't re-inflate its poster views from scratch every time.
     private val sharedPosterPool = RecycledViewPool()
+    private var outerRecyclerView: RecyclerView? = null
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        outerRecyclerView = recyclerView
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        if (outerRecyclerView === recyclerView) outerRecyclerView = null
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ShelfViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_shelf, parent, false)
@@ -48,7 +65,7 @@ class ShelfAdapter(
         private val seeAllButton: TextView = itemView.findViewById(R.id.shelfSeeAllButton)
         private val pinButton: TextView = itemView.findViewById(R.id.shelfPinButton)
         private val hideButton: TextView = itemView.findViewById(R.id.shelfHideButton)
-        private val itemsList: RecyclerView = itemView.findViewById(R.id.shelfItems)
+        val itemsList: RecyclerView = itemView.findViewById(R.id.shelfItems)
         private val posterAdapter = ShelfPosterAdapter(onItemClick)
         private var current: ContentShelf? = null
 
@@ -72,6 +89,25 @@ class ShelfAdapter(
                 pinButton.visibility = View.GONE
             }
             posterAdapter.submitList(shelf.items)
+            wireVerticalFocus()
+        }
+
+        private fun wireVerticalFocus() {
+            val outerRv = outerRecyclerView ?: return
+            val pos = bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION) return
+            val targetId = if (pos == 0) {
+                topAnchorViewId.takeIf { it != View.NO_ID }
+            } else {
+                (outerRv.findViewHolderForAdapterPosition(pos - 1) as? ShelfViewHolder)?.let { ensureViewId(it.itemsList) }
+            } ?: return
+            posterAdapter.nextFocusUpTargetId = targetId
+            for (i in 0 until itemsList.childCount) itemsList.getChildAt(i).nextFocusUpId = targetId
+        }
+
+        private fun ensureViewId(view: View): Int {
+            if (view.id == View.NO_ID) view.id = View.generateViewId()
+            return view.id
         }
     }
 
@@ -87,6 +123,13 @@ private class ShelfPosterAdapter(
 
     private val scope = CoroutineScope(Dispatchers.Main)
 
+    /** Where D-pad UP should go from any poster in this row - set by the owning
+     *  ShelfViewHolder once it knows its position among sibling shelves. Applied to
+     *  every bind, not just the currently-visible children, so a poster scrolled into
+     *  view later (this row scrolls horizontally, independent of vertical shelf order)
+     *  still gets it. */
+    var nextFocusUpTargetId: Int = View.NO_ID
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_shelf_poster, parent, false)
         return ViewHolder(view)
@@ -94,6 +137,7 @@ private class ShelfPosterAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
+        if (nextFocusUpTargetId != View.NO_ID) holder.itemView.nextFocusUpId = nextFocusUpTargetId
     }
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {

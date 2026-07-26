@@ -192,18 +192,21 @@ class MainActivity : AppCompatActivity() {
         onItemClick = { item -> playItem(item) },
         onPinClick = { shelf -> togglePinnedShelf(1, shelf.title) },
         onHideClick = { shelf -> toggleHiddenShelf(1, shelf.title) },
-        onSeeAllClick = { shelf -> showSeeAll(shelf) }
+        onSeeAllClick = { shelf -> showSeeAll(shelf) },
+        topAnchorViewId = R.id.tabSeries
     )
     private val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onPinClick = { shelf -> togglePinnedShelf(2, shelf.title) },
         onHideClick = { shelf -> toggleHiddenShelf(2, shelf.title) },
-        onSeeAllClick = { shelf -> showSeeAll(shelf) }
+        onSeeAllClick = { shelf -> showSeeAll(shelf) },
+        topAnchorViewId = R.id.tabFilms
     )
     private val homeShelfAdapter = ShelfAdapter(
         onItemClick = { item -> onHomeItemClick(item) },
         onHideClick = { shelf -> toggleHiddenHomeShelf(shelf.title) },
-        showPinButton = false
+        showPinButton = false,
+        topAnchorViewId = R.id.tabHome
     )
     // Single-category selection swaps to these - a vertical, scrollable grid instead of
     // the shelves' horizontal strip, since one category's whole catalog doesn't fit a
@@ -1236,7 +1239,7 @@ class MainActivity : AppCompatActivity() {
             // is exactly the "picking a category takes forever" complaint. setSelected()
             // already re-renders the sidebar's highlight on its own.
             categoryAdapter.setSelected(selectedRowId)
-            scope.launch { applyCategoryFilter() }
+            scope.launch { applyCategoryFilter(focusFirstLiveChannel = activeTab == 0) }
         }
     }
 
