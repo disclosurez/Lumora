@@ -11,7 +11,7 @@ private const val TAG = "ChannelCache"
 private const val CACHE_FILE = "channels_cache.txt"
 private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
 private const val FIELD_SEP = ''
-private const val FIELD_COUNT = 19
+private const val FIELD_COUNT = 20
 
 /**
  * Persists the last successfully loaded channel list to disk so re-opening the
@@ -46,7 +46,8 @@ object ChannelCache {
                 sb.append(clean(ch.rating)).append(FIELD_SEP)
                 sb.append(clean(ch.releaseDate)).append(FIELD_SEP)
                 sb.append(if (ch.isJellyfin) "1" else "0").append(FIELD_SEP)
-                sb.append(clean(ch.streamUserAgent)).append('\n')
+                sb.append(clean(ch.streamUserAgent)).append(FIELD_SEP)
+                sb.append(clean(ch.sourceProviderId)).append('\n')
             }
             File(context.filesDir, CACHE_FILE).writeText(sb.toString())
             runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
@@ -85,7 +86,8 @@ object ChannelCache {
                             rating = f[15].ifEmpty { null },
                             releaseDate = f[16].ifEmpty { null },
                             isJellyfin = f[17] == "1",
-                            streamUserAgent = f[18].ifEmpty { null }
+                            streamUserAgent = f[18].ifEmpty { null },
+                            sourceProviderId = f[19].ifEmpty { null }
                         )
                     )
                 }

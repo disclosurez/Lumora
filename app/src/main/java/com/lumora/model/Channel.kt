@@ -36,5 +36,11 @@ data class Channel(
     // Stalker's MAC-as-User-Agent or M3U's custom User-Agent, baked in from whichever
     // IptvProviderConfig this channel came from - playback needs the *source* provider's
     // header, not whichever IPTV provider happens to be first/active.
-    val streamUserAgent: String? = null
+    val streamUserAgent: String? = null,
+    // IptvProviderConfig.id of the Xtream provider this item came from - detail/EPG calls
+    // (get_series_info, get_short_epg, get_vod_info) need the *matching* server/credentials,
+    // not whichever Xtream provider happened to load last into the old single shared
+    // `provider` field. Null for non-Xtream sources (M3U/Stalker have no such detail APIs;
+    // Jellyfin uses jellyfinClient directly).
+    val sourceProviderId: String? = null
 )

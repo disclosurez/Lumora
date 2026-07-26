@@ -12,7 +12,9 @@ import android.os.Build
 import java.io.File
 import android.util.Rational
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.view.PixelCopy
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
@@ -111,6 +113,17 @@ private const val STALL_LONG_MS = 15_000L
 private const val STALL_WINDOW_MS = 45_000L
 private const val STALL_COUNT_THRESHOLD = 3
 
+// A dead IPTV feed sometimes never stalls or errors at all - the server just serves a
+// technically-valid, steadily-decoding encode of a blank black frame instead. Neither
+// onPlayerError nor the buffer-stall watchdog above ever fires for that case, so the
+// actual rendered surface gets sampled periodically and sustained near-black output is
+// treated as a dead feed too.
+private const val BLACK_FRAME_INITIAL_DELAY_MS = 3_000L
+private const val BLACK_FRAME_CHECK_INTERVAL_MS = 2_000L
+private const val BLACK_FRAME_LUMA_THRESHOLD = 10 // 0-255 average brightness
+private const val BLACK_FRAME_STREAK_THRESHOLD = 2
+private const val DEAD_STREAM_COOLDOWN_MS = 3 * 60 * 60 * 1000L
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -128,6 +141,10 @@ class MainActivity : AppCompatActivity() {
     private var previewPlayerManager: PlayerManager? = null
     private var previewChannelId: String? = null
     private var previewLoadRunnable: Runnable? = null
+    private var previewVersionGroup: List<Channel> = emptyList()
+    private var previewVersionIndex = 0
+    private var previewBlackFrameStreak = 0
+    private val previewBlackFrameCheckRunnable = Runnable { checkForPreviewBlackFrame() }
 
     private var allChannels = listOf<Channel>()
     private var liveChannels = listOf<Channel>()
@@ -142,8 +159,18 @@ class MainActivity : AppCompatActivity() {
     private var bufferingStartMs = 0L
     private val stallTimestamps = mutableListOf<Long>()
     private val longStallCheckRunnable = Runnable { attemptBufferFailover() }
+    private var blackFrameStreak = 0
+    private val blackFrameCheckRunnable = Runnable { checkForBlackFrame() }
+    // Keyed by stream key (id, or url when id is blank) - a version that just failed over
+    // out of is skipped by both fullscreen and preview auto-pick/failover for a cooldown
+    // window instead of being retried again a few seconds later.
+    private val deadStreamUntil = mutableMapOf<String, Long>()
 
     private var provider: Provider = Provider()
+    // Every configured Xtream provider, keyed by IptvProviderConfig.id - detail/EPG calls
+    // resolve the right one per-Channel via Channel.sourceProviderId instead of assuming
+    // whichever Xtream provider loaded last (the old single `provider` field above).
+    private var xtreamProviderConfigs: Map<String, IptvProviderConfig> = emptyMap()
     // Kept around after a successful Jellyfin content load so a series' detail page can
     // fetch its episodes without re-authenticating - Jellyfin's episode API has no
     // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
@@ -460,6 +487,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadAllConfiguredProviders(forceRefresh: Boolean = false) {
         if (!hasProviderConfigured()) { showProviderSettings(); return }
         setStatus("Loading...", visible = true)
+        xtreamProviderConfigs = IptvProviderStore.load(prefs).filter { it.enabled && it.type == "xtream" }.associateBy { it.id }
         scope.launch {
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
@@ -605,13 +633,13 @@ class MainActivity : AppCompatActivity() {
                 val seriesCatNames = seriesCatsDeferred.await().toMap()
 
                 live = liveDeferred.await().map { ch ->
-                    liveCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
+                    (liveCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch).copy(sourceProviderId = config.id)
                 }
                 films = filmsDeferred.await().map { ch ->
-                    vodCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
+                    (vodCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch).copy(sourceProviderId = config.id)
                 }
                 series = seriesDeferred.await().map { ch ->
-                    seriesCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch
+                    (seriesCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch).copy(sourceProviderId = config.id)
                 }
             }
 
@@ -1658,7 +1686,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 } else if (isSeries) {
                     sectionLabel.text = "Episodes"
-                    val info = withContext(Dispatchers.IO) { client.getSeriesFull(provider, item.id) }
+                    val itemProvider = xtreamProviderFor(item) ?: provider
+                    val info = withContext(Dispatchers.IO) { client.getSeriesFull(itemProvider, item.id) }
                     if (nowShowingDetailId != requestedItemId) return@launch
                     applyDetails(info.details)
                     if (info.seasons.isEmpty()) {
@@ -1697,7 +1726,8 @@ class MainActivity : AppCompatActivity() {
                             releaseDate = item.releaseDate
                         )
                     } else {
-                        withContext(Dispatchers.IO) { client.getVodInfo(provider, item.id) }
+                        val itemProvider = xtreamProviderFor(item) ?: provider
+                        withContext(Dispatchers.IO) { client.getVodInfo(itemProvider, item.id) }
                     }
                     if (nowShowingDetailId != requestedItemId) return@launch
                     applyDetails(details)
@@ -2224,26 +2254,59 @@ class MainActivity : AppCompatActivity() {
         // around so onPlayerError can fall back to the next one.
         val versions = liveVersions[channel.id]
         currentVersionGroup = versions ?: listOf(channel)
-        currentVersionIndex = 0
+        currentVersionIndex = currentVersionGroup.indexOfFirst { !isStreamDead(it) }.takeIf { it >= 0 } ?: 0
         // channel.name is the cleaned/generic representative name (guide/shelf display) -
         // the player card shows the exact raw version actually playing instead, same as
         // switchToVersionIndex() does on failover/manual switch.
         if (channel.mediaType == MediaType.LIVE) {
-            binding.playerChannelName.text = currentVersionGroup.getOrNull(0)?.name ?: channel.name
+            binding.playerChannelName.text = currentVersionGroup.getOrNull(currentVersionIndex)?.name ?: channel.name
         }
 
         resetStallTracking()
+        startBlackFrameWatch()
         binding.playerAspectContainer.videoAspectRatio = 0f
         playerManager.setSurfaceView(binding.playerSurface)
         showControls()
         binding.bufferingSpinner.visibility = View.VISIBLE
-        playerManager.playUrl(channel.url, channel.streamUserAgent)
+        val startVersion = if (channel.mediaType == MediaType.LIVE) currentVersionGroup.getOrNull(currentVersionIndex) ?: channel else channel
+        playerManager.playUrl(startVersion.url, startVersion.streamUserAgent)
     }
 
-    /** Retries playback with the next-best quality version of the current live channel, if any. */
+    /** The Xtream provider a Channel actually came from, for detail/EPG calls that need to
+     *  hit the matching server/credentials - not whichever Xtream provider loaded last into
+     *  the legacy single `provider` field. Null for non-Xtream items. */
+    private fun xtreamProviderFor(channel: Channel): Provider? {
+        val config = channel.sourceProviderId?.let { xtreamProviderConfigs[it] } ?: return null
+        return Provider(
+            name = config.name, type = ProviderType.XTREAM,
+            serverUrl = config.url?.let { normalizeServerUrl(it) },
+            username = config.username, password = config.password
+        )
+    }
+
+    private fun streamKey(channel: Channel) = channel.id.ifBlank { channel.url }
+
+    private fun markStreamDead(channel: Channel) {
+        deadStreamUntil[streamKey(channel)] = System.currentTimeMillis() + DEAD_STREAM_COOLDOWN_MS
+    }
+
+    private fun isStreamDead(channel: Channel): Boolean {
+        val until = deadStreamUntil[streamKey(channel)] ?: return false
+        if (System.currentTimeMillis() >= until) {
+            deadStreamUntil.remove(streamKey(channel))
+            return false
+        }
+        return true
+    }
+
+    /** Retries playback with the next-best quality version of the current live channel, if
+     *  any - the one being left behind failed (that's why this got called), so it's marked
+     *  dead for a cooldown window instead of being tried again a few seconds later. */
     private fun tryNextQualityVersion(message: String = "Switching to alternate quality…"): Boolean {
         if (nowPlayingChannel?.mediaType != MediaType.LIVE) return false
-        val nextIndex = currentVersionIndex + 1
+        currentVersionGroup.getOrNull(currentVersionIndex)?.let { markStreamDead(it) }
+        var nextIndex = currentVersionIndex + 1
+        while (nextIndex < currentVersionGroup.size && isStreamDead(currentVersionGroup[nextIndex])) nextIndex++
         if (nextIndex >= currentVersionGroup.size) return false
         switchToVersionIndex(nextIndex, message)
         return true
@@ -2256,6 +2319,7 @@ class MainActivity : AppCompatActivity() {
         currentVersionIndex = index
         val next = currentVersionGroup[index]
         resetStallTracking()
+        startBlackFrameWatch()
         binding.playerAspectContainer.videoAspectRatio = 0f
         binding.playerChannelName.text = next.name
         Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
@@ -2321,6 +2385,95 @@ class MainActivity : AppCompatActivity() {
         tryNextQualityVersion("Stream buffering, switching version…")
     }
 
+    // ── Black-frame auto-failover ──────────────────
+    // A dead feed sometimes never stalls or errors at all - the server just serves a
+    // technically-valid, steadily-decoding encode of a blank black frame instead, so
+    // neither onPlayerError nor the buffer-stall watchdog above ever fires. Sample the
+    // actual rendered surface periodically and treat sustained near-black output as a
+    // dead feed too.
+
+    private fun startBlackFrameWatch() {
+        blackFrameStreak = 0
+        mainHandler.removeCallbacks(blackFrameCheckRunnable)
+        mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
+    }
+
+    private fun checkForBlackFrame() {
+        if (nowPlayingChannel?.mediaType != MediaType.LIVE || !isPlayerVisible || !playerManager.isPlaying) {
+            mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+            return
+        }
+        val surfaceView = binding.playerSurface
+        if (surfaceView.width <= 0 || surfaceView.height <= 0) {
+            mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+            return
+        }
+        val sample = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888)
+        try {
+            PixelCopy.request(surfaceView, sample, { result ->
+                val isBlack = result == PixelCopy.SUCCESS && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+                blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
+                if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD) {
+                    blackFrameStreak = 0
+                    if (!tryNextQualityVersion("Channel appears offline, switching version…")) {
+                        Toast.makeText(this, "Channel appears offline", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+                }
+            }, mainHandler)
+        } catch (e: Exception) {
+            mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        }
+    }
+
+    private fun averageLuma(bitmap: Bitmap): Int {
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        var sum = 0L
+        for (p in pixels) {
+            sum += (((p shr 16) and 0xFF) + ((p shr 8) and 0xFF) + (p and 0xFF)) / 3
+        }
+        return if (pixels.isNotEmpty()) (sum / pixels.size).toInt() else 0
+    }
+
+    /** Same black-frame detection as fullscreen playback, but for the muted inline preview
+     *  player used while browsing the guide - it plays a version group's best entry same as
+     *  fullscreen, so it can hit the exact same dead/blank-feed case, silently (no Toast,
+     *  nothing to interrupt) skipping to the next non-dead version instead. */
+    private fun startPreviewBlackFrameWatch() {
+        previewBlackFrameStreak = 0
+        mainHandler.removeCallbacks(previewBlackFrameCheckRunnable)
+        mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
+    }
+
+    private fun checkForPreviewBlackFrame() {
+        if (activeTab != 0 || isPlayerVisible || binding.livePreviewPane.visibility != View.VISIBLE) return
+        val textureView = binding.previewSurface
+        if (!textureView.isAvailable) {
+            mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+            return
+        }
+        val sample = runCatching { textureView.getBitmap(32, 18) }.getOrNull()
+        val isBlack = sample != null && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+        previewBlackFrameStreak = if (isBlack) previewBlackFrameStreak + 1 else 0
+        if (previewBlackFrameStreak < BLACK_FRAME_STREAK_THRESHOLD) {
+            mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+            return
+        }
+        previewBlackFrameStreak = 0
+        previewVersionGroup.getOrNull(previewVersionIndex)?.let { markStreamDead(it) }
+        var nextIndex = previewVersionIndex + 1
+        while (nextIndex < previewVersionGroup.size && isStreamDead(previewVersionGroup[nextIndex])) nextIndex++
+        if (nextIndex >= previewVersionGroup.size) return // nothing else to try - leave it, stop watching
+        previewVersionIndex = nextIndex
+        val next = previewVersionGroup[nextIndex]
+        ensurePreviewPlayer().playUrl(next.url, next.streamUserAgent)
+        mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+    }
+
     /** Live channels are never resumable; movies/episodes are, once far enough in. */
     private fun maybeShowResumePrompt() {
         if (resumePromptShown) return
@@ -2374,17 +2527,21 @@ class MainActivity : AppCompatActivity() {
 
     /** Currently-airing program for a live channel, or null if there's no EPG data for it. */
     /** Every id worth trying for a channel's EPG: itself first, then its merged quality/source siblings - same physical channel, the provider just didn't attach guide data to every feed. */
-    private fun epgCandidateIds(channelId: String): List<String> {
-        val siblings = liveVersions[channelId].orEmpty().map { it.id }.filter { it.isNotBlank() && it != channelId }
-        return listOf(channelId) + siblings
+    /** A channel's own entry plus its merged quality/source siblings - same physical channel,
+     *  the provider just didn't attach guide data to every feed. Each carries its own
+     *  sourceProviderId, since siblings can come from a different Xtream provider entirely. */
+    private fun epgCandidateChannels(channelId: String): List<Channel> {
+        val versions = liveVersions[channelId]
+        if (versions != null) return versions
+        return listOfNotNull(liveChannels.find { it.id == channelId })
     }
 
     private suspend fun resolveCurrentProgram(channelId: String): XtreamClient.EpgProgram? {
-        if (provider.type != ProviderType.XTREAM) return null
         val client = XtreamClient(BaseApplication.instance.okHttpClient)
         val nowSeconds = System.currentTimeMillis() / 1000
-        for (id in epgCandidateIds(channelId)) {
-            val programs = runCatching { client.getShortEpg(provider, id, 2) }.getOrDefault(emptyList())
+        for (ch in epgCandidateChannels(channelId)) {
+            val chProvider = xtreamProviderFor(ch) ?: continue
+            val programs = runCatching { client.getShortEpg(chProvider, ch.id, 2) }.getOrDefault(emptyList())
             if (programs.isNotEmpty()) return programs.firstOrNull { it.isNowAiring(nowSeconds) } ?: programs.firstOrNull()
         }
         return null
@@ -2392,10 +2549,10 @@ class MainActivity : AppCompatActivity() {
 
     /** Next several EPG entries for a channel, used to build one row of the guide timeline. */
     private suspend fun resolveEpgPrograms(channelId: String): List<XtreamClient.EpgProgram>? {
-        if (provider.type != ProviderType.XTREAM) return null
         val client = XtreamClient(BaseApplication.instance.okHttpClient)
-        for (id in epgCandidateIds(channelId)) {
-            val programs = runCatching { client.getShortEpg(provider, id, 6) }.getOrDefault(emptyList())
+        for (ch in epgCandidateChannels(channelId)) {
+            val chProvider = xtreamProviderFor(ch) ?: continue
+            val programs = runCatching { client.getShortEpg(chProvider, ch.id, 6) }.getOrDefault(emptyList())
             if (programs.isNotEmpty()) return programs
         }
         return null
@@ -2457,6 +2614,7 @@ class MainActivity : AppCompatActivity() {
         previewLoadRunnable?.let { mainHandler.removeCallbacks(it) }
         previewLoadRunnable = null
         previewChannelId = null
+        mainHandler.removeCallbacks(previewBlackFrameCheckRunnable)
         binding.livePreviewGutter.visibility = View.GONE
         binding.livePreviewPane.visibility = View.GONE
         updateGuideRowWrap()
@@ -2491,7 +2649,11 @@ class MainActivity : AppCompatActivity() {
         binding.previewNowPlaying.visibility = View.GONE
         binding.previewNowPlayingTime.visibility = View.GONE
         binding.previewBuffering.visibility = View.VISIBLE
-        ensurePreviewPlayer().playUrl(channel.url, channel.streamUserAgent)
+        previewVersionGroup = liveVersions[channel.id] ?: listOf(channel)
+        previewVersionIndex = previewVersionGroup.indexOfFirst { !isStreamDead(it) }.takeIf { it >= 0 } ?: 0
+        val startVersion = previewVersionGroup.getOrNull(previewVersionIndex) ?: channel
+        ensurePreviewPlayer().playUrl(startVersion.url, startVersion.streamUserAgent)
+        startPreviewBlackFrameWatch()
 
         scope.launch {
             val program = runCatching { resolveCurrentProgram(channel.id) }.getOrNull()
