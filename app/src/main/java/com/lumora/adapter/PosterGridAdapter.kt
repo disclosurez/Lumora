@@ -27,6 +27,15 @@ class PosterGridAdapter(
 
     private val scope = CoroutineScope(Dispatchers.Main)
 
+    /** Column count of the GridLayoutManager this adapter is currently bound to, and where
+     *  D-pad UP from the top row should go - a poster's default UP focus-search has to find
+     *  something reasonably column-aligned above it, and depending which column a poster's
+     *  in, nothing up there (tab bar/search box) may be close enough to win, especially
+     *  since the tab bar centered itself instead of spanning full width. Set both together
+     *  whenever the grid is (re)built, since span count changes with screen width/rotation. */
+    var spanCount: Int = 1
+    var topRowFocusUpTargetId: Int = View.NO_ID
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_poster_grid, parent, false)
         return ViewHolder(view)
@@ -34,6 +43,11 @@ class PosterGridAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
+        holder.itemView.nextFocusUpId = if (topRowFocusUpTargetId != View.NO_ID && position < spanCount) {
+            topRowFocusUpTargetId
+        } else {
+            View.NO_ID
+        }
     }
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {

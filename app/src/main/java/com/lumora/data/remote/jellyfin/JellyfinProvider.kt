@@ -68,7 +68,14 @@ class JellyfinProvider(private val client: OkHttpClient) {
     private fun authHeader(serverUrl: String, username: String, token: String? = null): String {
         val id = deviceId(serverUrl, username)
         return buildString {
-            append("MediaBrowser Client=\"Lumora\", Device=\"${android.os.Build.MODEL}\", DeviceId=\"$id\", Version=\"1.0.0\"")
+            // Device was Build.MODEL - unescaped, and some devices/boxes report a model
+            // string with a stray quote or comma in it, which corrupts this header's
+            // quoted-comma-separated format and gets the whole request rejected with a
+            // 400 (Jellyfin's Initiate endpoint throws if any of Client/Device/DeviceId/
+            // Version comes back empty from a header it couldn't parse). A fixed literal
+            // sidesteps that risk entirely - confirmed against another working Jellyfin
+            // client's implementation, which does the same.
+            append("MediaBrowser Client=\"Lumora\", Device=\"Lumora\", DeviceId=\"$id\", Version=\"1.0.0\"")
             token?.takeIf { it.isNotBlank() }?.let { append(", Token=\"$it\"") }
         }
     }
@@ -141,8 +148,9 @@ class JellyfinProvider(private val client: OkHttpClient) {
             val request = Request.Builder()
                 .url("$base/QuickConnect/Initiate")
                 .header("Authorization", authHeader(base, "quickconnect"))
+                .header("Accept", "application/json")
                 .header("User-Agent", "Lumora/1.0")
-                .post("".toRequestBody(null))
+                .post("{}".toRequestBody("application/json".toMediaType()))
                 .build()
 
             val response = client.newCall(request).execute()

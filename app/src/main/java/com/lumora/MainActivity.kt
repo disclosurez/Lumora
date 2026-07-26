@@ -1128,6 +1128,17 @@ class MainActivity : AppCompatActivity() {
         return (widthDp / 128f).toInt().coerceAtLeast(1)
     }
 
+    /** Sets up a GridLayoutManager on [recyclerView] and tells [adapter] its span count and
+     *  where D-pad UP from the top row should land ([topRowFocusUpTargetId], e.g. the active
+     *  tab button) - see PosterGridAdapter.topRowFocusUpTargetId for why that can't just be
+     *  left to automatic focus search. */
+    private fun setGridSpan(recyclerView: RecyclerView, adapter: PosterGridAdapter, topRowFocusUpTargetId: Int) {
+        val span = gridSpanCount(recyclerView)
+        recyclerView.layoutManager = GridLayoutManager(this, span)
+        adapter.spanCount = span
+        adapter.topRowFocusUpTargetId = topRowFocusUpTargetId
+    }
+
     /** "See All" on a shelf header - same vertical grid a sidebar category pick opens,
      *  just seeded directly from that shelf's own items instead of matching category ids. */
     private fun showSeeAll(shelf: ContentShelf) {
@@ -1182,7 +1193,7 @@ class MainActivity : AppCompatActivity() {
                 val source = seriesList
                 val shelfItems = selectedShelfItems
                 if (shelfItems != null) {
-                    binding.seriesContent.layoutManager = GridLayoutManager(this, gridSpanCount(binding.seriesContent))
+                    setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                     binding.seriesContent.adapter = seriesGridAdapter
                     seriesGridAdapter.submitList(shelfItems)
                 } else if (matchIds == null) {
@@ -1191,7 +1202,7 @@ class MainActivity : AppCompatActivity() {
                     seriesShelfAdapter.submitList(seriesShelves)
                 } else {
                     val filtered = withContext(Dispatchers.Default) { source.filter { it.filterKey() in matchIds } }
-                    binding.seriesContent.layoutManager = GridLayoutManager(this, gridSpanCount(binding.seriesContent))
+                    setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                     binding.seriesContent.adapter = seriesGridAdapter
                     seriesGridAdapter.submitList(filtered)
                 }
@@ -1201,7 +1212,7 @@ class MainActivity : AppCompatActivity() {
                 val source = filmList
                 val shelfItems = selectedShelfItems
                 if (shelfItems != null) {
-                    binding.filmsContent.layoutManager = GridLayoutManager(this, gridSpanCount(binding.filmsContent))
+                    setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
                     binding.filmsContent.adapter = filmsGridAdapter
                     filmsGridAdapter.submitList(shelfItems)
                 } else if (matchIds == null) {
@@ -1210,7 +1221,7 @@ class MainActivity : AppCompatActivity() {
                     filmsShelfAdapter.submitList(filmShelves)
                 } else {
                     val filtered = withContext(Dispatchers.Default) { source.filter { it.filterKey() in matchIds } }
-                    binding.filmsContent.layoutManager = GridLayoutManager(this, gridSpanCount(binding.filmsContent))
+                    setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
                     binding.filmsContent.adapter = filmsGridAdapter
                     filmsGridAdapter.submitList(filtered)
                 }
@@ -1865,6 +1876,8 @@ class MainActivity : AppCompatActivity() {
             activeSearchOverlay?.dismiss()
             if (item.mediaType == MediaType.LIVE) playItem(item) else showContentDetail(item)
         }
+        resultsAdapter.spanCount = dialogSpanCount
+        resultsAdapter.topRowFocusUpTargetId = R.id.searchInput
         resultsList.adapter = resultsAdapter
 
         val overlay = FullScreenOverlay(
