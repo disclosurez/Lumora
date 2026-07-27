@@ -34,6 +34,7 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
 
       - name: Sign APK
+        id: sign_app
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: app/build/outputs/apk/release
@@ -58,4 +59,4 @@ jobs:
             ### Installation
             Download the APK below and install on your Android TV or phone.
           files: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            ${{ steps.sign_app.outputs.signedReleaseFile }}
