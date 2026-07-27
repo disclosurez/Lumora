@@ -23,60 +23,76 @@
         android:layout_width="220dp"
         android:layout_height="match_parent"
         android:background="@color/canvas_elevated"
-        android:orientation="vertical"
-        android:paddingHorizontal="10dp"
-        android:paddingTop="20dp">
+        android:orientation="vertical">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="18dp"
+            android:layout_marginTop="20dp"
             android:layout_marginBottom="16dp"
             android:text="Settings"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="P" android:backgroundTint="@color/channel_1" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Providers" />
-        </LinearLayout>
+        <!-- Scrollable so the rail never clips the last row under the Cancel/Save footer
+             on shorter TV panels - this rail has no fixed height budget of its own. -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="none">
 
-        <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_6" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Playback" />
-        </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="10dp"
+                android:paddingBottom="12dp">
 
-        <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="F" android:backgroundTint="@color/channel_4" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Filters" />
-        </LinearLayout>
+                <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="P" android:backgroundTint="@color/channel_1" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Providers" />
+                </LinearLayout>
 
-        <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="V" android:backgroundTint="@color/channel_5" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Privacy" />
-        </LinearLayout>
+                <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_6" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Playback" />
+                </LinearLayout>
 
-        <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="B" android:backgroundTint="@color/channel_3" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Backup &amp; Restore" />
-        </LinearLayout>
+                <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="F" android:backgroundTint="@color/channel_4" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Filters" />
+                </LinearLayout>
 
-        <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="E" android:backgroundTint="@color/channel_2" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="EPG Sources" />
-        </LinearLayout>
+                <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="V" android:backgroundTint="@color/channel_5" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Privacy" />
+                </LinearLayout>
 
-        <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_5" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Downloads" />
-        </LinearLayout>
+                <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="B" android:backgroundTint="@color/channel_3" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Backup &amp; Restore" />
+                </LinearLayout>
 
-        <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
-            <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
-            <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="About" />
-        </LinearLayout>
+                <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="E" android:backgroundTint="@color/channel_2" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="EPG Sources" />
+                </LinearLayout>
 
+                <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_5" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Downloads" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="About" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
     </LinearLayout>
 
     <!-- Thin vertical divider -->
@@ -108,13 +124,13 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
                     android:text="Providers"
                     style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="-12dp"
                     android:text="Run multiple IPTV providers and Jellyfin together - enable or disable each independently"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
 
@@ -156,7 +172,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -222,7 +238,7 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
-                        android:stateListAnimator="@animator/focus_scale">
+                        android:stateListAnimator="@animator/focus_scale_flat">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -537,7 +553,7 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
-                        android:stateListAnimator="@animator/focus_scale">
+                        android:stateListAnimator="@animator/focus_scale_flat">
                         <TextView
                             android:id="@+id/settingsJellyfinQuickConnectLabel"
                             android:layout_width="wrap_content"
@@ -557,7 +573,7 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
-                        android:stateListAnimator="@animator/focus_scale">
+                        android:stateListAnimator="@animator/focus_scale_flat">
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
@@ -577,7 +593,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playback" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Playback" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsRecordingStorage"
@@ -587,7 +603,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/recording_storage" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
@@ -600,7 +616,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playback settings" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
@@ -613,7 +629,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -632,7 +648,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Filters" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Filters" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <CheckBox
                     android:id="@+id/settingsHideNonEnglish"
@@ -652,7 +668,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <CheckBox
                     android:id="@+id/settingsHideAdult"
@@ -672,7 +688,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Set parental PIN" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
@@ -685,7 +701,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clear watch history" android:textColor="@color/live_red" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
@@ -698,7 +714,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Backup &amp; Restore" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Backup &amp; Restore" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsExportBackup"
@@ -708,7 +724,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/export_backup" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
 
@@ -721,7 +737,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/import_backup" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
@@ -734,7 +750,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="EPG Sources" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="EPG Sources" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsAddEpgSource"
@@ -744,7 +760,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/add_epg_source" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
@@ -757,7 +773,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:id="@+id/settingsDownloadsEmptyText"
@@ -783,7 +799,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="About" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="About" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -807,7 +823,7 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="GitHub" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="github.com/disclosurez/Lumora" android:textColor="@color/primary_light" android:textSize="10sp" />
                 </LinearLayout>
@@ -821,7 +837,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:stateListAnimator="@animator/focus_scale">
+                    android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Check for Updates" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
@@ -855,7 +871,7 @@
             android:focusable="true"
             android:gravity="center"
             android:paddingHorizontal="24dp"
-            android:stateListAnimator="@animator/focus_scale">
+            android:stateListAnimator="@animator/focus_scale_flat">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -874,7 +890,7 @@
             android:focusable="true"
             android:gravity="center"
             android:paddingHorizontal="24dp"
-            android:stateListAnimator="@animator/focus_scale">
+            android:stateListAnimator="@animator/focus_scale_flat">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

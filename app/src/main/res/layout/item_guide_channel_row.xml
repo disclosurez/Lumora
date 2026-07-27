@@ -9,7 +9,7 @@
         android:id="@+id/guideChannelInfo"
         android:layout_width="@dimen/guide_channel_column_width"
         android:layout_height="match_parent"
-        android:layout_marginEnd="4dp"
+        android:layout_marginEnd="10dp"
         android:background="@drawable/bg_channel_row"
         android:clickable="true"
         android:focusable="true"
@@ -73,7 +73,9 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:overScrollMode="never"
-        android:scrollbars="none">
+        android:scrollbars="none"
+        android:requiresFadingEdge="horizontal"
+        android:fadingEdgeLength="18dp">
 
         <LinearLayout
             android:id="@+id/guideProgramRow"

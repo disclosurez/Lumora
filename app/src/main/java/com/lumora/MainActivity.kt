@@ -1393,6 +1393,14 @@ class MainActivity : AppCompatActivity() {
         binding.tabSeries.setOnClickListener { showingHome = false; selectTab(1) }
         binding.tabFilms.setOnClickListener { showingHome = false; selectTab(2) }
         binding.tabDownloads.setOnClickListener { showingHome = false; selectDownloads() }
+        // D-pad focus moving between tabs leaves a stale sliver of the previous tab's
+        // rounded-border background behind on some TV-stick GPUs - the view's own
+        // self-invalidate on unfocus doesn't always clear it. Forcing the whole bar to
+        // redraw on every focus change is a blunt but reliable fix.
+        val invalidateBarOnFocus = View.OnFocusChangeListener { _, _ -> binding.tabBar.invalidate() }
+        for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDownloads)) {
+            tv.onFocusChangeListener = invalidateBarOnFocus
+        }
         // Hide tab bar until a provider is configured and content is loaded
         binding.tabBar.visibility = if (hasProviderConfigured()) View.VISIBLE else View.GONE
     }
@@ -2928,6 +2936,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showControls() {
+        // Up Next shares the bottom-right corner with the controls bar's track buttons -
+        // don't let both render at once.
+        if (upNextActive) cancelUpNext()
         binding.controlsOverlay.visibility = View.VISIBLE
         // Becoming visible doesn't hand D-pad focus to anything by itself - without an
         // explicit request nothing in the overlay is reachable at all, since no view had
