@@ -18,6 +18,20 @@
     <!-- Cast -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Self-update: AppUpdateInstaller hands the downloaded APK to the system installer
+         via ACTION_VIEW. Without this permission the install is refused outright; without
+         the <queries> declaration below, targetSdk 36's package-visibility rules mean the
+         implicit ACTION_VIEW intent can't even resolve the installer activity, so
+         startActivity() silently finds nothing to launch. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+    </queries>
+
     <application
         android:name=".BaseApplication"
         android:allowBackup="true"

@@ -390,7 +390,14 @@ class MainActivity : AppCompatActivity() {
                 if (installer.isDownloadComplete(downloadId)) {
                     val path = installer.getDownloadedFilePath(downloadId)
                     if (path != null) {
-                        installer.installApk(path)
+                        // If the user had to be sent to grant "install unknown apps",
+                        // installApk() returns false - retry once automatically after
+                        // they've had time to flip it, instead of making them come back
+                        // and press Update again themselves.
+                        if (!installer.installApk(path)) {
+                            delay(30_000)
+                            installer.installApk(path)
+                        }
                     } else {
                         Toast.makeText(this@MainActivity, "Update download failed", Toast.LENGTH_SHORT).show()
                     }

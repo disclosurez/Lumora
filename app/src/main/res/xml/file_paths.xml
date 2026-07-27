@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Matches AppUpdateInstaller's setDestinationInExternalPublicDir(DIRECTORY_DOWNLOADS, ...) -->
-    <external-path name="downloads" path="Download/" />
+    <!-- Matches AppUpdateInstaller's setDestinationInExternalFilesDir(DIRECTORY_DOWNLOADS, ...) -
+         the app-specific external dir, not the shared public Downloads folder, so the
+         download doesn't need WRITE_EXTERNAL_STORAGE (which isn't granted past API 28). -->
+    <external-files-path name="downloads" path="Download/" />
 </paths>
