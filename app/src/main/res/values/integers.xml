@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Upper bound on poster-grid columns. The span is normally derived from the grid's
+         measured width, which on a wide panel yields more, narrower columns than reads well -
+         values-television/ caps it lower so cards stay large enough to see across a room. -->
+    <integer name="poster_grid_max_span">8</integer>
+</resources>

@@ -313,6 +313,7 @@ class XtreamClient(private val client: OkHttpClient) {
             url = streamUrl,
             posterUrl = info?.optString("movie_image", null),
             description = info?.optString("plot", null),
+            episodeNum = episodeNum.takeIf { it > 0 },
             mediaType = MediaType.SERIES,
             categoryId = seriesId
         )

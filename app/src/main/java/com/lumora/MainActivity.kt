@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import java.io.File
 import android.util.Rational
+import android.util.TypedValue
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -185,6 +186,11 @@ class MainActivity : AppCompatActivity() {
     private var isPlayerVisible = false
     private var isContentDetailVisible = false
     private var nowShowingDetailId: String? = null
+    /** The season chip matching the episode list currently on screen - where UP from the
+     *  list's first row lands. Kept pointed at the *selected* chip (updated on every season
+     *  change) because default focus search would otherwise pick whichever chip is
+     *  geometrically nearest, which can be a different season entirely. */
+    private var selectedSeasonChip: View? = null
     private var activeTab = 0
     private var showingHome = true
     private var showingDownloads = false
@@ -502,6 +508,62 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return super.dispatchTouchEvent(ev)
+    }
+
+    /** Walks the episode list one adapter position per UP/DOWN press instead of letting the
+     *  framework's FocusFinder choose.
+     *
+     *  `detailItemsList` is a wrap_content RecyclerView with nestedScrollingEnabled=false
+     *  inside the detail ScrollView, so it never scrolls itself and default focus search runs
+     *  over the whole screen's geometry rather than staying inside the list - from a row part
+     *  way down a season it would resolve UP to the season chip row instead of the episode
+     *  directly above.
+     *
+     *  This lives in dispatchKeyEvent rather than an OnKeyListener on the row (the pattern the
+     *  poster/shelf adapters use) because a row's listener only fires when the row itself holds
+     *  focus and only sees a hit when the neighbour is already bound: on phones focus can sit on
+     *  the row's download button instead, and an unresolved neighbour there falls through to the
+     *  same broken default search. Activity-level dispatch always sees the key, and resolving the
+     *  holder from whatever view actually has focus covers both cases. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && isContentDetailVisible && !isPlayerVisible) {
+            val step = when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_UP -> -1
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> 1
+                else -> 0
+            }
+            val list = binding.detailItemsList
+            val focused = currentFocus
+            if (step != 0 && focused != null && list.visibility == View.VISIBLE) {
+                val holder = runCatching { list.findContainingViewHolder(focused) }.getOrNull()
+                val pos = holder?.bindingAdapterPosition ?: RecyclerView.NO_POSITION
+                if (pos != RecyclerView.NO_POSITION) {
+                    val target = pos + step
+                    val count = list.adapter?.itemCount ?: 0
+                    when {
+                        // Escaping upward off the first row - go to the chip for the season
+                        // actually on screen, not whatever is geometrically closest.
+                        target < 0 -> selectedSeasonChip?.takeIf { it.isShown }?.let {
+                            it.requestFocus()
+                            return true
+                        }
+                        target < count -> {
+                            val targetView = list.layoutManager?.findViewByPosition(target)
+                            if (targetView != null) {
+                                targetView.requestFocus()
+                            } else {
+                                // Not laid out yet (long season scrolled far from the
+                                // viewport) - scroll it in, then focus once it exists.
+                                list.scrollToPosition(target)
+                                list.post { list.layoutManager?.findViewByPosition(target)?.requestFocus() }
+                            }
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** DPAD up/down channel-surfs while fullscreen on a live channel, without needing the on-screen controls. */
@@ -1275,7 +1337,14 @@ class MainActivity : AppCompatActivity() {
         val widthPx = recyclerView.width.takeIf { it > 0 }
             ?: (resources.displayMetrics.widthPixels - resources.getDimensionPixelSize(R.dimen.category_sidebar_width))
         val widthDp = widthPx / resources.displayMetrics.density
-        return (widthDp / 128f).toInt().coerceAtLeast(1)
+        // Both bounds come from resources so each device class tunes its own grid: the
+        // minimum column width drops on a portrait phone (which would otherwise fit only one
+        // poster beside the sidebar), and the max span caps a TV at 5 rather than the 6+ its
+        // width alone would allow.
+        val minColumnDp = resources.getDimension(R.dimen.poster_grid_min_column_width) /
+            resources.displayMetrics.density
+        return (widthDp / minColumnDp).toInt()
+            .coerceIn(1, resources.getInteger(R.integer.poster_grid_max_span))
     }
 
     /** Sets up a GridLayoutManager on [recyclerView] and tells [adapter] its span count and
@@ -1633,7 +1702,9 @@ class MainActivity : AppCompatActivity() {
             val label = TextView(this).apply {
                 text = if (index == 0) "Now" else timeFmt.format(calendar.time)
                 setTextColor(getColor(R.color.text_tertiary))
-                textSize = 11f
+                // Built in code, so it needs the dimen read explicitly to pick up the
+                // large-screen tier that the XML-inflated guide rows below it get for free.
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.guide_program_text))
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 setPadding((6 * density).toInt(), 0, 0, 0)
                 layoutParams = LinearLayout.LayoutParams(slotWidthPx, LinearLayout.LayoutParams.MATCH_PARENT)
@@ -1691,6 +1762,7 @@ class MainActivity : AppCompatActivity() {
         val seasonScroll = binding.detailSeasonScroll
         val seasonRow = binding.detailSeasonRow
         val playButton = binding.detailPlayButton
+        val playButtonLabel = binding.detailPlayButtonLabel
         val favoriteButton = binding.detailFavoriteButton
         val favoriteIcon = binding.detailFavoriteIcon
         val versionsScroll = binding.detailVersionsScroll
@@ -1706,11 +1778,16 @@ class MainActivity : AppCompatActivity() {
         castLabel.visibility = View.GONE
         releaseDateText.visibility = View.GONE
         playButton.visibility = View.GONE
+        // Only the series path (wirePlayButton) ever writes this, tagging it with the
+        // episode it would resume - "Resume S1E1". These views are reused across opens, so
+        // without a reset that tag stayed on the button when a *film* was opened next.
+        playButtonLabel.text = "Play"
         favoriteButton.visibility = View.GONE
         downloadButton.visibility = View.GONE
         downloadButton.setOnClickListener(null)
         seasonScroll.visibility = View.GONE
         seasonRow.removeAllViews()
+        selectedSeasonChip = null
         versionsScroll.visibility = View.GONE
         versionsRow.removeAllViews()
         sectionLabel.text = ""
@@ -1763,7 +1840,8 @@ class MainActivity : AppCompatActivity() {
             },
             showDownloadButton = !isTv,
             onDownloadClick = { episode -> downloadItem(episode) },
-            isDownloaded = { episode -> DownloadStore.get(this, episode.id) != null }
+            isDownloaded = { episode -> DownloadStore.get(this, episode.id) != null },
+            seriesName = if (isSeries) item.name else null
         )
         itemsList.adapter = itemAdapter
 
@@ -1793,9 +1871,55 @@ class MainActivity : AppCompatActivity() {
 
         fun showSeason(seasons: List<Pair<String, List<Channel>>>, index: Int) {
             for (i in 0 until seasonRow.childCount) {
-                seasonRow.getChildAt(i).isSelected = i == index
+                val chip = seasonRow.getChildAt(i)
+                chip.isSelected = i == index
+                // The focus "pop" is a stateListAnimator, so a chip that loses focus in the
+                // same frame it's clicked can keep the scaled-up transform the animator was
+                // mid-way through - leaving a visibly enlarged leftover chip behind after
+                // switching seasons. Snap every chip back to rest; the animator re-applies
+                // from there on the next real focus change.
+                chip.animate().cancel()
+                chip.scaleX = 1f
+                chip.scaleY = 1f
             }
+            // UP escaping the episode list's first row jumps straight to this chip rather
+            // than through default focus search - see dispatchKeyEvent's episode-list block.
+            selectedSeasonChip = seasonRow.getChildAt(index)
             itemAdapter.submitList(seasons[index].second)
+        }
+
+        // Series had no equivalent of the film branch's Play button below - the only
+        // action on the whole screen was the small favorite star, with no way to jump
+        // straight into playback without first picking a season/episode manually. Finds
+        // whichever episode was left in progress most recently (across every season, not
+        // just the one currently shown), or falls back to the very first episode if
+        // nothing's been started yet.
+        fun wirePlayButton(seasons: List<Pair<String, List<Channel>>>) {
+            val allEpisodes = seasons.flatMap { it.second }
+            val inProgress = allEpisodes.mapNotNull { ep ->
+                val key = ep.id.ifBlank { ep.url }
+                if (key.isBlank()) return@mapNotNull null
+                PlaybackPositionStore.get(this, key)
+                    ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
+                    ?.let { ep to it }
+            }.maxByOrNull { it.second.updatedAt }
+            val target = inProgress?.first ?: allEpisodes.firstOrNull() ?: return
+            val seasonPair = seasons.firstOrNull { (_, eps) -> eps.any { it.id == target.id } }
+            val seasonNum = seasonPair?.first?.let { Regex("""\d+""").find(it)?.value }
+            // "Play"/"Resume" alone didn't say *which* episode - with several seasons in
+            // play this was a guessing game before committing to it.
+            val tag = if (seasonNum != null && target.episodeNum != null) "S${seasonNum}E${target.episodeNum}" else null
+            playButtonLabel.text = listOfNotNull(if (inProgress != null) "Resume" else "Play", tag).joinToString(" ")
+            playButton.visibility = View.VISIBLE
+            playButton.requestFocus()
+            playButton.setOnClickListener {
+                hideContentDetail()
+                currentIndex = -1
+                val queue = seasonPair?.second ?: allEpisodes
+                showPlayerFor(target)
+                currentEpisodeQueue = queue
+                currentEpisodeQueueIndex = queue.indexOf(target)
+            }
         }
 
         val requestedItemId = item.id
@@ -1832,7 +1956,7 @@ class MainActivity : AppCompatActivity() {
                         if (seasons.size > 1) {
                             seasonScroll.visibility = View.VISIBLE
                             seasons.forEachIndexed { index, (label, _) ->
-                                val chip = layoutInflater.inflate(R.layout.item_category, seasonRow, false) as TextView
+                                val chip = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as TextView
                                 chip.text = label
                                 chip.layoutParams = LinearLayout.LayoutParams(
                                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1842,6 +1966,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                         showSeason(seasons, 0)
+                        wirePlayButton(seasons)
                     }
                 } else if (isSeries) {
                     sectionLabel.text = "Episodes"
@@ -1857,7 +1982,7 @@ class MainActivity : AppCompatActivity() {
                         if (info.seasons.size > 1) {
                             seasonScroll.visibility = View.VISIBLE
                             info.seasons.forEachIndexed { index, (label, _) ->
-                                val chip = layoutInflater.inflate(R.layout.item_category, seasonRow, false) as TextView
+                                val chip = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as TextView
                                 chip.text = label
                                 chip.layoutParams = LinearLayout.LayoutParams(
                                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1867,6 +1992,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                         showSeason(info.seasons, 0)
+                        wirePlayButton(info.seasons)
                     }
                 } else {
                     // Xtream has a separate get_vod_info call for a film's plot/cast/genre;
@@ -1895,6 +2021,14 @@ class MainActivity : AppCompatActivity() {
 
                     // The obvious action for a film is "play it" - a button, not a list
                     // labeled "Versions" with one cryptically-named entry in it.
+                    // No episode tag to add here (that's series-only), but a part-watched
+                    // film should still read "Resume" rather than "Play", same as one does
+                    // in the Continue Watching shelf it was probably reached from.
+                    val filmKey = item.id.ifBlank { item.url }
+                    val filmProgress = filmKey.takeIf { it.isNotBlank() }
+                        ?.let { PlaybackPositionStore.get(this@MainActivity, it) }
+                        ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
+                    playButtonLabel.text = if (filmProgress != null) "Resume" else "Play"
                     playButton.visibility = View.VISIBLE
                     playButton.requestFocus()
                     playButton.setOnClickListener {
@@ -1914,7 +2048,10 @@ class MainActivity : AppCompatActivity() {
                         versions.forEachIndexed { index, version ->
                             val chip = layoutInflater.inflate(R.layout.item_category, versionsRow, false) as TextView
                             chip.text = extractLeadingTag(version.name) ?: "Version ${index + 1}"
-                            chip.textSize = 10f
+                            // item_category's own size is the sidebar's; these version chips
+                            // sit inline next to Play, so they take the general caption step -
+                            // via the dimen, so they still scale up on a large screen.
+                            chip.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_caption))
                             chip.setPadding(
                                 (12 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt(),
                                 (12 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt()

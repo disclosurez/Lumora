@@ -8,8 +8,9 @@
     android:ellipsize="end"
     android:focusable="true"
     android:maxLines="1"
-    android:paddingHorizontal="14dp"
-    android:paddingVertical="12dp"
+    android:paddingHorizontal="@dimen/category_row_padding_horizontal"
+    android:paddingVertical="@dimen/category_row_padding_vertical"
     android:stateListAnimator="@animator/focus_scale"
     android:textColor="@color/text_secondary"
-    android:textSize="10sp" />
+    android:textSize="@dimen/category_row_text"
+    android:textStyle="bold" />

@@ -22,7 +22,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_body"
             android:textStyle="bold" />
 
         <TextView
@@ -39,7 +39,7 @@
             android:text="See All"
             android:textAllCaps="true"
             android:textColor="@color/primary_light"
-            android:textSize="9sp"
+            android:textSize="@dimen/text_tiny"
             android:textStyle="bold" />
 
         <TextView
@@ -54,7 +54,7 @@
             android:stateListAnimator="@animator/focus_scale"
             android:text="☆"
             android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textSize="@dimen/text_body_l" />
 
         <TextView
             android:id="@+id/shelfHideButton"
@@ -68,7 +68,7 @@
             android:stateListAnimator="@animator/focus_scale"
             android:text="✕"
             android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textSize="@dimen/text_body_l" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView

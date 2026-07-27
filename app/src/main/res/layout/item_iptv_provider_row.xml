@@ -29,7 +29,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_body"
             android:textStyle="bold" />
 
         <TextView
@@ -40,7 +40,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
-            android:textSize="10sp" />
+            android:textSize="@dimen/text_caption" />
     </LinearLayout>
 
     <LinearLayout
@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             android:text="Edit"
             android:textColor="@color/text_primary"
-            android:textSize="10sp"
+            android:textSize="@dimen/text_caption"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -79,7 +79,7 @@
             android:layout_height="wrap_content"
             android:text="Remove"
             android:textColor="@color/live_red"
-            android:textSize="10sp"
+            android:textSize="@dimen/text_caption"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

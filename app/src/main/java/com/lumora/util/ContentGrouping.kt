@@ -298,7 +298,11 @@ private val BRAND_KEYWORDS = linkedMapOf(
     "Discovery+" to listOf("discovery")
 )
 
-private val HOME_TOP_BRANDS = listOf("Netflix", "Disney", "Apple TV", "Amazon / Prime Video", "HBO / Max")
+// Paramount+ was defined in BRAND_KEYWORDS (so it already clustered in the sidebar) but
+// left out of this list, so its releases were the only major brand's missing from the
+// Films/Series "Newest" shelf.
+private val HOME_TOP_BRANDS =
+    listOf("Netflix", "Disney", "Apple TV", "Amazon / Prime Video", "HBO / Max", "Paramount+")
 
 /** "Newest" shelf (Series/Films): each major streaming brand's own [limit] newest
  *  releases, matched off the provider's own category naming (e.g. a category literally

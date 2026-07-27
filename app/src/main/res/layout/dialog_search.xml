@@ -34,7 +34,7 @@
             android:singleLine="true"
             android:textColor="@color/text_primary"
             android:textColorHint="@color/text_tertiary"
-            android:textSize="14sp" />
+            android:textSize="@dimen/text_subhead" />
 
         <LinearLayout
             android:id="@+id/searchCloseButton"
@@ -63,7 +63,7 @@
         android:gravity="center"
         android:text="Type to search"
         android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_body" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/searchResults"

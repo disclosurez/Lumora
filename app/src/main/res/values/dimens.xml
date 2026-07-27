@@ -5,4 +5,80 @@
     <dimen name="live_preview_width">240dp</dimen>
     <dimen name="live_preview_height">126dp</dimen>
     <dimen name="guide_channel_column_width">170dp</dimen>
+
+    <!-- Settings/provider-setup type scale, at arm's-length (phone/tablet) reading distance.
+         values-television/ steps the whole scale up for sofa distance - change both together
+         so the relative hierarchy stays intact. -->
+    <dimen name="settings_text_micro">8sp</dimen>
+    <dimen name="settings_text_caption">10sp</dimen>
+    <dimen name="settings_text_body">11sp</dimen>
+    <dimen name="settings_text_subtitle">12sp</dimen>
+    <dimen name="settings_text_section">14sp</dimen>
+    <dimen name="settings_text_title">17sp</dimen>
+
+    <dimen name="settings_nav_icon_size">26dp</dimen>
+    <dimen name="settings_nav_rail_width">220dp</dimen>
+    <dimen name="settings_type_card_height">46dp</dimen>
+    <dimen name="settings_input_min_height">0dp</dimen>
+    <!-- Overrides the content pane's uniform 24dp padding on the end edge only, so it must
+         restate that 24dp as the non-TV baseline rather than being a 0dp "no inset". -->
+    <dimen name="settings_content_inset">24dp</dimen>
+
+    <!-- Episode list runs the full available width everywhere except TV, where a full-width
+         row is far wider than the content in it. -->
+    <dimen name="detail_list_end_inset">0dp</dimen>
+
+    <!-- Live TV: category sidebar and the EPG guide grid. Same story as the settings scale -
+         these were sized for a phone in the hand; values-television/ steps them up. -->
+    <dimen name="category_row_text">10sp</dimen>
+    <dimen name="category_row_padding_vertical">12dp</dimen>
+    <dimen name="guide_channel_name_text">9sp</dimen>
+    <dimen name="guide_channel_number_text">8sp</dimen>
+    <dimen name="guide_channel_initial_text">9sp</dimen>
+    <dimen name="guide_program_text">11sp</dimen>
+    <dimen name="guide_channel_logo_size">26dp</dimen>
+    <dimen name="guide_row_min_height">42dp</dimen>
+    <dimen name="category_row_padding_horizontal">14dp</dimen>
+
+    <!-- Toolbar / tab bar / poster grid. Padding shrinks on TV as the type grows: the tabs
+         are a fixed-width row of five, so 36dp of padding either side of much larger labels
+         would push the row past the panel. -->
+    <dimen name="toolbar_search_text">11sp</dimen>
+    <dimen name="tab_text">13sp</dimen>
+    <dimen name="tab_padding_horizontal">36dp</dimen>
+    <dimen name="tab_bar_height">68dp</dimen>
+    <dimen name="poster_title_text">10sp</dimen>
+    <dimen name="poster_badge_text">8sp</dimen>
+    <dimen name="poster_image_height">138dp</dimen>
+    <!-- General on-screen body copy outside the settings scale (empty states, Up Next). -->
+    <dimen name="content_body_text">13sp</dimen>
+
+    <!-- App-wide type scale. Every layout's text size resolves through one of these rather
+         than a literal sp value, so a device-class change is one edit per step instead of a
+         hunt through 60-odd layouts. These are the phone values; values-sw540dp/ carries the
+         large-screen (TV/tablet) tier.
+
+         Steps are named for their role, and the numbers are the sizes that were already
+         hardcoded across the layouts - this introduces no visual change on phones. -->
+    <dimen name="text_tiny">9sp</dimen>
+    <dimen name="text_caption">10sp</dimen>
+    <dimen name="text_body_s">11sp</dimen>
+    <dimen name="text_body">12sp</dimen>
+    <dimen name="text_body_l">13sp</dimen>
+    <dimen name="text_subhead">14sp</dimen>
+    <dimen name="text_subhead_l">15sp</dimen>
+    <dimen name="text_title_s">16sp</dimen>
+    <dimen name="text_title">18sp</dimen>
+    <dimen name="text_display">24sp</dimen>
+    <dimen name="text_hero">48sp</dimen>
+
+    <!-- Square icon buttons in the toolbar (settings/refresh/back). -->
+    <dimen name="toolbar_button_size">48dp</dimen>
+    <dimen name="toolbar_height">60dp</dimen>
+    <dimen name="toolbar_padding_horizontal">20dp</dimen>
+
+    <!-- Minimum width one poster column may occupy; the grid fits as many as will go (then
+         clamps to poster_grid_max_span). Portrait phones use a smaller value so a narrow
+         screen still gets two columns rather than one. -->
+    <dimen name="poster_grid_min_column_width">128dp</dimen>
 </resources>

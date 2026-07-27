@@ -19,6 +19,12 @@ data class Channel(
     val categoryId: String? = null,
     val categoryName: String? = null,
     val description: String? = null,
+    // Series episodes only - both Xtream and Jellyfin already bake "S01E02 · Title" into
+    // `name` for display, but that format can't be parsed back out reliably (episode
+    // titles can themselves contain " · "), so the episode list needs the raw number
+    // straight from the source to show it as its own badge rather than shoehorned out of
+    // the name string.
+    val episodeNum: Int? = null,
     val year: String? = null,
     val rating: String? = null,
     // ISO "YYYY-MM-DD" - only Xtream's series list actually carries a real release date

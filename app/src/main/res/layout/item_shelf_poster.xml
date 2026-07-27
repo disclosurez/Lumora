@@ -32,6 +32,6 @@
         android:maxLines="2"
         android:lineSpacingExtra="1dp"
         android:textColor="@color/text_primary"
-        android:textSize="10sp"
+        android:textSize="@dimen/text_caption"
         android:textStyle="bold" />
 </FrameLayout>

@@ -20,22 +20,28 @@
         <!-- Top Toolbar with D-pad friendly buttons -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="60dp"
+            android:layout_height="@dimen/toolbar_height"
             android:background="@android:color/transparent"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
+            android:paddingStart="@dimen/toolbar_padding_horizontal"
+            android:paddingEnd="@dimen/toolbar_padding_horizontal"
             android:paddingTop="8dp">
 
+            <!-- ellipsize/maxLines: the title takes the leftover weight, which on a portrait
+                 phone is whatever the search + settings + refresh buttons don't use. Without
+                 these it wrapped to a second line and pushed the toolbar's contents out of
+                 vertical centre. -->
             <TextView
                 android:id="@+id/toolbarTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
                 android:text="@string/app_name"
                 android:textColor="@color/text_primary"
-                android:textSize="14sp"
+                android:textSize="@dimen/text_subhead"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -49,7 +55,7 @@
                 <LinearLayout
                     android:id="@+id/btnSearch"
                     android:layout_width="wrap_content"
-                    android:layout_height="48dp"
+                    android:layout_height="@dimen/toolbar_button_size"
                     android:background="@drawable/bg_toolbar_button"
                     android:clickable="true"
                     android:focusable="true"
@@ -70,15 +76,15 @@
                         android:layout_marginStart="6dp"
                         android:text="Search"
                         android:textColor="@color/text_primary"
-                        android:textSize="11sp"
+                        android:textSize="@dimen/toolbar_search_text"
                         android:textStyle="bold" />
                 </LinearLayout>
 
                 <!-- Settings button -->
                 <LinearLayout
                     android:id="@+id/btnSettings"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/toolbar_button_size"
                     android:layout_marginStart="4dp"
                     android:background="@drawable/bg_toolbar_button"
                     android:clickable="true"
@@ -96,8 +102,8 @@
                 <!-- Refresh button -->
                 <LinearLayout
                     android:id="@+id/btnRefresh"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/toolbar_button_size"
                     android:layout_marginStart="4dp"
                     android:background="@drawable/bg_toolbar_button"
                     android:clickable="true"
@@ -114,14 +120,30 @@
         </LinearLayout>
 
         <!-- Tab Bar: Home | Live | Series | Films with D-pad focus (pill segmented control).
-             clipChildren/clipToPadding false because each tab is height=match_parent and
-             scales to 1.06x on focus (focus_scale_flat) - without this, the scale-up
-             overflows this row's fixed 68dp height and gets clipped top+bottom, making the
-             focus highlight look cut off. -->
-        <LinearLayout
+             clipChildren/clipToPadding false on both levels because each tab is
+             height=match_parent and scales to 1.06x on focus (focus_scale_flat) - without
+             this the scale-up overflows the row's height and gets clipped top+bottom, making
+             the focus highlight look cut off.
+
+             Horizontally scrollable so the row can never clip: five wrap_content pills do
+             not fit across a ~360dp portrait phone, and a plain LinearLayout just cut the
+             last tabs off screen with no way to reach them. fillViewport keeps the TV case
+             identical - when the tabs are narrower than the screen the row is stretched to
+             the full width and gravity still centres them, so nothing scrolls.
+             The tabBar id lives on the scroller because code toggles its visibility. -->
+        <HorizontalScrollView
             android:id="@+id/tabBar"
             android:layout_width="match_parent"
-            android:layout_height="68dp"
+            android:layout_height="@dimen/tab_bar_height"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/tabBarRow"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:background="@android:color/transparent"
             android:clipChildren="false"
             android:clipToPadding="false"
@@ -140,7 +162,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="36dp"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabDownloads"
                 android:nextFocusRight="@id/tabLive"
@@ -149,7 +171,7 @@
                 android:text="🏠 Home"
                 android:textAllCaps="true"
                 android:textColor="@color/text_primary"
-                android:textSize="13sp"
+                android:textSize="@dimen/tab_text"
                 android:textStyle="bold" />
 
             <TextView
@@ -162,7 +184,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="36dp"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/tabSeries"
@@ -171,7 +193,7 @@
                 android:text="📡 Live TV"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/tab_text" />
 
             <TextView
                 android:id="@+id/tabSeries"
@@ -183,7 +205,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="36dp"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabLive"
                 android:nextFocusRight="@id/tabFilms"
@@ -192,7 +214,7 @@
                 android:text="📺 Series"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/tab_text" />
 
             <TextView
                 android:id="@+id/tabFilms"
@@ -204,7 +226,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="36dp"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabSeries"
                 android:nextFocusRight="@id/tabDownloads"
@@ -213,7 +235,7 @@
                 android:text="🎬 Films"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/tab_text" />
 
             <TextView
                 android:id="@+id/tabDownloads"
@@ -225,7 +247,7 @@
                 android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
-                android:paddingHorizontal="36dp"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabFilms"
                 android:nextFocusRight="@id/tabHome"
@@ -234,9 +256,10 @@
                 android:text="⬇️ Downloads"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp"
+                android:textSize="@dimen/tab_text"
                 android:visibility="gone" />
         </LinearLayout>
+        </HorizontalScrollView>
 
         <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text.
              Fills the same content slot every tab uses (0dp/weight=1) so a "Loading..."
@@ -267,7 +290,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:textColor="@color/primary_light"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_title_s" />
         </LinearLayout>
 
         <!-- Empty state / QR prompt when no channels -->
@@ -285,7 +308,7 @@
                 android:layout_height="wrap_content"
                 android:text="No provider configured"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/content_body_text" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -293,7 +316,7 @@
                 android:layout_marginTop="20dp"
                 android:text="Press Settings to add a playlist URL"
                 android:textColor="@color/text_secondary"
-                android:textSize="10sp" />
+                android:textSize="@dimen/text_caption" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -323,7 +346,7 @@
                         android:layout_marginStart="8dp"
                         android:text="Pair with Phone (QR)"
                         android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
+                        android:textSize="@dimen/text_body_s" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
@@ -501,7 +524,7 @@
                                     android:gravity="center"
                                     android:maxLines="1"
                                     android:textColor="@color/text_primary"
-                                    android:textSize="12sp"
+                                    android:textSize="@dimen/text_body"
                                     android:textStyle="bold" />
                             </LinearLayout>
                         </FrameLayout>
@@ -554,7 +577,7 @@
                     android:layout_gravity="center"
                     android:text="No downloads yet"
                     android:textColor="@color/text_secondary"
-                    android:textSize="11sp"
+                    android:textSize="@dimen/text_body_s"
                     android:visibility="gone" />
 
             </FrameLayout>
@@ -575,11 +598,15 @@
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:fillViewport="true">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:orientation="vertical">
 
                 <!-- Compact poster (2:3, not a full-width landscape banner) sits beside the
@@ -622,7 +649,7 @@
                             android:ellipsize="end"
                             android:maxLines="2"
                             android:textColor="@color/text_primary"
-                            android:textSize="18sp"
+                            android:textSize="@dimen/text_title"
                             android:textStyle="bold" />
 
                         <TextView
@@ -636,7 +663,7 @@
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="5dp"
                             android:textColor="@color/primary_light"
-                            android:textSize="10sp"
+                            android:textSize="@dimen/text_caption"
                             android:textStyle="bold" />
 
                         <TextView
@@ -647,7 +674,7 @@
                             android:ellipsize="end"
                             android:maxLines="1"
                             android:textColor="@color/text_tertiary"
-                            android:textSize="10sp"
+                            android:textSize="@dimen/text_caption"
                             android:visibility="gone" />
 
                         <TextView
@@ -658,7 +685,7 @@
                             android:text="Overview"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
-                            android:textSize="9sp"
+                            android:textSize="@dimen/text_tiny"
                             android:textStyle="bold"
                             android:visibility="gone" />
 
@@ -671,7 +698,7 @@
                             android:maxLines="5"
                             android:lineSpacingExtra="3dp"
                             android:textColor="@color/text_secondary"
-                            android:textSize="10sp"
+                            android:textSize="@dimen/text_caption"
                             android:visibility="gone" />
 
                         <TextView
@@ -682,7 +709,7 @@
                             android:text="Cast"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
-                            android:textSize="9sp"
+                            android:textSize="@dimen/text_tiny"
                             android:textStyle="bold"
                             android:visibility="gone" />
 
@@ -694,14 +721,19 @@
                             android:ellipsize="end"
                             android:maxLines="3"
                             android:textColor="@color/text_tertiary"
-                            android:textSize="10sp"
+                            android:textSize="@dimen/text_caption"
                             android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
 
+                <!-- clipChildren/clipToPadding false: the episode rows and buttons below all
+                     scale to 1.06x on focus, and this container's 24dp horizontal padding
+                     would otherwise slice the scaled-up row off at both edges. -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
                     android:orientation="vertical"
                     android:paddingHorizontal="24dp"
                     android:paddingBottom="24dp">
@@ -710,6 +742,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="20dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
                         android:orientation="horizontal">
 
                         <LinearLayout
@@ -732,13 +766,14 @@
                                 android:tint="@android:color/white" />
 
                             <TextView
+                                android:id="@+id/detailPlayButtonLabel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="8dp"
                                 android:text="Play"
                                 android:textAllCaps="true"
                                 android:textColor="@android:color/white"
-                                android:textSize="12sp"
+                                android:textSize="@dimen/text_body"
                                 android:textStyle="bold" />
                         </LinearLayout>
 
@@ -760,7 +795,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="☆"
                                 android:textColor="@color/text_primary"
-                                android:textSize="18sp" />
+                                android:textSize="@dimen/text_title" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -819,7 +854,7 @@
                         android:layout_marginTop="18dp"
                         android:textAllCaps="true"
                         android:textColor="@color/text_secondary"
-                        android:textSize="10sp"
+                        android:textSize="@dimen/text_caption"
                         android:textStyle="bold" />
 
                     <HorizontalScrollView
@@ -849,13 +884,16 @@
                         android:gravity="center"
                         android:text="@string/loading"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="@dimen/text_body_s" />
 
+                    <!-- marginEnd is 0dp off-TV; on TV it pulls the rows in from the full
+                         panel width, which was far wider than a row's actual content. -->
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/detailItemsList"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
+                        android:layout_marginEnd="@dimen/detail_list_end_inset"
                         android:clipChildren="false"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
@@ -934,7 +972,7 @@
                 android:layout_height="wrap_content"
                 android:text=""
                 android:textColor="@color/text_primary"
-                android:textSize="48sp"
+                android:textSize="@dimen/text_hero"
                 android:textStyle="bold" />
 
             <TextView
@@ -945,7 +983,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/text_secondary"
-                android:textSize="14sp"
+                android:textSize="@dimen/text_subhead"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -1017,7 +1055,7 @@
                                 android:layout_height="match_parent"
                                 android:gravity="center"
                                 android:textColor="@color/text_primary"
-                                android:textSize="14sp"
+                                android:textSize="@dimen/text_subhead"
                                 android:textStyle="bold" />
 
                             <ImageView
@@ -1043,7 +1081,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="1"
                                 android:textColor="@color/text_primary"
-                                android:textSize="14sp"
+                                android:textSize="@dimen/text_subhead"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -1054,7 +1092,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="1"
                                 android:textColor="@color/text_secondary"
-                                android:textSize="10sp"
+                                android:textSize="@dimen/text_caption"
                                 android:visibility="gone" />
                         </LinearLayout>
 
@@ -1069,7 +1107,7 @@
                             android:text="@string/live_badge"
                             android:textAllCaps="true"
                             android:textColor="@android:color/white"
-                            android:textSize="9sp"
+                            android:textSize="@dimen/text_tiny"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -1136,7 +1174,7 @@
                             android:layout_gravity="start|center_vertical"
                             android:text="0:00"
                             android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
+                            android:textSize="@dimen/text_caption" />
                         <SeekBar
                             android:id="@+id/seekBar"
                             android:layout_width="match_parent"
@@ -1155,7 +1193,7 @@
                             android:layout_gravity="end|center_vertical"
                             android:text="0:00"
                             android:textColor="@color/text_secondary"
-                            android:textSize="10sp" />
+                            android:textSize="@dimen/text_caption" />
                     </FrameLayout>
 
                     <HorizontalScrollView
@@ -1188,7 +1226,7 @@
                                 android:text="1.0x"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnSleepTimer"
@@ -1207,7 +1245,7 @@
                                 android:text="Sleep"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnCast"
@@ -1226,7 +1264,7 @@
                                 android:text="Cast"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnDiagnostics"
@@ -1244,7 +1282,7 @@
                                 android:text="Diag"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnRecord"
@@ -1260,7 +1298,7 @@
                                 android:text="REC"
                                 android:textAllCaps="true"
                                 android:textColor="@color/live_red"
-                                android:textSize="9sp"
+                                android:textSize="@dimen/text_tiny"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -1277,7 +1315,7 @@
                                 android:text="Versions"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnAspectRatio"
@@ -1293,7 +1331,7 @@
                                 android:text="Fit"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnAudioTrack"
@@ -1309,7 +1347,7 @@
                                 android:text="Audio"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnSubtitleTrack"
@@ -1324,7 +1362,7 @@
                                 android:text="CC"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="9sp" />
+                                android:textSize="@dimen/text_tiny" />
                         </LinearLayout>
                     </HorizontalScrollView>
                 </LinearLayout>
@@ -1350,7 +1388,7 @@
                 android:text="Up Next"
                 android:textAllCaps="true"
                 android:textColor="@color/primary"
-                android:textSize="10sp"
+                android:textSize="@dimen/text_caption"
                 android:textStyle="bold" />
 
             <TextView
@@ -1361,7 +1399,7 @@
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:textColor="@color/text_primary"
-                android:textSize="13sp"
+                android:textSize="@dimen/content_body_text"
                 android:textStyle="bold" />
 
             <TextView
@@ -1371,7 +1409,7 @@
                 android:layout_marginTop="4dp"
                 android:text="10"
                 android:textColor="@color/text_secondary"
-                android:textSize="24sp"
+                android:textSize="@dimen/text_display"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -1394,7 +1432,7 @@
                     android:text="Play Now"
                     android:textAllCaps="true"
                     android:textColor="@color/text_primary"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/text_caption"
                     android:textStyle="bold" />
 
                 <TextView
@@ -1411,7 +1449,7 @@
                     android:text="Cancel"
                     android:textAllCaps="true"
                     android:textColor="@color/text_primary"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/text_caption"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>

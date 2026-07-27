@@ -335,7 +335,14 @@ class LiveGuideAdapter(
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
                 setTextColor(ContextCompat.getColor(context, R.color.text_primary))
-                textSize = 11f
+                // From resources rather than a literal so the TV override in
+                // values-television/dimens.xml applies here too - these blocks are built in
+                // code, so they'd otherwise stay phone-sized while the rest of the guide row
+                // (inflated from XML) grew around them.
+                setTextSize(
+                    android.util.TypedValue.COMPLEX_UNIT_PX,
+                    context.resources.getDimension(R.dimen.guide_program_text)
+                )
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
                 isFocusable = true

@@ -12,7 +12,7 @@
     <ImageView
         android:id="@+id/itemPoster"
         android:layout_width="match_parent"
-        android:layout_height="138dp"
+        android:layout_height="@dimen/poster_image_height"
         android:background="@color/surface"
         android:scaleType="centerCrop" />
 
@@ -33,7 +33,7 @@
         android:paddingVertical="2dp"
         android:textAllCaps="true"
         android:textColor="@android:color/white"
-        android:textSize="8sp"
+        android:textSize="@dimen/poster_badge_text"
         android:textStyle="bold"
         android:visibility="gone" />
 
@@ -47,6 +47,6 @@
         android:maxLines="2"
         android:lineSpacingExtra="1dp"
         android:textColor="@color/text_primary"
-        android:textSize="10sp"
+        android:textSize="@dimen/poster_title_text"
         android:textStyle="bold" />
 </FrameLayout>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Five posters per row on large screens. The width-derived span put six across a TV
+         panel, which left each card (and its title) too small at viewing distance.
+         See values-sw540dp/dimens.xml for why this is keyed on smallest-width, not uiMode. -->
+    <integer name="poster_grid_max_span">5</integer>
+</resources>
