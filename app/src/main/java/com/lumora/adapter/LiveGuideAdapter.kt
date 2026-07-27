@@ -19,13 +19,13 @@ import com.lumora.cache.EpgListCache
 import com.lumora.model.Channel
 import com.lumora.parser.XtreamClient
 import com.lumora.util.PosterLoader
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val MINUTE_WIDTH_DP = 2.6f
 private const val FILLER_MINUTES = 30
 // Fast D-pad/fling scrolling flies a row past in well under this time; waiting this
 // long before firing its network fetch means rows that never settle never cost a
@@ -49,6 +49,13 @@ class LiveGuideAdapter(
     private val fetchPrograms: suspend (String) -> List<XtreamClient.EpgProgram>?
 ) : ListAdapter<Channel, LiveGuideAdapter.RowViewHolder>(DiffCallback()) {
 
+    companion object {
+        /** Timeline scale (px per programme minute, in dp). Also used by MainActivity's
+         *  buildGuideHeader() so the time ruler's 30-minute slots stay in step with the
+         *  program blocks below them. */
+        const val MINUTE_WIDTH_DP = 2.6f
+    }
+
     private val scope = CoroutineScope(Dispatchers.Main)
     private val avatarColors = intArrayOf(
         R.color.channel_1, R.color.channel_2, R.color.channel_3,
@@ -60,17 +67,32 @@ class LiveGuideAdapter(
     private var sharedScrollX: Int = 0
     private val boundScrollViews = mutableSetOf<HorizontalScrollView>()
     private var headerScrollView: HorizontalScrollView? = null
+    private var broadcasting = false
 
     fun attachHeader(header: HorizontalScrollView) {
         headerScrollView = header
+        // The header is itself touch-draggable; without broadcasting its scrolls back
+        // out, dragging it desyncs the time ruler from every program row below it.
+        header.setOnScrollChangeListener { v, scrollX, _, _, _ -> broadcastScroll(scrollX, v as HorizontalScrollView) }
+        if (header.scrollX != sharedScrollX) header.scrollTo(sharedScrollX, 0)
     }
 
     private fun broadcastScroll(x: Int, source: HorizontalScrollView?) {
         if (sharedScrollX == x) return
-        sharedScrollX = x
-        headerScrollView?.takeIf { it !== source && it.scrollX != x }?.scrollTo(x, 0)
-        for (sv in boundScrollViews) {
-            if (sv !== source && sv.scrollX != x) sv.scrollTo(x, 0)
+        // Re-entrancy guard: rows with less programme content than sharedScrollX clamp
+        // their scrollTo below, which fires their own scroll listener mid-loop and would
+        // re-broadcast the clamped offset - yanking the row the user is actually
+        // scrolling (and every other row) back with it, as a visible jitter fight.
+        if (broadcasting) return
+        broadcasting = true
+        try {
+            sharedScrollX = x
+            headerScrollView?.takeIf { it !== source && it.scrollX != x }?.scrollTo(x, 0)
+            for (sv in boundScrollViews) {
+                if (sv !== source && sv.scrollX != x) sv.scrollTo(x, 0)
+            }
+        } finally {
+            broadcasting = false
         }
     }
 
@@ -107,6 +129,7 @@ class LiveGuideAdapter(
 
         private var current: Channel? = null
         private var loadJob: Job? = null
+        private var logoJob: Job? = null
 
         init {
             channelInfo.setOnClickListener { current?.let(onChannelClick) }
@@ -118,6 +141,8 @@ class LiveGuideAdapter(
         fun cancelPendingLoad() {
             loadJob?.cancel()
             loadJob = null
+            logoJob?.cancel()
+            logoJob = null
         }
 
         /** Focuses this row's channel column - used to land D-pad focus (and thus the
@@ -140,12 +165,26 @@ class LiveGuideAdapter(
 
         fun bind(channel: Channel) {
             current = channel
+            // guideChannelInfo's focus_scale stateListAnimator (scaleX/scaleY/translationZ)
+            // can be interrupted mid-transition by fast RecyclerView recycling (this view
+            // getting rebound to a different channel before its unfocus animation finishes),
+            // leaving a leftover transform on the (reused) View object that bind() would
+            // otherwise never touch - the channel name then visually renders shifted/scaled
+            // over the program row next to it, even though layout bounds are correct. Forcing
+            // a clean baseline on every bind is the standard defense for this.
+            channelInfo.scaleX = 1f
+            channelInfo.scaleY = 1f
+            channelInfo.translationX = 0f
+            channelInfo.translationY = 0f
+            channelInfo.translationZ = 0f
             numberText.text = channel.tvgChno?.takeIf { it.isNotBlank() } ?: ""
             nameText.text = channel.name.let { if (it.length > 50) it.take(49) + "…" else it }
 
             val initial = channel.name.firstOrNull()?.uppercase() ?: "?"
             initialText.text = initial
-            val colorIndex = bindingAdapterPosition.coerceAtLeast(0) % avatarColors.size
+            // Keyed on the name, not the adapter position: position-keyed colors made the
+            // same channel's avatar change color every time a filter shifted the list.
+            val colorIndex = (channel.name.hashCode() and 0x7fffffff) % avatarColors.size
             val color = ContextCompat.getColor(itemView.context, avatarColors[colorIndex])
             initialText.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
 
@@ -165,12 +204,20 @@ class LiveGuideAdapter(
             cancelPendingLoad()
 
             val epgReady = channel.id.isNotBlank() && EpgListCache.has(channel.id)
-            if (epgReady) renderPrograms(channel, EpgListCache.get(channel.id))
+            if (epgReady) {
+                renderPrograms(channel, EpgListCache.get(channel.id))
+            } else {
+                // Render the placeholder immediately: this View is recycled and still holds
+                // the previous channel's program blocks - leaving them up through the
+                // debounce+fetch window pairs the wrong schedule with the new channel
+                // while scrolling.
+                renderPrograms(channel, null, pending = channel.id.isNotBlank())
+            }
 
             // Debounce both the logo and EPG network fetches: a row that's scrolled
             // past within LOAD_DEBOUNCE_MS never issues a request at all.
             if (cachedLogo == null && !logoUrl.isNullOrBlank()) {
-                loadJob = scope.launch {
+                logoJob = scope.launch {
                     delay(LOAD_DEBOUNCE_MS)
                     val bitmap = PosterLoader.fetch(logoUrl)
                     if (bitmap != null && current === channel) {
@@ -181,28 +228,48 @@ class LiveGuideAdapter(
                 }
             }
             if (!epgReady && channel.id.isNotBlank()) {
-                val epgJob = scope.launch {
+                loadJob = scope.launch {
                     delay(LOAD_DEBOUNCE_MS)
-                    if (!EpgListCache.markInFlight(channel.id)) return@launch
-                    val programs = runCatching { fetchPrograms(channel.id) }.getOrNull()
-                    EpgListCache.put(channel.id, programs)
-                    if (current === channel) renderPrograms(channel, programs)
+                    while (current === channel) {
+                        if (EpgListCache.has(channel.id)) {
+                            renderPrograms(channel, EpgListCache.get(channel.id))
+                            return@launch
+                        }
+                        if (EpgListCache.markInFlight(channel.id)) {
+                            val programs = try {
+                                fetchPrograms(channel.id)
+                            } catch (e: CancellationException) {
+                                // Cancelled mid-fetch (row recycled): release the claim
+                                // without caching. Swallowing this (the old runCatching did)
+                                // cached null as "no EPG", freezing the channel at
+                                // "No programme info" for the rest of the session.
+                                EpgListCache.clearInFlight(channel.id)
+                                throw e
+                            } catch (_: Exception) {
+                                null
+                            }
+                            EpgListCache.put(channel.id, programs)
+                            if (current === channel) renderPrograms(channel, programs)
+                            return@launch
+                        }
+                        // Another row's fetch for this same id is in flight - poll until it
+                        // lands (or claim it ourselves if that fetch gets cancelled) instead
+                        // of bailing, which left this row stuck on the placeholder.
+                        delay(200)
+                    }
                 }
-                // Only one delayed job is tracked for cancel-on-recycle purposes; logo
-                // load is comparatively cheap and near-instant once cached anyway.
-                loadJob = epgJob
-            } else if (!epgReady) {
-                renderPrograms(channel, null)
             }
         }
 
-        private fun renderPrograms(channel: Channel, programs: List<XtreamClient.EpgProgram>?) {
+        private fun renderPrograms(channel: Channel, programs: List<XtreamClient.EpgProgram>?, pending: Boolean = false) {
             val blocks: List<RenderBlock> = if (programs.isNullOrEmpty()) {
                 // No EPG data for this channel - a single filler block keeps the row
                 // clickable and visually aligned with rows that do have data. Repeating
                 // the channel's own name here just reads as duplicated text right next
-                // to the name column, so use a neutral label instead.
-                listOf(RenderBlock("No programme info", (FILLER_MINUTES * MINUTE_WIDTH_DP * density).toInt(), false, null))
+                // to the name column, so use a neutral label instead. While a fetch is
+                // still pending the block stays blank - flashing "No programme info" for
+                // 200ms before data lands reads as the guide glitching.
+                listOf(RenderBlock(if (pending) "" else "No programme info", (FILLER_MINUTES * MINUTE_WIDTH_DP * density).toInt(), false, null))
             } else {
                 val nowSeconds = System.currentTimeMillis() / 1000
                 programs.map { program ->
@@ -222,6 +289,15 @@ class LiveGuideAdapter(
             for (i in blocks.indices) {
                 val (title, widthPx, isCurrent, program) = blocks[i]
                 val block = programRow.getChildAt(i) as? TextView ?: makeBlock().also { programRow.addView(it) }
+                // Same leftover-transform defense as channelInfo above - these blocks are
+                // reused across binds too (see the comment below), so a stuck transform from
+                // a previous focus state would otherwise persist onto whatever program now
+                // occupies this recycled block.
+                block.scaleX = 1f
+                block.scaleY = 1f
+                block.translationX = 0f
+                block.translationY = 0f
+                block.translationZ = 0f
                 block.text = title
                 val nowSeconds = System.currentTimeMillis() / 1000
                 val reminderSet = program != null && program.startTimestamp > nowSeconds && isReminderSet("${channel.id}:${program.startTimestamp}")

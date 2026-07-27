@@ -416,9 +416,13 @@
                             android:layout_height="22dp"
                             android:orientation="horizontal">
 
+                            <!-- marginEnd matches guideChannelInfo's 10dp end margin in
+                                 item_guide_channel_row.xml - without it every time label
+                                 sits 10dp left of the programme column it labels. -->
                             <View
                                 android:layout_width="@dimen/guide_channel_column_width"
-                                android:layout_height="match_parent" />
+                                android:layout_height="match_parent"
+                                android:layout_marginEnd="10dp" />
 
                             <HorizontalScrollView
                                 android:id="@+id/guideHeaderScroll"
@@ -464,9 +468,9 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_gravity="top"
-                                    android:background="@drawable/bg_category_panel"
+                                    android:background="@drawable/bg_live_preview_frame"
                                     android:orientation="vertical"
-                                    android:padding="10dp">
+                                    android:padding="2dp">
 
                                 <FrameLayout
                                     android:layout_width="match_parent"
@@ -492,50 +496,13 @@
                                     android:id="@+id/previewChannelName"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginTop="8dp"
+                                    android:layout_marginTop="6dp"
                                     android:ellipsize="end"
+                                    android:gravity="center"
                                     android:maxLines="1"
                                     android:textColor="@color/text_primary"
                                     android:textSize="12sp"
                                     android:textStyle="bold" />
-
-                                <TextView
-                                    android:id="@+id/previewChannelGroup"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:ellipsize="end"
-                                    android:maxLines="1"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="10sp" />
-
-                                <View
-                                    android:layout_width="match_parent"
-                                    android:layout_height="1dp"
-                                    android:layout_marginTop="8dp"
-                                    android:background="@color/divider" />
-
-                                <TextView
-                                    android:id="@+id/previewNowPlaying"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="8dp"
-                                    android:ellipsize="end"
-                                    android:maxLines="2"
-                                    android:textColor="@color/info_cyan"
-                                    android:textSize="10sp"
-                                    android:visibility="gone" />
-
-                                <TextView
-                                    android:id="@+id/previewNowPlayingTime"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:ellipsize="end"
-                                    android:maxLines="1"
-                                    android:textColor="@color/text_tertiary"
-                                    android:textSize="9sp"
-                                    android:visibility="gone" />
                             </LinearLayout>
                         </FrameLayout>
                         </FrameLayout>

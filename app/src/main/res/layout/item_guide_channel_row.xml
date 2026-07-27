@@ -73,20 +73,30 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <HorizontalScrollView
-        android:id="@+id/guideProgramScroll"
+    <!-- This wrapper must keep clipChildren at its default (true): a scrolled
+         HorizontalScrollView's content is only clipped to its viewport by its *parent's*
+         clipChildren, and the row root above disables that for focus-scale overflow.
+         Without this layer, horizontally-scrolled program blocks draw straight over the
+         channel-name column to the left. -->
+    <FrameLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:overScrollMode="never"
-        android:scrollbars="none"
-        android:requiresFadingEdge="horizontal"
-        android:fadingEdgeLength="18dp">
+        android:layout_weight="1">
 
-        <LinearLayout
-            android:id="@+id/guideProgramRow"
-            android:layout_width="wrap_content"
+        <HorizontalScrollView
+            android:id="@+id/guideProgramScroll"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
+            android:overScrollMode="never"
+            android:scrollbars="none"
+            android:requiresFadingEdge="horizontal"
+            android:fadingEdgeLength="18dp">
+
+            <LinearLayout
+                android:id="@+id/guideProgramRow"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+    </FrameLayout>
 </LinearLayout>

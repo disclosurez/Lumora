@@ -93,7 +93,9 @@ fun isNonEnglishTitle(name: String): Boolean {
     return match.groupValues[1].uppercase() !in ENGLISH_LANGUAGE_CODES
 }
 
-private val ADULT_KEYWORD_REGEX = Regex("""(?i)\b(xxx|adult|porn|18\+)\b""")
+// "adults?" (not just "adult") because real provider data files this under "FOR ADULTS"
+// (plural) - \b word-boundary matching means the singular-only pattern never matched it.
+private val ADULT_KEYWORD_REGEX = Regex("""(?i)\b(xxx|adults?|porn|hentai|erotica?|18\+)\b""")
 
 /** Flags a category/group as adult content, for parental-control filtering. Checks category name first, falls back to the channel's own name/group. */
 fun isAdultCategory(categoryName: String?, group: String? = null): Boolean =

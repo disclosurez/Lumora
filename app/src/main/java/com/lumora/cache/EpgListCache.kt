@@ -21,4 +21,10 @@ object EpgListCache {
         inFlight.add(channelId)
         return true
     }
+
+    /** Releases an in-flight claim without caching a result - for fetches that were
+     *  cancelled mid-request, so the channel stays fetchable instead of stuck. */
+    fun clearInFlight(channelId: String) {
+        inFlight.remove(channelId)
+    }
 }

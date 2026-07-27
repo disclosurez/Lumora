@@ -189,6 +189,12 @@ class MainActivity : AppCompatActivity() {
     private var showingHome = true
     private var showingDownloads = false
     private val isTv by lazy { isTvDevice(this) }
+    // Edge-swipe-to-back tracking (phone only - see dispatchTouchEvent). Only armed when
+    // the gesture *starts* within EDGE_SWIPE_ZONE_DP of the left edge, so it can't be
+    // confused with the horizontal shelf/episode-row scrolling used throughout the UI.
+    private var edgeSwipeTracking = false
+    private var edgeSwipeStartX = 0f
+    private var edgeSwipeStartY = 0f
     private var selectedCategoryIds: Set<String>? = null
     private var selectedBrandChannelIds: Set<String>? = null
     private var selectedRowId: String? = null
@@ -240,6 +246,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_EXPORT_BACKUP = 2001
         private const val REQUEST_IMPORT_BACKUP = 2002
+        private const val EDGE_SWIPE_ZONE_DP = 24f
+        private const val EDGE_SWIPE_THRESHOLD_DP = 64f
     }
 
     private val liveAdapter = LiveGuideAdapter(
@@ -254,21 +262,18 @@ class MainActivity : AppCompatActivity() {
         onItemClick = { item -> playItem(item) },
         onPinClick = { shelf -> togglePinnedShelf(1, shelf.title) },
         onHideClick = { shelf -> toggleHiddenShelf(1, shelf.title) },
-        onSeeAllClick = { shelf -> showSeeAll(shelf) },
-        topAnchorViewId = R.id.tabSeries
+        onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onPinClick = { shelf -> togglePinnedShelf(2, shelf.title) },
         onHideClick = { shelf -> toggleHiddenShelf(2, shelf.title) },
-        onSeeAllClick = { shelf -> showSeeAll(shelf) },
-        topAnchorViewId = R.id.tabFilms
+        onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val homeShelfAdapter = ShelfAdapter(
         onItemClick = { item -> onHomeItemClick(item) },
         onHideClick = { shelf -> toggleHiddenHomeShelf(shelf.title) },
-        showPinButton = false,
-        topAnchorViewId = R.id.tabHome
+        showPinButton = false
     )
     // Single-category selection swaps to these - a vertical, scrollable grid instead of
     // the shelves' horizontal strip, since one category's whole catalog doesn't fit a
@@ -460,6 +465,43 @@ class MainActivity : AppCompatActivity() {
         else if (isPlayerVisible) hidePlayer()
         else if (isContentDetailVisible) hideContentDetail()
         else super.onBackPressed()
+    }
+
+    /** True while there's actually an overlay/screen for swipe-back to close - guards edge-swipe
+     *  so it doesn't fall through to super.onBackPressed() (exiting the app) on a stray swipe. */
+    private fun hasDismissibleScreen(): Boolean =
+        activeSettingsOverlay != null || activeSearchOverlay != null || isPlayerVisible || isContentDetailVisible
+
+    /** Phone-only edge-swipe-to-back: a left-to-right swipe starting within the leftmost
+     *  [EDGE_SWIPE_ZONE_DP] of the screen closes whatever's on top, mirroring the system
+     *  gesture-nav back swipe. Started from the edge (not anywhere on screen) specifically
+     *  so it can't be triggered by scrolling a shelf/episode row, which are horizontal
+     *  RecyclerViews spanning the full width and would otherwise fire this constantly.
+     *  Observes via dispatchTouchEvent rather than consuming, so normal clicks/scrolls are
+     *  untouched - it never returns true from here, just calls onBackPressed() as a side effect. */
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (!isTv) {
+            val density = resources.displayMetrics.density
+            when (ev.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    edgeSwipeTracking = ev.x <= EDGE_SWIPE_ZONE_DP * density && hasDismissibleScreen()
+                    edgeSwipeStartX = ev.x
+                    edgeSwipeStartY = ev.y
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (edgeSwipeTracking) {
+                        val dx = ev.x - edgeSwipeStartX
+                        val dy = kotlin.math.abs(ev.y - edgeSwipeStartY)
+                        if (dx >= EDGE_SWIPE_THRESHOLD_DP * density && dy < dx * 0.5f) {
+                            edgeSwipeTracking = false
+                            onBackPressed()
+                        }
+                    }
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> edgeSwipeTracking = false
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     /** DPAD up/down channel-surfs while fullscreen on a live channel, without needing the on-screen controls. */
@@ -1021,6 +1063,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun liveCategoryPriority(name: String): Int {
+        if (isAdultCategory(name)) return 3
         val lower = name.lowercase()
         return when {
             lower.contains("sport") -> 0
@@ -1183,7 +1226,7 @@ class MainActivity : AppCompatActivity() {
             // flattened rows would scatter them back in with unrelated leaves by name).
             val remainderUnits = allUnits.filter { it.first.id !in bucketedIds }
                 .let { units ->
-                    if (tab != 0) units.sortedWith(compareBy({ if (it.first.isParent) 0 else 1 }, { it.first.name.lowercase() }))
+                    if (tab != 0) units.sortedWith(compareBy({ if (isAdultCategory(it.first.name)) 1 else 0 }, { if (it.first.isParent) 0 else 1 }, { it.first.name.lowercase() }))
                     else units
                 }
             val cascadeRows = remainderUnits.flatMap(::expandUnit)
@@ -1344,11 +1387,11 @@ class MainActivity : AppCompatActivity() {
             scope.launch { rebuildCategoriesForActiveTab() }
             return
         }
-        // First tap on a parent just selects/filters it - expand only toggles on a second
-        // tap while it's already the selected row, so picking a category doesn't also
-        // dump its whole child list open unasked for.
-        val expandChanged = category.isParent && selectedRowId == category.id
+        // A tap on a parent row always toggles its expansion (and selects it) - the old
+        // select-first-toggle-on-second-tap scheme read as "collapse needs a double
+        // click". category.expanded is the pre-tap state the row was bound with.
         val id = category.id
+        val expandChanged = category.isParent && id != null
         if (expandChanged && id != null) {
             if (!expandedGroupKeys.remove(id)) expandedGroupKeys.add(id)
         }
@@ -1358,9 +1401,12 @@ class MainActivity : AppCompatActivity() {
         selectedBrandChannelIds = category.channelIds.ifEmpty { null }
         selectedCategoryIds = if (category.id == null || category.channelIds.isNotEmpty()) null else category.matchIds
         if (expandChanged) {
-            if (!category.expanded) {
-                // Collapsing: just remove child rows from the existing list without a
-                // full category rebuild - avoids the expensive channel scan on every tap.
+            if (category.expanded) {
+                // Was expanded -> collapsing: just remove child rows from the existing
+                // list without a full category rebuild - avoids the expensive channel
+                // scan on every tap. (These two branches were inverted before: collapse
+                // paid the full rebuild, expand ran this no-op removal and appeared to
+                // ignore the first click.)
                 val currentList = categoryAdapter.currentList.toMutableList()
                 val parentIdx = currentList.indexOfFirst { it.id == id }
                 if (parentIdx >= 0) {
@@ -1375,7 +1421,8 @@ class MainActivity : AppCompatActivity() {
                 categoryAdapter.setSelected(selectedRowId)
                 scope.launch { applyCategoryFilter() }
             } else {
-                // Expanding: needs the full child tree data, so a real rebuild is required.
+                // Was collapsed -> expanding: needs the full child tree data, so a real
+                // rebuild is required.
                 scope.launch {
                     rebuildCategoriesForActiveTab()
                     applyCategoryFilter()
@@ -1577,7 +1624,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildGuideHeader() {
         val density = resources.displayMetrics.density
-        val slotWidthPx = (30 * 2.6f * density).toInt() // 30 minutes at the guide's MINUTE_WIDTH_DP scale
+        val slotWidthPx = (30 * LiveGuideAdapter.MINUTE_WIDTH_DP * density).toInt()
         val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
         val calendar = java.util.Calendar.getInstance()
 
@@ -2754,8 +2801,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateGuideRowWrap() {
         val showingPreview = binding.livePreviewGutter.visibility == View.VISIBLE
         val reservedPx = if (showingPreview) {
+            // The pane's real on-screen width, exactly - no added buffer. An extra margin
+            // here was tried twice (first 16dp, then 32dp) to guard against focus-scale
+            // bleed that turned out not to be the real bug, and each just left a visible
+            // gap between a reserved row's content and the pane's actual left edge.
             binding.livePreviewPane.getGlobalVisibleRect(previewGlobalRect)
-            resources.getDimensionPixelSize(R.dimen.live_preview_width) + (16 * resources.displayMetrics.density).toInt()
+            previewGlobalRect.width()
         } else 0
         for (i in 0 until binding.liveContent.childCount) {
             val child = binding.liveContent.getChildAt(i)
@@ -2906,24 +2957,12 @@ class MainActivity : AppCompatActivity() {
         if (activeTab != 0 || isPlayerVisible) return
         previewChannelId = channel.id
         binding.previewChannelName.text = channel.name
-        binding.previewChannelGroup.text = channel.categoryName?.takeIf { it.isNotBlank() } ?: channel.group ?: ""
-        binding.previewNowPlaying.visibility = View.GONE
-        binding.previewNowPlayingTime.visibility = View.GONE
         binding.previewBuffering.visibility = View.VISIBLE
         previewVersionGroup = liveVersions[channel.id] ?: listOf(channel)
         previewVersionIndex = previewVersionGroup.indexOfFirst { !isStreamDead(it) }.takeIf { it >= 0 } ?: 0
         val startVersion = previewVersionGroup.getOrNull(previewVersionIndex) ?: channel
         ensurePreviewPlayer().playUrl(startVersion.url, startVersion.streamUserAgent)
         startPreviewBlackFrameWatch()
-
-        scope.launch {
-            val program = runCatching { resolveCurrentProgram(channel.id) }.getOrNull()
-            if (previewChannelId != channel.id || program == null) return@launch
-            binding.previewNowPlaying.text = program.title
-            binding.previewNowPlaying.visibility = View.VISIBLE
-            binding.previewNowPlayingTime.text = formatEpgTimeRange(program.startTimestamp, program.stopTimestamp)
-            binding.previewNowPlayingTime.visibility = View.VISIBLE
-        }
     }
 
     private fun formatEpgTimeRange(startSeconds: Long, stopSeconds: Long): String {
