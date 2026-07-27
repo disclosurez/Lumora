@@ -13,6 +13,8 @@
         android:id="@+id/mainContent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical">
 
         <!-- Top Toolbar with D-pad friendly buttons -->
@@ -111,12 +113,18 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Tab Bar: Home | Live | Series | Films with D-pad focus (pill segmented control) -->
+        <!-- Tab Bar: Home | Live | Series | Films with D-pad focus (pill segmented control).
+             clipChildren/clipToPadding false because each tab is height=match_parent and
+             scales to 1.06x on focus (focus_scale_flat) - without this, the scale-up
+             overflows this row's fixed 68dp height and gets clipped top+bottom, making the
+             focus highlight look cut off. -->
         <LinearLayout
             android:id="@+id/tabBar"
             android:layout_width="match_parent"
             android:layout_height="68dp"
             android:background="@android:color/transparent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:gravity="center_horizontal"
             android:orientation="horizontal"
             android:paddingHorizontal="10dp"
@@ -349,12 +357,16 @@
             android:layout_weight="1"
             android:visibility="gone" />
 
-        <!-- Content row: category sidebar + active tab's list/grid -->
+        <!-- Content row: category sidebar + active tab's list/grid. clipChildren false
+             throughout - item_category rows scale to 1.06x on focus (focus_scale) and
+             would otherwise get clipped top/bottom by categorySidebar's own bounds. -->
         <LinearLayout
             android:id="@+id/contentRow"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:orientation="horizontal">
 
             <androidx.recyclerview.widget.RecyclerView
@@ -365,6 +377,7 @@
                 android:layout_marginTop="4dp"
                 android:layout_marginBottom="12dp"
                 android:background="@drawable/bg_category_panel"
+                android:clipChildren="false"
                 android:clipToPadding="false"
                 android:defaultFocusHighlightEnabled="true"
                 android:padding="10dp"
@@ -433,6 +446,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
                                 android:layout_marginTop="4dp"
+                                android:clipChildren="false"
                                 android:clipToPadding="false"
                                 android:defaultFocusHighlightEnabled="true"
                                 android:paddingBottom="4dp" />
@@ -559,6 +573,7 @@
                     android:id="@+id/downloadsContent"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:clipChildren="false"
                     android:clipToPadding="false"
                     android:defaultFocusHighlightEnabled="true"
                     android:paddingHorizontal="16dp"
@@ -802,11 +817,16 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- clipChildren/clipToPadding false: item_category chips inside scale to
+                         1.06x on focus and would otherwise be clipped top/bottom by these
+                         wrap_content containers whose bounds hug the chip height exactly. -->
                     <HorizontalScrollView
                         android:id="@+id/detailVersionsScroll"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
                         android:scrollbars="none"
                         android:visibility="gone">
 
@@ -814,6 +834,8 @@
                             android:id="@+id/detailVersionsRow"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
                             android:orientation="horizontal" />
                     </HorizontalScrollView>
 
@@ -838,6 +860,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
                         android:scrollbars="none"
                         android:visibility="gone">
 
@@ -845,6 +869,8 @@
                             android:id="@+id/detailSeasonRow"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
                             android:orientation="horizontal" />
                     </HorizontalScrollView>
 
@@ -863,6 +889,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
                         android:visibility="gone" />
                 </LinearLayout>

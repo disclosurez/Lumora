@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- clipChildren/clipToPadding false: guideChannelInfo and each guideProgramRow cell are
+     height=match_parent and scale to 1.06x on focus (focus_scale/focus_scale_flat) - without
+     this the scale-up overflows this row's own wrap_content bounds and gets clipped top+
+     bottom, making the focus highlight look cut off / cropped. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="3dp"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:orientation="horizontal">
 
     <LinearLayout

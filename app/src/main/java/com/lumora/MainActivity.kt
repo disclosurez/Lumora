@@ -506,9 +506,17 @@ class MainActivity : AppCompatActivity() {
             android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
             android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER
         )
-        if (isPlayerVisible && isDirectionalKey && binding.controlsOverlay.visibility != View.VISIBLE) {
-            showControls()
-            return true
+        if (isPlayerVisible && isDirectionalKey) {
+            if (binding.controlsOverlay.visibility != View.VISIBLE) {
+                showControls()
+                return true
+            }
+            // Controls are already up and this key is about to move focus between their
+            // buttons (transport row -> seek bar -> Speed/Sleep/Cast/...) - refresh the
+            // auto-hide timer so navigating around inside them doesn't get cut off by the
+            // same 4s countdown that started when they first appeared.
+            mainHandler.removeCallbacks(hideControlsRunnable)
+            mainHandler.postDelayed(hideControlsRunnable, 4000)
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -2029,7 +2037,7 @@ class MainActivity : AppCompatActivity() {
             binding.searchContainer,
             searchView,
             closeButton = searchView.findViewById(R.id.searchCloseButton),
-            initialFocus = input
+            initialFocus = { input }
         )
         binding.homeContent.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
@@ -3066,7 +3074,12 @@ class MainActivity : AppCompatActivity() {
         private val container: FrameLayout,
         val view: View,
         closeButton: View,
-        private val initialFocus: View? = null
+        // Lambda, not a captured View - callers like showProviderSettings() may hide/show
+        // views (e.g. addIptvProviderButton) between constructing this and show() actually
+        // running, so the target must be resolved at show()-time, not construction-time.
+        // Resolving it early against a view that's since gone GONE meant requestFocus()
+        // silently failed, leaving nothing focused and the d-pad unable to move at all.
+        private val initialFocus: (() -> View?)? = null
     ) {
         private var dismissListener: (() -> Unit)? = null
 
@@ -3077,10 +3090,15 @@ class MainActivity : AppCompatActivity() {
         fun setOnDismissListener(listener: () -> Unit) { dismissListener = listener }
 
         fun show() {
-            view.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            if (view.layoutParams !is FrameLayout.LayoutParams) {
+                view.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            }
             container.addView(view)
             container.visibility = View.VISIBLE
-            initialFocus?.let { target -> view.post { target.requestFocus() } }
+            view.post {
+                val target = initialFocus?.invoke()
+                if (target != null && target.visibility == View.VISIBLE) target.requestFocus() else view.requestFocus()
+            }
         }
 
         fun dismiss() {
@@ -3147,8 +3165,13 @@ class MainActivity : AppCompatActivity() {
                 gravity = android.view.Gravity.CENTER_HORIZONTAL
             }
         }
-        val providerTypeSpinner = dialogView.findViewById<Spinner>(R.id.settingsProviderTypeSpinner)
+        val typeM3u = dialogView.findViewById<View>(R.id.settingsTypeM3u)
+        val typeXtream = dialogView.findViewById<View>(R.id.settingsTypeXtream)
+        val typeStalker = dialogView.findViewById<View>(R.id.settingsTypeStalker)
+        val typeJellyfin = dialogView.findViewById<View>(R.id.settingsTypeJellyfin)
         val showQrButton = dialogView.findViewById<View>(R.id.settingsShowQrButton)
+        val manualDivider = dialogView.findViewById<View>(R.id.settingsManualDivider)
+        val nameSection = dialogView.findViewById<View>(R.id.settingsNameSection)
         val qrSection = dialogView.findViewById<View>(R.id.settingsQrSection)
         val qrFrame = dialogView.findViewById<View>(R.id.settingsQrFrame)
         val qrImage = dialogView.findViewById<ImageView>(R.id.settingsQrImage)
@@ -3173,14 +3196,19 @@ class MainActivity : AppCompatActivity() {
         val hideNonEnglish = dialogView.findViewById<CheckBox>(R.id.settingsHideNonEnglish)
         val clearHistory = dialogView.findViewById<View>(R.id.settingsClearHistory)
 
+        val iptvListSection = dialogView.findViewById<View>(R.id.settingsIptvListSection)
         val iptvProviderListContainer = dialogView.findViewById<LinearLayout>(R.id.settingsIptvProviderList)
         val iptvProviderListEmpty = dialogView.findViewById<View>(R.id.settingsIptvProviderListEmpty)
         val addIptvProviderButton = dialogView.findViewById<View>(R.id.settingsAddIptvProvider)
         val iptvFormSection = dialogView.findViewById<View>(R.id.settingsIptvFormSection)
+        val iptvFieldsSection = dialogView.findViewById<View>(R.id.settingsIptvFieldsSection)
+        val typePicker = dialogView.findViewById<View>(R.id.settingsTypePicker)
+        val typeSummary = dialogView.findViewById<View>(R.id.settingsTypeSummary)
+        val typeSummaryLabel = dialogView.findViewById<TextView>(R.id.settingsTypeSummaryLabel)
+        val typeSummaryChange = dialogView.findViewById<View>(R.id.settingsTypeSummaryChange)
         val iptvFormTitle = dialogView.findViewById<TextView>(R.id.settingsIptvFormTitle)
         val iptvFormCancel = dialogView.findViewById<View>(R.id.settingsIptvFormCancel)
         val providerNameInput = dialogView.findViewById<EditText>(R.id.settingsProviderName)
-        val jellyfinEnabled = dialogView.findViewById<CheckBox>(R.id.settingsJellyfinEnabled)
 
         clearHistory.setOnClickListener {
             AlertDialog.Builder(this)
@@ -3200,7 +3228,10 @@ class MainActivity : AppCompatActivity() {
             binding.settingsContainer,
             dialogView,
             closeButton = dialogView.findViewById(R.id.settingsCancelButton),
-            initialFocus = addIptvProviderButton
+            // Resolved lazily at show()-time (see FullScreenOverlay) - if nothing's
+            // configured yet, openIptvForm(null) has already run by then and hidden
+            // addIptvProviderButton, so fall back to the first type card instead.
+            initialFocus = { if (addIptvProviderButton.visibility == View.VISIBLE) addIptvProviderButton else typeM3u }
         )
 
         jellyfinQuickConnectButton.setOnClickListener {
@@ -3224,18 +3255,44 @@ class MainActivity : AppCompatActivity() {
         }
 
         var serverRunning = false
-        // Jellyfin is its own independent slot now (see settingsJellyfinEnabled) - this
-        // type only ever covers the mutually-exclusive IPTV choices, one form shared by
-        // an arbitrary number of saved IptvProviderConfig entries (see editingProviderId).
-        var currentType = "m3u"
+        // One form shared by every provider type, incl. Jellyfin - it used to be a
+        // separate always-visible section, but that meant asking for its server/user/pass
+        // even when someone only wanted IPTV. Now it's just another type card, and only
+        // its fields show once picked. IPTV types share one saved-config list
+        // (IptvProviderConfig, see editingProviderId); Jellyfin is still a single fixed
+        // slot under the hood (see performJellyfinSave() below), just presented the same way.
+        // currentType is null until a card is tapped - the rest of the form (QR button,
+        // name, type-specific fields) stays hidden until then.
+        var currentType: String? = null
         var editingProviderId: String? = null
+        val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
+        val typeLabels = mapOf("m3u" to "M3U", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
 
+        // Collapses the 4-card type picker to a one-line "Type: X · Change" summary once
+        // picked - keeping all 4 cards on screen while filling in fields pushed the QR
+        // code/fields below the fold, forcing a scroll right after tapping "Show QR".
         fun selectType(type: String) {
             currentType = type
+            typeCards.forEach { (t, card) ->
+                card.setBackgroundResource(if (t == type) R.drawable.bg_type_option_selected else R.drawable.card_surface_background)
+            }
+            typePicker.visibility = View.GONE
+            typeSummary.visibility = View.VISIBLE
+            typeSummaryLabel.text = "Type: ${typeLabels[type]}"
+            iptvFieldsSection.visibility = View.VISIBLE
+            nameSection.visibility = if (type == "jellyfin") View.GONE else View.VISIBLE
             m3uGroup.visibility = if (type == "m3u") View.VISIBLE else View.GONE
             xtreamGroup.visibility = if (type == "xtream") View.VISIBLE else View.GONE
             stalkerGroup.visibility = if (type == "stalker") View.VISIBLE else View.GONE
-            showQrButton.visibility = if (type in listOf("m3u", "xtream")) View.VISIBLE else View.GONE
+            jellyfinGroup.visibility = if (type == "jellyfin") View.VISIBLE else View.GONE
+            val qrEligible = type in listOf("m3u", "xtream")
+            showQrButton.visibility = if (qrEligible) View.VISIBLE else View.GONE
+            manualDivider.visibility = if (qrEligible) View.VISIBLE else View.GONE
+            // The tapped type card just went GONE (typePicker hidden above) - it was
+            // holding d-pad focus, and a focused view disappearing leaves nothing
+            // focused, so the d-pad stops responding entirely until something explicitly
+            // claims focus again.
+            typeSummaryChange.post { typeSummaryChange.requestFocus() }
         }
 
         fun stopQrServer() {
@@ -3244,6 +3301,22 @@ class MainActivity : AppCompatActivity() {
             qrSection.visibility = View.GONE
             qrFrame.visibility = View.GONE
             qrTimer.visibility = View.GONE
+        }
+
+        typeSummaryChange.setOnClickListener {
+            if (serverRunning) stopQrServer()
+            currentType = null
+            typeCards.values.forEach { it.setBackgroundResource(R.drawable.card_surface_background) }
+            typeSummary.visibility = View.GONE
+            typePicker.visibility = View.VISIBLE
+            iptvFieldsSection.visibility = View.GONE
+            m3uGroup.visibility = View.GONE
+            xtreamGroup.visibility = View.GONE
+            stalkerGroup.visibility = View.GONE
+            jellyfinGroup.visibility = View.GONE
+            // Same reasoning as in selectType() - typeSummary (holding focus) just went
+            // GONE, so explicitly hand focus to the now-visible first card.
+            typeM3u.post { typeM3u.requestFocus() }
         }
 
         fun startQrServer(type: String) {
@@ -3354,40 +3427,58 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { qrStatus.text = msg }
         }
 
-        val providerTypeLabels = listOf("M3U URL", "Xtream", "Stalker Portal")
-        val providerTypeValues = listOf("m3u", "xtream", "stalker")
-        val spinnerAdapter = ArrayAdapter(this, R.layout.item_spinner_selected, providerTypeLabels).apply {
-            setDropDownViewResource(R.layout.item_spinner_dropdown)
-        }
-        providerTypeSpinner.adapter = spinnerAdapter
-        val currentTypeIndex = providerTypeValues.indexOf(currentType).coerceAtLeast(0)
-        providerTypeSpinner.setSelection(currentTypeIndex, false)
-        providerTypeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val type = providerTypeValues[position]
+        typeCards.forEach { (type, card) ->
+            card.setOnClickListener {
                 selectType(type)
                 if (serverRunning) {
                     stopQrServer()
                     startQrServer(type)
                 }
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-        showQrButton.setOnClickListener { startQrServer(currentType) }
+        showQrButton.setOnClickListener { currentType?.let { startQrServer(it) } }
 
         fun closeIptvForm() {
             editingProviderId = null
+            currentType = null
+            typeCards.values.forEach { it.setBackgroundResource(R.drawable.card_surface_background) }
+            typeSummary.visibility = View.GONE
+            typePicker.visibility = View.VISIBLE
+            iptvFieldsSection.visibility = View.GONE
             iptvFormSection.visibility = View.GONE
+            addIptvProviderButton.visibility = View.VISIBLE
+            iptvListSection.visibility = View.VISIBLE
             if (serverRunning) stopQrServer()
         }
 
+        // Adding new (existing == null) always starts on the type picker with every
+        // field hidden - the type cards are the only thing shown until one is tapped.
+        // Editing (existing != null) skips straight to that type's fields since it's
+        // already known. The "your providers" list collapses while this is open (see
+        // settingsIptvListSection) - it's irrelevant mid-add and the space it frees up
+        // is what keeps the QR code/fields on screen without a scroll.
         fun openIptvForm(existing: IptvProviderConfig?) {
             editingProviderId = existing?.id
-            iptvFormTitle.text = if (existing == null) "Add IPTV Provider" else "Edit IPTV Provider"
+            addIptvProviderButton.visibility = View.GONE
+            iptvListSection.visibility = View.GONE
             providerNameInput.setText(existing?.name ?: "")
+            if (existing != null) {
+                iptvFormTitle.text = "Editing ${existing.name}"
+                iptvFormTitle.visibility = View.VISIBLE
+                selectType(existing.type)
+            } else {
+                iptvFormTitle.visibility = View.GONE
+                currentType = null
+                typeCards.values.forEach { it.setBackgroundResource(R.drawable.card_surface_background) }
+                typeSummary.visibility = View.GONE
+                typePicker.visibility = View.VISIBLE
+                iptvFieldsSection.visibility = View.GONE
+                m3uGroup.visibility = View.GONE
+                xtreamGroup.visibility = View.GONE
+                stalkerGroup.visibility = View.GONE
+                jellyfinGroup.visibility = View.GONE
+            }
             val type = existing?.type ?: "m3u"
-            providerTypeSpinner.setSelection(providerTypeValues.indexOf(type).coerceAtLeast(0))
-            selectType(type)
             m3uUrl.setText(if (type == "m3u") existing?.url ?: "" else "")
             uaInput.setText(if (type == "m3u") existing?.userAgent ?: "" else "")
             xtreamUrl.setText(if (type == "xtream") existing?.url ?: "" else "")
@@ -3398,10 +3489,27 @@ class MainActivity : AppCompatActivity() {
             iptvFormSection.visibility = View.VISIBLE
         }
 
+        // Jellyfin isn't in IptvProviderStore (single fixed slot, stored as loose prefs -
+        // see hasJellyfinConfigured()), so editing it re-uses the same form/type-card UI
+        // but pre-fills from those prefs instead of an IptvProviderConfig.
+        fun openJellyfinEditForm() {
+            editingProviderId = null
+            addIptvProviderButton.visibility = View.GONE
+            iptvListSection.visibility = View.GONE
+            iptvFormTitle.text = "Editing Jellyfin"
+            iptvFormTitle.visibility = View.VISIBLE
+            providerNameInput.setText("")
+            selectType("jellyfin")
+            jellyfinUrl.setText(prefs.getString("jellyfin_url", "") ?: "")
+            jellyfinUser.setText(prefs.getString("jellyfin_user", "") ?: "")
+            jellyfinPass.setText(prefs.getString("jellyfin_pass", "") ?: "")
+            iptvFormSection.visibility = View.VISIBLE
+        }
+
         fun renderIptvProviderList() {
             iptvProviderListContainer.removeAllViews()
             val list = IptvProviderStore.load(prefs)
-            iptvProviderListEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            iptvProviderListEmpty.visibility = if (list.isEmpty() && !hasJellyfinConfigured()) View.VISIBLE else View.GONE
             for (cfg in list) {
                 val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
                 row.findViewById<CheckBox>(R.id.rowEnabled).apply {
@@ -3430,6 +3538,34 @@ class MainActivity : AppCompatActivity() {
                 }
                 iptvProviderListContainer.addView(row)
             }
+            if (hasJellyfinConfigured()) {
+                val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
+                row.findViewById<CheckBox>(R.id.rowEnabled).apply {
+                    setOnCheckedChangeListener(null)
+                    isChecked = isJellyfinEnabled()
+                    setOnCheckedChangeListener { _, checked ->
+                        prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
+                        loadAllConfiguredProviders(forceRefresh = true)
+                    }
+                }
+                row.findViewById<TextView>(R.id.rowName).text = "Jellyfin"
+                row.findViewById<TextView>(R.id.rowDetail).text = "Jellyfin · ${prefs.getString("jellyfin_url", "") ?: ""}"
+                row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openJellyfinEditForm() }
+                row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
+                    AlertDialog.Builder(this)
+                        .setTitle("Remove Jellyfin?")
+                        .setMessage("Its channels will no longer appear.")
+                        .setPositiveButton("Remove") { _, _ ->
+                            prefs.edit().remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
+                                .remove("jellyfin_provider_enabled").apply()
+                            renderIptvProviderList()
+                            loadAllConfiguredProviders(forceRefresh = true)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+                iptvProviderListContainer.addView(row)
+            }
         }
 
         addIptvProviderButton.setOnClickListener { openIptvForm(null) }
@@ -3441,12 +3577,6 @@ class MainActivity : AppCompatActivity() {
         // immediately (matches the old single-slot behavior of showing fields right away).
         if (IptvProviderStore.load(prefs).isEmpty() && !hasJellyfinConfigured()) {
             openIptvForm(null)
-        }
-
-        jellyfinEnabled.isChecked = isJellyfinEnabled()
-        jellyfinEnabled.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
-            loadAllConfiguredProviders(forceRefresh = true)
         }
 
         // Backup & Restore
@@ -3705,7 +3835,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Init UI
-        selectType(currentType)
+        // No selectType() call here - the form starts closed with no type chosen; see
+        // openIptvForm()/closeIptvForm() above for how that gets set per add/edit.
         // Hide whatever the active tab is showing so it doesn't render doubled-up behind
         // Settings in the same weight=1 slot - restored on dismiss below.
         binding.homeContent.visibility = View.GONE
@@ -3722,10 +3853,12 @@ class MainActivity : AppCompatActivity() {
         // The Save button's listener validates and keeps the form open on error instead of
         // dismissing unconditionally. Only acts when the add/edit form is actually open -
         // the same footer button is shared by every nav pane, most of which have nothing
-        // for it to save. Jellyfin is independent and saves via settingsJellyfinSaveButton
-        // below, without closing this screen.
+        // for it to save.
         dialogView.findViewById<View>(R.id.settingsSaveButton).setOnClickListener {
             if (iptvFormSection.visibility != View.VISIBLE) return@setOnClickListener
+            if (currentType == null) {
+                Toast.makeText(this, "Choose a provider type first", Toast.LENGTH_SHORT).show(); return@setOnClickListener
+            }
             val name = providerNameInput.text.toString().trim()
             val id = editingProviderId ?: IptvProviderStore.newId()
             when (currentType) {
@@ -3755,19 +3888,22 @@ class MainActivity : AppCompatActivity() {
                         url = url, userAgent = stalkerMac.text.toString().trim()
                     ))
                 }
+                "jellyfin" -> {
+                    // Not part of IptvProviderStore - Jellyfin is still a single fixed
+                    // slot under the hood, stored as loose prefs (see hasJellyfinConfigured()).
+                    val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
+                    if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+                    prefs.edit()
+                        .putString("jellyfin_url", url)
+                        .putString("jellyfin_user", jellyfinUser.text.toString().trim())
+                        .putString("jellyfin_pass", jellyfinPass.text.toString().trim())
+                        .putBoolean("jellyfin_provider_enabled", true)
+                        .apply()
+                }
             }
             closeIptvForm()
             renderIptvProviderList()
             Toast.makeText(this, "Provider saved. Loading...", Toast.LENGTH_SHORT).show()
-            loadAllConfiguredProviders(forceRefresh = true)
-        }
-
-        dialogView.findViewById<View>(R.id.settingsJellyfinSaveButton).setOnClickListener {
-            val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
-            if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-            val user = jellyfinUser.text.toString().trim(); val pass = jellyfinPass.text.toString().trim()
-            prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putBoolean("jellyfin_provider_enabled", true).apply()
-            Toast.makeText(this, "Jellyfin provider saved. Loading...", Toast.LENGTH_SHORT).show()
             loadAllConfiguredProviders(forceRefresh = true)
         }
     }

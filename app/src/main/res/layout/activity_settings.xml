@@ -102,16 +102,24 @@
         android:layout_height="match_parent"
         android:background="@color/divider" />
 
-    <!-- Content pane -->
+    <!-- Content pane - clipChildren/clipToPadding false throughout this chain (and on
+         every scaling row below) so the focus_scale/focus_scale_flat scale-up (1.06x)
+         doesn't get cropped by an ancestor's bounds. Clipped scale-up is what made a
+         focused item's rounded-corner highlight look cut off / squared-off on whichever
+         edge got clipped, differing by position - i.e. looked like it "changed shape". -->
     <ScrollView
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:fillViewport="true">
 
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:padding="24dp">
 
             <!-- Pane: Providers -->
@@ -119,6 +127,8 @@
                 android:id="@+id/paneProviders"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:orientation="vertical">
 
                 <TextView
@@ -131,14 +141,25 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Run multiple IPTV providers and Jellyfin together - enable or disable each independently"
+                    android:text="Run multiple providers together - enable or disable each independently"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <!-- Collapsed while the add/edit form is open (see openIptvForm()/
+                     closeIptvForm()) - the list is irrelevant while adding, and hiding it
+                     reclaims the vertical space so the QR code doesn't need a scroll. -->
+                <LinearLayout
+                    android:id="@+id/settingsIptvListSection"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-                    android:text="IPTV PROVIDERS"
+                    android:text="YOUR PROVIDERS"
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="10sp"
@@ -151,6 +172,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
                     android:orientation="vertical" />
 
                 <TextView
@@ -163,10 +186,12 @@
                     android:textSize="11sp"
                     android:visibility="gone" />
 
+                </LinearLayout>
+
                 <LinearLayout
                     android:id="@+id/settingsAddIptvProvider"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="44dp"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -177,64 +202,203 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="+ Add IPTV Provider"
+                        android:text="+ Add Provider"
                         android:textColor="@color/accent"
                         android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
                 <!-- Add/Edit form - hidden until "+ Add" or a row's Edit button is tapped;
-                     see openIptvForm()/closeIptvForm() in showProviderSettings(). -->
+                     see openIptvForm()/closeIptvForm() in showProviderSettings(). Its own
+                     "+ Add Provider" trigger is hidden while this is open so there's only
+                     ever one call-to-action on screen at a time. -->
                 <LinearLayout
                     android:id="@+id/settingsIptvFormSection"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="12dp"
                     android:background="@drawable/bg_category_panel"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
                     android:orientation="vertical"
                     android:padding="14dp"
                     android:visibility="gone">
 
+                    <!-- Only shown in edit mode ("Editing MyProvider") - set/hidden in
+                         openIptvForm(). Adding new skips straight to the type picker below. -->
                     <TextView
                         android:id="@+id/settingsIptvFormTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Add IPTV Provider"
+                        android:layout_marginBottom="10dp"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Name" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsProviderName"
+                    <!-- Step 1: pick a provider type up front - the fields below only
+                         reveal once a type is chosen, so nothing irrelevant is shown.
+                         Jellyfin lives here as a card too now, not a separate always-on
+                         section - one consistent way to add any provider. Collapses to
+                         settingsTypeSummary below once picked, so the 4 cards don't keep
+                         eating vertical space while filling in the rest of the form. -->
+                    <LinearLayout
+                        android:id="@+id/settingsTypePicker"
                         android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="e.g. My IPTV"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:orientation="vertical">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Type" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <Spinner
-                        android:id="@+id/settingsProviderTypeSpinner"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="What kind of provider is this?"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+
+                    <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_dropdown_input"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="40dp"
-                        android:spinnerMode="dropdown" />
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:orientation="horizontal">
 
+                        <LinearLayout
+                            android:id="@+id/settingsTypeM3u"
+                            android:layout_width="0dp"
+                            android:layout_height="46dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="5dp"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="M3U" android:textColor="@color/text_primary" android:textSize="10sp" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playlist link" android:textColor="@color/text_tertiary" android:textSize="8sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/settingsTypeXtream"
+                            android:layout_width="0dp"
+                            android:layout_height="46dp"
+                            android:layout_weight="1"
+                            android:layout_marginHorizontal="5dp"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Xtream" android:textColor="@color/text_primary" android:textSize="10sp" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Login codes" android:textColor="@color/text_tertiary" android:textSize="8sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/settingsTypeStalker"
+                            android:layout_width="0dp"
+                            android:layout_height="46dp"
+                            android:layout_weight="1"
+                            android:layout_marginHorizontal="5dp"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Stalker" android:textColor="@color/text_primary" android:textSize="10sp" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MAC address" android:textColor="@color/text_tertiary" android:textSize="8sp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/settingsTypeJellyfin"
+                            android:layout_width="0dp"
+                            android:layout_height="46dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="5dp"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Jellyfin" android:textColor="@color/text_primary" android:textSize="10sp" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Media server" android:textColor="@color/text_tertiary" android:textSize="8sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    </LinearLayout>
+
+                    <!-- Shown instead of settingsTypePicker once a type is chosen (see
+                         selectType()) - "Change" flips back to the full card picker.
+                         Pill treatment (accent-tinted fill + outline) reads as a resolved
+                         choice rather than another plain row, so it doesn't compete
+                         visually with the actual form fields below it. -->
+                    <LinearLayout
+                        android:id="@+id/settingsTypeSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_type_summary_pill"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="10dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/settingsTypeSummaryLabel"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Type: M3U"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/settingsTypeSummaryChange"
+                            android:layout_width="wrap_content"
+                            android:layout_height="34dp"
+                            android:background="@drawable/bg_outline_button"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:paddingHorizontal="14dp"
+                            android:stateListAnimator="@animator/focus_scale_flat"
+                            android:text="Change"
+                            android:textColor="@color/accent"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Steps 2-4 stay hidden until a type is picked above (see
+                         selectType() in showProviderSettings()) - nothing irrelevant
+                         shows before the user has told us what they're setting up. -->
+                    <LinearLayout
+                        android:id="@+id/settingsIptvFieldsSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                    <!-- Step 2: fastest path - pair from phone. Placed right under the
+                         type picker so it's visible without scrolling (was buried below
+                         every field before). Only applies to M3U/Xtream. Outlined (not a
+                         flat card like the list rows) so it reads as the recommended
+                         action, not just another row of equal weight. -->
                     <LinearLayout
                         android:id="@+id/settingsShowQrButton"
                         android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="16dp"
-                        android:background="@drawable/card_surface_background"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_outline_button"
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
@@ -244,17 +408,18 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Show phone QR pairing code"
-                            android:textColor="@color/text_primary"
+                            android:textColor="@color/accent"
                             android:textSize="11sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- QR Code Section -->
+                    <!-- QR Code Section - kept compact (small frame, tight margins) so
+                         it fits on screen without a scroll right after tapping the button. -->
                     <LinearLayout
                         android:id="@+id/settingsQrSection"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="10dp"
                         android:gravity="center"
                         android:orientation="vertical"
                         android:visibility="gone">
@@ -265,15 +430,15 @@
                             android:layout_height="wrap_content"
                             android:gravity="center"
                             android:textColor="@color/text_secondary"
-                            android:textSize="11sp" />
+                            android:textSize="10sp" />
 
                         <FrameLayout
                             android:id="@+id/settingsQrFrame"
-                            android:layout_width="192dp"
-                            android:layout_height="192dp"
-                            android:layout_marginTop="12dp"
-                            android:background="@android:color/white"
-                            android:padding="10dp"
+                            android:layout_width="128dp"
+                            android:layout_height="128dp"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_qr_card"
+                            android:padding="7dp"
                             android:visibility="gone">
 
                             <ImageView
@@ -293,11 +458,13 @@
                             android:visibility="gone" />
                     </LinearLayout>
 
-                    <!-- Divider: OR enter manually -->
+                    <!-- Divider: OR enter manually - only relevant when QR pairing is an
+                         option above (M3U/Xtream); toggled alongside settingsShowQrButton. -->
                     <LinearLayout
+                        android:id="@+id/settingsManualDivider"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="14dp"
                         android:gravity="center"
                         android:orientation="horizontal">
 
@@ -312,6 +479,31 @@
                         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
                     </LinearLayout>
 
+                    <!-- Step 3: name it - shared by every type except Jellyfin (single
+                         fixed slot, no user-chosen name needed); toggled in selectType(). -->
+                    <LinearLayout
+                        android:id="@+id/settingsNameSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Name" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                    <EditText
+                        android:id="@+id/settingsProviderName"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input"
+                        android:hint="e.g. My IPTV"
+                        android:importantForAutofill="no"
+                        android:inputType="text"
+                        android:padding="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="11sp" />
+
+                    </LinearLayout>
+
+                    <!-- Step 4: only the fields the chosen type actually needs -->
                     <!-- M3U Fields -->
                     <LinearLayout
                         android:id="@+id/settingsM3uGroup"
@@ -448,6 +640,80 @@
                             android:textSize="11sp" />
                     </LinearLayout>
 
+                    <!-- Jellyfin Fields - Quick Connect is the expected path; password
+                         fields stay as a fallback for servers with it disabled. -->
+                    <LinearLayout
+                        android:id="@+id/settingsJellyfinGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsJellyfinUrl"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="http://192.168.1.100:8096"
+                            android:importantForAutofill="no"
+                            android:inputType="textUri"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <LinearLayout
+                            android:id="@+id/settingsJellyfinQuickConnect"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="12dp"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView
+                                android:id="@+id/settingsJellyfinQuickConnectLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Sign in with Quick Connect"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username (if Quick Connect is off)" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsJellyfinUser"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="Jellyfin username"
+                            android:importantForAutofill="no"
+                            android:inputType="text"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        <EditText
+                            android:id="@+id/settingsJellyfinPass"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_input"
+                            android:hint="Password"
+                            android:importantForAutofill="no"
+                            android:inputType="textPassword"
+                            android:padding="12dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    </LinearLayout>
+
                     <TextView
                         android:id="@+id/settingsIptvFormCancel"
                         android:layout_width="wrap_content"
@@ -460,128 +726,6 @@
                         android:textColor="@color/text_secondary"
                         android:textSize="10sp"
                         android:textStyle="bold" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="24dp"
-                    android:background="@color/divider" />
-
-                <!-- Jellyfin - independent slot, always visible, own enable toggle -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="JELLYFIN"
-                        android:letterSpacing="0.08"
-                        android:textColor="@color/text_tertiary"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-
-                    <CheckBox
-                        android:id="@+id/settingsJellyfinEnabled"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Enabled"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/settingsJellyfinGroup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="vertical">
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsJellyfinUrl"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="http://192.168.1.100:8096"
-                        android:importantForAutofill="no"
-                        android:inputType="textUri"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsJellyfinUser"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="Jellyfin username"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="10sp" />
-                    <EditText
-                        android:id="@+id/settingsJellyfinPass"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="4dp"
-                        android:background="@drawable/bg_input"
-                        android:hint="Password"
-                        android:importantForAutofill="no"
-                        android:inputType="textPassword"
-                        android:padding="12dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-
-                    <LinearLayout
-                        android:id="@+id/settingsJellyfinQuickConnect"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="12dp"
-                        android:background="@drawable/card_surface_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:stateListAnimator="@animator/focus_scale_flat">
-                        <TextView
-                            android:id="@+id/settingsJellyfinQuickConnectLabel"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Sign in with Quick Connect"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/settingsJellyfinSaveButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="10dp"
-                        android:background="@drawable/bg_play_button"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:stateListAnimator="@animator/focus_scale_flat">
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Save Jellyfin"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 
@@ -770,6 +914,8 @@
                 android:id="@+id/paneDownloads"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:orientation="vertical"
                 android:visibility="gone">
 
@@ -788,6 +934,8 @@
                     android:id="@+id/settingsDownloadsList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
                     android:nestedScrollingEnabled="false" />
             </LinearLayout>
 

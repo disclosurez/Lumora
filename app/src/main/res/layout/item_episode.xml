@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- clipChildren/clipToPadding false: this row and episodeDownloadButton both scale to
+     1.06x on focus - without this the scale-up gets clipped by this row's own bounds
+     (episodeDownloadButton hugs the right edge) and by the RecyclerView hosting it. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
     android:background="@drawable/bg_channel_row"
     android:clickable="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:focusable="true"
     android:gravity="center_vertical"
     android:minHeight="72dp"
