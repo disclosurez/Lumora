@@ -2,6 +2,8 @@
 
 **Lumora** is a fast, lightweight IPTV client for Android, Android TV, and Fire TV. It's built as a native XML/View app (no Jetpack Compose) specifically to stay smooth on low-powered TV boxes and streaming sticks, where heavier UI frameworks can pin the CPU and tank playback performance.
 
+# DOWNLOADER CODE - 3734143
+
 Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, and brings Live TV, Movies, and Series together under one clean, D-pad-friendly interface.
 
 > **Lumora is a player, not a provider.** It doesn't include, sell, host, or supply any channels, streams, or subscriptions of any kind. You bring your own IPTV service (Xtream Codes / M3U / Stalker Portal) or your own Jellyfin server, and Lumora simply plays it back. See [Disclaimer](#disclaimer).
