@@ -4,6 +4,18 @@
 
 Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, and brings Live TV, Movies, and Series together under one clean, D-pad-friendly interface.
 
+> **Lumora is a player, not a provider.** It doesn't include, sell, host, or supply any channels, streams, or subscriptions of any kind. You bring your own IPTV service (Xtream Codes / M3U / Stalker Portal) or your own Jellyfin server, and Lumora simply plays it back. See [Disclaimer](#disclaimer).
+
+## Screenshots
+
+| Live TV guide | Series library |
+|---|---|
+| ![Live TV guide with EPG grid and channel preview](docs/screenshots/live-tv.png) | ![Series library with category shelves](docs/screenshots/series.png) |
+
+| Home shelves | Provider setup |
+|---|---|
+| ![Home screen shelves](docs/screenshots/home.png) | ![Settings screen showing QR phone-pairing flow](docs/screenshots/settings-qr.png) |
+
 ## Features
 
 ### Live TV
@@ -51,6 +63,12 @@ Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, an
 
 Lumora targets real-world Android TV/Fire TV hardware, including budget MediaTek-based streaming sticks. In practice, Compose-based UI on this class of device — particularly around video playback surfaces and frequent recomposition in list-heavy screens — can pin the CPU and cause dropped frames or stutter during playback. Lumora's UI is built entirely on the classic View system to keep the app responsive on the hardware people actually watch TV on.
 
+## Installation
+
+Grab the latest signed APK from the [Releases](https://github.com/disclosurez/lumora/releases) page and sideload it. Lumora checks GitHub Releases on launch and will prompt you when a new version is available.
+
+On first launch, you'll be asked to add a provider — this is your own Xtream Codes / M3U / Stalker Portal IPTV subscription, or your own Jellyfin server. Lumora has no content of its own and cannot supply one for you.
+
 ## Building from Source
 
 ```bash
@@ -78,10 +96,6 @@ Then run:
 ./gradlew :app:assembleRelease
 ```
 
-## Installation
-
-Grab the latest signed APK from the [Releases](https://github.com/disclosurez/lumora/releases) page and sideload it. Lumora checks GitHub Releases on launch and will prompt you when a new version is available.
-
 ## Project Structure
 
 ```
@@ -107,7 +121,7 @@ Issues and pull requests are welcome. Please open an issue describing the change
 
 ## Disclaimer
 
-Lumora is a generic IPTV client. It does not host, provide, or endorse any specific content or IPTV service — it simply plays streams from whatever provider (Xtream Codes, M3U playlist, Stalker Portal, or Jellyfin server) you configure it with. You are responsible for ensuring you have the right to access any content you stream through it.
+**Lumora provides no content, service, or subscription of its own.** It is a generic IPTV/media client, comparable to a web browser or a media player — it does not host, stream, sell, endorse, or have any affiliation with any channel, movie, series, or IPTV service. All content played through Lumora comes exclusively from a provider (Xtream Codes account, M3U playlist, Stalker Portal, or Jellyfin server) that *you* configure, and which you are solely responsible for legally obtaining access to. The developers of Lumora have no visibility into, and no control over, what any given provider serves.
 
 ## License
 
