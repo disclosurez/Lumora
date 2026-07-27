@@ -55,15 +55,11 @@ Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, an
 ## Tech Stack
 
 - **Language:** Kotlin
-- **UI:** Android Views/XML (deliberately not Compose — see [Why not Compose?](#why-not-compose) below)
+- **UI:** Android Views/XML
 - **Playback:** [AndroidX Media3](https://developer.android.com/media/media3) (ExoPlayer)
 - **Persistence:** Room, WorkManager (background sync), SharedPreferences
 - **Networking:** OkHttp
 - **Min SDK:** 25 (Android 7.1) · **Target SDK:** 36
-
-## Why not Compose?
-
-Lumora targets real-world Android TV/Fire TV hardware, including budget MediaTek-based streaming sticks. In practice, Compose-based UI on this class of device — particularly around video playback surfaces and frequent recomposition in list-heavy screens — can pin the CPU and cause dropped frames or stutter during playback. Lumora's UI is built entirely on the classic View system to keep the app responsive on the hardware people actually watch TV on.
 
 ## Installation
 
