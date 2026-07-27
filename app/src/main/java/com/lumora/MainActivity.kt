@@ -85,6 +85,7 @@ import com.lumora.data.update.AppUpdateChecker
 import com.lumora.data.update.AppUpdateInstaller
 import com.lumora.data.domain.CombinedM3uProfile
 import com.lumora.data.domain.CombinedM3uRepository
+import com.lumora.player.playback.AvOffsetManager
 import com.lumora.player.playback.PlayerErrorClassifier
 import kotlinx.coroutines.*
 import okhttp3.Request
@@ -94,6 +95,7 @@ private const val PREF_HIDE_ADULT = "hide_adult_categories"
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
+private const val SEARCH_BATCH_SIZE = 50
 private const val FAVOURITES_CATEGORY_ID = "__favourites__"
 private const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
 // Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema),
@@ -201,6 +203,36 @@ class MainActivity : AppCompatActivity() {
     private var resumePromptShown = false
     private var progressTickCount = 0
 
+    // ── A/V Sync Offset ─────────────────────────
+    private val avOffsetManager by lazy { AvOffsetManager(this) }
+
+    // ── Numeric Remote Input ────────────────────
+    private val digitInputBuffer = StringBuilder(6)
+    private var isDigitEntryActive = false
+    private val digitInputTimeoutRunnable = Runnable { resolveDigitInput() }
+
+    // ── Up Next / Auto-Advance ──────────────────
+    private var upNextEpisode: Channel? = null
+    private var upNextCountdown = 10
+    private var upNextActive = false
+    private val upNextTickRunnable = object : Runnable {
+        override fun run() {
+            if (upNextActive) {
+                upNextCountdown--
+                updateUpNextOverlay()
+                if (upNextCountdown <= 0) {
+                    executeUpNextAdvance()
+                } else {
+                    mainHandler.postDelayed(this, 1000)
+                }
+            }
+        }
+    }
+
+    // ── Incremental Search ──────────────────────
+    private var searchAllResults: List<Channel> = emptyList()
+    private var searchDisplayedCount = 0
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var pendingBackupManager: BackupManager? = null
@@ -259,7 +291,11 @@ class MainActivity : AppCompatActivity() {
     private val hideControlsRunnable = Runnable { hideControls() }
     private val progressRunnable = object : Runnable {
         override fun run() {
-            if (playerManager.isPlaying) { updateProgress(); mainHandler.postDelayed(this, 1000) }
+            if (playerManager.isPlaying) {
+                updateProgress()
+                checkUpNextTrigger()
+                mainHandler.postDelayed(this, 1000)
+            }
         }
     }
     private val downloadsProgressRunnable = object : Runnable {
@@ -421,6 +457,28 @@ class MainActivity : AppCompatActivity() {
 
     /** DPAD up/down channel-surfs while fullscreen on a live channel, without needing the on-screen controls. */
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        // Numeric remote input for direct channel entry - only while fullscreen on LIVE.
+        // Buffer up to 6 digits, timeout after 1.5s of inactivity to resolve the channel.
+        if (isPlayerVisible && nowPlayingChannel?.mediaType == MediaType.LIVE) {
+            val digit = when (keyCode) {
+                android.view.KeyEvent.KEYCODE_0, android.view.KeyEvent.KEYCODE_NUMPAD_0 -> 0
+                android.view.KeyEvent.KEYCODE_1, android.view.KeyEvent.KEYCODE_NUMPAD_1 -> 1
+                android.view.KeyEvent.KEYCODE_2, android.view.KeyEvent.KEYCODE_NUMPAD_2 -> 2
+                android.view.KeyEvent.KEYCODE_3, android.view.KeyEvent.KEYCODE_NUMPAD_3 -> 3
+                android.view.KeyEvent.KEYCODE_4, android.view.KeyEvent.KEYCODE_NUMPAD_4 -> 4
+                android.view.KeyEvent.KEYCODE_5, android.view.KeyEvent.KEYCODE_NUMPAD_5 -> 5
+                android.view.KeyEvent.KEYCODE_6, android.view.KeyEvent.KEYCODE_NUMPAD_6 -> 6
+                android.view.KeyEvent.KEYCODE_7, android.view.KeyEvent.KEYCODE_NUMPAD_7 -> 7
+                android.view.KeyEvent.KEYCODE_8, android.view.KeyEvent.KEYCODE_NUMPAD_8 -> 8
+                android.view.KeyEvent.KEYCODE_9, android.view.KeyEvent.KEYCODE_NUMPAD_9 -> 9
+                else -> -1
+            }
+            if (digit >= 0) {
+                handleDigitInput(digit)
+                return true
+            }
+        }
+
         // Live channel-surf is a blind shortcut only while the controls are hidden - once
         // they're showing, UP/DOWN needs to navigate between buttons (transport row ->
         // seek bar -> Speed/Sleep/Cast/...) instead of surfing channels out from under
@@ -694,6 +752,7 @@ class MainActivity : AppCompatActivity() {
         // Show/hide empty state
         binding.emptyState.visibility = if (hasContent) View.GONE else View.VISIBLE
         binding.contentRow.visibility = if (hasContent) View.VISIBLE else View.GONE
+        binding.tabBar.visibility = if (hasContent) View.VISIBLE else View.GONE
 
         if (hasContent) {
             binding.liveContent.adapter = liveAdapter
@@ -713,7 +772,14 @@ class MainActivity : AppCompatActivity() {
 
         val rawLive = allChannels.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
             .filterNot { isAdult(it) }
-        val (groupedLive, liveVers) = groupLiveQualityVersions(rawLive)
+        val useClassic = prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
+        val (groupedLive, liveVers) = if (useClassic) {
+            // Classic: no quality version merging — show every channel as-is from the provider.
+            // Version map is empty since every variant appears as its own channel entry.
+            rawLive to emptyMap()
+        } else {
+            groupLiveQualityVersions(rawLive)
+        }
 
         val rawFilms = allChannels.filter { it.mediaType == MediaType.MOVIE }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
@@ -977,6 +1043,7 @@ class MainActivity : AppCompatActivity() {
         val expandedSnapshot = expandedGroupKeys.toSet()
         val favoriteChannelIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this) else emptySet()
         val categories = withContext(Dispatchers.Default) {
+            val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
             val names = LinkedHashMap<String, String>()
             val counts = LinkedHashMap<String, Int>()
             for (ch in list) {
@@ -1027,8 +1094,13 @@ class MainActivity : AppCompatActivity() {
             // actually filed under, so they're synthesized from the raw channel list
             // directly rather than from the grouped category rows. Live TV only - a
             // "brand" concept doesn't map onto film/series categories.
-            val groupUnits = groupCategories(leaves).map(::groupUnit)
-            val brandUnits = if (tab == 0) {
+            val groupUnits = if (useClassicLayout) {
+                // Classic: show every raw provider category individually, no merging
+                leaves.map { it to emptyList<CategoryFilter>() }
+            } else {
+                groupCategories(leaves).map(::groupUnit)
+            }
+            val brandUnits = if (tab == 0 && !useClassicLayout) {
                 deriveBrandCategories(list).map { (label, members) ->
                     val brandId = "brand:$label"
                     CategoryFilter(
@@ -1043,8 +1115,6 @@ class MainActivity : AppCompatActivity() {
                 emptyList()
             }
             val allUnits = groupUnits + brandUnits
-
-            val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
 
             // Live TV leads with a handful of dynamic buckets (Sports/News/Music/Cinema)
             // that vacuum up every matching category/brand row regardless of which raw
@@ -1123,10 +1193,10 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
             }
-            // Pinned categories are an explicit "I want this first" signal from the user -
-            // outrank even the dynamic buckets.
-            result += pinnedRows.sortedBy { it.name.lowercase() }
+            // Dynamic buckets (Sports/News/Music/Cinema) surface first as the main
+            // browsing entry points; pinned categories sit directly beneath them.
             result += bucketRows
+            result += pinnedRows.sortedBy { it.name.lowercase() }
             if (tab == 0) result.add(allRow)
             // Live TV is mainly watched for sport, then UK channels - surface those first.
             result += if (tab == 0) {
@@ -1263,8 +1333,8 @@ class MainActivity : AppCompatActivity() {
         // tap while it's already the selected row, so picking a category doesn't also
         // dump its whole child list open unasked for.
         val expandChanged = category.isParent && selectedRowId == category.id
-        if (expandChanged) {
-            val id = category.id!!
+        val id = category.id
+        if (expandChanged && id != null) {
             if (!expandedGroupKeys.remove(id)) expandedGroupKeys.add(id)
         }
         selectedShelfItems = null
@@ -1273,11 +1343,28 @@ class MainActivity : AppCompatActivity() {
         selectedBrandChannelIds = category.channelIds.ifEmpty { null }
         selectedCategoryIds = if (category.id == null || category.channelIds.isNotEmpty()) null else category.matchIds
         if (expandChanged) {
-            // Which rows exist actually changes (children appear/disappear) - needs a
-            // real rebuild.
-            scope.launch {
-                rebuildCategoriesForActiveTab()
-                applyCategoryFilter()
+            if (!category.expanded) {
+                // Collapsing: just remove child rows from the existing list without a
+                // full category rebuild - avoids the expensive channel scan on every tap.
+                val currentList = categoryAdapter.currentList.toMutableList()
+                val parentIdx = currentList.indexOfFirst { it.id == id }
+                if (parentIdx >= 0) {
+                    var removeEnd = parentIdx + 1
+                    while (removeEnd < currentList.size && currentList[removeEnd].isChild) removeEnd++
+                    if (removeEnd > parentIdx + 1) {
+                        currentList.subList(parentIdx + 1, removeEnd).clear()
+                    }
+                    currentList[parentIdx] = currentList[parentIdx].copy(expanded = false)
+                }
+                categoryAdapter.submitList(currentList)
+                categoryAdapter.setSelected(selectedRowId)
+                scope.launch { applyCategoryFilter() }
+            } else {
+                // Expanding: needs the full child tree data, so a real rebuild is required.
+                scope.launch {
+                    rebuildCategoriesForActiveTab()
+                    applyCategoryFilter()
+                }
             }
         } else {
             // Just the highlighted row + filtered content changed, not which rows exist -
@@ -1306,6 +1393,8 @@ class MainActivity : AppCompatActivity() {
         binding.tabSeries.setOnClickListener { showingHome = false; selectTab(1) }
         binding.tabFilms.setOnClickListener { showingHome = false; selectTab(2) }
         binding.tabDownloads.setOnClickListener { showingHome = false; selectDownloads() }
+        // Hide tab bar until a provider is configured and content is loaded
+        binding.tabBar.visibility = if (hasProviderConfigured()) View.VISIBLE else View.GONE
     }
 
     private fun updateTabStyles(selected: View) {
@@ -1932,6 +2021,18 @@ class MainActivity : AppCompatActivity() {
         binding.emptyState.visibility = View.GONE
 
         var searchRunnable: Runnable? = null
+        // Incremental scroll: load more results as user scrolls near the bottom.
+        resultsList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (dy <= 0 || searchDisplayedCount >= searchAllResults.size) return
+                val lm = recyclerView.layoutManager as GridLayoutManager
+                val lastVisible = lm.findLastVisibleItemPosition()
+                if (lastVisible >= lm.itemCount - 6) {
+                    loadMoreSearchResults(resultsAdapter, statusText)
+                }
+            }
+        })
+
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -1942,6 +2043,8 @@ class MainActivity : AppCompatActivity() {
                     statusText.text = "Type to search"
                     statusText.visibility = View.VISIBLE
                     resultsList.visibility = View.GONE
+                    searchAllResults = emptyList()
+                    searchDisplayedCount = 0
                     return
                 }
                 // Fires as-you-type with a short debounce, not on submit - a large catalog
@@ -1979,25 +2082,42 @@ class MainActivity : AppCompatActivity() {
         statusText.text = "Searching…"
         statusText.visibility = View.VISIBLE
         resultsList.visibility = View.GONE
+        searchAllResults = emptyList()
+        searchDisplayedCount = 0
         scope.launch {
             val results = withContext(Dispatchers.Default) {
                 val lower = query.lowercase()
                 (liveChannels + filmList + seriesList)
                     .filter { it.name.lowercase().contains(lower) }
                     .sortedWith(compareBy({ searchRank(it.name, lower) }, { it.name.lowercase() }))
-                    .take(150)
             }
             if (results.isEmpty()) {
                 statusText.text = "No results for \"$query\""
                 statusText.visibility = View.VISIBLE
                 resultsList.visibility = View.GONE
             } else {
-                statusText.text = "${results.size} result${if (results.size == 1) "" else "s"}"
+                searchAllResults = results
+                val total = results.size
+                val batchSize = 50
+                val firstBatch = results.take(batchSize)
+                searchDisplayedCount = firstBatch.size
+                statusText.text = "${searchDisplayedCount}/$total results"
                 statusText.visibility = View.VISIBLE
                 resultsList.visibility = View.VISIBLE
-                adapter.submitList(results)
+                adapter.submitList(firstBatch)
             }
         }
+    }
+
+    private fun loadMoreSearchResults(adapter: PosterGridAdapter, statusText: TextView) {
+        val remaining = searchAllResults.size - searchDisplayedCount
+        if (remaining <= 0) return
+        val batchSize = 50.coerceAtMost(remaining)
+        val currentList = adapter.currentList.toMutableList()
+        currentList.addAll(searchAllResults.subList(searchDisplayedCount, searchDisplayedCount + batchSize))
+        searchDisplayedCount += batchSize
+        adapter.submitList(currentList)
+        statusText.text = "${searchDisplayedCount}/${searchAllResults.size} results"
     }
 
     private fun reloadCurrentProvider() {
@@ -2053,6 +2173,15 @@ class MainActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
+        }
+
+        // Up Next - Play Now / Cancel buttons
+        binding.upNextPlayNow.setOnClickListener {
+            cancelUpNextCountdown()
+            executeUpNextAdvance()
+        }
+        binding.upNextCancel.setOnClickListener {
+            cancelUpNext()
         }
 
         // Cast
@@ -2129,16 +2258,20 @@ class MainActivity : AppCompatActivity() {
                 if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
                     updateProgress(); updatePlayPauseIcon()
                     if (state == Player.STATE_READY) maybeShowResumePrompt()
-                    if (state == Player.STATE_ENDED) {
-                        saveCurrentPlaybackPosition()
-                        val queue = currentEpisodeQueue
-                        val nextIdx = currentEpisodeQueueIndex + 1
-                        if (nextIdx in queue.indices) {
-                            showPlayerFor(queue[nextIdx])
-                            currentEpisodeQueue = queue
-                            currentEpisodeQueueIndex = nextIdx
-                        }
+                if (state == Player.STATE_ENDED) {
+                    saveCurrentPlaybackPosition()
+                    // If Up Next countdown is already running, it will handle the advance.
+                    if (upNextActive) return@onPlaybackStateChanged
+                    // Silent fallback auto-advance when Up Next wasn't triggered
+                    // (e.g. user seeks to end, skipping the 10s countdown window).
+                    val queue = currentEpisodeQueue
+                    val nextIdx = currentEpisodeQueueIndex + 1
+                    if (nextIdx in queue.indices) {
+                        showPlayerFor(queue[nextIdx])
+                        currentEpisodeQueue = queue
+                        currentEpisodeQueueIndex = nextIdx
                     }
+                }
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
@@ -2192,6 +2325,8 @@ class MainActivity : AppCompatActivity() {
         // actually started for the episode they picked.
         currentEpisodeQueue = emptyList()
         currentEpisodeQueueIndex = -1
+        // Reset Up Next state on any new playback
+        cancelUpNext()
         // Never run the preview decode and the fullscreen decode at once.
         releaseLivePreview()
         isPlayerVisible = true
@@ -2630,6 +2765,109 @@ class MainActivity : AppCompatActivity() {
         binding.previewSurface.visibility = View.VISIBLE
     }
 
+    // ── Numeric Remote Input ──────────────────────
+    private fun handleDigitInput(digit: Int) {
+        if (digitInputBuffer.length >= 6) return
+        digitInputBuffer.append(digit)
+        isDigitEntryActive = true
+        showNumericOverlay()
+        // Reset the timeout on every keypress
+        mainHandler.removeCallbacks(digitInputTimeoutRunnable)
+        mainHandler.postDelayed(digitInputTimeoutRunnable, 1500)
+    }
+
+    private fun resolveDigitInput() {
+        if (!isDigitEntryActive || digitInputBuffer.isEmpty()) {
+            hideNumericOverlay()
+            return
+        }
+        val channelNum = digitInputBuffer.toString()
+        val match = liveChannels.firstOrNull { it.tvgChno == channelNum || it.tvgChno?.toIntOrNull()?.toString() == channelNum }
+        if (match != null) {
+            hideNumericOverlay()
+            clearDigitBuffer()
+            playItem(match)
+        } else {
+            // Flash "not found" briefly on the overlay, then dismiss
+            binding.numericInputChannelName.text = "Not found"
+            binding.numericInputChannelName.visibility = View.VISIBLE
+            mainHandler.postDelayed({ hideNumericOverlay(); clearDigitBuffer() }, 800)
+        }
+    }
+
+    private fun showNumericOverlay() {
+        binding.numericInputDigits.text = digitInputBuffer.toString()
+        binding.numericInputChannelName.visibility = View.GONE
+        binding.numericInputOverlay.visibility = View.VISIBLE
+    }
+
+    private fun hideNumericOverlay() {
+        binding.numericInputOverlay.visibility = View.GONE
+        isDigitEntryActive = false
+    }
+
+    private fun clearDigitBuffer() {
+        digitInputBuffer.clear()
+        isDigitEntryActive = false
+        mainHandler.removeCallbacks(digitInputTimeoutRunnable)
+    }
+
+    // ── Up Next / Auto-Advance ────────────────────
+    private fun checkUpNextTrigger() {
+        if (upNextActive) return // already showing
+        if (currentEpisodeQueueIndex < 0) return // not in an episode queue
+        val nextIdx = currentEpisodeQueueIndex + 1
+        if (nextIdx !in currentEpisodeQueue.indices) return // no next episode
+        val duration = playerManager.duration
+        val position = playerManager.currentPosition
+        if (duration <= 0 || duration - position > 10000) return // more than 10s left
+        upNextEpisode = currentEpisodeQueue[nextIdx]
+        showUpNextOverlay()
+    }
+
+    private fun showUpNextOverlay() {
+        upNextActive = true
+        upNextCountdown = 10
+        binding.upNextTitle.text = upNextEpisode?.name ?: ""
+        binding.upNextCountdown.text = upNextCountdown.toString()
+        binding.upNextOverlay.visibility = View.VISIBLE
+        binding.upNextPlayNow.requestFocus()
+        mainHandler.post(upNextTickRunnable)
+    }
+
+    private fun updateUpNextOverlay() {
+        binding.upNextCountdown.text = upNextCountdown.toString()
+    }
+
+    private fun executeUpNextAdvance() {
+        cancelUpNextCountdown()
+        val nextEp = upNextEpisode ?: return
+        upNextEpisode = null
+        upNextActive = false
+        binding.upNextOverlay.visibility = View.GONE
+        // Stopping the current player triggers STATE_ENDED, which would also try to
+        // advance if we don't clear the queue first.
+        val queue = currentEpisodeQueue
+        val idx = currentEpisodeQueueIndex
+        currentEpisodeQueue = emptyList()
+        currentEpisodeQueueIndex = -1
+        showPlayerFor(nextEp)
+        // Restore the queue so Next/Prev work for subsequent episodes
+        currentEpisodeQueue = queue
+        currentEpisodeQueueIndex = idx + 1
+    }
+
+    private fun cancelUpNext() {
+        cancelUpNextCountdown()
+        upNextEpisode = null
+        upNextActive = false
+        binding.upNextOverlay.visibility = View.GONE
+    }
+
+    private fun cancelUpNextCountdown() {
+        mainHandler.removeCallbacks(upNextTickRunnable)
+    }
+
     /** Debounced so fast D-pad scrolling through the list doesn't spawn a load per row. */
     private fun requestPreviewLoad(channel: Channel) {
         lastFocusedLiveChannel = channel
@@ -2881,6 +3119,16 @@ class MainActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     private fun showProviderSettings() {
         val dialogView = layoutInflater.inflate(R.layout.activity_settings, null)
+        // Constrain settings width on TV to avoid an overly wide stretched panel
+        if (isTv) {
+            val maxWidthDp = 660
+            val maxWidthPx = (maxWidthDp * resources.displayMetrics.density).toInt()
+            val screenWidth = resources.displayMetrics.widthPixels
+            val width = minOf(screenWidth, maxWidthPx)
+            dialogView.layoutParams = FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+            }
+        }
         val providerTypeSpinner = dialogView.findViewById<Spinner>(R.id.settingsProviderTypeSpinner)
         val showQrButton = dialogView.findViewById<View>(R.id.settingsShowQrButton)
         val qrSection = dialogView.findViewById<View>(R.id.settingsQrSection)
@@ -3287,6 +3535,22 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 .setPositiveButton("Close", null)
+                .show()
+        }
+
+        // A/V sync offset settings
+        dialogView.findViewById<View>(R.id.settingsAvOffset).setOnClickListener {
+            val current = avOffsetManager.getOffset()
+            val presets = listOf("-500 ms", "-250 ms", "-100 ms", "-50 ms", "0 ms", "+50 ms", "+100 ms", "+250 ms", "+500 ms")
+            val values = listOf(-500, -250, -100, -50, 0, 50, 100, 250, 500)
+            val checked = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("A/V Sync Offset")
+                .setSingleChoiceItems(presets.toTypedArray(), checked) { dialog, which ->
+                    avOffsetManager.save(values[which])
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
                 .show()
         }
 

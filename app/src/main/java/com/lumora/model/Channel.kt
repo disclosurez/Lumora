@@ -42,5 +42,9 @@ data class Channel(
     // not whichever Xtream provider happened to load last into the old single shared
     // `provider` field. Null for non-Xtream sources (M3U/Stalker have no such detail APIs;
     // Jellyfin uses jellyfinClient directly).
-    val sourceProviderId: String? = null
+    val sourceProviderId: String? = null,
+    // Per-channel A/V sync offset in milliseconds. Positive = audio delayed (plays later),
+    // negative = audio advanced (plays sooner). 0 = use global default.
+    // Applied via TrackSelector at playback start.
+    val avOffsetMs: Int = 0
 )

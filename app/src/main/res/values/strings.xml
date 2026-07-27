@@ -95,4 +95,21 @@
     <string name="stream_not_found">Stream not found. Check the URL</string>
     <string name="recording_failed_storage">Recording failed: no storage space</string>
     <string name="recording_failed_network">Recording failed: network error</string>
+
+    <!-- Numeric Input -->
+    <string name="numeric_input_hint">Enter channel number</string>
+
+    <!-- Up Next / Auto-Advance -->
+    <string name="up_next">Up Next</string>
+    <string name="play_now">Play Now</string>
+
+    <!-- Incremental Search -->
+    <string name="search_more_results">Show more results</string>
+    <string name="search_no_more_results">No more results</string>
+
+    <!-- A/V Sync -->
+    <string name="av_offset">A/V sync offset</string>
+    <string name="av_offset_global">Global offset</string>
+    <string name="av_offset_per_channel">Channel offset</string>
+    <string name="av_offset_reset">Reset to global</string>
 </resources>

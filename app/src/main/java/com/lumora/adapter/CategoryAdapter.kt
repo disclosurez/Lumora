@@ -18,9 +18,15 @@ class CategoryAdapter(
         private set
 
     fun setSelected(id: String?) {
-        if (selectedId == id) return
+        val oldId = selectedId
+        if (oldId == id) return
         selectedId = id
-        notifyDataSetChanged()
+        // Only update the old and new items instead of a full redraw - avoids
+        // flashing every visible row when the user taps a category.
+        val oldIdx = currentList.indexOfFirst { it.id == oldId }
+        if (oldIdx >= 0) notifyItemChanged(oldIdx)
+        val newIdx = currentList.indexOfFirst { it.id == id }
+        if (newIdx >= 0 && newIdx != oldIdx) notifyItemChanged(newIdx)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
