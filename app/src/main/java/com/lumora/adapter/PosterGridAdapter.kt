@@ -40,8 +40,20 @@ class PosterGridAdapter(
     var spanCount: Int = 1
     var topRowFocusUpTargetId: Int = View.NO_ID
 
+    /** Poster artwork height, as a dimen resource. The card is as wide as the grid's column,
+     *  but its height comes from the layout - so a grid in a narrow pane (search, which
+     *  gives up most of its width to the keyboard) needs a shorter poster or the artwork is
+     *  stretched well past the 2:3 it was cropped for. Null keeps the layout's own value. */
+    var posterHeightDimen: Int? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_poster_grid, parent, false)
+        posterHeightDimen?.let { dimen ->
+            val poster = view.findViewById<ImageView>(R.id.itemPoster)
+            poster.layoutParams = poster.layoutParams.also {
+                it.height = view.resources.getDimensionPixelSize(dimen)
+            }
+        }
         return ViewHolder(view)
     }
 

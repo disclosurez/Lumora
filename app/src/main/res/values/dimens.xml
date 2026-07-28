@@ -111,4 +111,23 @@
          clamps to poster_grid_max_span). Portrait phones use a smaller value so a narrow
          screen still gets two columns rather than one. -->
     <dimen name="poster_grid_min_column_width">128dp</dimen>
+
+    <!-- Search overlay. A width of 0dp is the sentinel for "fill the slot" - a dimen can't
+         hold match_parent, so showSearchDialog() applies any non-zero value as an explicit
+         width and leaves the layout's match_parent alone otherwise. A phone has no width to
+         give away; values-sw540dp/ pins it to a centred panel. -->
+    <dimen name="search_panel_width">0dp</dimen>
+    <dimen name="search_panel_padding">16dp</dimen>
+    <dimen name="search_keyboard_width">240dp</dimen>
+    <dimen name="keyboard_key_height">40dp</dimen>
+    <dimen name="keyboard_key_gap">3dp</dimen>
+    <dimen name="keyboard_key_text">15sp</dimen>
+    <dimen name="keyboard_action_text">11sp</dimen>
+    <!-- Shorter than poster_image_height: a search column is much narrower than a Films/Series
+         grid column, and the card's height doesn't follow its width, so the full-size value
+         stretched the artwork well past the 2:3 it's cropped to. -->
+    <dimen name="search_poster_image_height">120dp</dimen>
+
+    <!-- Search bar at the top of Home. Same 0dp = fill sentinel. -->
+    <dimen name="home_search_bar_width">0dp</dimen>
 </resources>

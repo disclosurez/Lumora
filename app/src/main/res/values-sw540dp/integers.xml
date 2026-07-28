@@ -4,4 +4,9 @@
          panel, which left each card (and its title) too small at viewing distance.
          See values-sw540dp/dimens.xml for why this is keyed on smallest-width, not uiMode. -->
     <integer name="poster_grid_max_span">5</integer>
+
+    <!-- Search results share the panel with the keyboard, so this counts columns in the
+         ~470dp left over, not across the screen. Without this override a TV inherited the
+         phone's 2 and drew four enormous posters. -->
+    <integer name="search_results_span">4</integer>
 </resources>

@@ -128,4 +128,23 @@
          are what makes it tall. A 56dp box around a 24dp glyph just padded the whole bar. -->
     <dimen name="toolbar_button_size">44dp</dimen>
     <dimen name="toolbar_padding_horizontal">28dp</dimen>
+
+    <!-- Search doesn't need the whole panel: a centred 820dp column holds the keyboard and a
+         two-up results grid without either running to the bezels. -->
+    <dimen name="search_panel_width">820dp</dimen>
+    <dimen name="search_panel_padding">20dp</dimen>
+    <dimen name="search_keyboard_width">300dp</dimen>
+    <dimen name="keyboard_key_height">46dp</dimen>
+    <dimen name="keyboard_key_gap">4dp</dimen>
+    <dimen name="keyboard_key_text">18sp</dimen>
+    <dimen name="keyboard_action_text">13sp</dimen>
+    <!-- Sized so search shows two rows of four without scrolling. The grid gets roughly
+         305dp of height (the slot, less the toolbar, tab bar, panel padding, query row and
+         status line), and a card costs its artwork plus 16dp of card padding and 16dp of
+         margin - so 118dp of poster is the most that fits twice over. Four columns across
+         the ~470dp beside the keyboard gives each card ~85dp of artwork width, which makes
+         these slightly squatter than 2:3; centerCrop absorbs that. -->
+    <dimen name="search_poster_image_height">118dp</dimen>
+
+    <dimen name="home_search_bar_width">560dp</dimen>
 </resources>

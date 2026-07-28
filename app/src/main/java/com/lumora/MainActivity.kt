@@ -237,6 +237,9 @@ class MainActivity : AppCompatActivity() {
     // Takes priority over selectedCategoryIds in applyCategoryFilter when set.
     private var selectedShelfItems: List<Channel>? = null
     private val expandedGroupKeys = mutableSetOf<String>()
+    /** Set while the search overlay is open. Receives a typed character, or null for
+     *  backspace, from a real keyboard - the query field itself isn't focusable. */
+    private var searchKeyHandler: ((String?) -> Unit)? = null
     /** Child rows for every expandable sidebar parent, from the last category build. Lets
      *  expanding a row splice its children in rather than rerunning the whole build, which
      *  rescans every channel in the tab. Refreshed on every build, so it can't outlive the
@@ -557,6 +560,20 @@ class MainActivity : AppCompatActivity() {
      *  same broken default search. Activity-level dispatch always sees the key, and resolving the
      *  holder from whatever view actually has focus covers both cases. */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // Real-keyboard typing while search is open. The query field is deliberately not
+        // focusable (see dialog_search.xml), so nothing else would receive these.
+        val onSearchKey = searchKeyHandler
+        if (onSearchKey != null && event.action == android.view.KeyEvent.ACTION_DOWN) {
+            if (event.keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+                onSearchKey(null)
+                return true
+            }
+            val typed = event.unicodeChar.takeIf { it != 0 }?.toChar()
+            if (typed != null && !Character.isISOControl(typed)) {
+                onSearchKey(typed.uppercase())
+                return true
+            }
+        }
         if (event.action == android.view.KeyEvent.ACTION_DOWN && isContentDetailVisible && !isPlayerVisible) {
             val step = when (event.keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP -> -1
@@ -1717,8 +1734,19 @@ class MainActivity : AppCompatActivity() {
         releaseLivePreview()
         binding.contentRow.visibility = View.GONE
         binding.homeContent.visibility = View.VISIBLE
+        binding.homeSearchBar.visibility = View.VISIBLE
+        applyPanelWidth(binding.homeSearchBar, R.dimen.home_search_bar_width)
         updateTabStyles(binding.tabHome)
         homeShelfAdapter.submitList(buildHomeShelves())
+    }
+
+    /** Applies [widthDimen] as an explicit width, treating 0 as "leave it as laid out".
+     *  Lets a phone keep a match_parent panel while a TV gets a fixed, centred one, without
+     *  a second copy of the layout - a dimen resource can't itself hold match_parent. */
+    private fun applyPanelWidth(view: View, widthDimen: Int) {
+        val width = resources.getDimensionPixelSize(widthDimen)
+        if (width <= 0) return
+        view.layoutParams = view.layoutParams?.also { it.width = width } ?: return
     }
 
     /** Downloads reuses the contentRow's FrameLayout but skips the category sidebar and
@@ -1730,6 +1758,7 @@ class MainActivity : AppCompatActivity() {
         releaseLivePreview()
         binding.contentRow.visibility = View.VISIBLE
         binding.homeContent.visibility = View.GONE
+        binding.homeSearchBar.visibility = View.GONE
         binding.categorySidebar.visibility = View.GONE
         binding.liveRow.visibility = View.GONE
         binding.seriesContent.visibility = View.GONE
@@ -1808,6 +1837,7 @@ class MainActivity : AppCompatActivity() {
         showingDownloads = false
         binding.contentRow.visibility = View.VISIBLE
         binding.homeContent.visibility = View.GONE
+        binding.homeSearchBar.visibility = View.GONE
         binding.liveRow.visibility = if (index == 0) View.VISIBLE else View.GONE
         binding.seriesContent.visibility = if (index == 1) View.VISIBLE else View.GONE
         binding.filmsContent.visibility = if (index == 2) View.VISIBLE else View.GONE
@@ -1855,16 +1885,16 @@ class MainActivity : AppCompatActivity() {
             if (index == 0) expandedGroupKeys.add("${DYNAMIC_BUCKET_ID_PREFIX}Sports")
             val categories = buildCategoriesForActiveTab()
             if (index == 0) {
-                // Sky Sports as a child of the Sports bucket is the usual shape, but it
-                // isn't the only one: pinning it (or its raw category) holds it out of
-                // bucketing on purpose, so it sits at top level instead and the isChild
-                // lookup alone would miss it and fall back to the whole Sports bucket.
-                // Falls through to the bucket, then to All, if none of it exists (classic
-                // layout, or no matching channels in the catalog).
-                fun isSkySports(c: CategoryFilter) = c.name.lowercase().startsWith("sky sports")
-                val target = categories.firstOrNull { it.isChild && isSkySports(it) }
-                    ?: categories.firstOrNull(::isSkySports)
-                    ?: categories.firstOrNull { it.id == "${DYNAMIC_BUCKET_ID_PREFIX}Sports" }
+                // Land on the Sports bucket row itself - the top dynamic category - not on a
+                // row nested inside it. Selecting the Sky Sports *child* (what this did
+                // before) put the highlight several rows down, below an expanded parent, so
+                // opening the category menu never showed it sitting on a dynamic category;
+                // it also narrowed the guide to that one brand instead of all of Sports.
+                // The bucket stays expanded, with Sky Sports ordered first among its
+                // children by childPriority(). Falls back to whichever dynamic bucket exists
+                // first, then to All if there are none (classic layout, or no matches).
+                val target = categories.firstOrNull { it.id == "${DYNAMIC_BUCKET_ID_PREFIX}Sports" }
+                    ?: categories.firstOrNull { it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true }
                 if (target != null) {
                     selectedRowId = target.id
                     selectedCategoryLabel = target.name
@@ -1874,7 +1904,12 @@ class MainActivity : AppCompatActivity() {
             }
             submitCategories(categories)
             applyCategoryFilter(focusFirstLiveChannel = index == 0)
-            binding.categorySidebar.scrollToPosition(0)
+            // Scroll to the selected row, not blindly to the top. The sidebar has no focus
+            // of its own on entry (focus goes to the guide/grid), so whichever row is on
+            // screen is where the D-pad lands when the user moves left into the menu -
+            // scrolling to 0 regardless meant that was never the row we had just selected.
+            val selectedIdx = categories.indexOfFirst { it.id != null && it.id == selectedRowId }
+            binding.categorySidebar.scrollToPosition(if (selectedIdx >= 0) selectedIdx else 0)
             // Only now, with rows and content both in place. submitCategories() decides
             // whether the sidebar is warranted at all (a single row isn't worth one), so
             // don't override its call here.
@@ -2392,6 +2427,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnSearch.setOnClickListener { showSearchDialog() }
         binding.emptyQrPair.setOnClickListener { showProviderSettings() }
         binding.emptyTryDemo.setOnClickListener { addDemoProvider() }
+        binding.homeSearchBar.setOnClickListener { showSearchDialog() }
     }
 
     /** Adds the public Free-TV playlist as an ordinary enabled M3U provider and loads it.
@@ -2418,6 +2454,21 @@ class MainActivity : AppCompatActivity() {
         loadAllConfiguredProviders(forceRefresh = true)
     }
 
+    /** Switches the demo playlist off as soon as a real provider is configured - it exists
+     *  to fill an empty app, and once there's a genuine catalog its ~1900 free-to-air
+     *  channels are just noise merged into it. Disabled rather than removed, so it still
+     *  appears in Settings > Providers and can be switched back on (or re-enabled by
+     *  "Try the Demo", which does exactly that). No-op if the demo isn't present, is
+     *  already off, or is the only provider there is. */
+    private fun disableDemoProviderIfSuperseded() {
+        val providers = IptvProviderStore.load(prefs)
+        val demo = providers.firstOrNull { it.url == DEMO_PLAYLIST_URL } ?: return
+        if (!demo.enabled) return
+        val hasRealProvider = providers.any { it.id != demo.id && it.enabled } ||
+            prefs.getBoolean("jellyfin_provider_enabled", false)
+        if (hasRealProvider) IptvProviderStore.setEnabled(prefs, demo.id, false)
+    }
+
     // ── Search ───────────────────────────────────────
 
     private fun showSearchDialog() {
@@ -2426,7 +2477,25 @@ class MainActivity : AppCompatActivity() {
         val statusText = searchView.findViewById<TextView>(R.id.searchStatus)
         val resultsList = searchView.findViewById<RecyclerView>(R.id.searchResults)
 
-        val dialogSpanCount = (resources.displayMetrics.widthPixels / resources.displayMetrics.density / 128f).toInt().coerceAtLeast(2)
+        val keyboard = searchView.findViewById<com.lumora.ui.OnScreenKeyboard>(R.id.searchKeyboard)
+        applyPanelWidth(searchView.findViewById(R.id.searchPanel), R.dimen.search_panel_width)
+
+        // The platform IME on a Fire TV opens full-screen over the app and takes focus with
+        // it, so the query and its results can never be on screen together. Suppress it and
+        // drive the field from the on-screen keyboard instead. The field stays focusable so
+        // a paired bluetooth/USB keyboard still types into it normally.
+        input.showSoftInputOnFocus = false
+        fun replaceQuery(text: String) = input.setText(text)
+        keyboard.onKey = { ch -> replaceQuery(input.text.toString() + ch) }
+        keyboard.onBackspace = { replaceQuery(input.text.toString().dropLast(1)) }
+        keyboard.onClear = { replaceQuery("") }
+        // A paired bluetooth/USB keyboard can't type into the field any more (it isn't
+        // focusable), so the Activity forwards printable keys and backspace here instead.
+        searchKeyHandler = { ch -> if (ch == null) keyboard.onBackspace?.invoke() else replaceQuery(input.text.toString() + ch) }
+
+        // Fixed span: the grid shares the panel with the keyboard now, so overall screen
+        // width no longer describes the space it actually has.
+        val dialogSpanCount = resources.getInteger(R.integer.search_results_span)
         resultsList.layoutManager = GridLayoutManager(this, dialogSpanCount)
         val resultsAdapter = PosterGridAdapter(showTypeBadge = true) { item ->
             activeSearchOverlay?.dismiss()
@@ -2434,15 +2503,20 @@ class MainActivity : AppCompatActivity() {
         }
         resultsAdapter.spanCount = dialogSpanCount
         resultsAdapter.topRowFocusUpTargetId = R.id.searchInput
+        resultsAdapter.posterHeightDimen = R.dimen.search_poster_image_height
         resultsList.adapter = resultsAdapter
 
         val overlay = FullScreenOverlay(
             binding.searchContainer,
             searchView,
             closeButton = searchView.findViewById(R.id.searchCloseButton),
-            initialFocus = { input }
+            // The keyboard, not the input box: with no IME involved, landing on the field
+            // gives a caret and nothing to type with, and every session would start with a
+            // wasted press down into the keys.
+            initialFocus = { keyboard.firstKey() ?: input }
         )
         binding.homeContent.visibility = View.GONE
+        binding.homeSearchBar.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
         binding.emptyState.visibility = View.GONE
 
@@ -2483,6 +2557,7 @@ class MainActivity : AppCompatActivity() {
         })
         overlay.setOnDismissListener {
             searchRunnable?.let { mainHandler.removeCallbacks(it) }
+            searchKeyHandler = null
             activeSearchOverlay = null
             if (showingHome) selectHome() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
         }
@@ -3635,6 +3710,7 @@ class MainActivity : AppCompatActivity() {
                 val ok = performJellyfinQuickConnect(url) { msg -> lastMsg = msg; jellyfinQuickConnectLabel.text = msg }
                 jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
                 if (ok) {
+                    disableDemoProviderIfSuperseded()
                     dialog.dismiss()
                     Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
                     loadAllConfiguredProviders(forceRefresh = true)
@@ -3753,6 +3829,7 @@ class MainActivity : AppCompatActivity() {
                             id = IptvProviderStore.newId(), type = "m3u", name = form["name"]?.takeIf { it.isNotBlank() } ?: "QR M3U",
                             enabled = true, url = url, userAgent = form["userAgent"]
                         ))
+                        disableDemoProviderIfSuperseded()
                         stopQrServer()
                         dialog.dismiss()
                         loadAllConfiguredProviders(forceRefresh = true)
@@ -3763,6 +3840,7 @@ class MainActivity : AppCompatActivity() {
                             id = IptvProviderStore.newId(), type = "xtream", name = form["name"]?.takeIf { it.isNotBlank() } ?: "QR Xtream",
                             enabled = true, url = su, username = form["username"], password = form["password"]
                         ))
+                        disableDemoProviderIfSuperseded()
                         stopQrServer()
                         dialog.dismiss()
                         loadAllConfiguredProviders(forceRefresh = true)
@@ -3776,6 +3854,7 @@ class MainActivity : AppCompatActivity() {
                         val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it, defaultScheme = "https") } ?: return@runOnUiThread
                         val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
                         prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putBoolean("jellyfin_provider_enabled", true).apply()
+                        disableDemoProviderIfSuperseded()
                         stopQrServer()
                         dialog.dismiss()
                         loadAllConfiguredProviders(forceRefresh = true)
@@ -3789,6 +3868,7 @@ class MainActivity : AppCompatActivity() {
                             var lastMsg = ""
                             val ok = performJellyfinQuickConnect(url, existing = code to secret) { msg -> lastMsg = msg; qrStatus.text = msg }
                             if (ok) {
+                                disableDemoProviderIfSuperseded()
                                 stopQrServer()
                                 dialog.dismiss()
                                 Toast.makeText(this@MainActivity, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
@@ -4298,6 +4378,7 @@ class MainActivity : AppCompatActivity() {
                         .apply()
                 }
             }
+            disableDemoProviderIfSuperseded()
             closeIptvForm()
             renderIptvProviderList()
             Toast.makeText(this, "Provider saved. Loading...", Toast.LENGTH_SHORT).show()

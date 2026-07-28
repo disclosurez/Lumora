@@ -392,6 +392,45 @@
                 android:textSize="@dimen/text_caption" />
         </LinearLayout>
 
+        <!-- Home's own search entry point. The toolbar button is easy to miss from a sofa
+             (it's a small target in the far corner), and Home is where someone arrives
+             already knowing what they want to look for. Opens the same overlay. -->
+        <LinearLayout
+            android:id="@+id/homeSearchBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_input"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="12dp"
+            android:stateListAnimator="@animator/focus_scale_flat"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="12dp"
+                android:src="@android:drawable/ic_menu_search"
+                android:tint="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Search live TV, films &amp; series…"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_subhead" />
+        </LinearLayout>
+
         <!-- Home: continue watching / recently played / favorites shelves -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/homeContent"
