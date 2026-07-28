@@ -31,6 +31,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.lumora.adapter.CategoryAdapter
+import com.lumora.adapter.DYNAMIC_BUCKET_ID_PREFIX
 import com.lumora.adapter.DownloadAdapter
 import com.lumora.adapter.EpisodeAdapter
 import com.lumora.adapter.EpgSourceAdapter
@@ -67,6 +68,7 @@ import com.lumora.util.extractLeadingTag
 import com.lumora.util.deriveBrandCategories
 import com.lumora.util.groupCategories
 import com.lumora.util.CategoryGroup
+import com.lumora.util.brandForCategoryName
 import com.lumora.util.newestByBrand
 import com.lumora.util.isAdultCategory
 import com.lumora.util.isTvDevice
@@ -97,6 +99,13 @@ private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
 private const val SEARCH_BATCH_SIZE = 50
+
+// Free-TV/IPTV: a community-maintained list of publicly available free-to-air streams.
+// Used by the empty state's "Try the Demo" so the app can be exercised before any
+// credentials exist. Nothing else references it - it is an ordinary M3U url handed to the
+// ordinary M3U provider path, not a special-cased content source.
+private const val DEMO_PLAYLIST_URL = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
+private const val DEMO_PROVIDER_NAME = "Demo (Free-TV)"
 private const val FAVOURITES_CATEGORY_ID = "__favourites__"
 private const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
 // Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema),
@@ -108,6 +117,23 @@ private val LIVE_DYNAMIC_BUCKETS = listOf(
     "News" to listOf("news"),
     "Music" to listOf("music"),
     "Cinema" to listOf("cinema", "movie", "film")
+)
+
+// The same idea for Films/Series, where the equivalent of a channel genre is the genre a
+// provider names its VOD categories after ("EN | ACTION", "4K ACTION & ADVENTURE", ...).
+// Without these, those two tabs had no dynamic rows at all - only the provider's own
+// category list - so the sidebar there looked nothing like Live TV's.
+// First match wins, so keep the more specific keywords above the general ones.
+private val VOD_DYNAMIC_BUCKETS = listOf(
+    "Kids & Family" to listOf("kids", "family", "cartoon", "anime", "animation"),
+    "Action" to listOf("action", "adventure", "martial"),
+    "Comedy" to listOf("comedy"),
+    "Horror & Thriller" to listOf("horror", "thriller", "suspense"),
+    "Sci-Fi & Fantasy" to listOf("sci-fi", "scifi", "science fiction", "fantasy"),
+    "Crime & Mystery" to listOf("crime", "mystery", "detective"),
+    "Documentary" to listOf("documentar", "docu"),
+    "Romance" to listOf("romance", "romantic"),
+    "Drama" to listOf("drama")
 )
 // Auto-failover to the next quality/source version of a live channel triggers on
 // either a single long stall or several shorter stalls close together - a lone
@@ -211,6 +237,11 @@ class MainActivity : AppCompatActivity() {
     // Takes priority over selectedCategoryIds in applyCategoryFilter when set.
     private var selectedShelfItems: List<Channel>? = null
     private val expandedGroupKeys = mutableSetOf<String>()
+    /** Child rows for every expandable sidebar parent, from the last category build. Lets
+     *  expanding a row splice its children in rather than rerunning the whole build, which
+     *  rescans every channel in the tab. Refreshed on every build, so it can't outlive the
+     *  catalog/filters it was derived from. */
+    private var categoryChildrenCache: Map<String, List<CategoryFilter>> = emptyMap()
     private var nowPlayingChannel: Channel? = null
     private var resumePromptShown = false
     private var progressTickCount = 0
@@ -938,7 +969,19 @@ class MainActivity : AppCompatActivity() {
         return DerivedContent(groupedLive, liveVers, films, versions, filmShelvesLocal, series, seriesShelvesLocal)
     }
 
-    /** Groups already-sorted content by category into Netflix-style shelves, pinned first then biggest first; hidden categories are dropped entirely. */
+    /**
+     * Groups already-sorted content into Netflix-style shelves for Series/Films, in the same
+     * three blocks the sidebar uses: streaming services, then genre buckets, then the
+     * provider's own categories biggest-first. Pinned categories stay above all of it.
+     *
+     * The shelves are built here, not from the sidebar's category rows, which is why the
+     * poster view kept listing raw provider categories long after the sidebar had dynamic
+     * ones - two separate groupings over the same content. They agree now because both read
+     * the same brand keywords and the same VOD_DYNAMIC_BUCKETS.
+     *
+     * A raw category joins exactly one shelf, so nothing is double-listed: pinned wins, then
+     * brand, then genre, then it stays as itself.
+     */
     private fun buildShelves(list: List<Channel>, tab: Int): List<ContentShelf> {
         val pinned = getPinnedCategories(tab)
         val hidden = getHiddenCategories(tab)
@@ -948,9 +991,39 @@ class MainActivity : AppCompatActivity() {
             if (key in hidden) continue
             groups.getOrPut(key) { mutableListOf() }.add(ch)
         }
-        return groups.entries
-            .map { (title, items) -> ContentShelf(title, items, pinned = title in pinned) }
-            .sortedWith(compareBy({ !it.pinned }, { -it.items.size }))
+
+        fun genreFor(name: String): String? {
+            val lower = name.lowercase()
+            return VOD_DYNAMIC_BUCKETS.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
+        }
+
+        val pinnedShelves = mutableListOf<ContentShelf>()
+        val brandGroups = LinkedHashMap<String, MutableList<Channel>>()
+        val genreGroups = LinkedHashMap<String, MutableList<Channel>>()
+        val plainShelves = mutableListOf<ContentShelf>()
+        for ((title, items) in groups) {
+            val brand = brandForCategoryName(title)
+            val genre = genreFor(title)
+            when {
+                title in pinned -> pinnedShelves.add(ContentShelf(title, items, pinned = true))
+                brand != null -> brandGroups.getOrPut(brand) { mutableListOf() }.addAll(items)
+                genre != null -> genreGroups.getOrPut(genre) { mutableListOf() }.addAll(items)
+                else -> plainShelves.add(ContentShelf(title, items))
+            }
+        }
+
+        val brandShelves = brandGroups.entries.sortedBy { it.key.lowercase() }
+            .map { ContentShelf(it.key.uppercase(), it.value, pinned = it.key.uppercase() in pinned) }
+        // Bucket declaration order, not size - it's a fixed, familiar list of genres.
+        val genreShelves = VOD_DYNAMIC_BUCKETS.mapNotNull { (label, _) ->
+            genreGroups[label]?.let { ContentShelf(label.uppercase(), it, pinned = label.uppercase() in pinned) }
+        }
+        // The hidden check above is keyed on raw category names, so it can't catch a
+        // brand/genre shelf being hidden by its own (synthesised) title - filter those here.
+        return (pinnedShelves.sortedByDescending { it.items.size } +
+            brandShelves + genreShelves +
+            plainShelves.sortedByDescending { it.items.size })
+            .filterNot { it.title in hidden }
     }
 
     // ── Downloads (mobile only) ────────────────────
@@ -1181,7 +1254,12 @@ class MainActivity : AppCompatActivity() {
             // members, so it can be expanded into isChild rows later whether it ends up
             // top-level (classic layout) or nested under a dynamic bucket.
             fun groupUnit(group: CategoryGroup): Pair<CategoryFilter, List<CategoryFilter>> {
-                if (group.members.size == 1) return group.members.first() to group.members
+                // Brand groups keep their brand label even at one member. Collapsing them
+                // handed the row back its raw provider name ("VOD | PARAMOUNT+ (US)"), so a
+                // brand that happened to occupy a single provider category - Paramount+ on
+                // most catalogs - had no recognisable section in Films/Series at all, while
+                // multi-category brands like Disney did.
+                if (group.members.size == 1 && !group.isBrand) return group.members.first() to group.members
                 val groupId = "group:${group.label}"
                 val parent = CategoryFilter(
                     id = groupId,
@@ -1190,18 +1268,24 @@ class MainActivity : AppCompatActivity() {
                     pinned = pinned.contains(groupId),
                     matchIds = group.members.flatMap { it.matchIds }.toSet(),
                     isParent = true,
-                    expanded = expandedSnapshot.contains(groupId)
+                    expanded = expandedSnapshot.contains(groupId),
+                    // Brand groups are ours (Netflix/Paramount+/...); a plain merged group
+                    // is still the provider's own category name, just deduplicated.
+                    isDynamic = group.isBrand
                 )
                 return parent to group.members
             }
 
+            // Every parent's child rows, whether or not it's currently expanded, so a later
+            // expand can splice them straight in instead of rebuilding (see onCategoryClick).
+            val childrenByParent = mutableMapOf<String, List<CategoryFilter>>()
+
             fun expandUnit(unit: Pair<CategoryFilter, List<CategoryFilter>>): List<CategoryFilter> {
                 val (row, rawMembers) = unit
-                return if (row.isParent && row.expanded) {
-                    listOf(row) + rawMembers.sortedBy { it.name.lowercase() }.map { it.copy(isChild = true) }
-                } else {
-                    listOf(row)
-                }
+                if (!row.isParent) return listOf(row)
+                val children = rawMembers.sortedBy { it.name.lowercase() }.map { it.copy(isChild = true) }
+                row.id?.let { childrenByParent[it] = children }
+                return if (row.expanded) listOf(row) + children else listOf(row)
             }
 
             // Categories are frequently the same content repeated per quality tier
@@ -1218,7 +1302,18 @@ class MainActivity : AppCompatActivity() {
                 // Classic: show every raw provider category individually, no merging
                 leaves.map { it to emptyList<CategoryFilter>() }
             } else {
-                groupCategories(leaves).map(::groupUnit)
+                // A pin is recorded against a *raw* category id (togglePinCategory stores
+                // category.id, and in the classic list that's the leaf key). Grouping then
+                // folded that exact leaf into a "group:<label>" parent whose own id was
+                // never pinned, so pinning something in the classic view and switching back
+                // here made it disappear: the pin still existed, but nothing at top level
+                // carried it and the leaf itself only reappeared if you expanded the parent.
+                // Holding pinned leaves out of the merge keeps them as their own rows, which
+                // is what a pin means - and they then land in pinnedRows, directly beneath
+                // the dynamic buckets.
+                val (pinnedLeaves, groupableLeaves) = leaves.partition { it.id in pinned }
+                groupCategories(groupableLeaves).map(::groupUnit) +
+                    pinnedLeaves.map { it to emptyList<CategoryFilter>() }
             }
             val brandUnits = if (tab == 0 && !useClassicLayout) {
                 deriveBrandCategories(list).map { (label, members) ->
@@ -1228,7 +1323,8 @@ class MainActivity : AppCompatActivity() {
                         name = label,
                         count = members.size,
                         pinned = pinned.contains(brandId),
-                        channelIds = members.map { it.id }.toSet()
+                        channelIds = members.map { it.id }.toSet(),
+                        isDynamic = true
                     ) to emptyList<CategoryFilter>()
                 }
             } else {
@@ -1236,21 +1332,33 @@ class MainActivity : AppCompatActivity() {
             }
             val allUnits = groupUnits + brandUnits
 
-            // Live TV leads with a handful of dynamic buckets (Sports/News/Music/Cinema)
-            // that vacuum up every matching category/brand row regardless of which raw
-            // provider category it actually lives in; everything left over cascades below,
-            // same priority order as before this existed. The classic pref bypasses this
-            // entirely and shows the old flat/grouped list, for anyone who prefers it.
-            val (bucketRows, bucketedIds) = if (tab == 0 && !useClassicLayout) {
+            // Every tab leads with a handful of dynamic buckets - Sports/News/Music/Cinema on
+            // Live TV, genres on Films/Series - that vacuum up every matching category/brand
+            // row regardless of which raw provider category it actually lives in; everything
+            // left over cascades below, same priority order as before this existed. The
+            // classic pref (Live TV only) bypasses this and shows the old flat/grouped list.
+            val dynamicBuckets = if (tab == 0) LIVE_DYNAMIC_BUCKETS else VOD_DYNAMIC_BUCKETS
+            val (bucketRows, bucketedIds) = if (!useClassicLayout) {
                 fun bucketFor(name: String): String? {
                     val lower = name.lowercase()
-                    return LIVE_DYNAMIC_BUCKETS.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
+                    return dynamicBuckets.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
                 }
                 val bucketed = LinkedHashMap<String, MutableList<Pair<CategoryFilter, List<CategoryFilter>>>>()
-                allUnits.forEach { unit -> bucketFor(unit.first.name)?.let { bucketed.getOrPut(it) { mutableListOf() }.add(unit) } }
-                val rows = LIVE_DYNAMIC_BUCKETS.mapNotNull { (label, _) ->
+                // Pinned categories are exempt. A pin is an explicit "keep this one where I
+                // can reach it", and a bucket swallowed it into a collapsed parent - pin a
+                // category from the classic list, switch back to the grouped view, and it
+                // was gone from the top of the sidebar entirely. Skipping them here leaves
+                // them in the remainder, which lands them in pinnedRows directly beneath
+                // the buckets.
+                // Brand rows are exempt for the same reason: they're a row in their own
+                // right, listed above the buckets, not something to fold into a genre.
+                allUnits.forEach { unit ->
+                    if (unit.first.pinned || (tab != 0 && unit.first.isDynamic)) return@forEach
+                    bucketFor(unit.first.name)?.let { bucketed.getOrPut(it) { mutableListOf() }.add(unit) }
+                }
+                val rows = dynamicBuckets.mapNotNull { (label, _) ->
                     val members = bucketed[label] ?: return@mapNotNull null
-                    val bucketId = "dynbucket:$label"
+                    val bucketId = "$DYNAMIC_BUCKET_ID_PREFIX$label"
                     val expanded = expandedSnapshot.contains(bucketId)
                     val channelIds = members.flatMap { (row, _) ->
                         row.channelIds.ifEmpty { list.filter { ch -> ch.filterKey() in row.matchIds }.map { it.id } }
@@ -1262,21 +1370,22 @@ class MainActivity : AppCompatActivity() {
                         pinned = pinned.contains(bucketId),
                         channelIds = channelIds,
                         isParent = true,
-                        expanded = expanded
+                        expanded = expanded,
+                        isDynamic = true
                     )
-                    if (expanded) {
-                        // Sky Sports/TNT Sports are what people actually look for under
-                        // Sports - surface them before whatever else clustered in there.
-                        fun childPriority(name: String): Int = when {
-                            name.lowercase().startsWith("sky sports") -> 0
-                            name.lowercase().startsWith("tnt sports") -> 1
-                            else -> 2
-                        }
-                        listOf(parent) + members.map { it.first.copy(isChild = true, isParent = false, expanded = false) }
-                            .sortedWith(compareBy({ childPriority(it.name) }, { it.name.lowercase() }))
-                    } else {
-                        listOf(parent)
+                    // Sky Sports/TNT Sports are what people actually look for under
+                    // Sports - surface them before whatever else clustered in there.
+                    fun childPriority(name: String): Int = when {
+                        name.lowercase().startsWith("sky sports") -> 0
+                        name.lowercase().startsWith("tnt sports") -> 1
+                        else -> 2
                     }
+                    // Built even while collapsed, and cached, so expanding is a splice
+                    // rather than a full rescan of the tab.
+                    val children = members.map { it.first.copy(isChild = true, isParent = false, expanded = false) }
+                        .sortedWith(compareBy({ childPriority(it.name) }, { it.name.lowercase() }))
+                    childrenByParent[bucketId] = children
+                    if (expanded) listOf(parent) + children else listOf(parent)
                 }.flatten()
                 rows to bucketed.values.flatten().map { it.first.id }.toSet()
             } else {
@@ -1286,11 +1395,25 @@ class MainActivity : AppCompatActivity() {
             // leaves, alphabetical within each cluster - sorted here, at the unit level,
             // so an expanded parent's own children stay adjacent to it (sorting the already-
             // flattened rows would scatter them back in with unrelated leaves by name).
-            val remainderUnits = allUnits.filter { it.first.id !in bucketedIds }
+            val leftoverUnits = allUnits.filter { it.first.id !in bucketedIds }
+            // Series/Films puts the streaming services (Netflix/Paramount+/...) above the
+            // genre buckets - they're the row people go looking for by name - and the
+            // provider's own categories below both. Splitting them out here rather than
+            // sorting them to the front keeps the three blocks separable at assembly time.
+            val (serviceUnits, plainUnits) =
+                if (tab != 0) leftoverUnits.partition { it.first.isDynamic } else emptyList<Pair<CategoryFilter, List<CategoryFilter>>>() to leftoverUnits
+            val remainderUnits = plainUnits
                 .let { units ->
-                    if (tab != 0) units.sortedWith(compareBy({ if (isAdultCategory(it.first.name)) 1 else 0 }, { if (it.first.isParent) 0 else 1 }, { it.first.name.lowercase() }))
+                    if (tab != 0) units.sortedWith(
+                        compareBy(
+                            { if (isAdultCategory(it.first.name)) 1 else 0 },
+                            { if (it.first.isParent) 0 else 1 },
+                            { it.first.name.lowercase() }
+                        )
+                    )
                     else units
                 }
+            val brandRows = serviceUnits.sortedBy { it.first.name.lowercase() }.flatMap(::expandUnit)
             val cascadeRows = remainderUnits.flatMap(::expandUnit)
 
             val (pinnedRows, unpinnedRows) = cascadeRows.partition { it.pinned }
@@ -1313,8 +1436,10 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
             }
-            // Dynamic buckets (Sports/News/Music/Cinema) surface first as the main
-            // browsing entry points; pinned categories sit directly beneath them.
+            // Series/Films: streaming services, then genre buckets, then pins, then the
+            // provider's own list. Live TV has no brand block here (its brand rows come from
+            // deriveBrandCategories and go through bucketing), so it just leads with buckets.
+            result += brandRows
             result += bucketRows
             result += pinnedRows.sortedBy { it.name.lowercase() }
             if (tab == 0) result.add(allRow)
@@ -1326,9 +1451,10 @@ class MainActivity : AppCompatActivity() {
                 // alphabetical within each) - re-sorting here would undo that.
                 unpinnedRows
             }
-            result
+            result to childrenByParent.toMap()
         }
-        return categories
+        categoryChildrenCache = categories.second
+        return categories.first
     }
 
     /** Column count for the single-category poster grid, sized off the RecyclerView's actual
@@ -1411,10 +1537,21 @@ class MainActivity : AppCompatActivity() {
             1 -> {
                 val source = seriesList
                 val shelfItems = selectedShelfItems
+                // A dynamic row (genre bucket or streaming service) carries an explicit set
+                // of channel ids rather than provider category ids, because it deliberately
+                // spans several of them. Only Live TV honoured that, so on Series/Films
+                // picking one set matchIds to null and fell straight through to the "no
+                // filter, show the shelves" branch - which looked like the click did nothing.
+                val brandIds = selectedBrandChannelIds
                 if (shelfItems != null) {
                     setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                     binding.seriesContent.adapter = seriesGridAdapter
                     seriesGridAdapter.submitList(shelfItems)
+                } else if (brandIds != null) {
+                    val filtered = withContext(Dispatchers.Default) { source.filter { it.id in brandIds } }
+                    setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
+                    binding.seriesContent.adapter = seriesGridAdapter
+                    seriesGridAdapter.submitList(filtered)
                 } else if (matchIds == null) {
                     binding.seriesContent.layoutManager = LinearLayoutManager(this)
                     binding.seriesContent.adapter = seriesShelfAdapter
@@ -1430,10 +1567,16 @@ class MainActivity : AppCompatActivity() {
             2 -> {
                 val source = filmList
                 val shelfItems = selectedShelfItems
+                val brandIds = selectedBrandChannelIds // see the Series branch above
                 if (shelfItems != null) {
                     setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
                     binding.filmsContent.adapter = filmsGridAdapter
                     filmsGridAdapter.submitList(shelfItems)
+                } else if (brandIds != null) {
+                    val filtered = withContext(Dispatchers.Default) { source.filter { it.id in brandIds } }
+                    setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
+                    binding.filmsContent.adapter = filmsGridAdapter
+                    filmsGridAdapter.submitList(filtered)
                 } else if (matchIds == null) {
                     binding.filmsContent.layoutManager = LinearLayoutManager(this)
                     binding.filmsContent.adapter = filmsShelfAdapter
@@ -1490,11 +1633,28 @@ class MainActivity : AppCompatActivity() {
                 categoryAdapter.setSelected(selectedRowId)
                 scope.launch { applyCategoryFilter() }
             } else {
-                // Was collapsed -> expanding: needs the full child tree data, so a real
-                // rebuild is required.
-                scope.launch {
-                    rebuildCategoriesForActiveTab()
-                    applyCategoryFilter()
+                // Was collapsed -> expanding. The children were already computed by the
+                // last build and cached, so splice them in the same way collapse removes
+                // them. This used to run a full rebuild - a rescan of every channel in the
+                // tab - which is why expanding lagged while collapsing was instant.
+                val children = id?.let { categoryChildrenCache[it] }
+                if (children != null) {
+                    val currentList = categoryAdapter.currentList.toMutableList()
+                    val parentIdx = currentList.indexOfFirst { it.id == id }
+                    if (parentIdx >= 0) {
+                        currentList[parentIdx] = currentList[parentIdx].copy(expanded = true)
+                        currentList.addAll(parentIdx + 1, children)
+                    }
+                    categoryAdapter.submitList(currentList)
+                    categoryAdapter.setSelected(selectedRowId)
+                    scope.launch { applyCategoryFilter() }
+                } else {
+                    // No cached children (first build hasn't run, or the row postdates it) -
+                    // fall back to the full rebuild rather than silently expanding to nothing.
+                    scope.launch {
+                        rebuildCategoriesForActiveTab()
+                        applyCategoryFilter()
+                    }
                 }
             }
         } else {
@@ -1605,15 +1765,33 @@ class MainActivity : AppCompatActivity() {
         homeShelfAdapter.submitList(buildHomeShelves())
     }
 
+    /** Adult content never reaches a Home shelf, regardless of the "Hide adult categories"
+     *  setting. That setting governs *browsing* - somebody who unlocks it with the PIN is
+     *  choosing to go and look. Continue Watching and Recently Played are different: they
+     *  render unprompted on the first screen after launch, in front of whoever happens to
+     *  be in the room, so they stay filtered either way.
+     *
+     *  Three signals, in order of trust: the catalog entry for this id (authoritative, but
+     *  only for items still in the catalog - a series episode never is), the category/group
+     *  snapshotted at save time, then the title itself as a last resort for entries written
+     *  before that snapshot existed. The title check can over-match a legitimate film with
+     *  "adult" in its name, which is the right way round to be wrong here. */
+    private fun isAdultHomeItem(item: Channel): Boolean {
+        val catalog = item.id.takeIf { it.isNotBlank() }?.let { id -> allChannels.firstOrNull { it.id == id } }
+        return isAdultCategory(catalog?.categoryName ?: item.categoryName, catalog?.group ?: item.group) ||
+            isAdultCategory(item.name)
+    }
+
     private fun buildHomeShelves(): List<ContentShelf> {
         val shelves = mutableListOf<ContentShelf>()
         val hidden = getHiddenHomeShelves()
 
-        val continueItems = PlaybackPositionStore.getAllInProgress(this)
+        val continueItems = PlaybackPositionStore.getAllInProgress(this).filterNot(::isAdultHomeItem)
         if (continueItems.isNotEmpty()) shelves.add(ContentShelf("Continue Watching", continueItems))
 
         val recentItems = RecentlyPlayedStore.getRecentIds(this)
             .mapNotNull { id -> liveChannels.firstOrNull { it.id == id } }
+            .filterNot(::isAdultHomeItem)
         if (recentItems.isNotEmpty()) shelves.add(ContentShelf("Recently Played", recentItems))
 
         val favIds = FavoritesStore.getFavoriteSeriesIds(this)
@@ -1656,6 +1834,12 @@ class MainActivity : AppCompatActivity() {
         selectedCategoryLabel = null
         selectedShelfItems = null
         expandedGroupKeys.clear()
+        // Nothing from the outgoing tab stays on screen while the new one builds. The
+        // sidebar and the content pane were both left up until submitCategories() replaced
+        // them, so switching tabs showed the previous tab's categories - and, for a moment,
+        // its posters - under the new tab's highlight. Both come back below, populated.
+        binding.categorySidebar.visibility = View.GONE
+        binding.contentRow.visibility = View.GONE
         scope.launch {
             // Building categories/filtering thousands of channels can take a couple of
             // seconds on a large catalog - show the same loading indicator as app startup
@@ -1668,13 +1852,19 @@ class MainActivity : AppCompatActivity() {
             // exists and again with it expanded - buildCategoriesForActiveTab() rescans
             // every channel in the tab (brand clustering especially), so on a large catalog
             // halving those passes is a real difference in how long the tab takes to open.
-            if (index == 0) expandedGroupKeys.add("dynbucket:Sports")
+            if (index == 0) expandedGroupKeys.add("${DYNAMIC_BUCKET_ID_PREFIX}Sports")
             val categories = buildCategoriesForActiveTab()
             if (index == 0) {
-                // Falls through to the bucket itself, then to All, if either's missing
-                // (e.g. classic layout, or no matching channels in the catalog).
-                val target = categories.firstOrNull { it.isChild && it.name.lowercase().startsWith("sky sports") }
-                    ?: categories.firstOrNull { it.id == "dynbucket:Sports" }
+                // Sky Sports as a child of the Sports bucket is the usual shape, but it
+                // isn't the only one: pinning it (or its raw category) holds it out of
+                // bucketing on purpose, so it sits at top level instead and the isChild
+                // lookup alone would miss it and fall back to the whole Sports bucket.
+                // Falls through to the bucket, then to All, if none of it exists (classic
+                // layout, or no matching channels in the catalog).
+                fun isSkySports(c: CategoryFilter) = c.name.lowercase().startsWith("sky sports")
+                val target = categories.firstOrNull { it.isChild && isSkySports(it) }
+                    ?: categories.firstOrNull(::isSkySports)
+                    ?: categories.firstOrNull { it.id == "${DYNAMIC_BUCKET_ID_PREFIX}Sports" }
                 if (target != null) {
                     selectedRowId = target.id
                     selectedCategoryLabel = target.name
@@ -1685,6 +1875,10 @@ class MainActivity : AppCompatActivity() {
             submitCategories(categories)
             applyCategoryFilter(focusFirstLiveChannel = index == 0)
             binding.categorySidebar.scrollToPosition(0)
+            // Only now, with rows and content both in place. submitCategories() decides
+            // whether the sidebar is warranted at all (a single row isn't worth one), so
+            // don't override its call here.
+            binding.contentRow.visibility = View.VISIBLE
             setStatus("", visible = false)
         }
     }
@@ -2197,6 +2391,31 @@ class MainActivity : AppCompatActivity() {
         binding.btnRefresh.setOnClickListener { reloadCurrentProvider() }
         binding.btnSearch.setOnClickListener { showSearchDialog() }
         binding.emptyQrPair.setOnClickListener { showProviderSettings() }
+        binding.emptyTryDemo.setOnClickListener { addDemoProvider() }
+    }
+
+    /** Adds the public Free-TV playlist as an ordinary enabled M3U provider and loads it.
+     *  Deliberately a real provider entry rather than a separate "demo mode": it then shows
+     *  up in Settings > Providers like any other, can be disabled or removed there, and
+     *  every code path downstream (fetch, cache, categories, playback) is the same one a
+     *  configured user hits - so what the demo shows is what the app actually does.
+     *
+     *  Re-clicking it once it exists just reloads rather than adding a duplicate. */
+    private fun addDemoProvider() {
+        val existing = IptvProviderStore.load(prefs).firstOrNull { it.url == DEMO_PLAYLIST_URL }
+        if (existing == null) {
+            IptvProviderStore.upsert(prefs, IptvProviderConfig(
+                id = IptvProviderStore.newId(),
+                type = "m3u",
+                name = DEMO_PROVIDER_NAME,
+                enabled = true,
+                url = DEMO_PLAYLIST_URL
+            ))
+        } else if (!existing.enabled) {
+            IptvProviderStore.setEnabled(prefs, existing.id, true)
+        }
+        Toast.makeText(this, "Loading demo playlist…", Toast.LENGTH_SHORT).show()
+        loadAllConfiguredProviders(forceRefresh = true)
     }
 
     // ── Search ───────────────────────────────────────
@@ -3331,16 +3550,11 @@ class MainActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     private fun showProviderSettings() {
         val dialogView = layoutInflater.inflate(R.layout.activity_settings, null)
-        // Constrain settings width on TV to avoid an overly wide stretched panel
-        if (isTv) {
-            val maxWidthDp = 660
-            val maxWidthPx = (maxWidthDp * resources.displayMetrics.density).toInt()
-            val screenWidth = resources.displayMetrics.widthPixels
-            val width = minOf(screenWidth, maxWidthPx)
-            dialogView.layoutParams = FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                gravity = android.view.Gravity.CENTER_HORIZONTAL
-            }
-        }
+        // Deliberately no width cap here. Settings used to be pinned to 660dp and centred on
+        // TV, which left a wide band of the tab background down both sides - it read as a
+        // floating pop-out rather than a screen, and squeezed the two-pane layout (nav rail
+        // plus content) into a column too narrow for either. It now fills its slot, and
+        // reading measure is held by settings_content_inset on the content column instead.
         val typeM3u = dialogView.findViewById<View>(R.id.settingsTypeM3u)
         val typeXtream = dialogView.findViewById<View>(R.id.settingsTypeXtream)
         val typeStalker = dialogView.findViewById<View>(R.id.settingsTypeStalker)
@@ -3745,6 +3959,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         addIptvProviderButton.setOnClickListener { openIptvForm(null) }
+        val tryDemoButton = dialogView.findViewById<View>(R.id.settingsTryDemo)
+        tryDemoButton.visibility =
+            if (IptvProviderStore.load(prefs).any { it.url == DEMO_PLAYLIST_URL }) View.GONE else View.VISIBLE
+        tryDemoButton.setOnClickListener {
+            dialog.dismiss()
+            addDemoProvider()
+        }
         iptvFormCancel.setOnClickListener { closeIptvForm() }
 
         renderIptvProviderList()

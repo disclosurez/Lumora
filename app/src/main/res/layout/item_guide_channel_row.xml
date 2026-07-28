@@ -22,15 +22,20 @@
         android:gravity="center_vertical"
         android:minHeight="@dimen/guide_row_min_height"
         android:orientation="horizontal"
-        android:paddingHorizontal="2dp"
+        android:paddingStart="5dp"
+        android:paddingEnd="6dp"
         android:paddingVertical="4dp"
         android:stateListAnimator="@animator/focus_scale">
 
+        <!-- Hidden (not just blank) by the adapter when the channel has no number: at
+             wrap_content with a minWidth it still reserved its column on every row, so a
+             catalog with no tvg-chno at all indented every logo by a strip of empty space
+             that looked like padding. -->
         <TextView
             android:id="@+id/guideChannelNumber"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minWidth="10dp"
+            android:layout_marginEnd="4dp"
             android:gravity="center"
             android:textColor="@color/text_tertiary"
             android:textSize="@dimen/guide_channel_number_text"
@@ -39,7 +44,6 @@
         <FrameLayout
             android:layout_width="@dimen/guide_channel_logo_size"
             android:layout_height="@dimen/guide_channel_logo_size"
-            android:layout_marginStart="2dp"
             android:background="@drawable/shape_logo_box">
 
             <TextView

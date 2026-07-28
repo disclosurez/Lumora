@@ -20,5 +20,9 @@ data class CategoryFilter(
     val isParent: Boolean = false,
     val isChild: Boolean = false,
     val expanded: Boolean = false,
-    val channelIds: Set<String> = emptySet()
+    val channelIds: Set<String> = emptySet(),
+    /** A row the app synthesised rather than one the provider named: Live TV's dynamic
+     *  buckets and the brand rows on every tab. Rendered uppercase to separate them from
+     *  the provider's own categories listed below them. */
+    val isDynamic: Boolean = false
 )

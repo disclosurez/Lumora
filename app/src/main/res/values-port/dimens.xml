@@ -12,8 +12,8 @@
     <dimen name="guide_channel_column_width">150dp</dimen>
 
     <!-- Toolbar: 20dp of padding either side plus a labelled search button and two 48dp icon
-         buttons left the title almost no room on a 360dp screen. -->
-    <dimen name="toolbar_height">56dp</dimen>
+         buttons left the title almost no room on a 360dp screen. The bar itself is
+         wrap_content - these buttons are what set its height. -->
     <dimen name="toolbar_padding_horizontal">12dp</dimen>
     <dimen name="toolbar_button_size">42dp</dimen>
 
@@ -21,7 +21,7 @@
          The row scrolls rather than clipping now, but tightening the pills means the first
          few are reachable without scrolling at all. -->
     <dimen name="tab_padding_horizontal">14dp</dimen>
-    <dimen name="tab_bar_height">54dp</dimen>
+    <dimen name="tab_padding_vertical">10dp</dimen>
     <dimen name="tab_text">12sp</dimen>
 
     <!-- With the sidebar taking 140dp of a 360dp screen, the 128dp default column width

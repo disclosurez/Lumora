@@ -22,7 +22,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_primary"
-            android:textSize="@dimen/text_body"
+            android:textSize="@dimen/shelf_title_text"
             android:textStyle="bold" />
 
         <TextView
@@ -33,13 +33,13 @@
             android:background="@drawable/bg_select_item"
             android:clickable="true"
             android:focusable="true"
-            android:paddingHorizontal="10dp"
+            android:paddingHorizontal="14dp"
             android:paddingVertical="8dp"
             android:stateListAnimator="@animator/focus_scale"
             android:text="See All"
             android:textAllCaps="true"
             android:textColor="@color/primary_light"
-            android:textSize="@dimen/text_tiny"
+            android:textSize="@dimen/shelf_action_text"
             android:textStyle="bold" />
 
         <TextView

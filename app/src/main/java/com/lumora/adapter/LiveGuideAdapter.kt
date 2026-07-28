@@ -177,7 +177,11 @@ class LiveGuideAdapter(
             channelInfo.translationX = 0f
             channelInfo.translationY = 0f
             channelInfo.translationZ = 0f
-            numberText.text = channel.tvgChno?.takeIf { it.isNotBlank() } ?: ""
+            val number = channel.tvgChno?.takeIf { it.isNotBlank() }
+            numberText.text = number ?: ""
+            // GONE, not blank: an empty TextView still measures its own width and pushes
+            // the logo right on every row of a catalog that carries no channel numbers.
+            numberText.visibility = if (number == null) View.GONE else View.VISIBLE
             nameText.text = channel.name.let { if (it.length > 50) it.take(49) + "…" else it }
 
             val initial = channel.name.firstOrNull()?.uppercase() ?: "?"

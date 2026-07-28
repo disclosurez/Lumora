@@ -17,16 +17,20 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
-        <!-- Top Toolbar with D-pad friendly buttons -->
+        <!-- Top Toolbar with D-pad friendly buttons. Height is wrap_content, not a fixed
+             toolbar_height: the tallest child (the search/settings/refresh buttons, which
+             are sized off the type scale) decides how tall the bar is, so the bar tracks
+             the text instead of holding a constant box around whatever is inside it. -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="@dimen/toolbar_height"
+            android:layout_height="wrap_content"
             android:background="@android:color/transparent"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="@dimen/toolbar_padding_horizontal"
             android:paddingEnd="@dimen/toolbar_padding_horizontal"
-            android:paddingTop="8dp">
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
 
             <!-- ellipsize/maxLines: the title takes the leftover weight, which on a portrait
                  phone is whatever the search + settings + refresh buttons don't use. Without
@@ -41,7 +45,7 @@
                 android:maxLines="1"
                 android:text="@string/app_name"
                 android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_subhead"
+                android:textSize="@dimen/toolbar_title_text"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -65,8 +69,8 @@
                     android:nextFocusRight="@id/btnSettings">
 
                     <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
+                        android:layout_width="@dimen/toolbar_search_icon_size"
+                        android:layout_height="@dimen/toolbar_search_icon_size"
                         android:src="@android:drawable/ic_menu_search"
                         android:tint="@color/text_primary" />
 
@@ -94,8 +98,8 @@
                     android:nextFocusRight="@id/btnRefresh">
 
                     <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="@dimen/toolbar_icon_size"
+                        android:layout_height="@dimen/toolbar_icon_size"
                         android:src="@drawable/ic_settings" />
                 </LinearLayout>
 
@@ -112,8 +116,8 @@
                     android:nextFocusLeft="@id/btnSettings">
 
                     <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="@dimen/toolbar_icon_size"
+                        android:layout_height="@dimen/toolbar_icon_size"
                         android:src="@drawable/ic_refresh" />
                 </LinearLayout>
             </LinearLayout>
@@ -134,7 +138,7 @@
         <HorizontalScrollView
             android:id="@+id/tabBar"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/tab_bar_height"
+            android:layout_height="wrap_content"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:fillViewport="true"
@@ -143,7 +147,7 @@
         <LinearLayout
             android:id="@+id/tabBarRow"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:background="@android:color/transparent"
             android:clipChildren="false"
             android:clipToPadding="false"
@@ -155,8 +159,9 @@
             <TextView
                 android:id="@+id/tabHome"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginEnd="3dp"
+                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
                 android:ellipsize="end"
@@ -177,8 +182,9 @@
             <TextView
                 android:id="@+id/tabLive"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
+                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
                 android:ellipsize="end"
@@ -198,8 +204,9 @@
             <TextView
                 android:id="@+id/tabSeries"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
+                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
                 android:ellipsize="end"
@@ -219,8 +226,9 @@
             <TextView
                 android:id="@+id/tabFilms"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="3dp"
+                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
                 android:ellipsize="end"
@@ -240,8 +248,9 @@
             <TextView
                 android:id="@+id/tabDownloads"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="3dp"
+                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
                 android:ellipsize="end"
@@ -348,7 +357,39 @@
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/text_body_s" />
                 </LinearLayout>
+
+                <!-- Loads a public free-to-air playlist as a real M3U provider, so the app
+                     can be tried end to end before anyone has credentials to type in. -->
+                <LinearLayout
+                    android:id="@+id/emptyTryDemo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="56dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@drawable/bg_focus_item"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingHorizontal="24dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Try the Demo"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/text_body_s" />
+                </LinearLayout>
             </LinearLayout>
+
+            <TextView
+                android:id="@+id/emptyDemoHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginHorizontal="24dp"
+                android:gravity="center"
+                android:text="The demo adds a free public playlist (Free-TV/IPTV) you can remove any time in Settings"
+                android:textColor="@color/text_tertiary"
+                android:textSize="@dimen/text_caption" />
         </LinearLayout>
 
         <!-- Home: continue watching / recently played / favorites shelves -->
@@ -400,8 +441,6 @@
                 android:layout_marginTop="4dp"
                 android:layout_marginBottom="12dp"
                 android:background="@drawable/bg_category_panel"
-                android:clipChildren="false"
-                android:clipToPadding="false"
                 android:defaultFocusHighlightEnabled="true"
                 android:padding="10dp"
                 android:visibility="gone" />
@@ -418,6 +457,8 @@
                     android:id="@+id/liveRow"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
                     android:visibility="visible">
 
                     <!-- Guide runs full width by default; the preview pane floats on top in the
@@ -426,9 +467,17 @@
                          at runtime (see updateGuideRowWrap() in MainActivity) so the guide reads
                          as text wrapping around the preview - narrow while a row overlaps it,
                          full width again for every row below it. -->
+                    <!-- clipChildren/clipToPadding false: liveContent's rows are flush with
+                         this layout's content box, so the focused channel-info card's 1.06x
+                         scale-up grew straight into the 16dp padding and got clipped - the
+                         focus stroke lost its left edge entirely. The RecyclerView already
+                         disabled both flags; without them here too, its parent clipped what
+                         it had allowed through. -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
                         android:orientation="vertical"
                         android:paddingHorizontal="16dp">
 
@@ -466,7 +515,9 @@
                         <FrameLayout
                             android:layout_width="match_parent"
                             android:layout_height="0dp"
-                            android:layout_weight="1">
+                            android:layout_weight="1"
+                            android:clipChildren="false"
+                            android:clipToPadding="false">
 
                             <androidx.recyclerview.widget.RecyclerView
                                 android:id="@+id/liveContent"

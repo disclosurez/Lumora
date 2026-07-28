@@ -194,7 +194,8 @@
                 <LinearLayout
                     android:id="@+id/settingsAddIptvProvider"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -207,6 +208,30 @@
                         android:layout_height="wrap_content"
                         android:text="+ Add Provider"
                         android:textColor="@color/accent"
+                        android:textSize="@dimen/settings_text_body"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Same action as the empty state's "Try the Demo" - reachable here too,
+                     since someone who removes their last provider lands in Settings rather
+                     than on the empty screen. Hidden once the demo playlist is present. -->
+                <LinearLayout
+                    android:id="@+id/settingsTryDemo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Try the Demo playlist"
+                        android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_body"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -399,7 +424,8 @@
                     <LinearLayout
                         android:id="@+id/settingsShowQrButton"
                         android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                        android:layout_height="wrap_content"
+                        android:paddingVertical="@dimen/settings_row_padding_vertical"
                         android:layout_marginTop="12dp"
                         android:background="@drawable/bg_outline_button"
                         android:clickable="true"
@@ -494,7 +520,8 @@
                     <EditText
                         android:id="@+id/settingsProviderName"
                         android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                        android:layout_height="wrap_content"
+                        android:paddingVertical="@dimen/settings_row_padding_vertical"
                         android:layout_marginTop="4dp"
                         android:background="@drawable/bg_input"
                         android:hint="e.g. My IPTV"
@@ -519,7 +546,8 @@
                         <EditText
                             android:id="@+id/settingsM3uUrl"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="@string/m3u_url_hint"
@@ -533,7 +561,8 @@
                         <EditText
                             android:id="@+id/settingsUserAgent"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="@string/user_agent_hint"
@@ -556,7 +585,8 @@
                         <EditText
                             android:id="@+id/settingsXtreamUrl"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="http://example.com:8080"
@@ -570,7 +600,8 @@
                         <EditText
                             android:id="@+id/settingsXtreamUser"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="Username"
@@ -584,7 +615,8 @@
                         <EditText
                             android:id="@+id/settingsXtreamPass"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="Password"
@@ -618,7 +650,8 @@
                         <EditText
                             android:id="@+id/settingsStalkerUrl"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="http://example.com:8080"
@@ -632,7 +665,8 @@
                         <EditText
                             android:id="@+id/settingsStalkerMac"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="@string/stalker_mac_hint"
@@ -656,7 +690,8 @@
                         <EditText
                             android:id="@+id/settingsJellyfinUrl"
                             android:layout_width="match_parent"
-                            android:layout_height="44dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="http://192.168.1.100:8096"
@@ -669,7 +704,8 @@
                         <LinearLayout
                             android:id="@+id/settingsJellyfinQuickConnect"
                             android:layout_width="match_parent"
-                            android:layout_height="44dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="12dp"
                             android:background="@drawable/card_surface_background"
                             android:clickable="true"
@@ -690,7 +726,8 @@
                         <EditText
                             android:id="@+id/settingsJellyfinUser"
                             android:layout_width="match_parent"
-                            android:layout_height="44dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="Jellyfin username"
@@ -704,7 +741,8 @@
                         <EditText
                             android:id="@+id/settingsJellyfinPass"
                             android:layout_width="match_parent"
-                            android:layout_height="44dp"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_input"
                             android:hint="Password"
@@ -745,7 +783,8 @@
                 <LinearLayout
                     android:id="@+id/settingsRecordingStorage"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -757,7 +796,8 @@
                 <LinearLayout
                     android:id="@+id/settingsDecoderMode"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -770,7 +810,8 @@
                 <LinearLayout
                     android:id="@+id/settingsAvOffset"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -805,6 +846,19 @@
                     android:text="Hide non-English movies/series"
                     android:textColor="@color/text_primary"
                     android:textSize="@dimen/settings_text_body" />
+
+                <!-- Lives here, not under Privacy: it filters the catalogue exactly like the
+                     non-English toggle above it. The parental PIN that gates unchecking it
+                     stays under Privacy, which is where the PIN itself is managed. -->
+                <CheckBox
+                    android:id="@+id/settingsHideAdult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:checked="true"
+                    android:text="Hide adult categories"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body" />
             </LinearLayout>
 
             <!-- Pane: Privacy -->
@@ -817,20 +871,11 @@
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
-                <CheckBox
-                    android:id="@+id/settingsHideAdult"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="Hide adult categories"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/settings_text_body" />
-
                 <LinearLayout
                     android:id="@+id/settingsParentalPin"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="16dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -842,7 +887,8 @@
                 <LinearLayout
                     android:id="@+id/settingsClearHistory"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="16dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -866,7 +912,8 @@
                 <LinearLayout
                     android:id="@+id/settingsExportBackup"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -878,7 +925,8 @@
                 <LinearLayout
                     android:id="@+id/settingsImportBackup"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -902,7 +950,8 @@
                 <LinearLayout
                     android:id="@+id/settingsAddEpgSource"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -954,7 +1003,8 @@
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:background="@drawable/card_surface_background"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
@@ -966,7 +1016,8 @@
                 <LinearLayout
                     android:id="@+id/settingsGithubLink"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -982,7 +1033,8 @@
                 <LinearLayout
                     android:id="@+id/settingsCheckUpdate"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
                     android:layout_marginTop="10dp"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
@@ -1015,7 +1067,8 @@
         <LinearLayout
             android:id="@+id/settingsCancelButton"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:paddingVertical="@dimen/settings_row_padding_vertical"
             android:layout_marginEnd="12dp"
             android:background="@drawable/card_surface_background"
             android:clickable="true"
@@ -1035,7 +1088,8 @@
         <LinearLayout
             android:id="@+id/settingsSaveButton"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:paddingVertical="@dimen/settings_row_padding_vertical"
             android:background="@drawable/bg_play_button"
             android:clickable="true"
             android:focusable="true"

@@ -285,7 +285,10 @@ fun deriveBrandCategories(channels: List<Channel>): List<Pair<String, List<Chann
 
 // ── Category merging (Live TV) ─────────────────────────────────────────────
 
-data class CategoryGroup(val label: String, val members: List<CategoryFilter>)
+/** [isBrand] marks a group that came from [BRAND_KEYWORDS] rather than from name
+ *  normalisation. Callers treat those differently: a brand row keeps its brand label even
+ *  with one member, and Series/Films floats them to the top of the sidebar. */
+data class CategoryGroup(val label: String, val members: List<CategoryFilter>, val isBrand: Boolean = false)
 
 private val BRAND_KEYWORDS = linkedMapOf(
     "Disney" to listOf("disney"),
@@ -297,6 +300,14 @@ private val BRAND_KEYWORDS = linkedMapOf(
     "Peacock" to listOf("peacock"),
     "Discovery+" to listOf("discovery")
 )
+
+/** The streaming brand a provider category name belongs to ("HBO MAX SERIES" -> "HBO / Max"),
+ *  or null if it names no brand. Same keyword matching groupCategories() uses for the
+ *  sidebar, exposed so the Series/Films shelves can be grouped the same way. */
+fun brandForCategoryName(name: String?): String? {
+    val lower = name?.lowercase() ?: return null
+    return BRAND_KEYWORDS.entries.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.key
+}
 
 // Paramount+ was defined in BRAND_KEYWORDS (so it already clustered in the sidebar) but
 // left out of this list, so its releases were the only major brand's missing from the
@@ -356,7 +367,7 @@ fun groupCategories(leaves: List<CategoryFilter>): List<CategoryGroup> {
     }
 
     val result = mutableListOf<CategoryGroup>()
-    for ((brand, members) in brandGroups) result.add(CategoryGroup(brand, members))
+    for ((brand, members) in brandGroups) result.add(CategoryGroup(brand, members, isBrand = true))
     for (members in normGroups.values) {
         val label = if (members.size > 1) cleanGroupLabel(members.first().name) else members.first().name
         result.add(CategoryGroup(label, members))

@@ -23,21 +23,33 @@
          Padding generally *shrinks* as type grows: the phone values pad small text inside
          generously-sized boxes, so keeping them would make the boxes balloon rather than the
          text simply read bigger. -->
-    <dimen name="settings_text_micro">15sp</dimen>
-    <dimen name="settings_text_caption">18sp</dimen>
-    <dimen name="settings_text_body">19sp</dimen>
-    <dimen name="settings_text_subtitle">22sp</dimen>
-    <dimen name="settings_text_section">25sp</dimen>
-    <dimen name="settings_text_title">28sp</dimen>
+    <!-- +30% over the phone scale (8/10/11/12/14/17sp), no more. An earlier pass ran this
+         up to 15-28sp, which is ~+65% - at that size the nav labels, pane titles and every
+         form label ballooned, descriptions wrapped to three lines, and the provider rows
+         squeezed their own text down to "ip / Xtr...". Settings is read while sitting still
+         and interacting, not glanced at across a room like the browse grid, so it does not
+         need the same headroom the poster/guide scales get. -->
+    <dimen name="settings_text_micro">10sp</dimen>
+    <dimen name="settings_text_caption">13sp</dimen>
+    <dimen name="settings_text_body">14sp</dimen>
+    <dimen name="settings_text_subtitle">16sp</dimen>
+    <dimen name="settings_text_section">18sp</dimen>
+    <dimen name="settings_text_title">22sp</dimen>
 
-    <dimen name="settings_nav_icon_size">38dp</dimen>
-    <dimen name="settings_nav_rail_width">310dp</dimen>
-    <dimen name="settings_type_card_height">72dp</dimen>
-    <dimen name="settings_input_min_height">56dp</dimen>
-    <!-- Keeps form text off the bezel and stops lines running the full 960dp of a 1080p
-         panel, which is well past a comfortable reading measure. Overrides the content
-         pane's uniform 24dp padding on the end edge only. -->
-    <dimen name="settings_content_inset">96dp</dimen>
+    <dimen name="settings_nav_icon_size">32dp</dimen>
+    <dimen name="settings_nav_rail_width">250dp</dimen>
+    <dimen name="settings_type_card_height">58dp</dimen>
+    <dimen name="settings_input_min_height">48dp</dimen>
+    <!-- Holds the options column to a readable width. The pane spans the full panel now that
+         the 660dp pop-out cap is gone, which left every card and input running ~700dp wide -
+         a button whose label sits in the middle of half a metre of background. This is the
+         only lever that narrows them: the panes are LinearLayouts, which ignore maxWidth.
+         Overrides the content pane's uniform 24dp padding on the end edge only. -->
+    <dimen name="settings_content_inset">200dp</dimen>
+
+    <!-- Vertical padding on settings card rows, which are wrap_content so their height is
+         whatever the label needs plus this - see values/dimens.xml. -->
+    <dimen name="settings_row_padding_vertical">12dp</dimen>
 
     <!-- Episode rows spanning the full width of a TV panel left the title stranded next to
          its thumbnail with a huge empty gap - inset the list so a row is a readable block. -->
@@ -55,25 +67,46 @@
     <dimen name="guide_channel_number_text">11sp</dimen>
     <dimen name="guide_channel_initial_text">13sp</dimen>
     <dimen name="guide_program_text">14sp</dimen>
-    <dimen name="guide_channel_logo_size">36dp</dimen>
-    <dimen name="guide_row_min_height">58dp</dimen>
-    <!-- The channel column has to grow with the bigger type/logo or names that used to fit
-         start ellipsising. Overrides the 170dp landscape default. -->
-    <dimen name="guide_channel_column_width">230dp</dimen>
-    <dimen name="category_sidebar_width">240dp</dimen>
+    <!-- Logo box and row height sized off the 13sp channel name rather than held at a fixed
+         box: a 13sp line is ~18dp, so 30dp of logo plus the row's 4dp padding either side is
+         all the height the content needs. The old 36dp/58dp pair was set when the type was
+         larger and left a visible band of empty background above and below every name. -->
+    <dimen name="guide_channel_logo_size">30dp</dimen>
+    <dimen name="guide_row_min_height">40dp</dimen>
+    <!-- Wide enough for the number, logo and a typical channel name at 13sp, and no wider -
+         every dp here is taken straight off the programme grid to its right. -->
+    <dimen name="guide_channel_column_width">190dp</dimen>
+    <!-- Narrower than the old 240dp: the rows are short labels with a count, and the width
+         they were given came straight off the guide grid and the poster columns next to
+         them. Long category names still ellipsise at 40 chars in the adapter regardless. -->
+    <dimen name="category_sidebar_width">200dp</dimen>
 
     <!-- Toolbar / tab bar / poster grid, all +~30% over the phone scale. Tab padding drops
          from 36dp to 22dp to keep the five-tab row inside the panel at the larger type. -->
-    <dimen name="toolbar_search_text">14sp</dimen>
+    <dimen name="toolbar_title_text">23sp</dimen>
+    <dimen name="toolbar_search_text">17sp</dimen>
+    <dimen name="toolbar_search_icon_size">22dp</dimen>
+    <dimen name="toolbar_icon_size">29dp</dimen>
     <dimen name="tab_text">17sp</dimen>
     <dimen name="tab_padding_horizontal">22dp</dimen>
-    <dimen name="tab_bar_height">76dp</dimen>
+    <dimen name="tab_padding_vertical">13dp</dimen>
     <dimen name="poster_title_text">13sp</dimen>
     <dimen name="poster_badge_text">10sp</dimen>
     <!-- Five columns instead of six makes each card wider, so the fixed-height poster has to
          grow with it or the artwork ends up letterboxed. -->
     <dimen name="poster_image_height">180dp</dimen>
+    <!-- Five per shelf row, not six. On a 1080p panel the row has ~724dp to work with
+         (960 minus the 200dp sidebar and its margin, minus the list's own padding), and each
+         card carries a 14dp end margin: 5 x (130 + 14) = 720dp. Image height keeps the 2:3
+         artwork ratio against the 114dp of card left inside the 8dp padding. -->
+    <dimen name="shelf_poster_width">130dp</dimen>
+    <dimen name="shelf_poster_image_height">171dp</dimen>
     <dimen name="content_body_text">17sp</dimen>
+
+    <!-- Shelf headers sit above the posters and name the row, so they carry more weight than
+         the 16sp/12sp they inherited from the shared scale. -->
+    <dimen name="shelf_title_text">22sp</dimen>
+    <dimen name="shelf_action_text">15sp</dimen>
 
     <!-- App-wide type scale, large-screen tier (see values/dimens.xml for the phone values
          and the rationale). Roughly +30% at the small end, tapering off at the top - a 48sp
@@ -91,7 +124,8 @@
     <dimen name="text_display">30sp</dimen>
     <dimen name="text_hero">56sp</dimen>
 
-    <dimen name="toolbar_button_size">56dp</dimen>
-    <dimen name="toolbar_height">68dp</dimen>
+    <!-- 44dp, not 56dp: these hold a 24dp icon, and with the toolbar now wrap_content they
+         are what makes it tall. A 56dp box around a 24dp glyph just padded the whole bar. -->
+    <dimen name="toolbar_button_size">44dp</dimen>
     <dimen name="toolbar_padding_horizontal">28dp</dimen>
 </resources>

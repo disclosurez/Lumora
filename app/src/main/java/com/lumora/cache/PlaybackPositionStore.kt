@@ -79,7 +79,14 @@ object PlaybackPositionStore {
                                 url = c.optString("url"),
                                 logoUrl = c.optString("logoUrl", null),
                                 posterUrl = c.optString("posterUrl", null),
-                                mediaType = runCatching { MediaType.valueOf(c.optString("mediaType")) }.getOrDefault(MediaType.MOVIE)
+                                mediaType = runCatching { MediaType.valueOf(c.optString("mediaType")) }.getOrDefault(MediaType.MOVIE),
+                                // Kept so Continue Watching can tell whether an entry is
+                                // adult content without re-finding it in the catalog - the
+                                // catalog may not be loaded yet, and a series episode is
+                                // never in it at all. Absent on entries written before this
+                                // was stored; callers fall back to the catalog then.
+                                group = c.optString("group", null),
+                                categoryName = c.optString("categoryName", null)
                             )
                         }.getOrNull()
                     }
@@ -116,6 +123,8 @@ object PlaybackPositionStore {
                             ch.logoUrl?.let { put("logoUrl", it) }
                             ch.posterUrl?.let { put("posterUrl", it) }
                             put("mediaType", ch.mediaType.name)
+                            ch.group?.let { put("group", it) }
+                            ch.categoryName?.let { put("categoryName", it) }
                         })
                     }
                 })

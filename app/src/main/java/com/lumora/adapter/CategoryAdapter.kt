@@ -9,6 +9,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.lumora.R
 import com.lumora.model.CategoryFilter
 
+/** Id prefix MainActivity gives the Live TV dynamic buckets (Sports/News/Music/Cinema). */
+const val DYNAMIC_BUCKET_ID_PREFIX = "dynbucket:"
+
 class CategoryAdapter(
     private val onCategoryClick: (CategoryFilter) -> Unit,
     private val onCategoryLongClick: (CategoryFilter) -> Unit
@@ -65,7 +68,11 @@ class CategoryAdapter(
             // A negative count is a sentinel for non-filtering utility rows (e.g. the
             // classic-layout toggle) that have nothing meaningful to count.
             val countSuffix = if (category.count >= 0) " (${category.count})" else ""
-            val name = category.name.let { if (it.length > 40) it.take(39) + "…" else it }
+            // Synthesised rows (Live TV's dynamic buckets, brand rows on every tab) are
+            // uppercased here rather than in their label: the label is part of the id that
+            // expansion state and pins are keyed on, so renaming would orphan both.
+            val rawName = if (category.isDynamic) category.name.uppercase() else category.name
+            val name = rawName.let { if (it.length > 40) it.take(39) + "…" else it }
             textView.text = "$chevron$pinPrefix$name$countSuffix"
             textView.isSelected = selected
             textView.setTextColor(
