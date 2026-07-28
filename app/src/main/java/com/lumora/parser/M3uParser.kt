@@ -135,6 +135,14 @@ object M3uParser {
         val mediaType = classifyMediaType(group)
 
         return Channel(
+            // The stream url, because an M3U has no id of its own and Channel.id defaults to
+            // "". Every M3U channel therefore shared one blank id, and anything keyed on id
+            // collapsed them into a single entry - most visibly the quality-version map in
+            // groupLiveQualityVersions(), whose every group overwrote the same "" key, so
+            // playing or previewing any channel resolved to whichever group won and the
+            // guide appeared stuck on one channel. Not tvg-id: playlists repeat that across
+            // quality variants, which would reintroduce the collision on a smaller scale.
+            id = cleanUrl,
             name = name,
             url = cleanUrl,
             logoUrl = logoUrl,

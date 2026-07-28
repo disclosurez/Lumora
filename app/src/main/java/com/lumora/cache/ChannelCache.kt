@@ -69,7 +69,12 @@ object ChannelCache {
                     if (f.size < FIELD_COUNT) return@forEachLine
                     result.add(
                         Channel(
-                            id = f[0],
+                            // Falls back to the url, matching what M3uParser now assigns.
+                            // Caches written before that fix hold a blank id for every M3U
+                            // channel, and this file is read on cold start before any
+                            // refetch - without the backfill the id-collision bug would
+                            // survive the update until the user manually refreshed.
+                            id = f[0].ifEmpty { f[2] },
                             name = f[1],
                             url = f[2],
                             logoUrl = f[3].ifEmpty { null },

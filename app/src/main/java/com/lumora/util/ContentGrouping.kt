@@ -218,7 +218,10 @@ fun groupLiveQualityVersions(channels: List<Channel>): Pair<List<Channel>, Map<S
         // shows the cleaned name.
         val cleanedName = stripDecorativeTags(best.name).ifBlank { best.name }
         representatives.add(if (cleanedName != best.name) best.copy(name = cleanedName) else best)
-        if (ranked.size > 1) versionsById[best.id] = ranked
+        // Blank ids would all land on the same key and hand every channel the same version
+        // list - a provider that doesn't supply ids should get no version grouping at all,
+        // not one shared group. (M3U was exactly this until it started keying off the url.)
+        if (ranked.size > 1 && best.id.isNotBlank()) versionsById[best.id] = ranked
     }
     return representatives to versionsById
 }
