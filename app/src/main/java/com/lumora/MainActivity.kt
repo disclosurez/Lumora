@@ -108,6 +108,9 @@ private const val SEARCH_BATCH_SIZE = 50
 private const val STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 private const val FAVOURITES_CATEGORY_ID = "__favourites__"
 private const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
+/** Films/Series sidebar row that filters the tab down to Jellyfin-sourced items only.
+ *  Only built when the tab actually contains Jellyfin content. */
+private const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
 // Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema),
 // each vacuuming up every matching provider category *and* brand cluster
 // regardless of where it lives in the raw catalog; everything left over cascades
@@ -181,11 +184,20 @@ class MainActivity : AppCompatActivity() {
     private var seriesList = listOf<Channel>()
     private var filmList = listOf<Channel>()
     private var filmVersions: Map<String, List<Channel>> = emptyMap()
+    // Duplicate series copies keyed by the representative's id - unlike films these aren't
+    // alternate streams of one item, they're each provider's own separate episode list
+    // (see groupDuplicateSeries), so the detail screen switches between them rather than
+    // playing one directly.
+    private var seriesVersions: Map<String, List<Channel>> = emptyMap()
     private var liveVersions: Map<String, List<Channel>> = emptyMap()
     private var filmShelves: List<ContentShelf> = emptyList()
     private var seriesShelves: List<ContentShelf> = emptyList()
     private var currentVersionGroup: List<Channel> = emptyList()
     private var currentVersionIndex = 0
+    /** The series a currently-playing episode came from, paired with every provider's copy of
+     *  that series (see seriesVersions). An episode Channel carries no link back to its show,
+     *  so the in-player version picker can't find the alternatives without this. */
+    private var currentSeriesVersionContext: Pair<Channel, List<Channel>>? = null
     private var bufferingStartMs = 0L
     private val stallTimestamps = mutableListOf<Long>()
     private val longStallCheckRunnable = Runnable { attemptBufferFailover() }
@@ -201,6 +213,8 @@ class MainActivity : AppCompatActivity() {
     // resolve the right one per-Channel via Channel.sourceProviderId instead of assuming
     // whichever Xtream provider loaded last (the old single `provider` field above).
     private var xtreamProviderConfigs: Map<String, IptvProviderConfig> = emptyMap()
+    /** IptvProviderConfig id -> display name, for showing which provider an item came from. */
+    private var providerNamesById: Map<String, String> = emptyMap()
     // Kept around after a successful Jellyfin content load so a series' detail page can
     // fetch its episodes without re-authenticating - Jellyfin's episode API has no
     // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
@@ -757,6 +771,10 @@ class MainActivity : AppCompatActivity() {
         if (!hasProviderConfigured()) { showProviderSettings(); return }
         setStatus("Loading...", visible = true)
         xtreamProviderConfigs = IptvProviderStore.load(prefs).filter { it.enabled && it.type == "xtream" }.associateBy { it.id }
+        // Every type, not just Xtream, and regardless of enabled state - a cached catalog can
+        // still contain items from a provider that's since been switched off, and their chips
+        // should still say where they came from.
+        providerNamesById = IptvProviderStore.load(prefs).associate { it.id to it.name }
         scope.launch {
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
@@ -875,7 +893,10 @@ class MainActivity : AppCompatActivity() {
         val url = config.url ?: return FetchResult.Failure("no URL")
         return try {
             val result = withContext(Dispatchers.IO) { M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient) }
-            FetchResult.Success(result.channels.map { it.copy(streamUserAgent = config.userAgent) })
+            // sourceProviderId isn't needed for playback here (an M3U item's url is already
+            // final), but it's what names the provider a duplicate came from on the detail
+            // screen's version chips - without it every M3U copy is an anonymous "Version N".
+            FetchResult.Success(result.channels.map { it.copy(streamUserAgent = config.userAgent, sourceProviderId = config.id) })
         } catch (e: Exception) {
             FetchResult.Failure(e.message?.take(60) ?: "error")
         }
@@ -947,6 +968,7 @@ class MainActivity : AppCompatActivity() {
         val filmVersions: Map<String, List<Channel>>,
         val filmShelves: List<ContentShelf>,
         val seriesList: List<Channel>,
+        val seriesVersions: Map<String, List<Channel>>,
         val seriesShelves: List<ContentShelf>
     )
 
@@ -967,6 +989,7 @@ class MainActivity : AppCompatActivity() {
         filmVersions = derived.filmVersions
         filmShelves = derived.filmShelves
         seriesList = derived.seriesList
+        seriesVersions = derived.seriesVersions
         seriesShelves = derived.seriesShelves
 
         val hasContent = allChannels.isNotEmpty()
@@ -1034,7 +1057,8 @@ class MainActivity : AppCompatActivity() {
             .map { it.withResolvedYear() }
         // Real release date (from the provider's bulk series list) sorts more precisely
         // than year alone; falls back to year for anything that came back without one.
-        val series = groupDuplicateSeries(rawSeries)
+        val (groupedSeries, seriesVers) = groupDuplicateSeries(rawSeries)
+        val series = groupedSeries
             .sortedWith(compareByDescending<Channel> { it.releaseDate ?: "" }.thenByDescending { it.year?.toIntOrNull() ?: -1 })
         // Favourited series get their own shelf pinned above everything else in the
         // Series tab itself, not just on Home.
@@ -1047,7 +1071,7 @@ class MainActivity : AppCompatActivity() {
             if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
         }
 
-        return DerivedContent(groupedLive, liveVers, films, versions, filmShelvesLocal, series, seriesShelvesLocal)
+        return DerivedContent(groupedLive, liveVers, films, versions, filmShelvesLocal, series, seriesVers, seriesShelvesLocal)
     }
 
     /**
@@ -1228,6 +1252,15 @@ class MainActivity : AppCompatActivity() {
      *  inline icon buttons like the shelf headers have, so pin/hide live behind a chooser. */
     private fun showCategoryContextMenu(category: CategoryFilter) {
         val id = category.id ?: return
+        // The Jellyfin row is always first by construction, so "Pin to top" would be a
+        // no-op - hiding it is the only meaningful action.
+        if (id == JELLYFIN_CATEGORY_ID) {
+            AlertDialog.Builder(this)
+                .setTitle(category.name)
+                .setItems(arrayOf("Hide")) { _, _ -> toggleHiddenSidebarCategory(category) }
+                .show()
+            return
+        }
         val isPinned = id in getPinnedCategories()
         val hideIds = category.matchIds.ifEmpty { setOf(id) }
         val isHidden = hideIds.any { it in getHiddenCategories() }
@@ -1490,6 +1523,25 @@ class MainActivity : AppCompatActivity() {
             // are what people actually want first there. Other tabs have no buckets, so
             // "All" just stays at the top like before.
             val result = mutableListOf<CategoryFilter>()
+            // Films/Series lead with a "Jellyfin" row when this tab has any Jellyfin-sourced
+            // items - a personal library is browsed as a library, not hunted for across the
+            // IPTV providers' categories it gets merged into. Carries explicit channelIds
+            // (same mechanism as a brand row) because provenance is per-Channel, not a
+            // provider category anything is filed under.
+            if (tab != 0 && JELLYFIN_CATEGORY_ID !in hiddenIds) {
+                val jellyfinIds = list.filter { it.isJellyfin }.map { it.id }.toSet()
+                if (jellyfinIds.isNotEmpty()) {
+                    result.add(
+                        CategoryFilter(
+                            id = JELLYFIN_CATEGORY_ID,
+                            name = "Jellyfin",
+                            count = jellyfinIds.size,
+                            channelIds = jellyfinIds,
+                            isDynamic = true
+                        )
+                    )
+                }
+            }
             if (tab != 0) result.add(allRow)
             if (tab == 0) {
                 val favoriteCount = list.count { it.id in favoriteChannelIds }
@@ -2034,8 +2086,79 @@ class MainActivity : AppCompatActivity() {
         if (idx >= 0) { currentIndex = idx; showPlayerFor(channel) }
     }
 
-    /** Unified detail screen for a movie or series: poster/plot/cast plus its versions or episode list. */
-    private fun showContentDetail(item: Channel) {
+    /** One series' details and season/episode lists, whichever backend it came from. Jellyfin
+     *  and Stalker carry plot/date/rating on the catalog item itself (no per-series detail
+     *  endpoint); Xtream's get_series_info returns both in one call.
+     *
+     *  Shared by the detail screen and the in-player version picker - the picker has to pull
+     *  a *different* provider's copy of the same show on demand to find its matching episode,
+     *  which is exactly this call against a different Channel. */
+    private suspend fun loadSeriesContent(
+        item: Channel
+    ): Pair<XtreamClient.ContentDetails?, List<Pair<String, List<Channel>>>> {
+        val itemDetails = XtreamClient.ContentDetails(
+            plot = item.description,
+            genre = item.categoryName,
+            rating = item.rating,
+            backdropUrl = item.backdropUrl,
+            releaseDate = item.releaseDate
+        )
+        val stalkerConfig = stalkerConfigFor(item)
+        return when {
+            item.isJellyfin -> {
+                val jellyfin = jellyfinClient
+                val episodes = if (jellyfin != null) withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) } else emptyList()
+                itemDetails to episodes
+                    .groupBy { it.seasonNumber ?: 0 }
+                    .toSortedMap()
+                    .map { (num, eps) -> "Season $num" to eps.map { JellyfinProvider.toChannel(it, provider) } }
+            }
+            stalkerConfig != null -> {
+                val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
+                itemDetails to withContext(Dispatchers.IO) {
+                    stalker.getEpisodes(stalkerProviderStub(stalkerConfig), item.id, item.categoryId)
+                        .map { (label, eps) ->
+                            label to eps.map { it.copy(streamUserAgent = stalkerConfig.userAgent, sourceProviderId = stalkerConfig.id) }
+                        }
+                }
+            }
+            else -> {
+                val client = XtreamClient(BaseApplication.instance.okHttpClient)
+                val info = withContext(Dispatchers.IO) { client.getSeriesFull(xtreamProviderFor(item) ?: provider, item.id) }
+                info.details to info.seasons
+            }
+        }
+    }
+
+    /** Chip label for one version of a duplicated title: which provider it came from first,
+     *  since that's what actually distinguishes two copies once several providers are merged,
+     *  then the title's own source/quality tag ("4K-D+") when it has one. */
+    private fun versionChipLabel(version: Channel, index: Int): String =
+        listOfNotNull(providerNameFor(version), extractLeadingTag(version.name))
+            .joinToString(" · ")
+            .ifBlank { "Version ${index + 1}" }
+
+    /** One version-picker chip, styled to sit inline next to Play. item_category's own text
+     *  size is the sidebar's, so it's stepped down to the general caption dimen (still scales
+     *  up on a large screen). */
+    private fun inflateVersionChip(parent: ViewGroup, label: String): TextView {
+        val chip = layoutInflater.inflate(R.layout.item_category, parent, false) as TextView
+        chip.text = label
+        chip.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_caption))
+        val padH = (12 * resources.displayMetrics.density).toInt()
+        val padV = (8 * resources.displayMetrics.density).toInt()
+        chip.setPadding(padH, padV, padH, padV)
+        chip.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
+        return chip
+    }
+
+    /** Unified detail screen for a movie or series: poster/plot/cast plus its versions or
+     *  episode list. [versionGroup] carries the duplicate set through when the screen re-opens
+     *  on a sibling copy (series only - see the series version chips below), since the map is
+     *  keyed by the group's representative and a sibling isn't in it. */
+    private fun showContentDetail(item: Channel, versionGroup: List<Channel>? = null) {
         isContentDetailVisible = true
         binding.mainContent.visibility = View.GONE
         binding.contentDetailLayout.visibility = View.VISIBLE
@@ -2105,6 +2228,25 @@ class MainActivity : AppCompatActivity() {
         itemsList.layoutManager = LinearLayoutManager(this)
         loadDetailImage(item.posterUrl ?: item.logoUrl, backdrop)
 
+        // Series version chips. A film's versions are alternate streams of one thing, so its
+        // chips play directly; a series' are whole separate episode lists, one per provider
+        // that carries the title, so picking one re-opens this screen on that copy instead.
+        // Before this, every duplicate but the representative was dropped at grouping time -
+        // if the copy that won the card had a thin or broken episode list, the other
+        // provider's was unreachable.
+        val seriesGroup = if (isSeries) versionGroup ?: seriesVersions[item.id] else null
+        if (seriesGroup != null && seriesGroup.size > 1) {
+            versionsScroll.visibility = View.VISIBLE
+            seriesGroup.forEachIndexed { index, version ->
+                val chip = inflateVersionChip(versionsRow, versionChipLabel(version, index))
+                chip.isSelected = version.id == item.id
+                chip.setOnClickListener {
+                    if (version.id != item.id) showContentDetail(version, seriesGroup)
+                }
+                versionsRow.addView(chip)
+            }
+        }
+
         if (isSeries && item.id.isNotBlank()) {
             favoriteButton.visibility = View.VISIBLE
             fun refreshFavoriteIcon() {
@@ -2128,6 +2270,7 @@ class MainActivity : AppCompatActivity() {
                 if (isSeries) {
                     currentEpisodeQueue = queue
                     currentEpisodeQueueIndex = queue.indexOf(chosen)
+                    currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
                 }
             },
             showDownloadButton = !isTv,
@@ -2211,6 +2354,7 @@ class MainActivity : AppCompatActivity() {
                 showPlayerFor(target)
                 currentEpisodeQueue = queue
                 currentEpisodeQueueIndex = queue.indexOf(target)
+                currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
             }
         }
 
@@ -2219,68 +2363,12 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             try {
                 val client = XtreamClient(BaseApplication.instance.okHttpClient)
-                if (isSeries && isJellyfin) {
+                if (isSeries) {
                     sectionLabel.text = "Episodes"
-                    // The series list call that built `item` already carried its own
-                    // plot/genre/rating/backdrop - no separate per-series detail
-                    // endpoint needed like Xtream has.
-                    applyDetails(
-                        XtreamClient.ContentDetails(
-                            plot = item.description,
-                            genre = item.categoryName,
-                            rating = item.rating,
-                            backdropUrl = item.backdropUrl,
-                            releaseDate = item.releaseDate
-                        )
-                    )
-                    val jellyfin = jellyfinClient
-                    val episodes = if (jellyfin != null) withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) } else emptyList()
+                    val (details, seasons) = loadSeriesContent(item)
                     if (nowShowingDetailId != requestedItemId) return@launch
-                    if (episodes.isEmpty()) {
-                        statusText.text = "No episodes found"
-                    } else {
-                        statusText.visibility = View.GONE
-                        itemsList.visibility = View.VISIBLE
-                        val seasons = episodes
-                            .groupBy { it.seasonNumber ?: 0 }
-                            .toSortedMap()
-                            .map { (num, eps) -> "Season $num" to eps.map { JellyfinProvider.toChannel(it, provider) } }
-                        if (seasons.size > 1) {
-                            seasonScroll.visibility = View.VISIBLE
-                            seasons.forEachIndexed { index, (label, _) ->
-                                val chip = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as TextView
-                                chip.text = label
-                                chip.layoutParams = LinearLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                                ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
-                                chip.setOnClickListener { showSeason(seasons, index) }
-                                seasonRow.addView(chip)
-                            }
-                        }
-                        showSeason(seasons, 0)
-                        wirePlayButton(seasons)
-                    }
-                } else if (isSeries && stalkerConfigFor(item) != null) {
-                    sectionLabel.text = "Episodes"
-                    // Stalker series carry plot/date on the list item itself (no per-series
-                    // detail call), same as Jellyfin.
-                    applyDetails(
-                        XtreamClient.ContentDetails(
-                            plot = item.description,
-                            genre = item.categoryName,
-                            rating = item.rating,
-                            backdropUrl = item.backdropUrl,
-                            releaseDate = item.releaseDate
-                        )
-                    )
-                    val config = stalkerConfigFor(item)!!
-                    val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
-                    val seasons = withContext(Dispatchers.IO) {
-                        stalker.getEpisodes(stalkerProviderStub(config), item.id, item.categoryId)
-                            .map { (label, eps) -> label to eps.map { it.copy(streamUserAgent = config.userAgent, sourceProviderId = config.id) } }
-                    }
-                    if (nowShowingDetailId != requestedItemId) return@launch
-                    if (seasons.isEmpty() || seasons.all { it.second.isEmpty() }) {
+                    applyDetails(details)
+                    if (seasons.all { it.second.isEmpty() }) {
                         statusText.text = "No episodes found"
                     } else {
                         statusText.visibility = View.GONE
@@ -2299,32 +2387,6 @@ class MainActivity : AppCompatActivity() {
                         }
                         showSeason(seasons, 0)
                         wirePlayButton(seasons)
-                    }
-                } else if (isSeries) {
-                    sectionLabel.text = "Episodes"
-                    val itemProvider = xtreamProviderFor(item) ?: provider
-                    val info = withContext(Dispatchers.IO) { client.getSeriesFull(itemProvider, item.id) }
-                    if (nowShowingDetailId != requestedItemId) return@launch
-                    applyDetails(info.details)
-                    if (info.seasons.isEmpty()) {
-                        statusText.text = "No episodes found"
-                    } else {
-                        statusText.visibility = View.GONE
-                        itemsList.visibility = View.VISIBLE
-                        if (info.seasons.size > 1) {
-                            seasonScroll.visibility = View.VISIBLE
-                            info.seasons.forEachIndexed { index, (label, _) ->
-                                val chip = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as TextView
-                                chip.text = label
-                                chip.layoutParams = LinearLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                                ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
-                                chip.setOnClickListener { showSeason(info.seasons, index) }
-                                seasonRow.addView(chip)
-                            }
-                        }
-                        showSeason(info.seasons, 0)
-                        wirePlayButton(info.seasons)
                     }
                 } else {
                     // Xtream has a separate get_vod_info call for a film's plot/cast/genre;
@@ -2382,20 +2444,8 @@ class MainActivity : AppCompatActivity() {
                     if (versions.size > 1) {
                         versionsScroll.visibility = View.VISIBLE
                         versions.forEachIndexed { index, version ->
-                            val chip = layoutInflater.inflate(R.layout.item_category, versionsRow, false) as TextView
-                            chip.text = extractLeadingTag(version.name) ?: "Version ${index + 1}"
-                            // item_category's own size is the sidebar's; these version chips
-                            // sit inline next to Play, so they take the general caption step -
-                            // via the dimen, so they still scale up on a large screen.
-                            chip.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_caption))
-                            chip.setPadding(
-                                (12 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt(),
-                                (12 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt()
-                            )
+                            val chip = inflateVersionChip(versionsRow, versionChipLabel(version, index))
                             chip.isSelected = index == 0
-                            chip.layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                            ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
                             chip.setOnClickListener {
                                 hideContentDetail()
                                 currentIndex = filmList.indexOf(item)
@@ -2701,7 +2751,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { hidePlayer() }
         binding.btnAudioTrack.setOnClickListener { showTrackPicker(isAudio = true) }
         binding.btnSubtitleTrack.setOnClickListener { showTrackPicker(isAudio = false) }
-        binding.btnLiveVersions.setOnClickListener { showLiveVersionPicker() }
+        binding.btnLiveVersions.setOnClickListener { showVersionPicker() }
         binding.btnRewind.setOnClickListener { playerManager.seekBy(-15_000); showControls() }
         binding.btnFastForward.setOnClickListener { playerManager.seekBy(30_000); showControls() }
         applyAspectMode(loadSavedAspectMode())
@@ -2910,7 +2960,11 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Video: ${binding.btnAspectRatio.text}", Toast.LENGTH_SHORT).show()
     }
 
-    private fun showPlayerFor(channel: Channel) {
+    /** [resumeFromMs] carries the position across a version switch (see showVersionPicker):
+     *  the replacement stream is a different item with its own saved-position key, so without
+     *  it switching version on a half-watched film restarts it from zero. Also suppresses the
+     *  resume prompt - the user just answered that question by switching mid-playback. */
+    private fun showPlayerFor(channel: Channel, resumeFromMs: Long? = null) {
         // Cleared unconditionally - callers that want episode tracking (Next/Prev,
         // auto-advance) re-set these right after calling this, once playback has
         // actually started for the episode they picked.
@@ -2922,7 +2976,11 @@ class MainActivity : AppCompatActivity() {
         releaseLivePreview()
         isPlayerVisible = true
         nowPlayingChannel = channel
-        resumePromptShown = false
+        // Cleared unconditionally, same as the episode queue above - the series version
+        // context only applies to playback started from a series detail screen, which re-sets
+        // it right after this call.
+        currentSeriesVersionContext = null
+        resumePromptShown = resumeFromMs != null
         progressTickCount = 0
         binding.mainContent.visibility = View.GONE
         binding.playerLayout.visibility = View.VISIBLE
@@ -3011,9 +3069,11 @@ class MainActivity : AppCompatActivity() {
                     // player UA. Sending the MAC as User-Agent is what errored the playback.
                     playerManager.playUrl(resolved, STREAM_USER_AGENT)
                 }
+                resumeFromMs?.let { playerManager.seekTo(it) }
             }
         } else {
             playerManager.playUrl(startVersion.url, startVersion.streamUserAgent)
+            resumeFromMs?.let { playerManager.seekTo(it) }
         }
     }
 
@@ -3052,6 +3112,14 @@ class MainActivity : AppCompatActivity() {
             serverUrl = config.url?.let { normalizeServerUrl(it) },
             username = config.username, password = config.password
         )
+    }
+
+    /** The name of the provider a Channel came from, for labelling version chips. Jellyfin is
+     *  its own fixed slot; everything else is an IptvProviderConfig matched by
+     *  sourceProviderId. Null when the config's since been deleted (cached items outlive it). */
+    private fun providerNameFor(channel: Channel): String? = when {
+        channel.isJellyfin -> "Jellyfin"
+        else -> channel.sourceProviderId?.let { providerNamesById[it] }?.takeIf { it.isNotBlank() }
     }
 
     private fun streamKey(channel: Channel) = channel.id.ifBlank { channel.url }
@@ -3097,24 +3165,107 @@ class MainActivity : AppCompatActivity() {
         playerManager.playUrl(next.url, next.streamUserAgent)
     }
 
-    /** Lets the user manually pick a specific quality/source version of the currently playing
-     *  live channel - groupLiveQualityVersions() auto-picks the best on play, but sometimes the
-     *  "best" one buffers or is geo-blocked while a lower-ranked sibling works fine. */
-    private fun showLiveVersionPicker() {
-        if (nowPlayingChannel?.mediaType != MediaType.LIVE) {
-            Toast.makeText(this, "Versions are only available for live TV", Toast.LENGTH_SHORT).show()
+    /** Lets the user manually pick a specific version of whatever's playing - the auto-picked
+     *  one isn't always the working one (a live channel's best quality can be the one that
+     *  buffers or is geo-blocked; a film's first source can be dead; one provider's copy of a
+     *  show can have a broken or incomplete episode list).
+     *
+     *  Three shapes behind one button, because "version" means something different per type:
+     *  live/film versions are alternate streams of the same item, swapped in place; a series
+     *  episode's alternatives live in another provider's separate episode list, which has to
+     *  be fetched and matched by season/episode before there's anything to play. */
+    private fun showVersionPicker() {
+        val playing = nowPlayingChannel ?: return
+        when {
+            playing.mediaType == MediaType.LIVE -> {
+                if (currentVersionGroup.size <= 1) {
+                    Toast.makeText(this, "No other versions of this channel", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val labels = currentVersionGroup.map { it.name }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle("Channel Version")
+                    .setSingleChoiceItems(labels, currentVersionIndex) { dialog, which ->
+                        switchToVersionIndex(which)
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            currentSeriesVersionContext != null -> showSeriesVersionPicker(playing)
+            else -> showFilmVersionPicker(playing)
+        }
+    }
+
+    /** Alternate sources for the film that's playing. filmVersions is keyed by the group's
+     *  representative, and the thing playing may itself be a non-representative version
+     *  (picked from the detail screen's chips), so the group is found by membership. */
+    private fun showFilmVersionPicker(playing: Channel) {
+        val group = filmVersions[playing.id]
+            ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
+            ?: emptyList()
+        if (group.size <= 1) {
+            Toast.makeText(this, "No other versions of this title", Toast.LENGTH_SHORT).show()
             return
         }
-        if (currentVersionGroup.size <= 1) {
-            Toast.makeText(this, "No other versions of this channel", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val labels = currentVersionGroup.map { it.name }.toTypedArray()
+        val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
+        val currentIndex = group.indexOfFirst { it.id == playing.id }
+        // The replacement is a different item with its own saved-position key, so the current
+        // position is carried across by hand - otherwise switching source mid-film restarts it.
+        val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
         AlertDialog.Builder(this)
-            .setTitle("Channel Version")
-            .setSingleChoiceItems(labels, currentVersionIndex) { dialog, which ->
-                switchToVersionIndex(which)
+            .setTitle("Version")
+            .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
                 dialog.dismiss()
+                if (which != currentIndex) showPlayerFor(group[which], resumeFromMs = resumeMs)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Other providers' copies of the show whose episode is playing. Each copy is a separate
+     *  catalog entry with its own episode list, so switching means fetching that list and
+     *  finding the same season/episode in it - which can legitimately fail (a provider may
+     *  simply not carry that episode), hence the explicit message rather than a silent no-op. */
+    private fun showSeriesVersionPicker(playing: Channel) {
+        val (series, group) = currentSeriesVersionContext ?: return
+        if (group.size <= 1) {
+            Toast.makeText(this, "No other versions of this series", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
+        val currentIndex = group.indexOfFirst { it.id == series.id }
+        val episodeNum = playing.episodeNum
+        // An episode Channel carries its episode number but not its season, so the season is
+        // approximated by the length of the queue it came from (that queue is one season's
+        // episodes) - enough to prefer the right season when two carry the same episode
+        // number, with a plain episode-number match as the fallback.
+        val queueSeasonSize = currentEpisodeQueue.size.takeIf { it > 0 }
+        AlertDialog.Builder(this)
+            .setTitle("Series Version")
+            .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
+                dialog.dismiss()
+                if (which == currentIndex) return@setSingleChoiceItems
+                val target = group[which]
+                Toast.makeText(this, "Loading ${versionChipLabel(target, which)}…", Toast.LENGTH_SHORT).show()
+                scope.launch {
+                    val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
+                    val match = seasons.firstNotNullOfOrNull { (_, eps) ->
+                        eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum && (queueSeasonSize == null || eps.size == queueSeasonSize) }
+                    } ?: seasons.firstNotNullOfOrNull { (_, eps) ->
+                        eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+                    }
+                    if (match == null) {
+                        Toast.makeText(this@MainActivity, "That provider doesn't have this episode", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
+                    val newQueue = seasons.firstOrNull { (_, eps) -> eps.any { it.id == match.id } }?.second ?: listOf(match)
+                    showPlayerFor(match, resumeFromMs = resumeMs)
+                    currentEpisodeQueue = newQueue
+                    currentEpisodeQueueIndex = newQueue.indexOfFirst { it.id == match.id }
+                    currentSeriesVersionContext = target to group
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -3887,7 +4038,7 @@ class MainActivity : AppCompatActivity() {
             stalkerGroup.visibility = if (type == "stalker") View.VISIBLE else View.GONE
             jellyfinGroup.visibility = if (type == "jellyfin") View.VISIBLE else View.GONE
             // Stalker portals identify a device by its MAC - leave blank for user to fill.
-            val qrEligible = type in listOf("m3u", "xtream", "stalker")
+            val qrEligible = type in listOf("m3u", "xtream", "stalker", "jellyfin")
             showQrButton.visibility = if (qrEligible) View.VISIBLE else View.GONE
             manualDivider.visibility = if (qrEligible) View.VISIBLE else View.GONE
             // The tapped type card just went GONE (typePicker hidden above) - it was

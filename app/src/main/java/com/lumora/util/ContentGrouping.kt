@@ -74,17 +74,30 @@ fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String,
 }
 
 /**
- * Same title-reposted-under-different-source-tags problem as movies, but a
- * series isn't itself a playable stream - each duplicate has its own episode
- * list, so there's nothing to version-pick. Just keep one card per title.
+ * Same title-reposted-under-different-source-tags problem as movies: one card per
+ * title, plus a map from that representative's id to every duplicate.
+ *
+ * A series isn't itself a playable stream, so its versions aren't alternate streams
+ * of one thing the way a movie's are - each duplicate carries its own episode list,
+ * from its own provider. The detail screen still needs them: with several providers
+ * merged, the copy that wins the card can be the one with the worse (or missing)
+ * episode list, and every other provider's copy was previously dropped outright with
+ * no way to reach it.
  */
-fun groupDuplicateSeries(series: List<Channel>): List<Channel> {
+fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String, List<Channel>>> {
     val groups = LinkedHashMap<String, MutableList<Channel>>()
     for (channel in series) {
         val key = normalizeTitleForGrouping(channel.name).ifBlank { channel.id }
         groups.getOrPut(key) { mutableListOf() }.add(channel)
     }
-    return groups.values.map { versions -> versions.firstOrNull { !it.posterUrl.isNullOrBlank() } ?: versions.first() }
+    val representatives = mutableListOf<Channel>()
+    val versionsById = mutableMapOf<String, List<Channel>>()
+    for (versions in groups.values) {
+        val representative = versions.firstOrNull { !it.posterUrl.isNullOrBlank() } ?: versions.first()
+        representatives.add(representative)
+        if (versions.size > 1) versionsById[representative.id] = versions
+    }
+    return representatives to versionsById
 }
 
 /** True if the title carries an explicit non-English bracket language tag, e.g. "[AR]", "[FR]". */
