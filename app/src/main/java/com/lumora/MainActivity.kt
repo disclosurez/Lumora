@@ -2927,6 +2927,9 @@ class MainActivity : AppCompatActivity() {
                 if (isPlaying) mainHandler.post(progressRunnable)
                 else mainHandler.removeCallbacks(progressRunnable)
             }
+            override fun onCues(cues: androidx.media3.common.text.CueGroup) {
+                binding.playerSubtitleView.setCues(cues.cues)
+            }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.height == 0 || videoSize.width == 0) return
                 val rotated = videoSize.unappliedRotationDegrees == 90 || videoSize.unappliedRotationDegrees == 270
