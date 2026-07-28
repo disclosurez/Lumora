@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    android:background="@drawable/bg_grid_card"
+    android:clickable="true"
+    android:focusable="true"
+    android:padding="8dp"
+    android:stateListAnimator="@animator/focus_scale">
+
+    <ImageView
+        android:id="@+id/itemPoster"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/poster_image_height"
+        android:background="@color/surface"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/grad_poster_scrim" />
+
+    <TextView
+        android:id="@+id/itemTypeBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="6dp"
+        android:background="@drawable/pill_live"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:textAllCaps="true"
+        android:textColor="@android:color/white"
+        android:textSize="@dimen/poster_badge_text"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/itemTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:padding="8dp"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:lineSpacingExtra="1dp"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/poster_title_text"
+        android:textStyle="bold" />
+</FrameLayout>

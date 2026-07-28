@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tab bar specific: unlike bg_select_item, this never draws a box for "selected but not
+     focused" - the tab bar already marks the active tab via bold/bright text
+     (updateTabStyles in MainActivity), so a lingering selected-only box just reads as a
+     second, competing highlight whenever D-pad focus has moved elsewhere (e.g. after
+     using a shelf's "focus up" anchor to land on a different tab without clicking it). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_emphasis" />
+            <stroke android:width="3dp" android:color="@color/focus" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</selector>

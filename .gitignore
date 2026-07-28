@@ -1,0 +1,17 @@
+.gradle/
+build/
+local.properties
+.slim/deepwork/
+*.iml
+.idea/
+
+# Claude Code project instructions - local-only, not committed
+CLAUDE.md
+
+# Signing - never commit the release key or its credentials
+*.jks
+*.keystore
+keystore.properties
+node_modules/
+package-lock.json
+package.json

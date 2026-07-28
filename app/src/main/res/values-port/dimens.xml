@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Portrait phones only. Smallest-width outranks orientation in resource precedence, so a
+     large device (tablet/TV, sw>=540dp) held in portrait still resolves values-sw540dp/ and
+     never lands here - this file is effectively "phone, portrait". -->
+<resources>
+    <!-- Portrait phone screens are typically 360-430dp wide - the TV-sized 240dp sidebar
+         plus a 144dp fixed guide column left near nothing for actual content, causing
+         cutoff/overlap. Scale everything down to fit a phone-width screen. -->
+    <dimen name="category_sidebar_width">140dp</dimen>
+    <dimen name="live_preview_width">140dp</dimen>
+    <dimen name="live_preview_height">79dp</dimen>
+    <dimen name="guide_channel_column_width">150dp</dimen>
+
+    <!-- Toolbar: 20dp of padding either side plus a labelled search button and two 48dp icon
+         buttons left the title almost no room on a 360dp screen. The bar itself is
+         wrap_content - these buttons are what set its height. -->
+    <dimen name="toolbar_padding_horizontal">12dp</dimen>
+    <dimen name="toolbar_button_size">42dp</dimen>
+
+    <!-- Tabs: 36dp of padding either side of five pills is far wider than a portrait phone.
+         The row scrolls rather than clipping now, but tightening the pills means the first
+         few are reachable without scrolling at all. -->
+    <dimen name="tab_padding_horizontal">14dp</dimen>
+    <dimen name="tab_padding_vertical">10dp</dimen>
+    <dimen name="tab_text">12sp</dimen>
+
+    <!-- With the sidebar taking 140dp of a 360dp screen, the 128dp default column width
+         yields a single poster per row. A narrower minimum gets two. -->
+    <dimen name="poster_grid_min_column_width">104dp</dimen>
+    <dimen name="poster_image_height">124dp</dimen>
+</resources>

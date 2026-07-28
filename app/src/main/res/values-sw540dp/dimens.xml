@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Large-screen scale: everything with a smallest-width of 540dp or more - TVs, TV
+         boxes, and tablets. The whole app was laid out at phone reading distance (8-13sp
+         labels), which is legible in the hand and not from a sofa, so every scale steps up
+         here. Held as a resource qualifier rather than an isTv branch in code so it applies
+         to every view inflated from these layouts without per-view plumbing.
+
+         Keyed on smallest-width rather than uiMode=television deliberately. dp/sp already
+         normalise for resolution and density - a 1080p and a 4K panel both report ~960x540dp,
+         which is why resolution itself must not change these numbers. What actually differs
+         between a phone and a TV is available dp, and sw540dp captures that directly. It also
+         catches the case uiMode misses: non-certified Android/IPTV boxes that report
+         uiMode=normal on a television would otherwise fall back to phone sizing on a 55"
+         screen. (Every common TV mode lands on exactly sw540dp: 1080p at density 2.0 and
+         720p at tvdpi 1.33 both compute to 960x540dp.)
+
+         Precedence note: smallest-width outranks uiMode, so this file wins over any
+         values-television/ - keep large-screen sizing here, not there, or the two silently
+         fight. isTvDevice() stays uiMode-based for behavioural branches (e.g. hiding
+         downloads), which is a different question from how big to draw things.
+
+         Padding generally *shrinks* as type grows: the phone values pad small text inside
+         generously-sized boxes, so keeping them would make the boxes balloon rather than the
+         text simply read bigger. -->
+    <!-- +30% over the phone scale (8/10/11/12/14/17sp), no more. An earlier pass ran this
+         up to 15-28sp, which is ~+65% - at that size the nav labels, pane titles and every
+         form label ballooned, descriptions wrapped to three lines, and the provider rows
+         squeezed their own text down to "ip / Xtr...". Settings is read while sitting still
+         and interacting, not glanced at across a room like the browse grid, so it does not
+         need the same headroom the poster/guide scales get. -->
+    <dimen name="settings_text_micro">10sp</dimen>
+    <dimen name="settings_text_caption">13sp</dimen>
+    <dimen name="settings_text_body">14sp</dimen>
+    <dimen name="settings_text_subtitle">16sp</dimen>
+    <dimen name="settings_text_section">18sp</dimen>
+    <dimen name="settings_text_title">22sp</dimen>
+
+    <dimen name="settings_nav_icon_size">32dp</dimen>
+    <dimen name="settings_nav_rail_width">250dp</dimen>
+    <dimen name="settings_type_card_height">58dp</dimen>
+    <dimen name="settings_input_min_height">48dp</dimen>
+    <!-- Holds the options column to a readable width. The pane spans the full panel now that
+         the 660dp pop-out cap is gone, which left every card and input running ~700dp wide -
+         a button whose label sits in the middle of half a metre of background. This is the
+         only lever that narrows them: the panes are LinearLayouts, which ignore maxWidth.
+         Overrides the content pane's uniform 24dp padding on the end edge only. -->
+    <dimen name="settings_content_inset">200dp</dimen>
+
+    <!-- Vertical padding on settings card rows, which are wrap_content so their height is
+         whatever the label needs plus this - see values/dimens.xml. -->
+    <dimen name="settings_row_padding_vertical">12dp</dimen>
+
+    <!-- Episode rows spanning the full width of a TV panel left the title stranded next to
+         its thumbnail with a huge empty gap - inset the list so a row is a readable block. -->
+    <dimen name="detail_list_end_inset">300dp</dimen>
+
+    <!-- Live TV. The guide grid was the worst offender in the app - 8-9sp channel names and
+         numbers are essentially unreadable across a room. Row height and logo box grow with
+         the type so the row stays proportioned rather than just gaining crowded text. -->
+    <dimen name="category_row_text">14sp</dimen>
+    <!-- Tighter than the phone's 12dp/14dp: the category pill should hug its (now bold,
+         larger) label rather than sit in a box sized for 10sp text. -->
+    <dimen name="category_row_padding_vertical">9dp</dimen>
+    <dimen name="category_row_padding_horizontal">12dp</dimen>
+    <dimen name="guide_channel_name_text">13sp</dimen>
+    <dimen name="guide_channel_number_text">11sp</dimen>
+    <dimen name="guide_channel_initial_text">13sp</dimen>
+    <dimen name="guide_program_text">14sp</dimen>
+    <!-- Logo box and row height sized off the 13sp channel name rather than held at a fixed
+         box: a 13sp line is ~18dp, so 30dp of logo plus the row's 4dp padding either side is
+         all the height the content needs. The old 36dp/58dp pair was set when the type was
+         larger and left a visible band of empty background above and below every name. -->
+    <dimen name="guide_channel_logo_size">30dp</dimen>
+    <dimen name="guide_row_min_height">40dp</dimen>
+    <!-- Wide enough for the number, logo and a typical channel name at 13sp, and no wider -
+         every dp here is taken straight off the programme grid to its right. -->
+    <dimen name="guide_channel_column_width">190dp</dimen>
+    <!-- Narrower than the old 240dp: the rows are short labels with a count, and the width
+         they were given came straight off the guide grid and the poster columns next to
+         them. Long category names still ellipsise at 40 chars in the adapter regardless. -->
+    <dimen name="category_sidebar_width">200dp</dimen>
+
+    <!-- Toolbar / tab bar / poster grid, all +~30% over the phone scale. Tab padding drops
+         from 36dp to 22dp to keep the five-tab row inside the panel at the larger type. -->
+    <dimen name="toolbar_title_text">23sp</dimen>
+    <dimen name="toolbar_search_text">17sp</dimen>
+    <dimen name="toolbar_search_icon_size">22dp</dimen>
+    <dimen name="toolbar_icon_size">29dp</dimen>
+    <dimen name="tab_text">17sp</dimen>
+    <dimen name="tab_padding_horizontal">22dp</dimen>
+    <dimen name="tab_padding_vertical">13dp</dimen>
+    <dimen name="poster_title_text">13sp</dimen>
+    <dimen name="poster_badge_text">10sp</dimen>
+    <!-- Five columns instead of six makes each card wider, so the fixed-height poster has to
+         grow with it or the artwork ends up letterboxed. -->
+    <dimen name="poster_image_height">180dp</dimen>
+    <!-- Five per shelf row, not six. On a 1080p panel the row has ~724dp to work with
+         (960 minus the 200dp sidebar and its margin, minus the list's own padding), and each
+         card carries a 14dp end margin: 5 x (130 + 14) = 720dp. Image height keeps the 2:3
+         artwork ratio against the 114dp of card left inside the 8dp padding. -->
+    <dimen name="shelf_poster_width">130dp</dimen>
+    <dimen name="shelf_poster_image_height">171dp</dimen>
+    <dimen name="content_body_text">17sp</dimen>
+
+    <!-- Shelf headers sit above the posters and name the row, so they carry more weight than
+         the 16sp/12sp they inherited from the shared scale. -->
+    <dimen name="shelf_title_text">22sp</dimen>
+    <dimen name="shelf_action_text">15sp</dimen>
+
+    <!-- App-wide type scale, large-screen tier (see values/dimens.xml for the phone values
+         and the rationale). Roughly +30% at the small end, tapering off at the top - a 48sp
+         hero number is already large enough to read across a room, so scaling it by the same
+         factor as 9sp caption text would just make it overwhelming. -->
+    <dimen name="text_tiny">12sp</dimen>
+    <dimen name="text_caption">13sp</dimen>
+    <dimen name="text_body_s">14sp</dimen>
+    <dimen name="text_body">16sp</dimen>
+    <dimen name="text_body_l">17sp</dimen>
+    <dimen name="text_subhead">18sp</dimen>
+    <dimen name="text_subhead_l">19sp</dimen>
+    <dimen name="text_title_s">21sp</dimen>
+    <dimen name="text_title">23sp</dimen>
+    <dimen name="text_display">30sp</dimen>
+    <dimen name="text_hero">56sp</dimen>
+
+    <!-- 44dp, not 56dp: these hold a 24dp icon, and with the toolbar now wrap_content they
+         are what makes it tall. A 56dp box around a 24dp glyph just padded the whole bar. -->
+    <dimen name="toolbar_button_size">44dp</dimen>
+    <dimen name="toolbar_padding_horizontal">28dp</dimen>
+
+    <!-- Search doesn't need the whole panel: a centred 820dp column holds the keyboard and a
+         two-up results grid without either running to the bezels. -->
+    <dimen name="search_panel_width">820dp</dimen>
+    <dimen name="search_panel_padding">20dp</dimen>
+    <dimen name="search_keyboard_width">300dp</dimen>
+    <dimen name="keyboard_key_height">46dp</dimen>
+    <dimen name="keyboard_key_gap">4dp</dimen>
+    <dimen name="keyboard_key_text">18sp</dimen>
+    <dimen name="keyboard_action_text">13sp</dimen>
+    <!-- Sized so search shows two rows of four without scrolling. The grid gets roughly
+         305dp of height (the slot, less the toolbar, tab bar, panel padding, query row and
+         status line), and a card costs its artwork plus 16dp of card padding and 16dp of
+         margin - so 118dp of poster is the most that fits twice over. Four columns across
+         the ~470dp beside the keyboard gives each card ~85dp of artwork width, which makes
+         these slightly squatter than 2:3; centerCrop absorbs that. -->
+    <dimen name="search_poster_image_height">118dp</dimen>
+
+    <dimen name="home_search_bar_width">560dp</dimen>
+</resources>

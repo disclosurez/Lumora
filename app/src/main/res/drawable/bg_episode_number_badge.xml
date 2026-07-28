@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sits on the row surface next to the title (not over the thumbnail), so it's a tinted
+     surface pill rather than the dark scrim a badge floating on artwork would need. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_accent" />
+    <corners android:radius="6dp" />
+</shape>

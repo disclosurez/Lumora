@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Canvas / background gradient stops (StreamVault look) -->
+    <color name="canvas">#FF07111B</color>
+    <color name="canvas_elevated">#FF0B1622</color>
+    <color name="dark_background">#FF07111B</color>
+
+    <!-- Surfaces -->
+    <color name="surface">#FF0F1B29</color>
+    <color name="surface_elevated">#FF162338</color>
+    <color name="surface_emphasis">#FF1D2E46</color>
+    <color name="surface_accent">#FF223754</color>
+    <color name="dark_surface">#FF0F1B29</color>
+    <color name="dark_surface_2">#FF162338</color>
+    <color name="dark_card">#FF162338</color>
+    <color name="dark_card_selected">#FF1D2E46</color>
+
+    <!-- Brand (blue accent) -->
+    <color name="primary">#FF69A8FF</color>
+    <color name="primary_dark">#FF3F7FD9</color>
+    <color name="primary_light">#FF8BBCFF</color>
+    <color name="primary_surface">#FF223754</color>
+    <color name="accent">#FF69A8FF</color>
+    <color name="brand_muted">#33335FA4</color>
+
+    <!-- Focus (near-white D-pad focus ring) -->
+    <color name="focus">#FFF4F8FF</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFF5F7FB</color>
+    <color name="text_secondary">#FFBBC6D8</color>
+    <color name="text_tertiary">#FF7F8DA5</color>
+    <color name="text_disabled">#FF566173</color>
+    <color name="text_on_primary">#FF07111B</color>
+
+    <!-- Accent semantics -->
+    <color name="live_red">#FFFF5C61</color>
+    <color name="success_green">#FF4FD39A</color>
+    <color name="warning_amber">#FFFFC766</color>
+    <color name="info_cyan">#FF57C9FF</color>
+
+    <!-- States -->
+    <color name="divider">#1AF4F8FF</color>
+    <color name="outline">#26264C6D</color>
+    <color name="overlay">#80000000</color>
+    <color name="ripple">#3369A8FF</color>
+
+    <!-- Channel initial fallback colors -->
+    <color name="channel_1">#FF69A8FF</color>
+    <color name="channel_2">#FFFF5C61</color>
+    <color name="channel_3">#FF4FD39A</color>
+    <color name="channel_4">#FFFFC766</color>
+    <color name="channel_5">#FF9C7BFF</color>
+    <color name="channel_6">#FF57C9FF</color>
+</resources>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The margins are what let the sidebar clip normally. focus_scale grows a row to 1.06x,
+     which on a full-width row overflows the list's content box by ~6dp per side - the list
+     used to allow that by turning off clipChildren/clipToPadding, at the cost of every row
+     drawing over the panel's top and bottom edge as it scrolled past. Insetting the row
+     instead leaves the scale-up somewhere to go *inside* the clip region, so the list clips
+     to its padding again and the focus stroke still renders whole. Keep these >= 6% of the
+     row's width/height if the type scale or padding changes. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="3dp"
+    android:background="@drawable/bg_select_item"
+    android:clickable="true"
+    android:ellipsize="end"
+    android:focusable="true"
+    android:maxLines="1"
+    android:paddingHorizontal="@dimen/category_row_padding_horizontal"
+    android:paddingVertical="@dimen/category_row_padding_vertical"
+    android:stateListAnimator="@animator/focus_scale"
+    android:textColor="@color/text_secondary"
+    android:textSize="@dimen/category_row_text"
+    android:textStyle="bold" />

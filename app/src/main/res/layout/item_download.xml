@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- clipChildren/clipToPadding false: this row and downloadDeleteButton both scale to
+     1.06x on focus - without this the scale-up gets clipped by this row's own bounds
+     (downloadDeleteButton hugs the right edge) and by the RecyclerView hosting it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/bg_channel_row"
+    android:clickable="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="76dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp"
+    android:stateListAnimator="@animator/focus_scale">
+
+    <ImageView
+        android:id="@+id/downloadPoster"
+        android:layout_width="48dp"
+        android:layout_height="68dp"
+        android:background="@color/surface_elevated"
+        android:scaleType="centerCrop" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/downloadTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_body"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/downloadStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption" />
+
+        <ProgressBar
+            android:id="@+id/downloadProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="6dp"
+            android:max="100"
+            android:progressTint="@color/primary"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/downloadDeleteButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/bg_toolbar_button"
+        android:clickable="true"
+        android:contentDescription="Delete download"
+        android:focusable="true"
+        android:padding="10dp"
+        android:src="@android:drawable/ic_menu_delete"
+        android:stateListAnimator="@animator/focus_scale"
+        android:tint="@color/text_secondary" />
+</LinearLayout>

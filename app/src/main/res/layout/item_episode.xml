@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- clipChildren/clipToPadding false: this row and episodeDownloadButton both scale to
+     1.06x on focus - without this the scale-up gets clipped by this row's own bounds
+     (episodeDownloadButton hugs the right edge) and by the RecyclerView hosting it.
+     The detail screen's padded containers need the same, or the row is sliced at the
+     screen edges instead. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/bg_channel_row"
+    android:clickable="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="96dp"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:stateListAnimator="@animator/focus_scale">
+
+    <!-- 16:9, matching the aspect the providers' episode stills actually come in, so
+         centerCrop isn't shaving the sides off every thumbnail. -->
+    <FrameLayout
+        android:layout_width="128dp"
+        android:layout_height="72dp"
+        android:background="@drawable/bg_rounded_poster"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/episodeThumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop" />
+
+        <!-- Always-visible play affordance, not just an unfocused static icon - a
+             wash-toned circle wasn't reading as clickable/playable at TV viewing
+             distance ("no play button" - the icon existed but was too faint/small
+             to register as one). -->
+        <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_play_circle_overlay"
+            android:padding="8dp"
+            android:src="@drawable/ic_play"
+            android:tint="@android:color/white" />
+
+        <TextView
+            android:id="@+id/episodeWatchedBadge"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/bg_episode_watched_badge"
+            android:gravity="center"
+            android:text="✓"
+            android:textColor="@color/text_on_primary"
+            android:textSize="@dimen/text_body_s"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <!-- Continue-watching progress: how far into this episode the last session got,
+             mirroring the same signal the Home tab's Continue Watching shelf shows, but
+             at the point of actually picking an episode instead of only surfacing it a
+             tab away. -->
+        <ProgressBar
+            android:id="@+id/episodeProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_gravity="bottom"
+            android:max="1000"
+            android:progressDrawable="@drawable/progress_episode_resume"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Episode number leads the title line as its own coloured token rather than
+             sitting in a corner badge on the thumbnail, where it fought the play icon
+             for the same 128x72 space and was too small to read across a room. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="true"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/episodeNumberBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:minWidth="34dp"
+                android:gravity="center"
+                android:background="@drawable/bg_episode_number_badge"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textColor="@color/primary_light"
+                android:textSize="@dimen/text_body"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/episodeTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_subhead_l"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/episodeResumeLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/primary_light"
+            android:textSize="@dimen/text_body"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/episodePlot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:ellipsize="end"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="2"
+            android:textColor="@color/text_tertiary"
+            android:textSize="@dimen/text_body"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/episodeDownloadButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/bg_toolbar_button"
+        android:clickable="true"
+        android:contentDescription="Download episode"
+        android:focusable="true"
+        android:padding="9dp"
+        android:src="@android:drawable/stat_sys_download"
+        android:stateListAnimator="@animator/focus_scale"
+        android:tint="@color/text_secondary"
+        android:visibility="gone" />
+</LinearLayout>

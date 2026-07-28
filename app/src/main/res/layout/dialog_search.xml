@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Root is a full-bleed frame purely so the panel inside it can be narrower than the slot
+     and stay centred: search never needed the whole screen, and at full width the results
+     grid ran to both bezels with the query stranded in the top-left corner. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <LinearLayout
+        android:id="@+id/searchPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_category_panel"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:padding="@dimen/search_panel_padding">
+
+        <!-- Header: the query box reads as a display of what the on-screen keyboard below
+             has typed. It stays focusable so a real (bluetooth/USB) keyboard still works,
+             but showSoftInputOnFocus is turned off in code so the platform IME never opens
+             over the top of everything. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="10dp"
+                android:src="@android:drawable/ic_menu_search"
+                android:tint="@color/text_secondary" />
+
+            <!-- Not focusable. With the system IME suppressed, a focused query field is a
+                 dead end: the remote's select does nothing and every key press vanishes,
+                 which is exactly what "it won't show the letters I type" looks like. Focus
+                 belongs on the keys; this is a display of what they've produced. Hardware
+                 keyboards are handled in dispatchKeyEvent instead. -->
+            <EditText
+                android:id="@+id/searchInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_input"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:hint="Search live TV, films &amp; series…"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="12dp"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_tertiary"
+                android:textSize="@dimen/text_subhead" />
+
+            <LinearLayout
+                android:id="@+id/searchCloseButton"
+                android:layout_width="@dimen/toolbar_button_size"
+                android:layout_height="@dimen/toolbar_button_size"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:tint="@color/text_primary" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Keyboard on the left, matches on the right, both on screen at once - the whole
+             point of not using the system IME. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="14dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="horizontal">
+
+            <com.lumora.ui.OnScreenKeyboard
+                android:id="@+id/searchKeyboard"
+                android:layout_width="@dimen/search_keyboard_width"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top" />
+
+            <!-- Status above the grid as its own row, not stacked in a frame with it: the
+                 results view is opaque and full-bleed, so anything behind it (the "N/M
+                 results" readout) was simply never seen. -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/searchStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:paddingBottom="8dp"
+                    android:text="Type to search"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/text_body" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/searchResults"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

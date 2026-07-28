@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Matches bg_channel_row's focused treatment (fill + focus stroke) rather than a solid
+         primary fill, which would put light-blue behind text_primary. -->
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_emphasis" />
+            <stroke android:width="2dp" android:color="@color/focus" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_emphasis" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_elevated" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+</selector>

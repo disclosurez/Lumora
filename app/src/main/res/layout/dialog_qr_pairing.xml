@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="380dp"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Pair with Phone"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/text_title"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:text="Select provider type, then scan QR"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_body_s" />
+
+    <!-- Provider type selector (TV side) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/selectM3u"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_select_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="M3U URL"
+            android:textAllCaps="true"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_body_s"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/selectXtream"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_select_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="Xtream"
+            android:textAllCaps="true"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body_s" />
+    </LinearLayout>
+
+    <!-- Status text -->
+    <TextView
+        android:id="@+id/pairingStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_body_s" />
+
+    <!-- QR Code -->
+    <FrameLayout
+        android:id="@+id/qrFrame"
+        android:layout_width="260dp"
+        android:layout_height="260dp"
+        android:layout_marginTop="12dp"
+        android:background="@android:color/white"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/qrImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter" />
+    </FrameLayout>
+
+    <!-- URL + timer -->
+    <TextView
+        android:id="@+id/pairingUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:textColor="@color/primary_light"
+        android:textSize="@dimen/text_tiny"
+        android:maxLines="2"
+        android:ellipsize="none"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/pairingTimer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/accent"
+        android:textSize="@dimen/text_caption"
+        android:visibility="gone" />
+
+    <!-- Action buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnStopPairing"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:text="Stop" />
+
+        <Button
+            android:id="@+id/btnClosePairing"
+            style="@style/Widget.AppCompat.Button"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:text="Close" />
+    </LinearLayout>
+</LinearLayout>
