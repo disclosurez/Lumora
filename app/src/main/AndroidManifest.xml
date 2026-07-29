@@ -30,6 +30,12 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/vnd.android.package-archive" />
         </intent>
+        <!-- Companion plugin APKs (see com.lumora.plugin.PluginContract). Without this,
+             package-visibility filtering hides their services from queryIntentServices()
+             entirely and no plugin is ever discoverable. -->
+        <intent>
+            <action android:name="com.lumora.action.PLUGIN" />
+        </intent>
     </queries>
 
     <application

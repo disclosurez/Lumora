@@ -88,7 +88,12 @@
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Downloads" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
+                <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
+                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="X" android:backgroundTint="@color/channel_2" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Plugins" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="About" />
                 </LinearLayout>
@@ -965,6 +970,192 @@
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false" />
+            </LinearLayout>
+
+            <!-- Pane: Plugins - companion APKs that can propose providers. Rows for both the
+                 installed plugins and a run's results are inflated at runtime
+                 (item_plugin_row / item_plugin_candidate_row) into the containers below. -->
+            <LinearLayout
+                android:id="@+id/panePlugins"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Plugins" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="16dp"
+                    android:text="Separate companion apps that add features - finding providers, or searching for streams. A plugin runs in its own app, only when you enable it, and anything it proposes is only used if you confirm it."
+                    style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ADD A PLUGIN"
+                    android:letterSpacing="0.08"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="@dimen/settings_text_caption"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="20dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/settingsPluginInstallUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="16dp"
+                        android:stateListAnimator="@animator/focus_scale">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Install from URL"
+                            android:textColor="@color/text_primary"
+                            android:textSize="@dimen/settings_text_body"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Enter an APK link"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/settings_text_caption" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/settingsPluginInstallQr"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="16dp"
+                        android:stateListAnimator="@animator/focus_scale">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Install via phone"
+                            android:textColor="@color/text_primary"
+                            android:textSize="@dimen/settings_text_body"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Scan a QR, paste the link"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/settings_text_caption" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="INSTALLED"
+                    android:letterSpacing="0.08"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="@dimen/settings_text_caption"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/settingsPluginList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/settingsPluginListEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="No plugins installed"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:visibility="gone" />
+
+                <!-- Results of the current/last run - hidden until a run starts. -->
+                <LinearLayout
+                    android:id="@+id/settingsPluginRunSection"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="RESULTS"
+                        android:letterSpacing="0.08"
+                        android:textColor="@color/text_tertiary"
+                        android:textSize="@dimen/settings_text_caption"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ProgressBar
+                            android:id="@+id/settingsPluginProgress"
+                            style="?android:attr/progressBarStyleSmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="10dp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/settingsPluginStatus"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/settings_text_body" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/settingsPluginCandidateList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:orientation="vertical" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Pane: About -->

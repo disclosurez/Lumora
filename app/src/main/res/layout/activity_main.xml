@@ -237,10 +237,32 @@
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
                 android:nextFocusLeft="@id/tabSeries"
-                android:nextFocusRight="@id/tabDownloads"
+                android:nextFocusRight="@id/tabDiscover"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
                 android:text="🎬 Films"
+                android:textAllCaps="true"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/tab_text" />
+
+            <TextView
+                android:id="@+id/tabDiscover"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:paddingVertical="@dimen/tab_padding_vertical"
+                android:background="@drawable/bg_tab_item"
+                android:clickable="true"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
+                android:maxLines="1"
+                android:nextFocusLeft="@id/tabFilms"
+                android:nextFocusRight="@id/tabDownloads"
+                android:stateListAnimator="@animator/focus_scale_flat"
+                android:layerType="none"
+                android:text="🧭 Discover"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/tab_text" />
@@ -258,7 +280,7 @@
                 android:gravity="center"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:maxLines="1"
-                android:nextFocusLeft="@id/tabFilms"
+                android:nextFocusLeft="@id/tabDiscover"
                 android:nextFocusRight="@id/tabHome"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
@@ -409,6 +431,75 @@
             android:clipToPadding="false"
             android:paddingHorizontal="16dp"
             android:visibility="gone" />
+
+        <!-- Discover: TMDB browse/search for titles outside the provider catalog, played via a
+             stream-search plugin. Its own pane (like Downloads) - no category sidebar. -->
+        <LinearLayout
+            android:id="@+id/discoverContent"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/discoverSearchInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/card_surface_background"
+                    android:hint="Search movies &amp; series…"
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="12dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary" />
+
+                <TextView
+                    android:id="@+id/discoverSearchButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="20dp"
+                    android:paddingVertical="12dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:text="Search"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/discoverStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:textColor="@color/text_secondary"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/discoverGrid"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipChildren="false"
+                android:clipToPadding="false" />
+        </LinearLayout>
 
         <!-- Settings: content added/removed at runtime by showProviderSettings(). Lives here
              (rather than covering the whole screen) so the toolbar + tab bar above stay
@@ -874,6 +965,33 @@
                                 android:layout_height="20dp"
                                 android:src="@android:drawable/stat_sys_download"
                                 android:tint="@color/text_primary" />
+                        </LinearLayout>
+
+                        <!-- Shown only when a stream_search plugin is installed+enabled (see
+                             wireFindStreamButton). Hands off to a companion plugin to find a
+                             playable stream for this title. -->
+                        <LinearLayout
+                            android:id="@+id/detailFindStreamButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:layout_marginStart="10dp"
+                            android:background="@drawable/bg_toolbar_button"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="18dp"
+                            android:stateListAnimator="@animator/focus_scale"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Find Stream"
+                                android:textAllCaps="true"
+                                android:textColor="@color/text_primary"
+                                android:textSize="@dimen/text_body"
+                                android:textStyle="bold" />
                         </LinearLayout>
                     </LinearLayout>
 
