@@ -1191,8 +1191,10 @@ class MainActivity : AppCompatActivity() {
 
     /** Persists what to reopen on next launch: the channel *and* the exact version of it
      *  that's playing. Written on every tune and every version switch rather than at exit,
-     *  since the process can be killed outright from the launcher with no further callback. */
+     *  since the process can be killed outright from the launcher with no further callback.
+     *  Skips adult channels - they shouldn't auto-reopen on next launch. */
     private fun rememberLastLiveTune(channel: Channel) {
+        if (isAdultCategory(channel.categoryName, channel.group)) return
         prefs.edit()
             .putString(PREF_LAST_LIVE_CHANNEL, channel.id)
             .putString(PREF_LAST_LIVE_VERSION, currentVersionGroup.getOrNull(currentVersionIndex)?.id)
@@ -1202,7 +1204,8 @@ class MainActivity : AppCompatActivity() {
     /** Reopens whatever live channel was playing when the app was last closed, once the
      *  catalog it lives in is actually loaded. Looks through the version lists too, since a
      *  channel that was tuned from a dynamic/brand row can be a non-representative copy that
-     *  never appears in [liveChannels] itself. */
+     *  never appears in [liveChannels] itself.
+     *  Skips adult channels so they don't auto-resume on next launch. */
     private fun resumeLastLiveChannelIfPending() {
         val id = pendingLiveResumeId ?: return
         pendingLiveResumeId = null
@@ -1210,6 +1213,7 @@ class MainActivity : AppCompatActivity() {
         val channel = liveChannels.firstOrNull { it.id == id }
             ?: liveVersions.values.firstNotNullOfOrNull { versions -> versions.firstOrNull { it.id == id } }
             ?: return
+        if (isAdultCategory(channel.categoryName, channel.group)) return
         selectTab(0)
         currentIndex = liveChannels.indexOf(channel)
         // Stash the resumed channel so hidePlayer() can return to it rather than
@@ -1376,9 +1380,13 @@ class MainActivity : AppCompatActivity() {
 
     // ── Categories ─────────────────────────────────
 
-    /** A channel's filter key: Xtream category id, or M3U group name as a fallback. */
+    /** A channel's filter key: Xtream category id, or M3U group name as a fallback.
+     *  Falls back to categoryName as a last resort so channels always have a category
+     *  to group under, even when the provider doesn't assign a numeric category id. */
     private fun Channel.filterKey(): String? =
-        categoryId?.takeIf { it.isNotBlank() } ?: group?.takeIf { it.isNotBlank() }
+        categoryId?.takeIf { it.isNotBlank() }
+            ?: group?.takeIf { it.isNotBlank() }
+            ?: categoryName?.takeIf { it.isNotBlank() }
 
     private fun activeFullList(): List<Channel> = when (activeTab) {
         0 -> liveChannels
@@ -1646,7 +1654,7 @@ class MainActivity : AppCompatActivity() {
             // left over cascades below, same priority order as before this existed. The
             // classic pref (Live TV only) bypasses this and shows the old flat/grouped list.
             val dynamicBuckets = if (tab == 0) LIVE_DYNAMIC_BUCKETS else VOD_DYNAMIC_BUCKETS
-            val (bucketRows, bucketedIds) = if (!useClassicLayout) {
+            val (bucketRows, allUnitsEnhanced) = if (!useClassicLayout) {
                 fun bucketFor(name: String): String? {
                     val lower = name.lowercase()
                     return dynamicBuckets.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
@@ -1669,7 +1677,18 @@ class MainActivity : AppCompatActivity() {
                     val bucketId = "$DYNAMIC_BUCKET_ID_PREFIX$label"
                     val expanded = expandedSnapshot.contains(bucketId)
                     val channelIds = members.flatMap { (row, _) ->
-                        row.channelIds.ifEmpty { list.filter { ch -> ch.filterKey() in row.matchIds }.map { it.id } }
+                        if (row.channelIds.isNotEmpty()) {
+                            row.channelIds
+                        } else {
+                            val byKey = list.filter { ch -> ch.filterKey() in row.matchIds }.map { it.id }
+                            // Backup: match by categoryName in case filterKey is unreachable
+                            val byName = if (byKey.isEmpty() && row.name.isNotBlank()) {
+                                list.filter { ch ->
+                                    ch.categoryName?.let { it.equals(row.name, ignoreCase = true) } == true
+                                }.map { it.id }
+                            } else emptyList()
+                            if (byName.isNotEmpty()) byName else byKey
+                        }
                     }.toSet()
                     val parent = CategoryFilter(
                         id = bucketId,
@@ -1689,15 +1708,40 @@ class MainActivity : AppCompatActivity() {
                     childrenByParent[bucketId] = children
                     if (expanded) listOf(parent) + children else listOf(parent)
                 }.flatten()
-                rows to bucketed.values.flatten().map { it.first.id }.toSet()
+                // Brand-row channels from a bucket should also be reachable from that
+                // bucket's classic provider categories. For each classic leaf inside a
+                // bucket that has brand rows, add the brand channel IDs to the leaf's
+                // channelIds so both the bucket AND the classic category show them.
+                val enhancedUnits = if (tab == 0) {
+                    val bucketExtra = mutableMapOf<String, MutableSet<String>>()
+                    for ((label, _) in dynamicBuckets) {
+                        val bucketMembers = bucketed[label] ?: continue
+                        val brandIds = bucketMembers.filter { (row, _) -> row.channelIds.isNotEmpty() }
+                            .flatMap { (row, _) -> row.channelIds ?: emptySet() }.toSet()
+                        if (brandIds.isEmpty()) continue
+                        for ((row, _) in bucketMembers.filter { (row, _) -> row.channelIds.isNullOrEmpty() }) {
+                            row.id?.let { id -> bucketExtra.getOrPut(id) { mutableSetOf() }.addAll(brandIds) }
+                        }
+                    }
+                    if (bucketExtra.isNotEmpty()) {
+                        allUnits.map { unit ->
+                            val (row, children) = unit
+                            val extra = bucketExtra[row.id] ?: return@map unit
+                            row.copy(channelIds = (row.channelIds ?: emptySet()) + extra) to children
+                        }
+                    } else allUnits
+                } else allUnits
+                rows to enhancedUnits
             } else {
-                emptyList<CategoryFilter>() to emptySet()
+                emptyList<CategoryFilter>() to allUnits
             }
             // Series/Films: merged (grouped) categories surface above plain single-provider
             // leaves, alphabetical within each cluster - sorted here, at the unit level,
             // so an expanded parent's own children stay adjacent to it (sorting the already-
             // flattened rows would scatter them back in with unrelated leaves by name).
-            val leftoverUnits = allUnits.filter { it.first.id !in bucketedIds }
+            // Channels in dynamic buckets should also appear in their original provider
+            // categories below the buckets - don't filter out bucketed units here.
+            val leftoverUnits = allUnitsEnhanced
             // Series/Films: clustered service categories go above the genre buckets -
             // they're the rows people go looking for by name - and the provider's own
             // categories below both. Splitting them out here rather than
@@ -1850,6 +1894,8 @@ class MainActivity : AppCompatActivity() {
                 val filtered = withContext(Dispatchers.Default) {
                     when {
                         isFavourites -> source.filter { it.id in favoriteIds }
+                        brandIds != null && matchIds != null ->
+                            source.filter { it.id in brandIds || it.filterKey() in matchIds }
                         brandIds != null -> source.filter { it.id in brandIds }
                         matchIds == null -> source
                         else -> source.filter { it.filterKey() in matchIds }
@@ -1935,7 +1981,27 @@ class MainActivity : AppCompatActivity() {
         if (category.id == CLASSIC_LAYOUT_TOGGLE_ID) {
             val useClassic = prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
             prefs.edit().putBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, !useClassic).apply()
-            scope.launch { rebuildCategoriesForActiveTab() }
+            val newClassic = !useClassic
+            scope.launch {
+                // Classic mode shows ALL live channels flat (no version grouping), so
+                // channels like SD variants that were collapsed into a higher-quality
+                // representative are individually visible and contribute to their own
+                // provider categories. Re-derive liveChannels/liveVersions before
+                // rebuilding the sidebar so categories reflect the full channel list.
+                val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
+                val snapshot = allChannels
+                val rawLive = snapshot.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
+                    .filterNot { hideAdult && isAdultCategory(it.categoryName, it.group) }
+                if (newClassic) {
+                    liveChannels = rawLive
+                    liveVersions = emptyMap()
+                } else {
+                    val (grouped, vers) = groupLiveQualityVersions(rawLive)
+                    liveChannels = grouped
+                    liveVersions = vers
+                }
+                rebuildCategoriesForActiveTab()
+            }
             return
         }
         // A tap on a parent row always toggles its expansion (and selects it) - the old
@@ -1950,7 +2016,7 @@ class MainActivity : AppCompatActivity() {
         selectedRowId = category.id
         selectedCategoryLabel = category.name
         selectedBrandChannelIds = category.channelIds.ifEmpty { null }
-        selectedCategoryIds = if (category.id == null || category.channelIds.isNotEmpty()) null else category.matchIds
+        selectedCategoryIds = if (category.id == null) null else category.matchIds
         if (expandChanged) {
             if (category.expanded) {
                 // Was expanded -> collapsing: just remove child rows from the existing
@@ -3448,7 +3514,10 @@ class MainActivity : AppCompatActivity() {
         binding.playerSubtitle.visibility = View.GONE
         binding.playerLiveBadge.visibility = if (channel.mediaType == MediaType.LIVE) View.VISIBLE else View.GONE
         if (channel.mediaType == MediaType.LIVE) {
-            RecentlyPlayedStore.recordPlayed(this, channel.id)
+            // Don't add adult channels to recently played.
+            if (!isAdultCategory(channel.categoryName, channel.group)) {
+                RecentlyPlayedStore.recordPlayed(this, channel.id)
+            }
             speedController.resetSpeed()
         }
 
@@ -3950,6 +4019,7 @@ class MainActivity : AppCompatActivity() {
     private fun saveCurrentPlaybackPosition() {
         val channel = nowPlayingChannel ?: return
         if (channel.mediaType == MediaType.LIVE) return
+        if (isAdultCategory(channel.categoryName, channel.group)) return
         val dur = playerManager.duration
         val pos = playerManager.currentPosition
         if (pos == androidx.media3.common.C.TIME_UNSET || pos < 0) return
