@@ -727,6 +727,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Dedicated transport keys. Nothing in the Activity claimed these, so a remote's
+        // play/pause reached the media session (or nothing at all) and the overlay never
+        // appeared - no visible response to the press, and the button's icon stayed stale.
+        // Handled here so the on-screen controls react the same way they do to a click.
+        if (isPlayerVisible) {
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
+                    playerManager.togglePlayPause(); updatePlayPauseIcon(); showControls(); return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    playerManager.play(); updatePlayPauseIcon(); showControls(); return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    playerManager.pause(); updatePlayPauseIcon(); showControls(); return true
+                }
+            }
+        }
+
         // Live channel-surf is a blind shortcut only while the controls are hidden - once
         // they're showing, UP/DOWN needs to navigate between buttons (transport row ->
         // seek bar -> Speed/Sleep/Cast/...) instead of surfing channels out from under
