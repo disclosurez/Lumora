@@ -8,7 +8,35 @@ private val YEAR_PAREN_REGEX = Regex("""\((\d{4})\)""")
 // Matches one or more hyphen-joined ALL-CAPS/digit/"+" tokens before " - ", e.g.
 // "EN - ", "4K-D+ - ", "EN-TOP - ". Tags are always uppercase in this provider's
 // data, which is what keeps this from eating real (mixed-case) title words.
+// Uppercase alone isn't enough of a test though - plenty of catalogues list titles
+// fully capitalised, so "TROY - THE ODYSSEY" matched this and got stripped down to
+// "the odyssey", which then grouped as a duplicate of the actual film "The Odyssey".
+// [isSourceTagToken] is the second gate that keeps real title words out.
 private val LEADING_TAG_REGEX = Regex("""^(?:[A-Z0-9+]{1,6}-)*[A-Z0-9+]{1,6}\s*-\s*""")
+
+// Longer all-letter tags that are still tags, not title words.
+private val KNOWN_TAG_WORDS = setOf(
+    "MULTI", "DUAL", "SUB", "SUBS", "DUB", "LAT", "VOSTFR", "HEVC", "H265", "H264",
+    "UHD", "FHD", "HDR", "SDR", "VIP", "PLUS", "ORIG", "ORIGINALS", "NEW", "TOP"
+)
+
+/** True if one hyphen-joined leading token is a source/quality tag rather than a word of
+ *  the title. Tags are short (a language/provider code), carry a digit or "+" ("4K", "D+"),
+ *  or are one of the known longer tag words - a 4-to-6 letter all-letter token that is none
+ *  of those is far more likely a real title word ("TROY", "ALIEN", "MARVEL"). */
+private fun isSourceTagToken(token: String): Boolean =
+    token.length <= 3 ||
+        token.any { it.isDigit() || it == '+' } ||
+        token in KNOWN_TAG_WORDS
+
+/** The leading source tag of [name] ("EN - ", "4K-D+ - "), including its trailing separator,
+ *  or null when the title just starts with a capitalised word followed by a dash. */
+private fun leadingTagMatch(name: String): String? {
+    val match = LEADING_TAG_REGEX.find(name) ?: return null
+    val tokens = match.value.trimEnd().trimEnd('-').trim().split('-').filter { it.isNotBlank() }
+    if (tokens.isEmpty() || !tokens.all(::isSourceTagToken)) return null
+    return match.value
+}
 private val BRACKET_REGEX = Regex("""\[[^\]]*\]""")
 private val WHITESPACE_REGEX = Regex("""\s+""")
 // Language tag can show up in either bracket style - "[KR]" or "(KR)" - this provider
@@ -39,7 +67,7 @@ fun Channel.withResolvedYear(): Channel =
  * "TOP - The Breadwinner (2026)" and "NF - The Breadwinner" group together.
  */
 fun normalizeTitleForGrouping(name: String): String {
-    var n = LEADING_TAG_REGEX.replace(name, "")
+    var n = leadingTagMatch(name)?.let { name.removePrefix(it) } ?: name
     n = YEAR_PAREN_REGEX.replace(n, "")
     n = BRACKET_REGEX.replace(n, "")
     n = WHITESPACE_REGEX.replace(n, " ").trim().lowercase()
@@ -47,10 +75,8 @@ fun normalizeTitleForGrouping(name: String): String {
 }
 
 /** Pulls just the leading source tag ("4K-D+", "TOP") off a title, for labeling version-picker chips. */
-fun extractLeadingTag(name: String): String? {
-    val match = LEADING_TAG_REGEX.find(name) ?: return null
-    return match.value.trimEnd('-', ' ').trim()
-}
+fun extractLeadingTag(name: String): String? =
+    leadingTagMatch(name)?.trimEnd('-', ' ')?.trim()
 
 /**
  * Groups movies that are really the same title reposted under different
@@ -65,12 +91,38 @@ fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String,
     }
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
-    for (versions in groups.values) {
-        val representative = versions.firstOrNull { !it.posterUrl.isNullOrBlank() } ?: versions.first()
+    for (group in groups.values) {
+        val versions = jellyfinFirst(group)
+        val representative = pickRepresentative(versions)
         representatives.add(representative)
         if (versions.size > 1) versionsById[representative.id] = versions
     }
     return representatives to versionsById
+}
+
+/** The user's own Jellyfin library always outranks an IPTV copy of the same title: it's the
+ *  copy they curated, and it streams off their own server. Ordering the group this way makes
+ *  Jellyfin the first (default-played) version chip; ties keep provider order. */
+private fun jellyfinFirst(versions: List<Channel>): List<Channel> =
+    if (versions.size > 1 && versions.any { it.isJellyfin }) {
+        versions.sortedBy { if (it.isJellyfin) 0 else 1 }
+    } else {
+        versions
+    }
+
+/** The copy that gets the card. A poster is what makes the card look right, so it wins among
+ *  equally-ranked copies - but never at the cost of demoting the Jellyfin version, which is
+ *  already first in [versions]. */
+private fun pickRepresentative(versions: List<Channel>): Channel {
+    val preferred = versions.firstOrNull()?.takeIf { it.isJellyfin }
+    val jellyfinWithPoster = if (preferred != null) {
+        versions.firstOrNull { it.isJellyfin && !it.posterUrl.isNullOrBlank() } ?: preferred
+    } else {
+        null
+    }
+    return jellyfinWithPoster
+        ?: versions.firstOrNull { !it.posterUrl.isNullOrBlank() }
+        ?: versions.first()
 }
 
 /**
@@ -92,8 +144,9 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
     }
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
-    for (versions in groups.values) {
-        val representative = versions.firstOrNull { !it.posterUrl.isNullOrBlank() } ?: versions.first()
+    for (group in groups.values) {
+        val versions = jellyfinFirst(group)
+        val representative = pickRepresentative(versions)
         representatives.add(representative)
         if (versions.size > 1) versionsById[representative.id] = versions
     }
@@ -137,18 +190,36 @@ private fun deSuperscript(name: String): String {
     return name.map { SUPERSCRIPT_MAP[it] ?: it }.joinToString("")
 }
 
-private val DECORATIVE_TOKEN_REGEX = Regex("""(?i)\b(4K|UHD|FHD|HD|SD|HEVC|H265|H264|RAW|VIP|\d{3,4}P)\b""")
+// \b is the wrong boundary for these badges. Providers run them together - "ᵁᴴᴰ³⁸⁴⁰ᴾ"
+// transliterates to "UHD3840P", where there is no word boundary between "UHD" and "3840P"
+// because D and 3 are both word characters. Every \b-anchored pattern therefore missed the
+// whole badge: the channel scored 0 (below RAW and even plain HD) and kept its badge in the
+// grouping key, so it never merged with its own siblings either.
+//
+// Word tags may be followed by a digit (the glued case) but not by another letter, so "SUHD"
+// or "4Kids" still won't match; number tags may be preceded by a letter but not a digit, so
+// "1080" out of "21080" won't.
+private const val WORD_TAG_ALTERNATIVES = """4K|UHD|ULTRA\s?HD|FHD|HD|SD|HEVC|H265|H264|RAW|VIP"""
+private const val NUM_TAG_ALTERNATIVES = """\d{3,4}\s?[x×]\s?\d{3,4}|\d{3,4}\s?[PI]"""
+private fun wordTagRegex(alternatives: String) = Regex("""(?i)(?<![A-Za-z0-9])(?:$alternatives)(?![A-Za-z])""")
+private fun numTagRegex(pattern: String) = Regex("""(?i)(?<!\d)(?:$pattern)(?![A-Za-z0-9])""")
+
+private val DECORATIVE_TOKEN_REGEX = Regex(
+    """(?i)(?:(?<![A-Za-z0-9])(?:$WORD_TAG_ALTERNATIVES)(?![A-Za-z])|(?<!\d)(?:$NUM_TAG_ALTERNATIVES)(?![A-Za-z0-9]))"""
+)
 private val HASH_BORDER_REGEX = Regex("""#+""")
 // Provider scatters standalone decorative symbols around badges too - "&" joining
 // "4K & 3840P", "◉" bullet markers, etc - that survive DECORATIVE_TOKEN_REGEX because
 // they aren't one of the known tag words themselves. Anything left over that isn't a
 // letter/digit/space/"+" is just noise for grouping purposes, so strip it outright.
 private val SYMBOL_NOISE_REGEX = Regex("""[^\p{L}\p{Nd}\s+]""")
-private val QUALITY_4K_REGEX = Regex("""(?i)\b(4K|UHD)\b""")
-private val QUALITY_RAW_REGEX = Regex("""(?i)\bRAW\b""")
-private val QUALITY_FHD_REGEX = Regex("""(?i)\bFHD\b""")
-private val QUALITY_HD_REGEX = Regex("""(?i)\bHD\b""")
-private val QUALITY_SD_REGEX = Regex("""(?i)\bSD\b""")
+private val QUALITY_4K_REGEX = wordTagRegex("""4K|UHD|ULTRA\s?HD""")
+private val QUALITY_RAW_REGEX = wordTagRegex("RAW")
+private val QUALITY_FHD_REGEX = wordTagRegex("FHD")
+// "UHD" must not read as an HD badge - the leading letter is what rules it out here, and
+// the 4K branch is checked first regardless.
+private val QUALITY_HD_REGEX = wordTagRegex("HD")
+private val QUALITY_SD_REGEX = wordTagRegex("SD")
 // Live channels are typically reposted under a source/country tag chain like
 // Leading provider/country tags (e.g. "UK| Main Event", "VIP: Main Event", "NOW: Main
 // Event") show up as the
@@ -189,14 +260,29 @@ fun normalizeLiveChannelKey(name: String): String =
         .filter { it.isNotBlank() }
         .joinToString(" ") { lightStem(it) }
 
-// Raw pixel-width resolution tags map onto the same tiers as their named equivalent
-// (3840x2160 = 4K/UHD, 1920x1080 = FHD, 1280x720 = HD).
-private val RES_TAG_REGEX = Regex("""(?i)\b(\d{3,4})P\b""")
+// Raw pixel resolution tags map onto the same tiers as their named equivalent
+// (3840x2160 = 4K/UHD, 1920x1080 = FHD, 1280x720 = HD). Both shapes appear: a scanline
+// count ("2160p", "1080i", "3840 P") and a full dimension pair ("3840x2160"), the latter
+// of which used to score 0 - so a "Sport 3840x2160" feed ranked *below* the RAW copy of
+// the same channel instead of above it.
+private val RES_TAG_REGEX = numTagRegex("""(\d{3,4})\s?[PI]""")
+private val RES_DIMENSION_REGEX = numTagRegex("""(\d{3,4})\s?[x×]\s?(\d{3,4})""")
+
+/** Scanline count of whatever resolution tag [name] carries, in either shape. A dimension
+ *  pair is reported by its smaller side, so 3840x2160 and 2160p score identically. */
+private fun resolutionLines(name: String): Int? {
+    RES_DIMENSION_REGEX.find(name)?.let { m ->
+        val a = m.groupValues[1].toIntOrNull()
+        val b = m.groupValues[2].toIntOrNull()
+        if (a != null && b != null) return minOf(a, b)
+    }
+    return RES_TAG_REGEX.find(name)?.groupValues?.get(1)?.toIntOrNull()
+}
 
 /** Higher is better; used to auto-pick the best version and order fallbacks. */
 fun liveQualityScore(rawName: String): Int {
     val name = deSuperscript(rawName)
-    val resWidth = RES_TAG_REGEX.find(name)?.groupValues?.get(1)?.toIntOrNull()
+    val resWidth = resolutionLines(name)
     return when {
         QUALITY_4K_REGEX.containsMatchIn(name) -> 5
         resWidth != null && resWidth >= 2160 -> 5
@@ -229,7 +315,15 @@ fun groupLiveQualityVersions(channels: List<Channel>): Pair<List<Channel>, Map<S
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (versions in groups.values) {
-        val ranked = versions.sortedByDescending { liveQualityScore(it.name) }
+        // Quality first, Jellyfin only as the tie-break. Live TV is the one place where
+        // "prefer Jellyfin" and "prefer the best feed" genuinely conflict: a Jellyfin server
+        // fed by the same IPTV sources carries its own RAW/HD copies of a channel, and
+        // ranking those above everything buried the provider's 4K feed several entries down
+        // and auto-tuned a lower-quality stream. Films and series have no quality ladder, so
+        // they keep the plain Jellyfin-first rule.
+        val ranked = versions.sortedWith(
+            compareByDescending<Channel> { liveQualityScore(it.name) }.thenBy { if (it.isJellyfin) 0 else 1 }
+        )
         val best = ranked.first()
         // Version list (picker/failover) keeps full raw names, since "NOW:" vs "VIP:"
         // is a real distinguishing detail there - only the row people actually browse

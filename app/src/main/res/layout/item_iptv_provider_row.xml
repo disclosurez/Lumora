@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The row itself is the enable/disable control: the checkbox is display-only (a bare
+     CheckBox is a poor D-pad target, and a focusable one competes with Edit/Remove), so
+     the root carries the focus and the click that flips it. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rowRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
     android:background="@drawable/bg_category_panel"
+    android:clickable="true"
     android:clipChildren="false"
     android:clipToPadding="false"
+    android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="12dp"
+    android:stateListAnimator="@animator/focus_scale">
 
     <CheckBox
         android:id="@+id/rowEnabled"

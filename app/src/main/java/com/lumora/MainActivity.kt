@@ -117,6 +117,15 @@ private const val PREF_HIDE_ADULT = "hide_adult_categories"
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
+// The live channel that was playing when the app was last closed, reopened on next launch,
+// plus the exact version of it that was on - restoring the channel alone re-runs the
+// quality/dead-stream auto-pick and can land on a different (often broken) stream.
+private const val PREF_LAST_LIVE_CHANNEL = "last_live_channel_id"
+private const val PREF_LAST_LIVE_VERSION = "last_live_version_id"
+// When the catalog was last fetched from the network; the cache serves every launch until
+// this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
+private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
+private const val CATALOG_TTL_MS = 12 * 60 * 60 * 1000L
 private const val SEARCH_BATCH_SIZE = 50
 
 // Free-TV/IPTV: a community-maintained list of publicly available free-to-air streams.
@@ -173,7 +182,14 @@ private const val BLACK_FRAME_INITIAL_DELAY_MS = 3_000L
 private const val BLACK_FRAME_CHECK_INTERVAL_MS = 2_000L
 private const val BLACK_FRAME_LUMA_THRESHOLD = 10 // 0-255 average brightness
 private const val BLACK_FRAME_STREAK_THRESHOLD = 2
-private const val DEAD_STREAM_COOLDOWN_MS = 3 * 60 * 60 * 1000L
+private const val DEAD_STREAM_COOLDOWN_MS = 60 * 60 * 1000L
+// Dead marks, persisted so a cooldown survives the app being closed and reopened.
+private const val PREF_DEAD_STREAMS = "dead_streams_until"
+// How long a freshly-tuned stream is exempt from stall/black-frame failover. Startup and a
+// channel change both have a slow first buffer fill; without this the app walks the whole
+// version group in the first few seconds and marks each one dead for DEAD_STREAM_COOLDOWN_MS,
+// so the best version stays skipped for hours afterwards.
+private const val FAILOVER_GRACE_MS = 12_000L
 
 class MainActivity : AppCompatActivity() {
 
@@ -220,6 +236,10 @@ class MainActivity : AppCompatActivity() {
      *  so the in-player version picker can't find the alternatives without this. */
     private var currentSeriesVersionContext: Pair<Channel, List<Channel>>? = null
     private var bufferingStartMs = 0L
+    // When the current stream was handed to the player, and whether it ever reached READY -
+    // the two things every automatic failover has to know before it condemns a stream.
+    private var currentStreamStartMs = 0L
+    private var currentStreamPlayed = false
     private val stallTimestamps = mutableListOf<Long>()
     private val longStallCheckRunnable = Runnable { attemptBufferFailover() }
     private var blackFrameStreak = 0
@@ -428,6 +448,12 @@ class MainActivity : AppCompatActivity() {
         setupTabs()
         setupPlayerControls()
         setupToolbar()
+        // Consumed once, by the first catalog load of this process. Read here (not at the
+        // point of use) so a rotation/recreate with the same catalog doesn't re-trigger it,
+        // and so a later reload - toggling a provider in Settings, say - doesn't yank the
+        // user back into the player.
+        pendingLiveResumeId = if (savedInstanceState == null) prefs.getString(PREF_LAST_LIVE_CHANNEL, null) else null
+        loadDeadStreams()
         loadSavedProvider()
         requestNotificationPermissionIfNeeded()
         checkAndPromptUpdate()
@@ -803,6 +829,30 @@ class MainActivity : AppCompatActivity() {
         loadAllConfiguredProviders()
     }
 
+    /** Reacts to a provider being switched on or off in Settings.
+     *
+     *  Switching one *off* needs no network at all: its items are already in memory and
+     *  carry their own provenance, so they're just dropped. Re-fetching every other provider
+     *  to achieve that meant a full "Connecting to ..." reload - visible behind the settings
+     *  dialog - and left the catalog at the mercy of a provider that happened to be down.
+     *  Switching one *on* genuinely needs its catalog, so that still refreshes. */
+    private fun applyProviderToggle(enabled: Boolean, belongsToProvider: (Channel) -> Boolean) {
+        if (enabled) { loadAllConfiguredProviders(forceRefresh = true); return }
+        scope.launch {
+            allChannels = allChannels.filterNot(belongsToProvider)
+            classifyAndShow()
+            withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
+        }
+    }
+
+    /** True when the cached catalog is old enough to be worth re-fetching. A missing stamp
+     *  counts as stale so a cache written by an older build refreshes once, then follows
+     *  the TTL like everything else. */
+    private fun isCatalogStale(): Boolean {
+        val last = prefs.getLong(PREF_CATALOG_REFRESHED_AT, 0L)
+        return last <= 0L || System.currentTimeMillis() - last >= CATALOG_TTL_MS
+    }
+
     private sealed class FetchResult {
         data class Success(val channels: List<Channel>) : FetchResult()
         data class Failure(val message: String) : FetchResult()
@@ -816,6 +866,8 @@ class MainActivity : AppCompatActivity() {
      *  from the network(s) directly. */
     private fun loadAllConfiguredProviders(forceRefresh: Boolean = false) {
         if (!hasProviderConfigured()) { showProviderSettings(); return }
+        // Raised for the cached path too: reading and re-deriving a big catalog still takes
+        // a few seconds, and with no status up the app just looks frozen.
         setStatus("Loading...", visible = true)
         xtreamProviderConfigs = IptvProviderStore.load(prefs).filter { it.enabled && it.type == "xtream" }.associateBy { it.id }
         // Every type, not just Xtream, and regardless of enabled state - a cached catalog can
@@ -828,9 +880,14 @@ class MainActivity : AppCompatActivity() {
         // to allChannels/ChannelCache, which can silently persist a stale provider list.
         providerLoadJob?.cancel()
         providerLoadJob = scope.launch {
+            // The cached catalog is authoritative until it goes stale: re-fetching every
+            // launch means several seconds of "Loading..." and, on a large catalog, real
+            // work for a result that is almost always identical. Providers change rarely,
+            // so the network is only worth hitting once every CATALOG_TTL_MS - or right
+            // away when the user changes a provider, which force-refreshes.
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
-                if (!cached.isNullOrEmpty()) {
+                if (!cached.isNullOrEmpty() && !isCatalogStale()) {
                     allChannels = cached
                     classifyAndShow()
                     setStatus("", visible = false)
@@ -865,6 +922,11 @@ class MainActivity : AppCompatActivity() {
             allChannels = combined
             classifyAndShow()
             withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
+            // Only a load that actually produced a catalog resets the TTL - stamping it on a
+            // total failure would leave the app sitting on an empty catalog for 12 hours.
+            if (combined.isNotEmpty()) {
+                prefs.edit().putLong(PREF_CATALOG_REFRESHED_AT, System.currentTimeMillis()).apply()
+            }
 
             if (combined.isEmpty()) {
                 // Don't raise the status row here - it lives in the same weight=1 slot as the
@@ -906,32 +968,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** The configured Jellyfin server URL, normalized, or null when the slot is empty. */
+    private fun jellyfinServerUrl(): String? =
+        prefs.getString("jellyfin_url", null)?.takeIf { it.isNotBlank() }
+            ?.let { normalizeServerUrl(it, defaultScheme = "https") }
+
+    /** toChannel() only reads serverUrl off a Provider - a minimal stand-in instead of the
+     *  shared `provider` field, which now belongs solely to the IPTV slots. Passing that
+     *  field here builds episode stream URLs against the *Xtream* host (or an empty one when
+     *  Jellyfin is the only provider configured), which is unplayable. */
+    private fun jellyfinProviderStub(url: String?): Provider =
+        Provider(name = "Jellyfin", type = ProviderType.M3U, serverUrl = url)
+
+    /** Authenticates (or restores) a Jellyfin session against [url]. Failure message is
+     *  already user-facing. */
+    private suspend fun connectJellyfin(url: String): Result<JellyfinProvider> {
+        val jellyfin = JellyfinProvider(BaseApplication.instance.okHttpClient)
+        val savedToken = prefs.getString("jellyfin_token", null)
+        val savedUserId = prefs.getString("jellyfin_userid", null)
+        if (!savedToken.isNullOrBlank() && !savedUserId.isNullOrBlank()) {
+            // Quick Connect never yields a password to re-authenticate with later -
+            // reuse the session it already gave us instead.
+            jellyfin.restoreSession(url, savedToken, savedUserId)
+        } else {
+            val username = prefs.getString("jellyfin_user", null)
+                ?: return Result.failure(Exception("Jellyfin: no username"))
+            val password = prefs.getString("jellyfin_pass", null).orEmpty()
+            val authResult = withContext(Dispatchers.IO) { jellyfin.authenticate(url, username, password) }
+            if (authResult.isFailure) {
+                return Result.failure(Exception("Jellyfin: ${authResult.exceptionOrNull()?.message?.take(60)}"))
+            }
+        }
+        return Result.success(jellyfin)
+    }
+
+    /** The live Jellyfin session, reconnecting on demand. A cold start that hits the channel
+     *  cache returns from loadAllConfiguredProviders() before any Jellyfin fetch runs, so
+     *  jellyfinClient is null while Jellyfin series are already on screen - without this a
+     *  series detail page silently showed "No episodes found" on every cached launch. */
+    private suspend fun jellyfinClientOrConnect(): JellyfinProvider? {
+        jellyfinClient?.let { return it }
+        val url = jellyfinServerUrl() ?: return null
+        return connectJellyfin(url).getOrNull()?.also { jellyfinClient = it }
+    }
+
     /** Kept alive post-load for fetching a Jellyfin series' episodes when its detail page
      *  opens - that has no Xtream equivalent path to fall back to. */
     private suspend fun fetchJellyfinChannels(): FetchResult {
-        val url = prefs.getString("jellyfin_url", null)?.let { normalizeServerUrl(it, defaultScheme = "https") }
-            ?: return FetchResult.Failure("Jellyfin: no server URL")
+        val url = jellyfinServerUrl() ?: return FetchResult.Failure("Jellyfin: no server URL")
         return try {
-            val jellyfin = JellyfinProvider(BaseApplication.instance.okHttpClient)
-            val savedToken = prefs.getString("jellyfin_token", null)
-            val savedUserId = prefs.getString("jellyfin_userid", null)
-            if (!savedToken.isNullOrBlank() && !savedUserId.isNullOrBlank()) {
-                // Quick Connect never yields a password to re-authenticate with later -
-                // reuse the session it already gave us instead.
-                jellyfin.restoreSession(url, savedToken, savedUserId)
-            } else {
-                val username = prefs.getString("jellyfin_user", null) ?: return FetchResult.Failure("Jellyfin: no username")
-                val password = prefs.getString("jellyfin_pass", null).orEmpty()
-                val authResult = withContext(Dispatchers.IO) { jellyfin.authenticate(url, username, password) }
-                if (authResult.isFailure) return FetchResult.Failure("Jellyfin: ${authResult.exceptionOrNull()?.message?.take(60)}")
+            val jellyfin = connectJellyfin(url).getOrElse {
+                return FetchResult.Failure(it.message ?: "Jellyfin: auth failed")
             }
-            // toChannel() only reads serverUrl off this - a minimal stand-in instead of the
-            // shared `provider` field, which now belongs solely to the IPTV slots.
-            val jellyfinProviderStub = Provider(name = "Jellyfin", type = ProviderType.M3U, serverUrl = url)
+            val stub = jellyfinProviderStub(url)
             val items: List<Channel> = withContext(Dispatchers.IO) {
-                val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, jellyfinProviderStub) }
-                val movies = jellyfin.getMovies().map { JellyfinProvider.toChannel(it, jellyfinProviderStub) }
-                val series = jellyfin.getSeries().map { JellyfinProvider.toChannel(it, jellyfinProviderStub) }
+                val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
+                val movies = jellyfin.getMovies().map { JellyfinProvider.toChannel(it, stub) }
+                val series = jellyfin.getSeries().map { JellyfinProvider.toChannel(it, stub) }
                 liveItems + movies + series
             }
             jellyfinClient = jellyfin
@@ -1071,9 +1164,40 @@ class MainActivity : AppCompatActivity() {
             binding.contentRow.visibility = View.VISIBLE
             updateTopChromeVisibility()
             if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else selectTab(activeTab)
+            resumeLastLiveChannelIfPending()
         } else {
             showEmptyState()
         }
+    }
+
+    /** Persists what to reopen on next launch: the channel *and* the exact version of it
+     *  that's playing. Written on every tune and every version switch rather than at exit,
+     *  since the process can be killed outright from the launcher with no further callback. */
+    private fun rememberLastLiveTune(channel: Channel) {
+        prefs.edit()
+            .putString(PREF_LAST_LIVE_CHANNEL, channel.id)
+            .putString(PREF_LAST_LIVE_VERSION, currentVersionGroup.getOrNull(currentVersionIndex)?.id)
+            .apply()
+    }
+
+    /** Reopens whatever live channel was playing when the app was last closed, once the
+     *  catalog it lives in is actually loaded. Looks through the version lists too, since a
+     *  channel that was tuned from a dynamic/brand row can be a non-representative copy that
+     *  never appears in [liveChannels] itself. */
+    private fun resumeLastLiveChannelIfPending() {
+        val id = pendingLiveResumeId ?: return
+        pendingLiveResumeId = null
+        if (isPlayerVisible) return
+        val channel = liveChannels.firstOrNull { it.id == id }
+            ?: liveVersions.values.firstNotNullOfOrNull { versions -> versions.firstOrNull { it.id == id } }
+            ?: return
+        selectTab(0)
+        currentIndex = liveChannels.indexOf(channel)
+        // Stash the resumed channel so hidePlayer() can return to it rather than
+        // the first channel in the list (which applyCategoryFilter with
+        // focusFirstLiveChannel true just loaded into the live preview).
+        lastFocusedLiveChannel = channel
+        showPlayerFor(channel, preferredVersionId = prefs.getString(PREF_LAST_LIVE_VERSION, null))
     }
 
     private fun computeDerivedContent(allChannels: List<Channel>, hideNonEnglish: Boolean, hideAdult: Boolean): DerivedContent {
@@ -1400,6 +1524,12 @@ class MainActivity : AppCompatActivity() {
         val tab = activeTab
         val expandedSnapshot = expandedGroupKeys.toSet()
         val favoriteChannelIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this) else emptySet()
+        // Snapshot on the caller's thread - the block below runs on Dispatchers.Default.
+        val versionsById = when (tab) {
+            1 -> seriesVersions
+            2 -> filmVersions
+            else -> emptyMap()
+        }
         val categories = withContext(Dispatchers.Default) {
             val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
             val names = LinkedHashMap<String, String>()
@@ -1581,7 +1711,14 @@ class MainActivity : AppCompatActivity() {
             // (same mechanism as a brand row) because provenance is per-Channel, not a
             // provider category anything is filed under.
             if (tab != 0 && JELLYFIN_CATEGORY_ID !in hiddenIds) {
-                val jellyfinIds = list.filter { it.isJellyfin }.map { it.id }.toSet()
+                // A title the Jellyfin library *and* an IPTV provider both carry is one
+                // deduped card, and the representative that wins the card is whichever copy
+                // had a poster - often the IPTV one. Matching on the representative's own
+                // isJellyfin flag alone dropped those titles out of the Jellyfin row even
+                // though the library has them, so match on any version in the group.
+                val jellyfinIds = list.filter { ch ->
+                    ch.isJellyfin || versionsById[ch.id]?.any { it.isJellyfin } == true
+                }.map { it.id }.toSet()
                 if (jellyfinIds.isNotEmpty()) {
                     result.add(
                         CategoryFilter(
@@ -1852,7 +1989,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun setStatus(text: String, visible: Boolean) {
         binding.statusText.text = text
-        binding.statusRow.visibility = if (visible) View.VISIBLE else View.GONE
+        // A settings/search overlay owns the content slot while it's up - a status raised
+        // underneath it shows through as loose text floating on the dialog's backdrop.
+        val hiddenByOverlay = activeSettingsOverlay != null || activeSearchOverlay != null
+        binding.statusRow.visibility = if (visible && !hiddenByOverlay) View.VISIBLE else View.GONE
         // In-progress messages ("Loading...", "Connecting...") get a spinner; final
         // results ("N items", errors) don't - "..." is what already distinguishes them
         // at every call site, no need for a second parameter everywhere.
@@ -1863,9 +2003,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupTabs() {
         binding.tabHome.setOnClickListener { selectHome() }
-        binding.tabLive.setOnClickListener { showingHome = false; selectTab(0) }
-        binding.tabSeries.setOnClickListener { showingHome = false; selectTab(1) }
-        binding.tabFilms.setOnClickListener { showingHome = false; selectTab(2) }
+        binding.tabLive.setOnClickListener { selectTab(0) }
+        binding.tabSeries.setOnClickListener { selectTab(1) }
+        binding.tabFilms.setOnClickListener { selectTab(2) }
         binding.tabDiscover.setOnClickListener { showingHome = false; selectDiscover() }
         binding.tabDownloads.setOnClickListener { showingHome = false; selectDownloads() }
         setupDiscover()
@@ -2232,6 +2372,12 @@ class MainActivity : AppCompatActivity() {
         activeTab = index
         showingDownloads = false
         showingDiscover = false
+        // Owned here rather than by each caller. Every tab-bar handler already paired
+        // "showingHome = false" with this call, so any *other* entry point (the launch
+        // resume, which opens Live TV directly) left the flag set - and every later rebuild
+        // that routes on it then bounced back to Home, tearing the guide and its live
+        // preview down again right after they were built.
+        showingHome = false
         binding.discoverContent.visibility = View.GONE
         binding.contentRow.visibility = View.VISIBLE
         binding.homeContent.visibility = View.GONE
@@ -2278,14 +2424,15 @@ class MainActivity : AppCompatActivity() {
             if (index == 0) expandedGroupKeys.add("${DYNAMIC_BUCKET_ID_PREFIX}Sports")
             val categories = buildCategoriesForActiveTab()
             if (index == 0) {
-                // Land on Favourites first if there are any favourite channels, then
-                // dynamic buckets (Sports etc), then All as fallback.
+                // Land on the topmost row the user actually curated: the Favourites channel
+                // row, else their highest pinned category, and only then fall back to a
+                // dynamic bucket (Sports etc). Pinned rows used to be skipped entirely
+                // whenever no channel was favourited, which dropped the user into Sports
+                // past the categories they'd deliberately pinned to the top.
                 val hasFavourites = com.lumora.cache.FavoritesStore.getFavoriteChannelIds(this@MainActivity).isNotEmpty()
-                val target = if (hasFavourites) {
-                    categories.firstOrNull { it.id == FAVOURITES_CATEGORY_ID }
-                } else {
-                    categories.firstOrNull { it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true }
-                }
+                val target = categories.firstOrNull { it.id == FAVOURITES_CATEGORY_ID }?.takeIf { hasFavourites }
+                    ?: categories.firstOrNull { it.pinned }
+                    ?: categories.firstOrNull { it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true }
                 if (target != null) {
                     selectedRowId = target.id
                     selectedCategoryLabel = target.name
@@ -2295,17 +2442,14 @@ class MainActivity : AppCompatActivity() {
             }
             submitCategories(categories)
             applyCategoryFilter(focusFirstLiveChannel = index == 0)
-            // Always scroll back to the top of the sidebar when switching tabs, so the
-            // user lands on Favourites (Live TV) or the first row (Series/Films) rather
-            // than wherever the previous tab's sidebar was scrolled to. The adapter's
-            // submitList() is async (ListAdapter diff), so post() ensures the RecyclerView
-            // has laid out the new items before we tell it where to scroll.
-            val scrollIdx = if (index == 0 && selectedRowId != null) {
-                categories.indexOfFirst { it.id != null && it.id == selectedRowId }.coerceAtLeast(0)
-            } else {
-                0
-            }
-            binding.categorySidebar.post { binding.categorySidebar.scrollToPosition(scrollIdx) }
+            // Always scroll back to the very top of the sidebar when switching tabs, so the
+            // first row (Live TV's "Show all categories" toggle, Films/Series' first row) is
+            // what's on screen rather than wherever the previous tab was scrolled to - and,
+            // on Live TV, rather than the auto-selected Favourites/Sports row further down,
+            // which hid every row above it. The selection below it is unchanged; only the
+            // scroll position is. The adapter's submitList() is async (ListAdapter diff), so
+            // post() ensures the RecyclerView has laid out the new items before we scroll.
+            binding.categorySidebar.post { binding.categorySidebar.scrollToPosition(0) }
             // Only now, with rows and content both in place. submitCategories() decides
             // whether the sidebar is warranted at all (a single row isn't worth one), so
             // don't override its call here.
@@ -2387,12 +2531,13 @@ class MainActivity : AppCompatActivity() {
         val stalkerConfig = stalkerConfigFor(item)
         return when {
             item.isJellyfin -> {
-                val jellyfin = jellyfinClient
+                val jellyfin = jellyfinClientOrConnect()
                 val episodes = if (jellyfin != null) withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) } else emptyList()
+                val stub = jellyfinProviderStub(jellyfinServerUrl())
                 itemDetails to episodes
                     .groupBy { it.seasonNumber ?: 0 }
                     .toSortedMap()
-                    .map { (num, eps) -> "Season $num" to eps.map { JellyfinProvider.toChannel(it, provider) } }
+                    .map { (num, eps) -> "Season $num" to eps.map { JellyfinProvider.toChannel(it, stub) } }
             }
             stalkerConfig != null -> {
                 val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
@@ -3187,7 +3332,7 @@ class MainActivity : AppCompatActivity() {
                 if (state == Player.STATE_BUFFERING) onBufferingStarted() else onBufferingEnded()
                 if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
                     updateProgress(); updatePlayPauseIcon()
-                    if (state == Player.STATE_READY) maybeShowResumePrompt()
+                    if (state == Player.STATE_READY) { currentStreamPlayed = true; maybeShowResumePrompt() }
                 if (state == Player.STATE_ENDED) {
                     saveCurrentPlaybackPosition()
                     // If Up Next countdown is already running, it will handle the advance.
@@ -3259,7 +3404,7 @@ class MainActivity : AppCompatActivity() {
      *  the replacement stream is a different item with its own saved-position key, so without
      *  it switching version on a half-watched film restarts it from zero. Also suppresses the
      *  resume prompt - the user just answered that question by switching mid-playback. */
-    private fun showPlayerFor(channel: Channel, resumeFromMs: Long? = null) {
+    private fun showPlayerFor(channel: Channel, resumeFromMs: Long? = null, preferredVersionId: String? = null) {
         // Reset Up Next state on any new playback
         cancelUpNext()
         // Never run the preview decode and the fullscreen decode at once.
@@ -3336,15 +3481,25 @@ class MainActivity : AppCompatActivity() {
         // around so onPlayerError can fall back to the next one.
         val versions = liveVersions[channel.id]
         currentVersionGroup = versions ?: listOf(channel)
-        currentVersionIndex = currentVersionGroup.indexOfFirst { !isStreamDead(it) }.takeIf { it >= 0 } ?: 0
+        // An explicitly requested version wins over the quality/dead-stream auto-pick: it's
+        // the one the user was already watching (launch resume), so re-deriving a "best"
+        // choice here would start them on a different stream and, when that one doesn't
+        // play, walk the whole group by failover before arriving back where they started.
+        val preferredIndex = preferredVersionId?.let { id -> currentVersionGroup.indexOfFirst { it.id == id } }
+            ?.takeIf { it >= 0 }
+        currentVersionIndex = preferredIndex
+            ?: currentVersionGroup.indexOfFirst { !isStreamDead(it) }.takeIf { it >= 0 }
+            ?: 0
         // channel.name is the cleaned/generic representative name (guide/shelf display) -
         // the player card shows the exact raw version actually playing instead, same as
         // switchToVersionIndex() does on failover/manual switch.
         if (channel.mediaType == MediaType.LIVE) {
             binding.playerChannelName.text = currentVersionGroup.getOrNull(currentVersionIndex)?.name ?: channel.name
+            rememberLastLiveTune(channel)
         }
 
         resetStallTracking()
+        beginStreamAttempt()
         startBlackFrameWatch()
         binding.playerAspectContainer.videoAspectRatio = 0f
         playerManager.setSurfaceView(binding.playerSurface)
@@ -3431,6 +3586,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun markStreamDead(channel: Channel) {
         deadStreamUntil[streamKey(channel)] = System.currentTimeMillis() + DEAD_STREAM_COOLDOWN_MS
+        saveDeadStreams()
+    }
+
+    /** Dead marks outlive the process: a stream that was broken a minute before the app was
+     *  closed is still broken when it reopens, and an in-memory-only map handed it back as a
+     *  fresh candidate on every launch. Expired entries are dropped as they're written. */
+    private fun saveDeadStreams() {
+        val now = System.currentTimeMillis()
+        deadStreamUntil.entries.removeAll { it.value <= now }
+        val json = org.json.JSONObject()
+        deadStreamUntil.forEach { (key, until) -> json.put(key, until) }
+        prefs.edit().putString(PREF_DEAD_STREAMS, json.toString()).apply()
+    }
+
+    private fun loadDeadStreams() {
+        val raw = prefs.getString(PREF_DEAD_STREAMS, null) ?: return
+        runCatching {
+            val json = org.json.JSONObject(raw)
+            val now = System.currentTimeMillis()
+            json.keys().forEach { key ->
+                val until = json.optLong(key)
+                if (until > now) deadStreamUntil[key] = until
+            }
+        }
     }
 
     private fun isStreamDead(channel: Channel): Boolean {
@@ -3462,12 +3641,16 @@ class MainActivity : AppCompatActivity() {
         currentVersionIndex = index
         val next = currentVersionGroup[index]
         resetStallTracking()
+        beginStreamAttempt()
         startBlackFrameWatch()
         binding.playerAspectContainer.videoAspectRatio = 0f
         binding.playerChannelName.text = next.name
         Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
         binding.bufferingSpinner.visibility = View.VISIBLE
         playerManager.playUrl(next.url, next.streamUserAgent)
+        // Whatever version ends up playing - picked by hand or arrived at by failover - is
+        // what should come back on next launch.
+        nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE }?.let { rememberLastLiveTune(it) }
     }
 
     /** Lets the user manually pick a specific version of whatever's playing - the auto-picked
@@ -3582,6 +3765,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun onBufferingStarted() {
         if (nowPlayingChannel?.mediaType != MediaType.LIVE) return
+        // The buffering a stream does before it has ever reached READY is it starting up,
+        // not stalling. Counting it meant a launch-time tune - where the app is also parsing
+        // the channel cache and building categories, so the first fill is slow - burned
+        // through the stall threshold and failed over to version after version.
+        if (!currentStreamPlayed) return
         if (bufferingStartMs != 0L) return
         val now = System.currentTimeMillis()
         bufferingStartMs = now
@@ -3607,8 +3795,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun attemptBufferFailover() {
         if (nowPlayingChannel?.mediaType != MediaType.LIVE) return
+        if (withinFailoverGrace()) { resetStallTracking(); return }
         resetStallTracking()
         tryNextQualityVersion("Stream buffering, switching version…")
+    }
+
+    /** Whether the current stream is still too young to judge. Every automatic failover is a
+     *  verdict on a stream that's been given a fair chance to settle; without this the app
+     *  cycles through the whole version group in the first few seconds of a tune, each switch
+     *  restarting the clock on the next one. Hard playback errors bypass this - those are
+     *  conclusive on their own. */
+    private fun withinFailoverGrace(): Boolean =
+        System.currentTimeMillis() - currentStreamStartMs < FAILOVER_GRACE_MS
+
+    /** Marks the start of a playback attempt for failover purposes. */
+    private fun beginStreamAttempt() {
+        currentStreamStartMs = System.currentTimeMillis()
+        currentStreamPlayed = false
     }
 
     // ── Black-frame auto-failover ──────────────────
@@ -3642,7 +3845,7 @@ class MainActivity : AppCompatActivity() {
                 val isBlack = result == PixelCopy.SUCCESS && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
                 sample.recycle()
                 blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
-                if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD) {
+                if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD && !withinFailoverGrace()) {
                     blackFrameStreak = 0
                     if (!tryNextQualityVersion("Channel appears offline, switching version…")) {
                         Toast.makeText(this, "Channel appears offline", Toast.LENGTH_SHORT).show()
@@ -3738,6 +3941,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun hidePlayer() {
         saveCurrentPlaybackPosition()
+        // What was playing is the best preview target when nothing in the guide was ever
+        // focused - a launch that resumes straight into the player never fires a focus
+        // event, so lastFocusedLiveChannel is null and the preview pane came back blank.
+        val wasPlaying = nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE }
         isPlayerVisible = false
         nowPlayingChannel = null
         binding.playerLayout.visibility = View.GONE
@@ -3757,12 +3964,68 @@ class MainActivity : AppCompatActivity() {
         if (::castManager.isInitialized) castManager.stopCasting()
         if (activeTab == 0) {
             showLivePreviewPane()
-            lastFocusedLiveChannel?.let { requestPreviewLoad(it) }
+            val previewTarget = lastFocusedLiveChannel ?: wasPlaying
+            previewTarget?.let { requestPreviewLoad(it) }
+            // Backing out lands in the channel's own dynamic row (Sports/News bucket, brand
+            // row, Jellyfin) when it belongs to one - that's the list it was picked from, so
+            // returning to whatever filter happened to be selected loses the user's place.
+            val dynamicRow = previewTarget?.let { dynamicCategoryFor(it) }
+            if (dynamicRow != null && dynamicRow.id != selectedRowId) {
+                selectedShelfItems = null
+                selectedRowId = dynamicRow.id
+                selectedCategoryLabel = dynamicRow.name
+                selectedBrandChannelIds = dynamicRow.channelIds.ifEmpty { null }
+                selectedCategoryIds = if (dynamicRow.channelIds.isNotEmpty()) null else dynamicRow.matchIds
+                // Scroll only once the new filter's list is in place - the position of the
+                // channel is meaningless against the outgoing one.
+                scope.launch {
+                    // The row can be a brand row inside a collapsed bucket, in which case
+                    // selecting it without expanding its parent highlights nothing.
+                    if (categoryAdapter.currentList.none { it.id == dynamicRow.id }) {
+                        parentOfCategoryRow(dynamicRow.id)?.let { parentId ->
+                            expandedGroupKeys.add(parentId)
+                            rebuildCategoriesForActiveTab()
+                        }
+                    }
+                    categoryAdapter.setSelected(selectedRowId)
+                    applyCategoryFilter()
+                    previewTarget.let { scrollLiveListTo(it) }
+                }
+            } else {
+                // Scroll the channel list so the last-watched channel is visible when
+                // the player closes, instead of showing the first channel (which
+                // applyCategoryFilter scrolled to on tab switch). The list may have a
+                // category filter active, so find the position in the adapter list
+                // rather than assuming liveChannels order.
+                previewTarget?.let { scrollLiveListTo(it) }
+            }
         }
         // Whatever just finished playing may have changed Continue Watching - refresh
         // Home so it's not stale until the next unrelated rebuild happens to touch it.
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
         restoreTabFocus()
+    }
+
+    /** The dynamic sidebar row a live channel belongs to (brand row like "Sky Sports", genre
+     *  bucket, Jellyfin), or null when it only lives in a plain provider category.
+     *
+     *  Searches the cached children as well as the visible rows: a brand row is bucketed
+     *  under a genre parent on Live TV, so "Sky Sports" isn't in the sidebar list at all
+     *  while "Sports" is collapsed. Ties break toward the most specific row - the bucket that
+     *  swallowed the brand row also matches the channel, and landing in "Sports" instead of
+     *  "Sky Sports" is not where the channel was picked from. */
+    private fun dynamicCategoryFor(channel: Channel): CategoryFilter? =
+        (categoryAdapter.currentList + categoryChildrenCache.values.flatten())
+            .filter { it.isDynamic && channel.id in it.channelIds }
+            .minWithOrNull(compareBy({ if (it.isParent) 1 else 0 }, { it.channelIds.size }))
+
+    /** The bucket a (possibly hidden) child row lives under, so it can be expanded into view. */
+    private fun parentOfCategoryRow(rowId: String?): String? =
+        rowId?.let { id -> categoryChildrenCache.entries.firstOrNull { (_, kids) -> kids.any { it.id == id } }?.key }
+
+    private fun scrollLiveListTo(channel: Channel) {
+        val pos = liveAdapter.currentList.indexOfFirst { it.id == channel.id }
+        if (pos >= 0) binding.liveContent.post { binding.liveContent.scrollToPosition(pos) }
     }
 
     // ── EPG ──────────────────────────────────────────
@@ -3804,10 +4067,16 @@ class MainActivity : AppCompatActivity() {
 
     private var lastFocusedLiveChannel: Channel? = null
 
+    /** Live channel id to reopen on launch (see [PREF_LAST_LIVE_CHANNEL]); null once used. */
+    private var pendingLiveResumeId: String? = null
+
     private fun ensurePreviewPlayer(): PlayerManager {
         previewPlayerManager?.let { return it }
         val manager = PlayerManager(this)
-        manager.setVolume(0f)
+        // Audible. The preview is the only thing playing while the guide is up - the
+        // fullscreen player releases it before it starts, so the two never overlap and
+        // there's no focus fight to mute this for.
+        manager.setVolume(1f)
         manager.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 binding.previewBuffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
@@ -3824,6 +4093,11 @@ class MainActivity : AppCompatActivity() {
         if (liveChannels.isEmpty()) return
         binding.livePreviewGutter.visibility = View.VISIBLE
         binding.livePreviewPane.visibility = View.VISIBLE
+        // releaseLivePreview() hides this surface (not just its parent) to stop a stale
+        // frame compositing; nothing brought it back, so the pane reopened permanently
+        // blank after the first time the preview was ever torn down. Un-hide it here, where
+        // the pane is being shown, rather than at the tail of release().
+        binding.previewSurface.visibility = View.VISIBLE
         ensurePreviewPlayer().setTextureView(binding.previewSurface)
         binding.liveContent.post { updateGuideRowWrap() }
     }
@@ -4609,13 +4883,15 @@ class MainActivity : AppCompatActivity() {
             iptvProviderListEmpty.visibility = if (list.isEmpty() && !hasJellyfinConfigured()) View.VISIBLE else View.GONE
             for (cfg in list) {
                 val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
-                row.findViewById<CheckBox>(R.id.rowEnabled).apply {
-                    setOnCheckedChangeListener(null)
-                    isChecked = cfg.enabled
-                    setOnCheckedChangeListener { _, checked ->
-                        IptvProviderStore.setEnabled(prefs, cfg.id, checked)
-                        loadAllConfiguredProviders(forceRefresh = true)
-                    }
+                val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
+                enabledBox.isChecked = cfg.enabled
+                // The checkbox is not clickable/focusable itself - clicking the row is what
+                // toggles it, which is the only way a D-pad can reach it at all.
+                row.setOnClickListener {
+                    val checked = !enabledBox.isChecked
+                    enabledBox.isChecked = checked
+                    IptvProviderStore.setEnabled(prefs, cfg.id, checked)
+                    applyProviderToggle(checked) { it.sourceProviderId == cfg.id }
                 }
                 row.findViewById<TextView>(R.id.rowName).text = cfg.name
                 val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U" }
@@ -4637,13 +4913,13 @@ class MainActivity : AppCompatActivity() {
             }
             if (hasJellyfinConfigured()) {
                 val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
-                row.findViewById<CheckBox>(R.id.rowEnabled).apply {
-                    setOnCheckedChangeListener(null)
-                    isChecked = isJellyfinEnabled()
-                    setOnCheckedChangeListener { _, checked ->
-                        prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
-                        loadAllConfiguredProviders(forceRefresh = true)
-                    }
+                val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
+                enabledBox.isChecked = isJellyfinEnabled()
+                row.setOnClickListener {
+                    val checked = !enabledBox.isChecked
+                    enabledBox.isChecked = checked
+                    prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
+                    applyProviderToggle(checked) { it.isJellyfin }
                 }
                 row.findViewById<TextView>(R.id.rowName).text = "Jellyfin"
                 row.findViewById<TextView>(R.id.rowDetail).text = "Jellyfin · ${prefs.getString("jellyfin_url", "") ?: ""}"
