@@ -3,6 +3,8 @@ package com.lumora.player
 import android.content.Context
 import android.net.Uri
 import android.view.SurfaceView
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -20,12 +22,21 @@ import java.util.concurrent.CopyOnWriteArrayList
 class PlayerManager(
     private val context: Context
 ) {
-    private val player: ExoPlayer = ExoPlayer.Builder(context).build()
+    private val player: ExoPlayer = ExoPlayer.Builder(context)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build(),
+            true /* handleAudioFocus */
+        )
+        .build()
+        .also { it.setHandleAudioBecomingNoisy(true) }
     private val listeners = CopyOnWriteArrayList<Player.Listener>()
+    private var released = false
 
-    var isPlaying: Boolean
+    val isPlaying: Boolean
         get() = player.isPlaying
-        private set(value) {}
 
     val currentPosition: Long
         get() = player.currentPosition
@@ -111,7 +122,9 @@ class PlayerManager(
     fun seekBy(deltaMs: Long) {
         val dur = player.duration
         if (dur <= 0) return
-        val target = (player.currentPosition + deltaMs).coerceIn(0L, dur)
+        val pos = player.currentPosition
+        if (pos == C.TIME_UNSET || pos < 0) return
+        val target = (pos + deltaMs).coerceIn(0L, dur)
         player.seekTo(target)
     }
 
@@ -131,6 +144,8 @@ class PlayerManager(
 
     /** Release all player resources. Must be called when done. */
     fun release() {
+        if (released) return
+        released = true
         listeners.forEach { player.removeListener(it) }
         listeners.clear()
         player.release()

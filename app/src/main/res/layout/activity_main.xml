@@ -78,7 +78,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
-                        android:text="Search"
+                        android:text="@string/search"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/toolbar_search_text"
                         android:textStyle="bold" />
@@ -173,7 +173,7 @@
                 android:nextFocusRight="@id/tabLive"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="🏠 Home"
+                android:text="@string/tab_home"
                 android:textAllCaps="true"
                 android:textColor="@color/text_primary"
                 android:textSize="@dimen/tab_text"
@@ -196,7 +196,7 @@
                 android:nextFocusRight="@id/tabSeries"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="📡 Live TV"
+                android:text="@string/tab_live_tv"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/tab_text" />
@@ -218,7 +218,7 @@
                 android:nextFocusRight="@id/tabFilms"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="📺 Series"
+                android:text="@string/series_tab"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/tab_text" />
@@ -240,7 +240,7 @@
                 android:nextFocusRight="@id/tabDiscover"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="🎬 Films"
+                android:text="@string/films_tab"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/tab_text" />
@@ -262,7 +262,7 @@
                 android:nextFocusRight="@id/tabDownloads"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="🧭 Discover"
+                android:text="@string/discover_tab"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/tab_text" />
@@ -284,7 +284,7 @@
                 android:nextFocusRight="@id/tabHome"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="⬇️ Downloads"
+                android:text="@string/downloads_tab"
                 android:textAllCaps="true"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/tab_text"
@@ -337,7 +337,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="No provider configured"
+                android:text="@string/no_provider_configured"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/content_body_text" />
 
@@ -345,7 +345,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
-                android:text="Press Settings to add a playlist URL"
+                android:text="@string/press_settings_to_add_playlist"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/text_caption" />
 
@@ -373,7 +373,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Add a Provider"
+                        android:text="@string/add_a_provider"
                         android:textColor="@color/text_primary"
                         android:textStyle="bold"
                         android:textSize="@dimen/text_body_s" />
@@ -416,7 +416,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Search live TV, films &amp; series…"
+                android:text="@string/search_main_hint"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/text_subhead" />
         </LinearLayout>
@@ -453,12 +453,17 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
+                <!-- Not focusable — on TV the platform IME would open over the UI,
+                     and keyboard input is handled by the search dialog's on-screen keyboard
+                     or via dispatchKeyEvent for hardware keyboards. -->
                 <EditText
                     android:id="@+id/discoverSearchInput"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:background="@drawable/card_surface_background"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
                     android:hint="Search movies &amp; series…"
                     android:imeOptions="actionSearch"
                     android:inputType="text"
@@ -479,7 +484,7 @@
                     android:paddingHorizontal="20dp"
                     android:paddingVertical="12dp"
                     android:stateListAnimator="@animator/focus_scale"
-                    android:text="Search"
+                    android:text="@string/search"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -724,7 +729,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:text="No downloads yet"
+                    android:text="@string/no_downloads_yet"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/text_body_s"
                     android:visibility="gone" />
@@ -831,7 +836,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="14dp"
-                            android:text="Overview"
+                            android:text="@string/overview"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/text_tiny"
@@ -855,7 +860,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="Cast"
+                            android:text="@string/cast"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/text_tiny"
@@ -919,7 +924,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="8dp"
-                                android:text="Play"
+                                android:text="@string/play"
                                 android:textAllCaps="true"
                                 android:textColor="@android:color/white"
                                 android:textSize="@dimen/text_body"
@@ -987,7 +992,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Find Stream"
+                                android:text="@string/find_stream"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_body"
@@ -1013,7 +1018,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Trailer"
+                                android:text="@string/trailer"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_body"
@@ -1099,6 +1104,7 @@
                         android:clipChildren="false"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
                         android:visibility="gone" />
                 </LinearLayout>
             </LinearLayout>
@@ -1464,7 +1470,7 @@
                                 android:nextFocusRight="@id/btnSleepTimer"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="1.0x"
+                                android:text="@string/speed_default"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1483,7 +1489,7 @@
                                 android:nextFocusRight="@id/btnCast"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="Sleep"
+                                android:text="@string/sleep_timer_button"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1496,7 +1502,7 @@
                                 android:background="@drawable/bg_toolbar_button"
                                 android:focusable="true"
                                 android:nextFocusUp="@id/seekBar"
-                                android:nextFocusLeft="@id/btnAspectRatio"
+                                android:nextFocusLeft="@id/btnSleepTimer"
                                 android:nextFocusRight="@id/btnDiagnostics"
                                 android:paddingHorizontal="4dp"
                                 android:stateListAnimator="@animator/focus_scale" />
@@ -1514,7 +1520,7 @@
                                 android:nextFocusLeft="@id/btnCast"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="Diag"
+                                android:text="@string/diag"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1528,9 +1534,10 @@
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="REC"
+                                android:text="@string/rec"
                                 android:textAllCaps="true"
                                 android:textColor="@color/live_red"
                                 android:textSize="@dimen/text_tiny"
@@ -1545,9 +1552,10 @@
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="Versions"
+                                android:text="@string/versions"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1561,9 +1569,10 @@
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="Fit"
+                                android:text="@string/fit"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1577,9 +1586,10 @@
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="Audio"
+                                android:text="@string/audio"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1592,9 +1602,10 @@
                                 android:clickable="true"
                                 android:focusable="true"
                                 android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
-                                android:text="Subtitles"
+                                android:text="@string/subtitles"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -1620,7 +1631,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Up Next"
+                android:text="@string/up_next"
                 android:textAllCaps="true"
                 android:textColor="@color/primary"
                 android:textSize="@dimen/text_caption"
@@ -1664,7 +1675,7 @@
                     android:gravity="center"
                     android:paddingHorizontal="16dp"
                     android:stateListAnimator="@animator/focus_scale"
-                    android:text="Play Now"
+                    android:text="@string/play_now"
                     android:textAllCaps="true"
                     android:textColor="@color/text_primary"
                     android:textSize="@dimen/text_caption"
@@ -1681,7 +1692,7 @@
                     android:gravity="center"
                     android:paddingHorizontal="16dp"
                     android:stateListAnimator="@animator/focus_scale"
-                    android:text="Cancel"
+                    android:text="@string/cancel"
                     android:textAllCaps="true"
                     android:textColor="@color/text_primary"
                     android:textSize="@dimen/text_caption"

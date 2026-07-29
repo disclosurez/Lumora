@@ -7,6 +7,9 @@ import com.lumora.model.MediaType
 import java.io.BufferedReader
 import java.io.File
 
+/** Regex for characters that would corrupt the line/field format; compiled once at class load. */
+private val FIELD_CLEAN_REGEX = Regex("[\n\r\u0001]")
+
 private const val TAG = "ChannelCache"
 private const val CACHE_FILE = "channels_cache.txt"
 private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
@@ -26,7 +29,7 @@ object ChannelCache {
 
     fun save(context: Context, channels: List<Channel>) {
         try {
-            val sb = StringBuilder(channels.size * 96)
+            val sb = StringBuilder((channels.size * 96).coerceAtLeast(1024))
             for (ch in channels) {
                 sb.append(clean(ch.id)).append(FIELD_SEP)
                 sb.append(clean(ch.name)).append(FIELD_SEP)
@@ -54,7 +57,7 @@ object ChannelCache {
                 // and dies with ENOENT.
                 sb.append(clean(ch.stalkerCmd)).append('\n')
             }
-            File(context.filesDir, CACHE_FILE).writeText(sb.toString())
+            writeToFile(File(context.filesDir, CACHE_FILE), sb.toString())
             runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save cache: ${e.message}")
@@ -116,7 +119,16 @@ object ChannelCache {
         runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
     }
 
+    /** Atomically writes text to file: write to a temp file, then rename to prevent corruption on process death. */
+    private fun writeToFile(file: File, text: String) {
+        val tempFile = File(file.absolutePath + ".tmp")
+        tempFile.writeText(text)
+        tempFile.renameTo(file)
+    }
+
     /** Strips characters that would corrupt the line/field format; real channel data never needs them. */
-    private fun clean(value: String?): String =
-        value?.replace(FIELD_SEP, ' ')?.replace('\n', ' ')?.replace('\r', ' ') ?: ""
+    private fun clean(value: String?): String {
+        if (value == null) return ""
+        return value.replace(FIELD_CLEAN_REGEX, " ")
+    }
 }

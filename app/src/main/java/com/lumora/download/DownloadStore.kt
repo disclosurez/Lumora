@@ -27,25 +27,31 @@ data class DownloadRecord(
 /** Persists which VOD items have been downloaded, so the Downloads tab survives app restarts. */
 object DownloadStore {
 
+    @Synchronized
     fun getAll(context: Context): List<DownloadRecord> = load(context)
 
+    @Synchronized
     fun get(context: Context, id: String): DownloadRecord? = load(context).firstOrNull { it.id == id }
 
+    @Synchronized
     fun add(context: Context, record: DownloadRecord) {
         val list = load(context).filterNot { it.id == record.id }.toMutableList()
         list.add(record)
         save(context, list)
     }
 
+    @Synchronized
     fun update(context: Context, record: DownloadRecord) {
         val list = load(context).map { if (it.id == record.id) record else it }
         save(context, list)
     }
 
+    @Synchronized
     fun remove(context: Context, id: String) {
         save(context, load(context).filterNot { it.id == id })
     }
 
+    @Synchronized
     private fun load(context: Context): List<DownloadRecord> = try {
         val file = File(context.filesDir, FILE_NAME)
         if (!file.exists()) emptyList() else {
@@ -70,6 +76,7 @@ object DownloadStore {
         emptyList()
     }
 
+    @Synchronized
     private fun save(context: Context, list: List<DownloadRecord>) {
         try {
             val arr = JSONArray()

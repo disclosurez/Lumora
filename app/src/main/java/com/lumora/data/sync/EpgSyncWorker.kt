@@ -87,7 +87,7 @@ class EpgSyncWorker(
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(
                     "${UNIQUE_WORK_NAME}_periodic",
-                    ExistingPeriodicWorkPolicy.KEEP,
+                    ExistingPeriodicWorkPolicy.UPDATE,
                     request
                 )
         }

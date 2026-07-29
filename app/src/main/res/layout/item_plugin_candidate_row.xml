@@ -42,7 +42,7 @@
                 android:layout_marginStart="8dp"
                 android:background="@drawable/pill_number"
                 android:paddingHorizontal="8dp"
-                android:text="TESTED"
+                android:text="@string/tested"
                 android:textColor="@color/success_green"
                 android:textSize="@dimen/text_tiny"
                 android:textStyle="bold"
@@ -75,7 +75,7 @@
             android:id="@+id/candidateAddLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Add"
+            android:text="@string/add"
             android:textColor="@color/accent"
             android:textSize="@dimen/text_caption"
             android:textStyle="bold" />

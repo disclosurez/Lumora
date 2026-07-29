@@ -42,7 +42,6 @@ class TvInputService : TvInputService() {
 
     inner class TvSessionImpl(context: Context) : Session(context) {
 
-        private var currentChannelUri: Uri? = null
         private var currentSurface: Surface? = null
 
         override fun onRelease() {
@@ -61,17 +60,23 @@ class TvInputService : TvInputService() {
         }
 
         override fun onTune(channelUri: Uri): Boolean {
-            currentChannelUri = channelUri
             val channelId = channelUri.lastPathSegment ?: return false
+
+            // Signal tuning in progress so the user sees buffering indicator
+            notifyVideoUnavailable(UNAVAILABLE_BUFFERING)
 
             scope.launch {
                 val db = LumoraDatabase.getInstance(this@TvInputService)
-                val channels = withContext(Dispatchers.IO) {
-                    db.channelDao().getByProvider("m3u") // Simplified: use active provider
+                val channel = withContext(Dispatchers.IO) {
+                    // Try direct ID lookup first, then fall back to tvgId lookup
+                    db.channelDao().getById(channelId)
+                        ?: db.channelDao().getByTvgId(channelId, "m3u")
                 }
-                val channel = channels.firstOrNull { it.tvgChno == channelId || it.id == channelId }
                 if (channel != null) {
                     playChannel(channel)
+                } else {
+                    notifyVideoUnavailable(0)
+                    return@launch
                 }
             }
 
@@ -119,6 +124,7 @@ class TvInputService : TvInputService() {
 
     companion object {
         private const val ERROR_CONNECTION_LOST = 1
+        private const val UNAVAILABLE_BUFFERING = 2
         const val SERVICE_META_DATA = "com.lumora.tv.TvInputService"
     }
 }

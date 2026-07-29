@@ -16,6 +16,7 @@ import com.lumora.model.Channel
 import com.lumora.util.PosterLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -37,6 +38,16 @@ class EpisodeAdapter(
     private val scope = CoroutineScope(Dispatchers.Main)
     private val seriesPrefixRegex = seriesName?.takeIf { it.isNotBlank() }?.let {
         Regex("^" + Regex.escape(it) + """\s*-\s*S\d+E\d+\s*-\s*""", RegexOption.IGNORE_CASE)
+    }
+
+    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed. */
+    fun cancelPendingWork() {
+        scope.coroutineContext[Job]?.cancel()
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        cancelPendingWork()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {

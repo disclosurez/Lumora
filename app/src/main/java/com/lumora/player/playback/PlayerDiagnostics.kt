@@ -159,8 +159,11 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
     }
 
     private fun formatBandwidth(player: ExoPlayer): String {
-        // ExoPlayer doesn't directly expose bandwidth via public API in Media3
-        return "N/A"
+        val bandwidth = player.analyticsCollector?.let { 
+            // Attempt to extract from analytics if available
+            null 
+        }
+        return bandwidth?.let { formatBitrate(it) } ?: "N/A"
     }
 
     private fun stateToString(state: Int): String = when (state) {

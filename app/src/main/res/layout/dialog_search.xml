@@ -3,6 +3,7 @@
      and stay centred: search never needed the whole screen, and at full width the results
      grid ran to both bezels with the query stranded in the top-left corner. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clipChildren="false"
@@ -75,6 +76,7 @@
                 <ImageView
                     android:layout_width="20dp"
                     android:layout_height="20dp"
+                    android:contentDescription="@string/close"
                     android:src="@android:drawable/ic_menu_close_clear_cancel"
                     android:tint="@color/text_primary" />
             </LinearLayout>
@@ -115,7 +117,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:paddingBottom="8dp"
-                    android:text="Type to search"
+                    android:text="@string/type_to_search"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/text_body" />
 
@@ -126,7 +128,9 @@
                     android:layout_weight="1"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:visibility="gone" />
+                    android:visibility="gone"
+                    app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+                    app:spanCount="3" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

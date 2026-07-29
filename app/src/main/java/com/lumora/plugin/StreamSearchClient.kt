@@ -12,6 +12,7 @@ import android.os.Message
 import android.os.Messenger
 import android.os.RemoteException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 
@@ -75,11 +76,14 @@ class StreamSearchClient(private val context: Context) {
     })
 
     /** Binds the plugin. Returns false if it couldn't be reached. */
-    suspend fun connect(plugin: InstalledPlugin): Boolean = suspendCancellableCoroutine { cont ->
+    suspend fun connect(plugin: InstalledPlugin): Boolean = withTimeout(30_000L) {
+        suspendCancellableCoroutine { cont ->
         val serviceConnection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
                 if (service == null) {
-                    if (cont.isActive) cont.resume(false); return
+                    context.unbindService(this)
+                    if (cont.isActive) cont.resume(false)
+                    return
                 }
                 outgoing = Messenger(service)
                 if (cont.isActive) cont.resume(true)
@@ -103,6 +107,7 @@ class StreamSearchClient(private val context: Context) {
             if (cont.isActive) cont.resume(false)
         }
     }
+    }
 
     suspend fun search(
         query: String,
@@ -112,6 +117,7 @@ class StreamSearchClient(private val context: Context) {
         onProgress: (String) -> Unit,
         onResult: (TorrentResult) -> Unit
     ): SearchResult = suspendCancellableCoroutine { cont ->
+        if (isOperationActive()) { cont.resume(SearchResult.Failed("Another operation is already in progress")); return@suspendCancellableCoroutine }
         val messenger = outgoing ?: run { cont.resume(SearchResult.Failed("Plugin not connected")); return@suspendCancellableCoroutine }
         val id = beginOp()
         this.onProgress = onProgress
@@ -137,6 +143,7 @@ class StreamSearchClient(private val context: Context) {
         episode: Int?,
         onProgress: (String) -> Unit
     ): ResolveResult = suspendCancellableCoroutine { cont ->
+        if (isOperationActive()) { cont.resume(ResolveResult.Failed("Another operation is already in progress")); return@suspendCancellableCoroutine }
         val messenger = outgoing ?: run { cont.resume(ResolveResult.Failed("Plugin not connected")); return@suspendCancellableCoroutine }
         val id = beginOp()
         this.onProgress = onProgress
@@ -170,12 +177,17 @@ class StreamSearchClient(private val context: Context) {
     }
 
     private fun beginOp(): String {
+        if (isOperationActive()) {
+            throw IllegalStateException("Another operation is already in progress")
+        }
         val id = "op-${requestIds.incrementAndGet()}"
         activeRequestId = id
         handler.removeCallbacks(timeout)
         handler.postDelayed(timeout, PluginContract.SEARCH_TIMEOUT_MS)
         return id
     }
+
+    private fun isOperationActive(): Boolean = activeRequestId.isNotBlank()
 
     private fun finishSearch(result: SearchResult) {
         val cont = searchCont ?: return

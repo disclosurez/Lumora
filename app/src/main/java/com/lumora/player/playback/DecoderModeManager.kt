@@ -100,4 +100,22 @@ class DecoderModeManager(private val context: Context) {
         save(currentSettings.copy(bufferMode = next))
         return next
     }
+
+    /**
+     * Returns true if the current decoder/surface settings cannot be applied at runtime
+     * and require a player rebuild to take effect. Decoder mode and surface mode are
+     * selected at ExoPlayer construction time; changes after the fact are ignored.
+     */
+    fun needsPlayerRebuild(): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDecoder = prefs.getString(KEY_DECODER_MODE, "AUTO")
+        val savedSurface = prefs.getString(KEY_SURFACE_MODE, "AUTO")
+        return savedDecoder != currentSettings.decoderMode.name || savedSurface != currentSettings.surfaceMode.name
+    }
+
+    /** Log and return a summary of current decoder settings as a formatted string. */
+    fun logCurrentSettings(): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return "Decoder: ${prefs.getString("decoder_mode", "auto")}, Buffer: ${prefs.getString("buffer_mode", "default")}, Surface: ${prefs.getString("surface_mode", "auto")}, FFmpeg: ${prefs.getBoolean("enable_ffmpeg", true)}"
+    }
 }

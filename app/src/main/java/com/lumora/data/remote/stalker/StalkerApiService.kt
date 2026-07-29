@@ -57,6 +57,13 @@ class StalkerApiService(private val client: OkHttpClient) {
     private var jsToken: String? = null
     private var authCookie: String? = null
     private var serverBase: String? = null
+
+    @Synchronized
+    private fun updateAuthState(cookie: String?, token: String?) {
+        if (cookie != null) authCookie = cookie
+        if (token != null) authToken = token
+    }
+
     // The MAC (colon form) and timezone go in a Cookie on every request - portals key the
     // session to the MAC that way, and reject calls that omit it. Kept as fields so the
     // low-level fetchJson() can attach them without every caller threading them through.
@@ -163,14 +170,15 @@ class StalkerApiService(private val client: OkHttpClient) {
                 success = token != null
             )
 
+            if (!authResult.success) {
+                return Result.failure(Exception("Authentication failed"))
+            }
+
             // Step 3: Get channels (test auth)
-            if (token != null) {
-                // Fetch initial data
-                val channelsUrl = buildApiUrl("get_all_channels", mac, token)
-                val channelsJson = fetchJson(channelsUrl, jsTokenFromServer)
-                if (channelsJson != null) {
-                    return Result.success(authResult)
-                }
+            val channelsUrl = buildApiUrl("get_all_channels", mac, token)
+            val channelsJson = fetchJson(channelsUrl, jsTokenFromServer)
+            if (channelsJson != null) {
+                return Result.success(authResult)
             }
 
             Result.success(authResult)
@@ -325,9 +333,14 @@ class StalkerApiService(private val client: OkHttpClient) {
 
     /**
      * Get EPG data for a channel.
+     * Stalker portal EPG is typically provided via XMLTV, not the API directly.
+     * Users should configure an XMLTV EPG source in Settings for guide data.
      */
     suspend fun getEpg(channelId: String): List<EpgProgram> {
-        return emptyList() // Basic EPG — Stalker usually needs XMLTV
+        // Stalker's API doesn't expose a reliable EPG endpoint.
+        // EPG for Stalker providers should use the generic XMLTV EPG system
+        // configured separately in Settings → EPG Sources.
+        return emptyList()
     }
 
     data class EpgProgram(
@@ -437,11 +450,14 @@ class StalkerApiService(private val client: OkHttpClient) {
             }
 
             val response = client.newCall(builder.build()).execute()
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                response.close()
+                return null
+            }
 
             val body = response.body?.string() ?: return null
             val cookies = response.header("Set-Cookie")
-            if (cookies != null) authCookie = cookies.split(";").firstOrNull()
+            if (cookies != null) updateAuthState(cookies.split(";").firstOrNull(), null)
 
             JSONObject(body)
         } catch (e: Exception) {

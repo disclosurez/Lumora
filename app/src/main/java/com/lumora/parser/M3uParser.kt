@@ -38,10 +38,14 @@ object M3uParser {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
+                response.close()
                 throw Exception("HTTP ${response.code} fetching playlist")
             }
 
-            val body = response.body ?: throw Exception("Empty response body")
+            val body = response.body ?: run {
+                response.close()
+                throw Exception("Empty response body")
+            }
             val reader = BufferedReader(InputStreamReader(body.byteStream(), Charsets.UTF_8))
             reader.use { parse(it) }
         }
@@ -52,12 +56,15 @@ object M3uParser {
 
     /** Parse M3U content from a BufferedReader (streaming). */
     fun parse(reader: BufferedReader): ParseResult {
-        val lines = mutableListOf<String>()
-        var line: String?
-        while (reader.readLine().also { line = it } != null) {
-            lines.add(line!!)
-        }
-        return parse(lines.iterator())
+        return parse(object : Iterator<String> {
+            private var nextLine: String? = reader.readLine()
+            override fun hasNext(): Boolean = nextLine != null
+            override fun next(): String {
+                val current = nextLine ?: throw NoSuchElementException()
+                nextLine = reader.readLine()
+                return current
+            }
+        })
     }
 
     private fun classifyMediaType(group: String?): MediaType {
@@ -113,7 +120,9 @@ object M3uParser {
 
         if (extInf != null) {
             val attrRegex = """(\w[\w-]*)\s*=\s*"([^"]*)"""".toRegex()
+            var matchCount = 0
             for (match in attrRegex.findAll(extInf)) {
+                if (++matchCount > 50) break // max 50 attributes per EXTINF
                 when (match.groupValues[1].lowercase()) {
                     "tvg-id" -> tvgId = match.groupValues[2]
                     "tvg-name" -> tvgName = match.groupValues[2]

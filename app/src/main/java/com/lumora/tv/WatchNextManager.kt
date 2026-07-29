@@ -8,7 +8,6 @@ import android.os.Build
 import androidx.tvprovider.media.tv.TvContractCompat
 import androidx.tvprovider.media.tv.WatchNextProgram
 import com.lumora.MainActivity
-import java.util.UUID
 
 /**
  * Android TV Watch Next integration.
@@ -33,11 +32,18 @@ class WatchNextManager(private val context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
         try {
-            val programId = "watch_next_${channelId ?: UUID.randomUUID()}"
+            val programId = if (channelId != null) "watch_next_$channelId" else "watch_next_${title.hashCode()}"
+
+            // Remove existing entry first to avoid duplicate rows
+            context.contentResolver.delete(
+                TvContractCompat.WatchNextPrograms.CONTENT_URI,
+                "${TvContractCompat.WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID} = ?",
+                arrayOf(programId)
+            )
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                channelId?.let { putExtra("open_channel_id", it) }
+                channelId?.let { putExtra(EXTRA_OPEN_CHANNEL_ID, it) }
             }
 
             val builder = WatchNextProgram.Builder()
@@ -84,5 +90,9 @@ class WatchNextManager(private val context: Context) {
         } catch (e: Exception) {
             android.util.Log.w(TAG, "Failed to remove: ${e.message}")
         }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_CHANNEL_ID = "open_channel_id"
     }
 }

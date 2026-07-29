@@ -10,6 +10,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.security.MessageDigest
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Jellyfin media server provider integration.
@@ -18,6 +20,7 @@ import java.security.MessageDigest
  */
 class JellyfinProvider(private val client: OkHttpClient) {
 
+    private val mutex = Mutex()
     private var accessToken: String? = null
     private var userId: String? = null
     private var serverBase: String? = null
@@ -114,9 +117,11 @@ class JellyfinProvider(private val client: OkHttpClient) {
             val serverName = json.optJSONObject("Server")?.optString("Name", null)
 
             if (token != null && uid != null) {
-                accessToken = token
-                userId = uid
-                serverBase = base
+                mutex.withLock {
+                    accessToken = token
+                    userId = uid
+                    serverBase = base
+                }
                 JellyfinSession.update(base, token)
                 Result.success(AuthResult(success = true, token = token, userId = uid, serverName = serverName))
             } else {
@@ -135,11 +140,13 @@ class JellyfinProvider(private val client: OkHttpClient) {
     /** Reconnects using a previously-saved session token (e.g. from Quick Connect, which
      *  never yields a password to re-authenticate with) - no network call, just restores
      *  state so getLiveTvChannels()/getMovies()/etc. work. */
-    fun restoreSession(serverUrl: String, token: String, userId: String) {
+    fun restoreSession(serverUrl: String, token: String, userId: String) = kotlinx.coroutines.runBlocking {
         val base = serverUrl.trimEnd('/')
-        this.accessToken = token
-        this.userId = userId
-        this.serverBase = base
+        mutex.withLock {
+            this@JellyfinProvider.accessToken = token
+            this@JellyfinProvider.userId = userId
+            this@JellyfinProvider.serverBase = base
+        }
         JellyfinSession.update(base, token)
     }
 
@@ -232,9 +239,11 @@ class JellyfinProvider(private val client: OkHttpClient) {
             val serverName = json.optJSONObject("Server")?.optString("Name", null)
 
             if (token != null && uid != null) {
-                accessToken = token
-                userId = uid
-                serverBase = base
+                mutex.withLock {
+                    accessToken = token
+                    userId = uid
+                    serverBase = base
+                }
                 JellyfinSession.update(base, token)
                 Result.success(AuthResult(success = true, token = token, userId = uid, serverName = serverName))
             } else {

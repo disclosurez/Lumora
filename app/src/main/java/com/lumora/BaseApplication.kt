@@ -4,7 +4,9 @@ import android.app.Application
 import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.remote.jellyfin.JellyfinAuthInterceptor
 import com.lumora.data.sync.EpgSyncWorker
+import okhttp3.Cache
 import okhttp3.OkHttpClient
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 class BaseApplication : Application() {
@@ -35,6 +37,7 @@ class BaseApplication : Application() {
             .connectionPool(okhttp3.ConnectionPool(4, 30, TimeUnit.SECONDS))
             .dns(okhttp3.internal.platform.Platform.get().let { okhttp3.Dns.SYSTEM })
             .addInterceptor(JellyfinAuthInterceptor())
+            .cache(Cache(File(cacheDir, "okhttp_cache"), 50L * 1024 * 1024))  // 50MB disk cache
             .build()
 
         database = LumoraDatabase.getInstance(this)

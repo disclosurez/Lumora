@@ -15,6 +15,7 @@ import com.lumora.model.MediaType
 import com.lumora.util.PosterLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Flat, vertically-scrolling poster grid - used for a single selected category
@@ -26,6 +27,16 @@ class PosterGridAdapter(
 ) : ListAdapter<Channel, PosterGridAdapter.ViewHolder>(DiffCallback()) {
 
     private val scope = CoroutineScope(Dispatchers.Main)
+
+    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed. */
+    fun cancelPendingWork() {
+        scope.coroutineContext[Job]?.cancel()
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        cancelPendingWork()
+    }
 
     /** Column count of the GridLayoutManager this adapter is currently bound to, and where
      *  D-pad UP from the top row should go - a poster's default UP focus-search has to find

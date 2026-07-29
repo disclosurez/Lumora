@@ -68,7 +68,13 @@ class XtreamClient(private val client: OkHttpClient) {
 
             val userInfo = json.optJSONObject("user_info")
             if (userInfo != null) {
-                val auth = userInfo.optString("auth", "0")
+                val auth = if (userInfo.has("auth")) {
+                    val raw = userInfo.get("auth")
+                    when (raw) {
+                        is Boolean -> if (raw) "1" else "0"
+                        else -> raw.toString()
+                    }
+                } else "0"
                 Result.success(ServerInfo(
                     version = json.optString("server_info", ""),
                     url = userInfo.optString("url"),
@@ -137,7 +143,7 @@ class XtreamClient(private val client: OkHttpClient) {
 
     /** Fetch a movie's plot/cast/director/genre for the detail screen. */
     suspend fun getVodInfo(provider: Provider, vodId: String): ContentDetails? = withContext(Dispatchers.IO) {
-        val url = buildApiUrl(provider, "action=get_vod_info&vod_id=$vodId")
+        val url = buildApiUrl(provider, "action=get_vod_info&vod_id=${URLEncoder.encode(vodId, "UTF-8")}")
         val json = fetchJson(url) ?: return@withContext null
         json.optJSONObject("info")?.let { parseDetails(it) }
     }
@@ -150,7 +156,7 @@ class XtreamClient(private val client: OkHttpClient) {
     /** Fetch a series' details plus its episodes grouped by season, in one call. */
     suspend fun getSeriesFull(provider: Provider, seriesId: String): SeriesFullInfo =
         withContext(Dispatchers.IO) {
-            val url = buildApiUrl(provider, "action=get_series_info&series_id=$seriesId")
+            val url = buildApiUrl(provider, "action=get_series_info&series_id=${URLEncoder.encode(seriesId, "UTF-8")}")
             val json = fetchJson(url) ?: return@withContext SeriesFullInfo(null, emptyList())
             val details = json.optJSONObject("info")?.let { parseDetails(it) }
 

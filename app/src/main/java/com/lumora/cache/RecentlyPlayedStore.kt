@@ -13,6 +13,7 @@ private const val MAX_ENTRIES = 20
 /** Recently-played live channel ids, most recent first, for the Home tab's "Recently Played" shelf. */
 object RecentlyPlayedStore {
 
+    @Synchronized
     fun recordPlayed(context: Context, channelId: String) {
         if (channelId.isBlank()) return
         val entries = load(context).toMutableList()
@@ -22,12 +23,15 @@ object RecentlyPlayedStore {
         save(context, entries)
     }
 
+    @Synchronized
     fun getRecentIds(context: Context): List<String> = load(context)
 
+    @Synchronized
     fun clear(context: Context) {
         runCatching { File(context.filesDir, FILE_NAME).delete() }
     }
 
+    @Synchronized
     private fun load(context: Context): List<String> = try {
         val file = File(context.filesDir, FILE_NAME)
         if (!file.exists()) emptyList() else {
@@ -39,6 +43,7 @@ object RecentlyPlayedStore {
         emptyList()
     }
 
+    @Synchronized
     private fun save(context: Context, ids: List<String>) {
         try {
             val arr = JSONArray()

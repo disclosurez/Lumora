@@ -15,6 +15,7 @@ import com.lumora.model.Channel
 import com.lumora.model.ContentShelf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.lumora.util.PosterLoader
 
@@ -90,6 +91,16 @@ private class ShelfPosterAdapter(
 ) : ListAdapter<Channel, ShelfPosterAdapter.ViewHolder>(DiffCallback()) {
 
     private val scope = CoroutineScope(Dispatchers.Main)
+
+    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed. */
+    fun cancelPendingWork() {
+        scope.coroutineContext[Job]?.cancel()
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        cancelPendingWork()
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_shelf_poster, parent, false)

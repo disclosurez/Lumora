@@ -144,6 +144,11 @@ private val HASH_BORDER_REGEX = Regex("""#+""")
 // they aren't one of the known tag words themselves. Anything left over that isn't a
 // letter/digit/space/"+" is just noise for grouping purposes, so strip it outright.
 private val SYMBOL_NOISE_REGEX = Regex("""[^\p{L}\p{Nd}\s+]""")
+private val QUALITY_4K_REGEX = Regex("""(?i)\b(4K|UHD)\b""")
+private val QUALITY_RAW_REGEX = Regex("""(?i)\bRAW\b""")
+private val QUALITY_FHD_REGEX = Regex("""(?i)\bFHD\b""")
+private val QUALITY_HD_REGEX = Regex("""(?i)\bHD\b""")
+private val QUALITY_SD_REGEX = Regex("""(?i)\bSD\b""")
 // Live channels are typically reposted under a source/country tag chain like
 // Leading provider/country tags (e.g. "UK| Main Event", "VIP: Main Event", "NOW: Main
 // Event") show up as the
@@ -193,17 +198,17 @@ fun liveQualityScore(rawName: String): Int {
     val name = deSuperscript(rawName)
     val resWidth = RES_TAG_REGEX.find(name)?.groupValues?.get(1)?.toIntOrNull()
     return when {
-        Regex("(?i)\\b(4K|UHD)\\b").containsMatchIn(name) -> 5
+        QUALITY_4K_REGEX.containsMatchIn(name) -> 5
         resWidth != null && resWidth >= 2160 -> 5
         // RAW = unencoded/unprocessed master feed - no resolution tag of its own, but
         // outranks named HD/FHD since it's the highest-bitrate feed short of an explicit
         // 4K/UHD tag.
-        Regex("(?i)\\bRAW\\b").containsMatchIn(name) -> 4
-        Regex("(?i)\\bFHD\\b").containsMatchIn(name) -> 3
+        QUALITY_RAW_REGEX.containsMatchIn(name) -> 4
+        QUALITY_FHD_REGEX.containsMatchIn(name) -> 3
         resWidth != null && resWidth >= 1080 -> 3
-        Regex("(?i)\\bHD\\b").containsMatchIn(name) -> 2
+        QUALITY_HD_REGEX.containsMatchIn(name) -> 2
         resWidth != null && resWidth >= 720 -> 2
-        Regex("(?i)\\bSD\\b").containsMatchIn(name) -> 1
+        QUALITY_SD_REGEX.containsMatchIn(name) -> 1
         resWidth != null -> 1
         else -> 0
     }

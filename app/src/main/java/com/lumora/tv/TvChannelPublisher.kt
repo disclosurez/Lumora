@@ -25,16 +25,30 @@ class TvChannelPublisher(private val context: Context) {
     /**
      * Publish all live channels to the TV channel list.
      */
-    suspend fun publishChannels() = withContext(Dispatchers.IO) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP_MR1) return@withContext
-
-        val db = LumoraDatabase.getInstance(context)
-        val channels = db.channelDao().getByProviderAndType("m3u", "LIVE")
-
-        for (channel in channels) {
-            publishChannel(channel)
+    suspend fun publishChannels(): Result<Int> = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP_MR1) {
+            return@withContext Result.success(0)
         }
-        Log.d(TAG, "Published ${channels.size} channels to TV list")
+
+        try {
+            val db = LumoraDatabase.getInstance(context)
+            val channels = db.channelDao().getByProviderAndType("m3u", "LIVE")
+
+            var count = 0
+            for (channel in channels) {
+                try {
+                    publishChannel(channel)
+                    count++
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to publish ${channel.name}: ${e.message}")
+                }
+            }
+            Log.d(TAG, "Published $count channels to TV list")
+            Result.success(count)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load channels for publishing: ${e.message}")
+            Result.failure(e)
+        }
     }
 
     /**

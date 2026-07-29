@@ -43,7 +43,6 @@ import com.lumora.adapter.CategoryAdapter
 import com.lumora.adapter.DYNAMIC_BUCKET_ID_PREFIX
 import com.lumora.adapter.DownloadAdapter
 import com.lumora.adapter.EpisodeAdapter
-import com.lumora.adapter.EpgSourceAdapter
 import com.lumora.adapter.LiveGuideAdapter
 import com.lumora.adapter.PosterGridAdapter
 import com.lumora.adapter.ShelfAdapter
@@ -184,6 +183,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var playerDiagnostics: PlayerDiagnostics
     private lateinit var database: LumoraDatabase
+    private lateinit var speedController: com.lumora.player.playback.PlaybackSpeedController
+    private lateinit var sleepTimer: com.lumora.player.playback.SleepTimer
     private val trackController = PlayerTrackController()
     private val qrManager by lazy { QrPairingManager(this) }
     private var activeSettingsOverlay: FullScreenOverlay? = null
@@ -295,6 +296,10 @@ class MainActivity : AppCompatActivity() {
     // ── A/V Sync Offset ─────────────────────────
     private val avOffsetManager by lazy { AvOffsetManager(this) }
 
+    // ── Picture-in-Picture video size cache ──────
+    private var lastVideoWidth = 16
+    private var lastVideoHeight = 9
+
     // ── Numeric Remote Input ────────────────────
     private val digitInputBuffer = StringBuilder(6)
     private var isDigitEntryActive = false
@@ -366,6 +371,7 @@ class MainActivity : AppCompatActivity() {
     private val tmdbClient = com.lumora.data.remote.tmdb.TmdbClient()
     private val discoverGridAdapter = com.lumora.adapter.PosterGridAdapter { item -> onDiscoverItemClick(item) }
     private var discoverSearchJob: Job? = null
+    private var providerLoadJob: Job? = null
     private val categoryAdapter = CategoryAdapter(
         onCategoryClick = { category -> onCategorySelected(category) },
         onCategoryLongClick = { category ->
@@ -518,10 +524,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (isPlayerVisible && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (isPlayerVisible && playerManager.isPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             runCatching {
+                val aspectRatio = if (lastVideoWidth > 0 && lastVideoHeight > 0) {
+                    Rational(lastVideoWidth, lastVideoHeight)
+                } else {
+                    Rational(16, 9)
+                }
                 enterPictureInPictureMode(
-                    PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+                    PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
                 )
             }
         }
@@ -543,6 +554,7 @@ class MainActivity : AppCompatActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         qrManager.stop()
         playerManager.release()
+        if (::sleepTimer.isInitialized) sleepTimer.stop()
         if (::castManager.isInitialized) castManager.release()
         activeStreamSession?.close()
         pluginInstallServer?.stop()
@@ -810,7 +822,12 @@ class MainActivity : AppCompatActivity() {
         // still contain items from a provider that's since been switched off, and their chips
         // should still say where they came from.
         providerNamesById = IptvProviderStore.load(prefs).associate { it.id to it.name }
-        scope.launch {
+        // Toggling/adding/removing providers in quick succession each calls this with no
+        // ordering guarantee between the launched coroutines - without cancelling the
+        // previous one, whichever network fetch happens to finish last wins and gets written
+        // to allChannels/ChannelCache, which can silently persist a stale provider list.
+        providerLoadJob?.cancel()
+        providerLoadJob = scope.launch {
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
                 if (!cached.isNullOrEmpty()) {
@@ -3025,7 +3042,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnAspectRatio.setOnClickListener { cycleAspectMode() }
 
         // Speed control
-        val speedController = com.lumora.player.playback.PlaybackSpeedController(playerManager.getExoPlayer())
+        speedController = com.lumora.player.playback.PlaybackSpeedController(playerManager.getExoPlayer())
         binding.btnSpeed.setOnClickListener {
             val speeds = arrayOf("0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x")
             val currentSpeed = speedController.currentSpeed
@@ -3046,7 +3063,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Sleep timer
-        val sleepTimer = com.lumora.player.playback.SleepTimer(playerManager.getExoPlayer())
+        sleepTimer = com.lumora.player.playback.SleepTimer(playerManager.getExoPlayer()).apply {
+            onTickCallback = { display -> binding.btnSleepTimer.text = display }
+        }
         binding.btnSleepTimer.setOnClickListener {
             val presets = arrayOf("Off", "15 min", "30 min", "45 min", "60 min", "90 min", "120 min")
             val checkedIndex = sleepTimer.currentPreset.ordinal
@@ -3081,7 +3100,9 @@ class MainActivity : AppCompatActivity() {
                 onCastSessionConnected = { session ->
                     val channel = nowPlayingChannel
                     if (channel != null) {
-                        if (!castChannel(channel, channel.name)) {
+                        if (castChannel(channel, channel.name)) {
+                            playerManager.pause()
+                        } else {
                             Toast.makeText(this@MainActivity, "Cast failed: check TV and try again", Toast.LENGTH_LONG).show()
                         }
                     } else {
@@ -3151,6 +3172,7 @@ class MainActivity : AppCompatActivity() {
                 tracking = false
                 if (playerManager.duration > 0) {
                     playerManager.seekTo((playerManager.duration * (s?.progress ?: 0)) / 100)
+                    resetStallTracking()
                 }
             }
         })
@@ -3185,6 +3207,7 @@ class MainActivity : AppCompatActivity() {
             override fun onPlayerError(error: PlaybackException) {
                 binding.bufferingSpinner.visibility = View.GONE
                 resetStallTracking()
+                blackFrameStreak = 0
                 if (!tryNextQualityVersion()) {
                     Toast.makeText(this@MainActivity, "Playback error", Toast.LENGTH_SHORT).show()
                 }
@@ -3203,6 +3226,8 @@ class MainActivity : AppCompatActivity() {
                 val w = if (rotated) videoSize.height else videoSize.width
                 val h = if (rotated) videoSize.width else videoSize.height
                 binding.playerAspectContainer.videoAspectRatio = (w * videoSize.pixelWidthHeightRatio) / h
+                lastVideoWidth = w
+                lastVideoHeight = h
             }
         })
     }
@@ -3235,15 +3260,15 @@ class MainActivity : AppCompatActivity() {
      *  it switching version on a half-watched film restarts it from zero. Also suppresses the
      *  resume prompt - the user just answered that question by switching mid-playback. */
     private fun showPlayerFor(channel: Channel, resumeFromMs: Long? = null) {
+        // Reset Up Next state on any new playback
+        cancelUpNext()
+        // Never run the preview decode and the fullscreen decode at once.
+        releaseLivePreview()
         // Cleared unconditionally - callers that want episode tracking (Next/Prev,
         // auto-advance) re-set these right after calling this, once playback has
         // actually started for the episode they picked.
         currentEpisodeQueue = emptyList()
         currentEpisodeQueueIndex = -1
-        // Reset Up Next state on any new playback
-        cancelUpNext()
-        // Never run the preview decode and the fullscreen decode at once.
-        releaseLivePreview()
         isPlayerVisible = true
         nowPlayingChannel = channel
         // Cleared unconditionally, same as the episode queue above - the series version
@@ -3258,7 +3283,10 @@ class MainActivity : AppCompatActivity() {
         binding.playerChannelName.text = channel.name
         binding.playerSubtitle.visibility = View.GONE
         binding.playerLiveBadge.visibility = if (channel.mediaType == MediaType.LIVE) View.VISIBLE else View.GONE
-        if (channel.mediaType == MediaType.LIVE) RecentlyPlayedStore.recordPlayed(this, channel.id)
+        if (channel.mediaType == MediaType.LIVE) {
+            RecentlyPlayedStore.recordPlayed(this, channel.id)
+            speedController.resetSpeed()
+        }
 
         // Live channels get a square logo tile (fitCenter, so a wide/odd-aspect logo
         // doesn't get cropped); movies/series get a poster-shaped tile (centerCrop) -
@@ -3345,6 +3373,13 @@ class MainActivity : AppCompatActivity() {
             playerManager.playUrl(startVersion.url, startVersion.streamUserAgent)
             resumeFromMs?.let { playerManager.seekTo(it) }
         }
+
+        // Apply persisted A/V sync offset (per-channel or global)
+        val params = avOffsetManager.buildPlaybackParameters(
+            playerManager.getExoPlayer().playbackParameters,
+            nowPlayingChannel?.id
+        )
+        playerManager.getExoPlayer().setPlaybackParameters(params)
     }
 
     /** Resolves a Stalker VOD/series item's base64 command into a playable URL against the
@@ -3584,6 +3619,7 @@ class MainActivity : AppCompatActivity() {
     // dead feed too.
 
     private fun startBlackFrameWatch() {
+        if (isDestroyed) return
         blackFrameStreak = 0
         mainHandler.removeCallbacks(blackFrameCheckRunnable)
         mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
@@ -3602,7 +3638,9 @@ class MainActivity : AppCompatActivity() {
         val sample = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888)
         try {
             PixelCopy.request(surfaceView, sample, { result ->
+                if (isDestroyed || !isPlayerVisible) { sample.recycle(); return@request }
                 val isBlack = result == PixelCopy.SUCCESS && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+                sample.recycle()
                 blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
                 if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD) {
                     blackFrameStreak = 0
@@ -3690,6 +3728,7 @@ class MainActivity : AppCompatActivity() {
         if (channel.mediaType == MediaType.LIVE) return
         val dur = playerManager.duration
         val pos = playerManager.currentPosition
+        if (pos == androidx.media3.common.C.TIME_UNSET || pos < 0) return
         if (dur <= 0) return
         val key = channel.id.ifBlank { channel.url }
         PlaybackPositionStore.save(this, key, pos, dur, channel)
@@ -3702,12 +3741,18 @@ class MainActivity : AppCompatActivity() {
         binding.playerLayout.visibility = View.GONE
         binding.mainContent.visibility = View.VISIBLE
         binding.playerLayout.keepScreenOn = false
-        mainHandler.removeCallbacksAndMessages(null)
+        mainHandler.removeCallbacks(hideControlsRunnable)
+        mainHandler.removeCallbacks(progressRunnable)
+        mainHandler.removeCallbacks(longStallCheckRunnable)
+        mainHandler.removeCallbacks(blackFrameCheckRunnable)
+        mainHandler.removeCallbacks(upNextTickRunnable)
         playerManager.stop()
+        sleepTimer.stop()
         // A plugin-served stream (Find Stream) keeps a torrent + local server alive in the
         // plugin's process for as long as we're playing its URL - release it now.
         activeStreamSession?.close()
         activeStreamSession = null
+        if (::castManager.isInitialized) castManager.stopCasting()
         if (activeTab == 0) {
             showLivePreviewPane()
             lastFocusedLiveChannel?.let { requestPreviewLoad(it) }
@@ -3760,7 +3805,7 @@ class MainActivity : AppCompatActivity() {
     private fun ensurePreviewPlayer(): PlayerManager {
         previewPlayerManager?.let { return it }
         val manager = PlayerManager(this)
-        manager.setVolume(1f)
+        manager.setVolume(0f)
         manager.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 binding.previewBuffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
@@ -3821,12 +3866,12 @@ class MainActivity : AppCompatActivity() {
         // after the Java view tree is hidden; explicitly stop playback and hide the
         // surface itself (not just its parent) so it actually goes away.
         binding.previewSurface.visibility = View.GONE
+        binding.previewBuffering.visibility = View.GONE
         previewPlayerManager?.let { manager ->
             manager.stop()
             manager.release()
         }
         previewPlayerManager = null
-        binding.previewSurface.visibility = View.VISIBLE
     }
 
     // ── Numeric Remote Input ──────────────────────
@@ -3879,6 +3924,7 @@ class MainActivity : AppCompatActivity() {
     // ── Up Next / Auto-Advance ────────────────────
     private fun checkUpNextTrigger() {
         if (upNextActive) return // already showing
+        if (!playerManager.isPlaying) return
         if (currentEpisodeQueueIndex < 0) return // not in an episode queue
         val nextIdx = currentEpisodeQueueIndex + 1
         if (nextIdx !in currentEpisodeQueue.indices) return // no next episode
@@ -3982,7 +4028,7 @@ class MainActivity : AppCompatActivity() {
     private fun showControls() {
         // Up Next shares the bottom-right corner with the controls bar's track buttons -
         // don't let both render at once.
-        if (upNextActive) cancelUpNext()
+        if (upNextActive) binding.upNextOverlay.visibility = View.GONE
         binding.controlsOverlay.visibility = View.VISIBLE
         // Becoming visible doesn't hand D-pad focus to anything by itself - without an
         // explicit request nothing in the overlay is reachable at all, since no view had
@@ -3992,7 +4038,10 @@ class MainActivity : AppCompatActivity() {
         mainHandler.postDelayed(hideControlsRunnable, 4000)
     }
 
-    private fun hideControls() { binding.controlsOverlay.visibility = View.GONE }
+    private fun hideControls() {
+        binding.controlsOverlay.visibility = View.GONE
+        if (upNextActive) binding.upNextOverlay.visibility = View.VISIBLE
+    }
     private fun toggleControls() {
         if (binding.controlsOverlay.visibility == View.VISIBLE) hideControls() else showControls()
     }
@@ -4006,6 +4055,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateProgress() {
         if (!isPlayerVisible) return
+        if (binding.seekBar.isPressed) return
         val pos = playerManager.currentPosition
         val dur = playerManager.duration
         binding.currentTime.text = formatTime(pos)

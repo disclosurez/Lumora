@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.lumora.data.security.CredentialEncryption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -74,6 +75,7 @@ class DriveBackupManager(private val context: Context) {
      * Returns true on success.
      */
     suspend fun pushBackup(backupJson: String): Boolean = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val token = getAccessToken() ?: return@withContext false
 
@@ -87,7 +89,7 @@ class DriveBackupManager(private val context: Context) {
                 URL("https://www.googleapis.com/upload/drive/v3/files?uploadType=media")
             }
 
-            val conn = fileUrl.openConnection() as HttpURLConnection
+            conn = fileUrl.openConnection() as HttpURLConnection
             conn.requestMethod = if (fileId != null) "PATCH" else "POST"
             conn.setRequestProperty("Authorization", "Bearer $token")
             conn.setRequestProperty("Content-Type", MIME_TYPE)
@@ -119,6 +121,8 @@ class DriveBackupManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Push failed: ${e.message}")
             false
+        } finally {
+            conn?.disconnect()
         }
     }
 
@@ -133,18 +137,22 @@ class DriveBackupManager(private val context: Context) {
 
             val url = URL("https://www.googleapis.com/drive/v3/files/$fileId?alt=media")
             val conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("Authorization", "Bearer $token")
-            conn.connect()
+            try {
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.connect()
 
-            if (conn.responseCode != 200) return@withContext null
+                if (conn.responseCode != 200) return@withContext null
 
-            val json = BufferedReader(InputStreamReader(conn.inputStream)).readText()
+                val json = BufferedReader(InputStreamReader(conn.inputStream)).readText()
 
-            context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
-                .edit().putLong(PREFS_KEY_LAST_PULL, System.currentTimeMillis()).apply()
+                context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+                    .edit().putLong(PREFS_KEY_LAST_PULL, System.currentTimeMillis()).apply()
 
-            Log.d(TAG, "Backup pulled from Drive")
-            json
+                Log.d(TAG, "Backup pulled from Drive")
+                json
+            } finally {
+                conn.disconnect()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Pull failed: ${e.message}")
             null
@@ -153,7 +161,16 @@ class DriveBackupManager(private val context: Context) {
 
     private fun getAccessToken(): String? {
         val prefs = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
-        return prefs.getString(PREFS_KEY_TOKEN, null)
+        val encrypted = prefs.getString(PREFS_KEY_TOKEN, null) ?: return null
+        return CredentialEncryption.decrypt(context, encrypted)
+    }
+
+    fun saveAccessToken(token: String) {
+        val encrypted = CredentialEncryption.encrypt(context, token)
+        context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString(PREFS_KEY_TOKEN, encrypted)
+            .apply()
     }
 
     private fun findExistingFile(token: String): String? {
@@ -161,14 +178,18 @@ class DriveBackupManager(private val context: Context) {
             val query = URLEncoder.encode("name='$FILE_NAME' and 'appDataFolder' in parents", "UTF-8")
             val url = URL("https://www.googleapis.com/drive/v3/files?q=$query&spaces=appDataFolder")
             val conn = url.openConnection() as HttpURLConnection
-            conn.setRequestProperty("Authorization", "Bearer $token")
-            conn.connect()
+            try {
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.connect()
 
-            val body = BufferedReader(InputStreamReader(conn.inputStream)).readText()
-            val files = org.json.JSONObject(body).optJSONArray("files")
-            if (files != null && files.length() > 0) {
-                files.getJSONObject(0).optString("id", null)
-            } else null
+                val body = BufferedReader(InputStreamReader(conn.inputStream)).readText()
+                val files = org.json.JSONObject(body).optJSONArray("files")
+                if (files != null && files.length() > 0) {
+                    files.getJSONObject(0).optString("id", null)
+                } else null
+            } finally {
+                conn.disconnect()
+            }
         } catch (e: Exception) {
             null
         }
@@ -178,19 +199,23 @@ class DriveBackupManager(private val context: Context) {
         try {
             val url = URL("https://www.googleapis.com/drive/v3/files/$fileId")
             val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "PATCH"
-            conn.setRequestProperty("Authorization", "Bearer $token")
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
+            try {
+                conn.requestMethod = "PATCH"
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
 
-            val body = org.json.JSONObject().apply {
-                put("parents", listOf("appDataFolder"))
+                val body = org.json.JSONObject().apply {
+                    put("parents", listOf("appDataFolder"))
+                }
+                OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use {
+                    it.write(body.toString())
+                    it.flush()
+                }
+                conn.responseCode // consume
+            } finally {
+                conn.disconnect()
             }
-            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use {
-                it.write(body.toString())
-                it.flush()
-            }
-            conn.responseCode // consume
         } catch (e: Exception) {
             Log.w(TAG, "Set appDataFolder failed: ${e.message}")
         }

@@ -43,7 +43,6 @@ abstract class LumoraDatabase : RoomDatabase() {
                     LumoraDatabase::class.java,
                     "lumora.db"
                 )
-                    .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
             }

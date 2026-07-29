@@ -59,6 +59,7 @@ class PluginInstallServer(private val context: Context) {
     /** Called on a background thread with a validated http/https URL the phone submitted. */
     var onApkUrl: ((String) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
+    var currentSession: Session? = null
 
     data class Session(val url: String, val qrBitmap: Bitmap, val expiresAtMs: Long)
 
@@ -66,10 +67,12 @@ class PluginInstallServer(private val context: Context) {
         stop()
         val host = resolveLanIp() ?: run {
             onError?.invoke("Could not detect LAN IP. Connect to Wi-Fi and try again.")
+            stop()
             return@withContext null
         }
         val socket = try { ServerSocket(0, 10) } catch (e: Exception) {
             onError?.invoke("Server error: ${e.message}")
+            stop()
             return@withContext null
         }
         val token = generateToken()
@@ -85,7 +88,7 @@ class PluginInstallServer(private val context: Context) {
             delay(SESSION_TIMEOUT_MS)
             if (serverSocket != null) { stop(); onError?.invoke("Session expired. Try again.") }
         }
-        Session(url, createQrBitmap(url), expiresAt)
+        Session(url, createQrBitmap(url), expiresAt).also { currentSession = it }
     }
 
     fun stop() {
@@ -94,6 +97,12 @@ class PluginInstallServer(private val context: Context) {
         runCatching { serverSocket?.close() }
         serverSocket = null
         activeToken = null
+        recycleQrBitmap()
+    }
+
+    fun recycleQrBitmap() {
+        currentSession?.qrBitmap?.recycle()
+        currentSession = null
     }
 
     // ── HTTP ──
@@ -102,6 +111,7 @@ class PluginInstallServer(private val context: Context) {
         try {
             while (!socket.isClosed) {
                 val client = try { socket.accept() } catch (e: Exception) { break }
+                client.soTimeout = 30_000 // 30 second read timeout
                 scope.launch {
                     try { handleClient(client) } catch (e: Exception) {
                         Log.w(TAG, "Client error: ${e.message}")

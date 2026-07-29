@@ -57,7 +57,7 @@ object IptvProviderStore {
      *  list pref takes over so this never runs again (an empty JSON array `[]` from then
      *  on is a real "no providers configured" state, not "not migrated yet"). */
     private fun migrateLegacy(prefs: SharedPreferences): List<IptvProviderConfig> {
-        val type = prefs.getString("provider_type", null)
+        val type = prefs.getString("provider_type", null) ?: return emptyList() // no legacy data to migrate
         val enabled = prefs.getBoolean(LEGACY_ENABLED_KEY, true)
         val config = when (type) {
             "xtream" -> {
@@ -84,7 +84,15 @@ object IptvProviderStore {
             else -> null
         }
         val migrated = listOfNotNull(config)
-        save(prefs, migrated)
+        if (migrated.isNotEmpty()) {
+            save(prefs, migrated)
+        }
+        // Clear legacy keys so this doesn't re-run
+        prefs.edit().remove("provider_type").remove(LEGACY_ENABLED_KEY)
+            .remove("xtream_url").remove("xtream_user").remove("xtream_pass")
+            .remove("stalker_url").remove("stalker_mac")
+            .remove("m3u_url").remove("provider_name").remove("user_agent")
+            .apply()
         return migrated
     }
 

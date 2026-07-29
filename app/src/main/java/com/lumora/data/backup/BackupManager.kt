@@ -119,7 +119,7 @@ class BackupManager(private val context: Context) {
     /**
      * Import app data from a URI (SAF document).
      */
-    suspend fun importFrom(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
+    suspend fun importFrom(uri: Uri, confirmed: Boolean = false): ImportResult = withContext(Dispatchers.IO) {
         try {
             val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).readText()
@@ -128,12 +128,19 @@ class BackupManager(private val context: Context) {
             val data = gson.fromJson(json, BackupData::class.java)
 
             // Verify checksum
-            val checksum = md5(json.replace(Regex(""""checksum":"[^"]*""""), "\"checksum\":\"\""))
-            if (data.checksum.isNotBlank() && data.checksum != md5(
-                    gson.toJson(data.copy(checksum = ""))
-                )
-            ) {
-                Log.w(TAG, "Backup checksum mismatch")
+            if (data.checksum.isNotBlank()) {
+                val expectedChecksum = md5(gson.toJson(data.copy(checksum = "")))
+                if (data.checksum != expectedChecksum) {
+                    Log.e(TAG, "Backup checksum mismatch - rejecting import")
+                    return@withContext ImportResult()
+                }
+            }
+
+            // If not confirmed and there is existing data, return conflicts to prompt confirmation
+            if (!confirmed && hasExistingData()) {
+                val existingCount = countExistingData()
+                Log.d(TAG, "Existing data detected ($existingCount providers), confirmation required")
+                return@withContext ImportResult(conflicts = existingCount)
             }
 
             val result = restoreBackupData(data)
@@ -143,6 +150,16 @@ class BackupManager(private val context: Context) {
             Log.e(TAG, "Import failed: ${e.message}")
             ImportResult()
         }
+    }
+
+    private suspend fun hasExistingData(): Boolean {
+        val db = LumoraDatabase.getInstance(context)
+        return db.providerDao().getAll().isNotEmpty()
+    }
+
+    private suspend fun countExistingData(): Int {
+        val db = LumoraDatabase.getInstance(context)
+        return db.providerDao().getAll().size
     }
 
     /**

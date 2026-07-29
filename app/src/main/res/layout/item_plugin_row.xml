@@ -16,7 +16,9 @@
         android:id="@+id/pluginEnabled"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="12dp" />
+        android:layout_marginEnd="12dp"
+        android:clickable="false"
+        android:focusable="false" />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -60,7 +62,7 @@
             android:id="@+id/pluginRunLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Run"
+            android:text="@string/run"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_caption"
             android:textStyle="bold" />

@@ -1,5 +1,6 @@
 package com.lumora.data.parser
 
+import android.util.Log
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
@@ -12,6 +13,10 @@ import java.util.Locale
  * Handles multiple channels and their program listings.
  */
 object XmltvParser {
+
+    private const val MAX_CHANNELS = 10_000
+    private const val MAX_PROGRAMMES = 50_000
+    private const val TAG = "XmltvParser"
 
     data class XmltvChannel(
         val id: String,
@@ -43,9 +48,9 @@ object XmltvParser {
 
     private val dateFormats = listOf(
         "yyyyMMddHHmmss Z",
+        "yyyyMMddHHmm Z",
         "yyyyMMddHHmmss z",
         "yyyyMMddHHmmss",
-        "yyyyMMddHHmm Z",
         "yyyyMMddHHmm"
     )
 
@@ -92,7 +97,11 @@ object XmltvParser {
                                     }
                                 }
                             }
-                            channels.add(XmltvChannel(id, displayName, icon))
+                            if (channels.size < MAX_CHANNELS) {
+                                channels.add(XmltvChannel(id, displayName, icon))
+                            } else {
+                                Log.w(TAG, "Reached max channel limit ($MAX_CHANNELS), truncating")
+                            }
                         }
                         "programme" -> {
                             val channel = parser.getAttributeValue(null, "channel") ?: ""
@@ -141,25 +150,60 @@ object XmltvParser {
                                                 date = parser.text
                                             }
                                             "star-rating" -> {
-                                                // Parse value child
-                                                while (parser.next() != XmlPullParser.END_TAG) {
-                                                    if (parser.name == "value") {
-                                                        parser.next()
-                                                        rating = parser.text
+                                                // Parse value child using depth tracking
+                                                var depth = 1
+                                                while (depth > 0) {
+                                                    when (parser.next()) {
+                                                        XmlPullParser.START_TAG -> {
+                                                            if (parser.name == "value") {
+                                                                if (parser.next() == XmlPullParser.TEXT) {
+                                                                    rating = parser.text
+                                                                }
+                                                            }
+                                                            depth++
+                                                        }
+                                                        XmlPullParser.END_TAG -> depth--
                                                     }
                                                 }
                                             }
                                             "actor" -> {
-                                                parser.next()
-                                                parser.text?.let { credits.add("actor" to it) }
+                                                // Parse using depth tracking to handle nested elements
+                                                var depth = 1
+                                                while (depth > 0) {
+                                                    when (parser.next()) {
+                                                        XmlPullParser.START_TAG -> {
+                                                            depth++
+                                                        }
+                                                        XmlPullParser.TEXT -> {
+                                                            credits.add("actor" to parser.text)
+                                                        }
+                                                        XmlPullParser.END_TAG -> depth--
+                                                    }
+                                                }
                                             }
                                             "director" -> {
-                                                parser.next()
-                                                parser.text?.let { credits.add("director" to it) }
+                                                var depth = 1
+                                                while (depth > 0) {
+                                                    when (parser.next()) {
+                                                        XmlPullParser.START_TAG -> depth++
+                                                        XmlPullParser.TEXT -> {
+                                                            credits.add("director" to parser.text)
+                                                        }
+                                                        XmlPullParser.END_TAG -> depth--
+                                                    }
+                                                }
                                             }
                                             "presenter" -> {
-                                                parser.next()
-                                                parser.text?.let { credits.add("presenter" to it) }
+                                                var depth = 1
+                                                while (depth > 0) {
+                                                    when (parser.next()) {
+                                                        XmlPullParser.START_TAG -> depth++
+                                                        XmlPullParser.TEXT -> {
+                                                            credits.add("presenter" to parser.text)
+                                                        }
+                                                        XmlPullParser.END_TAG -> depth--
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -169,22 +213,26 @@ object XmltvParser {
                                 }
                             }
 
-                            programmes.add(
-                                XmltvProgramme(
-                                    channel = channel,
-                                    title = title,
-                                    subTitle = subTitle,
-                                    description = desc,
-                                    startTimestamp = parseXmltvDate(start),
-                                    stopTimestamp = parseXmltvDate(stop),
-                                    category = category,
-                                    episodeNumber = episodeNum,
-                                    icon = icon,
-                                    date = date,
-                                    starRating = rating,
-                                    credits = credits
+                            if (programmes.size < MAX_PROGRAMMES) {
+                                programmes.add(
+                                    XmltvProgramme(
+                                        channel = channel,
+                                        title = title,
+                                        subTitle = subTitle,
+                                        description = desc,
+                                        startTimestamp = parseXmltvDate(start),
+                                        stopTimestamp = parseXmltvDate(stop),
+                                        category = category,
+                                        episodeNumber = episodeNum,
+                                        icon = icon,
+                                        date = date,
+                                        starRating = rating,
+                                        credits = credits
+                                    )
                                 )
-                            )
+                            } else {
+                                Log.w(TAG, "Reached max programme limit ($MAX_PROGRAMMES), truncating")
+                            }
                         }
                     }
                 }
@@ -209,7 +257,9 @@ object XmltvParser {
             try {
                 val fmt = SimpleDateFormat(fmtStr, Locale.US)
                 return fmt.parse(clean)?.time?.div(1000) ?: continue
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w(TAG, "Date parse failed for format $fmtStr: ${e.message}")
+            }
         }
         return 0L
     }

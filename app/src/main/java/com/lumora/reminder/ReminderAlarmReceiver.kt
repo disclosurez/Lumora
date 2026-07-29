@@ -58,7 +58,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         val channel = NotificationChannel(
             REMINDER_NOTIFICATION_CHANNEL_ID,
             "Programme reminders",
-            NotificationManager.IMPORTANCE_HIGH
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply { description = "Alerts a few minutes before a show you set a reminder for" }
         manager.createNotificationChannel(channel)
     }

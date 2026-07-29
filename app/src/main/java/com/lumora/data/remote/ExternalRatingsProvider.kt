@@ -32,10 +32,8 @@ class ExternalRatingsProvider(private val client: OkHttpClient) {
      */
     suspend fun searchMovie(title: String, year: String? = null): RatingsResult? {
         return try {
-            var query = URLEncoder.encode(title, "UTF-8")
-            if (!year.isNullOrBlank()) query += "&year=$year"
-
-            val url = "https://api.themoviedb.org/3/search/movie?api_key=$TMDB_API_KEY&query=$query&language=en-US"
+            val encodedTitle = URLEncoder.encode(title, "UTF-8")
+            val url = "https://api.themoviedb.org/3/search/movie?api_key=$TMDB_API_KEY&query=$encodedTitle${if (!year.isNullOrBlank()) "&year=$year" else ""}&language=en-US"
             val request = Request.Builder().url(url)
                 .header("User-Agent", "Lumora/2.0")
                 .build()

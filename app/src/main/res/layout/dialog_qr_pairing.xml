@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Pair with Phone"
+        android:text="@string/pair_with_phone"
         android:textColor="@color/text_primary"
         android:textSize="@dimen/text_title"
         android:textStyle="bold" />
@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:gravity="center"
-        android:text="Select provider type, then scan QR"
+        android:text="@string/select_provider_then_scan_qr"
         android:textColor="@color/text_secondary"
         android:textSize="@dimen/text_body_s" />
 
@@ -41,8 +41,9 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
+            android:nextFocusRight="@id/selectXtream"
             android:padding="8dp"
-            android:text="M3U URL"
+            android:text="@string/m3u_url_option"
             android:textAllCaps="true"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_body_s"
@@ -58,8 +59,9 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
+            android:nextFocusLeft="@id/selectM3u"
             android:padding="8dp"
-            android:text="Xtream"
+            android:text="@string/provider_type_xtream"
             android:textAllCaps="true"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_body_s" />
@@ -128,7 +130,9 @@
             android:layout_width="0dp"
             android:layout_height="44dp"
             android:layout_weight="1"
-            android:text="Stop" />
+            android:nextFocusDown="@id/btnClosePairing"
+            android:nextFocusUp="@id/btnClosePairing"
+            android:text="@string/stop" />
 
         <Button
             android:id="@+id/btnClosePairing"
@@ -137,6 +141,8 @@
             android:layout_height="44dp"
             android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:text="Close" />
+            android:nextFocusDown="@id/btnStopPairing"
+            android:nextFocusUp="@id/btnStopPairing"
+            android:text="@string/close" />
     </LinearLayout>
 </LinearLayout>

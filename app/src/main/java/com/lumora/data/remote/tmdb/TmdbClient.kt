@@ -114,6 +114,11 @@ class TmdbClient {
                         val body = resp.body?.string()
                         if (!body.isNullOrBlank()) return@withContext body
                     }
+                    if (resp.code == 429) {
+                        val retryAfter = resp.header("Retry-After")?.toLongOrNull() ?: 1
+                        kotlinx.coroutines.delay(retryAfter * 1000)
+                        // Loop naturally continues to next key after use{} block
+                    }
                     // Non-2xx (bad/limited key): fall through to the next key.
                 }
             } catch (e: Exception) {

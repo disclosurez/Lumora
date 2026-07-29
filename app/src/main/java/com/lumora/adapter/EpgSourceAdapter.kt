@@ -11,6 +11,7 @@ import com.lumora.R
 import com.lumora.data.local.entity.EpgSourceEntity
 
 class EpgSourceAdapter(
+    private val onItemClick: (EpgSourceEntity) -> Unit,
     private val onDelete: (EpgSourceEntity) -> Unit
 ) : ListAdapter<EpgSourceEntity, EpgSourceAdapter.ViewHolder>(DiffCallback()) {
 
@@ -30,6 +31,9 @@ class EpgSourceAdapter(
         private var current: EpgSourceEntity? = null
 
         init {
+            itemView.setOnClickListener {
+                current?.let(onItemClick)
+            }
             itemView.setOnLongClickListener {
                 current?.let(onDelete); true
             }

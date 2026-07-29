@@ -39,8 +39,8 @@ class CastManager(private val context: Context) {
                     onCastSessionConnected?.invoke(session)
                 }
                 override fun onSessionEnded(session: CastSession, error: Int) {
-                    castSession = null
                     onCastSessionDisconnected?.invoke()
+                    castSession = null
                 }
                 override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {
                     castSession = session

@@ -190,7 +190,7 @@ class CatalogSyncWorker(
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(
                     "$UNIQUE_WORK_NAME_PREFIX${providerId}_periodic",
-                    ExistingPeriodicWorkPolicy.KEEP,
+                    ExistingPeriodicWorkPolicy.UPDATE,
                     request
                 )
         }

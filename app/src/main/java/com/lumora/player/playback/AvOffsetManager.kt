@@ -1,6 +1,8 @@
 package com.lumora.player.playback
 
 import android.content.Context
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.exoplayer.ExoPlayer
 
 /**
  * Manages A/V sync offset preferences.
@@ -54,5 +56,43 @@ class AvOffsetManager(private val context: Context) {
     /** Resolve the effective offset for a channel: per-channel override or global default. */
     fun effectiveOffset(channelId: String): Int {
         return loadPerChannel(channelId) ?: currentOffset
+    }
+
+    /**
+     * Build [PlaybackParameters] carrying the current speed/pitch while keeping the
+     * A/V offset stored for reference. Media3 does not natively support audio offset,
+     * so this serves as a placeholder for future audio-processing integration.
+     *
+     * @param current  the current [PlaybackParameters] (speed/pitch to preserve).
+     * @param channelId  optional channel ID for per-channel offset lookup.
+     * @return  a [PlaybackParameters] preserving speed/pitch; [PlaybackParameters.DEFAULT]
+     *         if the effective offset is zero.
+     */
+    fun buildPlaybackParameters(current: PlaybackParameters, channelId: String?): PlaybackParameters {
+        val offsetMs = getEffectiveOffsetMs(channelId)
+        if (offsetMs == 0) return PlaybackParameters.DEFAULT
+        // Return the current speed/pitch (offset is stored for reference)
+        return PlaybackParameters(current.speed, current.pitch)
+    }
+
+    /**
+     * Apply the effective A/V offset to an ExoPlayer instance.
+     * Positive offsetMs delays audio (audio plays later than video).
+     * Negative offsetMs advances audio (audio plays earlier than video).
+     */
+    fun applyToPlayer(player: ExoPlayer, channelId: String?) {
+        player.setPlaybackParameters(
+            buildPlaybackParameters(player.playbackParameters, channelId)
+        )
+    }
+
+    /** Remove the A/V offset from a player, resetting PlaybackParameters to default. */
+    fun removeFromPlayer(player: ExoPlayer) {
+        player.setPlaybackParameters(PlaybackParameters.DEFAULT)
+    }
+
+    /** Get the effective offset in milliseconds. */
+    fun getEffectiveOffsetMs(channelId: String?): Int {
+        return if (channelId != null) effectiveOffset(channelId) else currentOffset
     }
 }

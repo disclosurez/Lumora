@@ -22,26 +22,33 @@ data class ProgramReminder(
 /** Scheduled EPG reminders, persisted so they survive app restarts and can be re-armed after reboot. */
 object ReminderStore {
 
+    @Synchronized
     fun getAll(context: Context): List<ProgramReminder> = load(context)
 
+    @Synchronized
     fun get(context: Context, key: String): ProgramReminder? = load(context).firstOrNull { it.key == key }
 
+    @Synchronized
     fun add(context: Context, reminder: ProgramReminder) {
         val list = load(context).filterNot { it.key == reminder.key }.toMutableList()
         list.add(reminder)
         save(context, list)
     }
 
+    @Synchronized
     fun remove(context: Context, key: String) {
         save(context, load(context).filterNot { it.key == key })
     }
 
     /** Drops reminders whose program has already started - nothing left to schedule for them. */
+    @Synchronized
     fun pruneExpired(context: Context, nowSeconds: Long) {
-        val remaining = load(context).filter { it.startTimestamp > nowSeconds }
-        if (remaining.size != load(context).size) save(context, remaining)
+        val all = load(context)
+        val remaining = all.filter { it.startTimestamp > nowSeconds }
+        if (remaining.size != all.size) save(context, remaining)
     }
 
+    @Synchronized
     private fun load(context: Context): List<ProgramReminder> = try {
         val file = File(context.filesDir, FILE_NAME)
         if (!file.exists()) emptyList() else {
@@ -61,6 +68,7 @@ object ReminderStore {
         emptyList()
     }
 
+    @Synchronized
     private fun save(context: Context, list: List<ProgramReminder>) {
         try {
             val arr = JSONArray()

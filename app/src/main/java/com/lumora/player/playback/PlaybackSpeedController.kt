@@ -55,4 +55,13 @@ class PlaybackSpeedController(private val player: ExoPlayer) {
     fun resetSpeed() {
         setSpeed(1.0f)
     }
+
+    /**
+     * Sync the internal speed state from the actual ExoPlayer playback speed.
+     * Call this after the player is prepared or after track changes, since
+     * Media3 may reset the speed to 1.0x internally.
+     */
+    fun syncSpeed(actualSpeed: Float) {
+        currentSpeed = actualSpeed
+    }
 }

@@ -1,6 +1,8 @@
 package com.lumora.cache
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
@@ -9,7 +11,6 @@ import java.io.File
 
 private const val TAG = "PlaybackPositionStore"
 private const val FILE_NAME = "playback_positions.json"
-private const val MAX_ENTRIES = 500
 private const val COMPLETION_THRESHOLD = 0.95
 
 data class PlaybackPosition(
@@ -27,6 +28,11 @@ data class PlaybackPosition(
 
 /** Saves VOD/series watch progress to disk so playback can resume where it left off. */
 object PlaybackPositionStore {
+    private const val MAX_ENTRIES = 500
+    private const val DEBOUNCE_MS = 5_000L
+    private val debounceHandler = Handler(Looper.getMainLooper())
+    private var pendingSaveRunnable: Runnable? = null
+
     private var cache: MutableMap<String, PlaybackPosition>? = null
 
     fun get(context: Context, key: String): PlaybackPosition? = ensureLoaded(context)[key]
@@ -38,6 +44,15 @@ object PlaybackPositionStore {
         if (map.size > MAX_ENTRIES) {
             map.entries.minByOrNull { it.value.updatedAt }?.key?.let { map.remove(it) }
         }
+        // Debounce writes — only flush to disk after DEBOUNCE_MS of inactivity
+        pendingSaveRunnable?.let { debounceHandler.removeCallbacks(it) }
+        val runnable = Runnable { flushToDisk(context) }
+        pendingSaveRunnable = runnable
+        debounceHandler.postDelayed(runnable, DEBOUNCE_MS)
+    }
+
+    private fun flushToDisk(context: Context) {
+        val map = cache ?: return
         persist(context, map)
     }
 
@@ -62,6 +77,13 @@ object PlaybackPositionStore {
 
     private fun ensureLoaded(context: Context): MutableMap<String, PlaybackPosition> {
         cache?.let { return it }
+        // Cancel any pending flush so we don't overwrite the freshly loaded data with stale
+        // in-memory state (e.g. if a delayed save fires after a cold-start load completes).
+        val pending = pendingSaveRunnable
+        if (pending != null) {
+            debounceHandler.removeCallbacks(pending)
+            pendingSaveRunnable = null
+        }
         val loaded: MutableMap<String, PlaybackPosition> = try {
             val file = File(context.filesDir, FILE_NAME)
             if (!file.exists()) {
@@ -129,9 +151,16 @@ object PlaybackPositionStore {
                     }
                 })
             }
-            File(context.filesDir, FILE_NAME).writeText(obj.toString())
+            writeToFile(File(context.filesDir, FILE_NAME), obj.toString())
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save: ${e.message}")
         }
+    }
+
+    /** Atomically writes JSON to file: write to a temp file, then rename to prevent corruption on process death. */
+    private fun writeToFile(file: File, json: String) {
+        val tempFile = File(file.absolutePath + ".tmp")
+        tempFile.writeText(json)
+        tempFile.renameTo(file)
     }
 }

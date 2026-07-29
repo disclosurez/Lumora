@@ -12,6 +12,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -22,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class RecordingCaptureEngine(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val activeJobs = mutableMapOf<String, Job>()
+    private val activeJobs = ConcurrentHashMap<String, Job>()
     private val TAG = "RecordingCapture"
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
@@ -47,6 +48,14 @@ class RecordingCaptureEngine(private val context: Context) {
                 val outputDir = getRecordingDirectory()
                 if (outputDir == null) {
                     return@withContext Result.failure(Exception("No recording storage configured"))
+                }
+
+                // Check available disk space before starting
+                val usableSpace = outputDir.usableSpace
+                val estimatedBytes = (recording.stopTimeUtc - recording.startTimeUtc) / 1000 * 2_500_000L
+                if (usableSpace < estimatedBytes) {
+                    Log.w(TAG, "Insufficient disk space for recording: ${usableSpace / 1_000_000}MB available, ~${estimatedBytes / 1_000_000}MB needed")
+                    return@withContext Result.failure(Exception("Insufficient disk space for recording"))
                 }
 
                 val fileName = generateFileName(recording)
@@ -168,7 +177,7 @@ class RecordingCaptureEngine(private val context: Context) {
         val dateFormat = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US)
         val datePart = dateFormat.format(Date(recording.startTimeUtc * 1000))
         val safeTitle = recording.programTitle
-            .replace(Regex("""[^a-zA-Z0-9 _-]"""), "")
+            .replace(Regex("""[^\p{L}\p{N} _-]"""), "")
             .take(50)
             .trim()
         return "${safeTitle}_${datePart}.ts"

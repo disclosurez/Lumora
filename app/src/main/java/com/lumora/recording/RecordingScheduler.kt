@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.UUID
 
 /**
@@ -107,8 +108,7 @@ class RecordingScheduler {
          * Reschedule all future recordings (e.g., after boot).
          */
         fun rescheduleAll(context: Context) {
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            scope.launch {
+            runBlocking(Dispatchers.IO) {
                 val db = LumoraDatabase.getInstance(context)
                 val recordings = db.recordingDao().getScheduled()
                 recordings.forEach { schedule(context, it) }

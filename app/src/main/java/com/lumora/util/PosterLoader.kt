@@ -7,6 +7,7 @@ import com.lumora.BaseApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
+import java.io.BufferedInputStream
 
 private const val TARGET_POSTER_WIDTH_PX = 220
 private const val TARGET_POSTER_HEIGHT_PX = 330
@@ -22,6 +23,9 @@ object PosterLoader {
         (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt()
     ) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
+        override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) {
+            if (evicted) oldValue.recycle()
+        }
     }
 
     fun getCached(url: String): Bitmap? = cache.get(url)
@@ -30,16 +34,30 @@ object PosterLoader {
         getCached(url)?.let { return@withContext it }
         val bitmap = runCatching {
             val request = Request.Builder().url(url).build()
-            val bytes = BaseApplication.instance.okHttpClient.newCall(request).execute()
-                .body?.bytes() ?: return@runCatching null
+            val response = BaseApplication.instance.okHttpClient.newCall(request).execute()
+            val body = response.body ?: return@runCatching null
+            val stream = body.byteStream().buffered()
+            stream.mark(64 * 1024)  // allow reset within 64KB
 
+            // First decode with just bounds
             val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOptions)
+            BitmapFactory.decodeStream(stream, null, boundsOptions)
+            stream.reset()
+
+            if (boundsOptions.outWidth <= 0 || boundsOptions.outHeight <= 0) {
+                stream.close()
+                response.close()
+                return@runCatching null
+            }
 
             val options = BitmapFactory.Options().apply {
                 inSampleSize = calculateInSampleSize(boundsOptions, TARGET_POSTER_WIDTH_PX, TARGET_POSTER_HEIGHT_PX)
+                inPreferredConfig = Bitmap.Config.RGB_565
             }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            val bitmap = BitmapFactory.decodeStream(stream, null, options)
+            stream.close()
+            response.close()
+            bitmap
         }.getOrNull()
         if (bitmap != null) cache.put(url, bitmap)
         bitmap

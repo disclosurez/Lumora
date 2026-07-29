@@ -25,6 +25,7 @@ class SleepTimer(private val player: Player) {
     var remainingMillis: Long = 0
         private set
     var onSleep: (() -> Unit)? = null
+    var onTickCallback: ((String) -> Unit)? = null
 
     /**
      * Start the sleep timer with a given preset.
@@ -39,6 +40,7 @@ class SleepTimer(private val player: Player) {
         timer = object : CountDownTimer(preset.millis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 remainingMillis = millisUntilFinished
+                onTickCallback?.invoke(getRemainingDisplay())
             }
 
             override fun onFinish() {
@@ -50,13 +52,20 @@ class SleepTimer(private val player: Player) {
     }
 
     /**
-     * Stop the sleep timer.
+     * Stop the underlying timer without resetting preset state.
      */
-    fun stop() {
+    private fun stopTimer() {
         timer?.cancel()
         timer = null
-        currentPreset = Preset.OFF
         remainingMillis = 0
+    }
+
+    /**
+     * Stop the sleep timer and reset preset to OFF.
+     */
+    fun stop() {
+        stopTimer()
+        currentPreset = Preset.OFF
     }
 
     /**
@@ -64,11 +73,12 @@ class SleepTimer(private val player: Player) {
      */
     fun addTime() {
         if (currentPreset == Preset.OFF) return
+        stopTimer()
         val newDuration = remainingMillis + 15 * 60 * 1000L
-        start(Preset.OFF) // hack: stop existing
         timer = object : CountDownTimer(newDuration, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 remainingMillis = millisUntilFinished
+                onTickCallback?.invoke(getRemainingDisplay())
             }
 
             override fun onFinish() {

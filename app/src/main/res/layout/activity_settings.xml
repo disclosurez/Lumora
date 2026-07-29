@@ -33,7 +33,7 @@
             android:layout_marginStart="18dp"
             android:layout_marginTop="20dp"
             android:layout_marginBottom="16dp"
-            android:text="Settings"
+            android:text="@string/settings"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_section"
             android:textStyle="bold" />
@@ -55,47 +55,47 @@
 
                 <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="P" android:backgroundTint="@color/channel_1" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Providers" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/providers" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_6" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Playback" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/playback" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="F" android:backgroundTint="@color/channel_4" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Filters" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/filters" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="V" android:backgroundTint="@color/channel_5" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Privacy" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/privacy" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="B" android:backgroundTint="@color/channel_3" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Backup &amp; Restore" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/backup_restore" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="E" android:backgroundTint="@color/channel_2" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="EPG Sources" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/epg_sources" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_5" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Downloads" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/downloads" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="X" android:backgroundTint="@color/channel_2" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="Plugins" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/plugins" />
                 </LinearLayout>
 
                 <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
-                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="About" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/about" />
                 </LinearLayout>
 
             </LinearLayout>
@@ -143,13 +143,13 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="4dp"
-                    android:text="Providers"
+                    android:text="@string/providers"
                     style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Run multiple providers together - enable or disable each independently"
+                    android:text="@string/providers_description"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
 
                 <!-- Collapsed while the add/edit form is open (see openIptvForm()/
@@ -167,7 +167,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-                    android:text="YOUR PROVIDERS"
+                    android:text="@string/your_providers"
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
@@ -189,7 +189,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="No IPTV providers added yet"
+                    android:text="@string/no_iptv_providers_added_yet"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
                     android:visibility="gone" />
@@ -211,7 +211,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="+ Add Provider"
+                        android:text="@string/add_provider"
                         android:textColor="@color/accent"
                         android:textSize="@dimen/settings_text_body"
                         android:textStyle="bold" />
@@ -262,7 +262,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="What kind of provider is this?"
+                        android:text="@string/what_kind_of_provider"
                         android:textColor="@color/text_secondary"
                         android:textSize="@dimen/settings_text_caption" />
 
@@ -286,8 +286,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="M3U" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playlist link" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_m3u" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playlist_link" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -302,8 +302,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Xtream" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Login codes" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_xtream" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/login_codes" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -318,8 +318,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Stalker" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MAC address" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_stalker" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/mac_address" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -334,8 +334,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Jellyfin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Media server" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_jellyfin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/media_server" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -379,7 +379,7 @@
                             android:gravity="center"
                             android:paddingHorizontal="14dp"
                             android:stateListAnimator="@animator/focus_scale_flat"
-                            android:text="Change"
+                            android:text="@string/change"
                             android:textColor="@color/accent"
                             android:textSize="@dimen/settings_text_caption"
                             android:textStyle="bold" />
@@ -417,7 +417,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Show phone QR pairing code"
+                            android:text="@string/show_phone_qr_pairing_code"
                             android:textColor="@color/accent"
                             android:textSize="@dimen/settings_text_body"
                             android:textStyle="bold" />
@@ -483,7 +483,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingHorizontal="12dp"
-                            android:text="OR enter manually"
+                            android:text="@string/or_enter_manually"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/settings_text_caption" />
                         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
@@ -497,7 +497,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Name" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/name" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                     <EditText
                         android:id="@+id/settingsProviderName"
                         android:layout_width="match_parent"
@@ -562,7 +562,7 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsXtreamUrl"
                             android:layout_width="match_parent"
@@ -577,7 +577,7 @@
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/xtream_username" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsXtreamUser"
                             android:layout_width="match_parent"
@@ -592,7 +592,7 @@
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/xtream_password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsXtreamPass"
                             android:layout_width="match_parent"
@@ -627,7 +627,7 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsStalkerUrl"
                             android:layout_width="match_parent"
@@ -667,7 +667,7 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Server URL" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsJellyfinUrl"
                             android:layout_width="match_parent"
@@ -697,13 +697,13 @@
                                 android:id="@+id/settingsJellyfinQuickConnectLabel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Sign in with Quick Connect"
+                                android:text="@string/sign_in_with_quick_connect"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/settings_text_body"
                                 android:textStyle="bold" />
                         </LinearLayout>
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Username (if Quick Connect is off)" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/username_if_quick_connect_off" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsJellyfinUser"
                             android:layout_width="match_parent"
@@ -718,7 +718,7 @@
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/xtream_password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsJellyfinPass"
                             android:layout_width="match_parent"
@@ -744,7 +744,7 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:padding="6dp"
-                        android:text="Cancel"
+                        android:text="@string/cancel"
                         android:textColor="@color/text_secondary"
                         android:textSize="@dimen/settings_text_caption"
                         android:textStyle="bold" />
@@ -759,7 +759,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Playback" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/playback" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsRecordingStorage"
@@ -785,7 +785,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playback settings" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playback_settings" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -802,7 +802,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="A/V sync offset"
+                        android:text="@string/av_offset"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_body"
                         android:textStyle="bold" />
@@ -817,14 +817,14 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Filters" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/filters" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <CheckBox
                     android:id="@+id/settingsHideNonEnglish"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:checked="true"
-                    android:text="Hide non-English movies/series"
+                    android:text="@string/hide_non_english"
                     android:textColor="@color/text_primary"
                     android:textSize="@dimen/settings_text_body" />
 
@@ -837,7 +837,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:checked="true"
-                    android:text="Hide adult categories"
+                    android:text="@string/hide_adult_categories"
                     android:textColor="@color/text_primary"
                     android:textSize="@dimen/settings_text_body" />
             </LinearLayout>
@@ -850,7 +850,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsParentalPin"
@@ -862,7 +862,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Set parental PIN" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/set_parental_pin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -876,7 +876,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clear watch history" android:textColor="@color/live_red" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/clear_watch_history" android:textColor="@color/live_red" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -888,7 +888,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Backup &amp; Restore" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/backup_restore" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsExportBackup"
@@ -926,7 +926,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="EPG Sources" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/epg_sources" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsAddEpgSource"
@@ -952,13 +952,13 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="Downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:id="@+id/settingsDownloadsEmptyText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="No downloads yet"
+                    android:text="@string/no_downloads_yet"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
                     android:visibility="gone" />
@@ -969,7 +969,8 @@
                     android:layout_height="wrap_content"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:nestedScrollingEnabled="false" />
+                    android:nestedScrollingEnabled="false"
+                    android:overScrollMode="never" />
             </LinearLayout>
 
             <!-- Pane: Plugins - companion APKs that can propose providers. Rows for both the
@@ -984,20 +985,20 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Plugins" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/plugins" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:layout_marginBottom="16dp"
-                    android:text="Separate companion apps that add features - finding providers, or searching for streams. A plugin runs in its own app, only when you enable it, and anything it proposes is only used if you confirm it."
+                    android:text="@string/plugins_description"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="ADD A PLUGIN"
+                    android:text="@string/add_a_plugin"
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
@@ -1029,7 +1030,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Install from URL"
+                            android:text="@string/install_from_url"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body"
                             android:textStyle="bold" />
@@ -1038,7 +1039,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Enter an APK link"
+                            android:text="@string/enter_apk_link"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/settings_text_caption" />
                     </LinearLayout>
@@ -1060,7 +1061,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Install via phone"
+                            android:text="@string/install_via_phone"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body"
                             android:textStyle="bold" />
@@ -1069,7 +1070,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Scan a QR, paste the link"
+                            android:text="@string/scan_qr_paste_link"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/settings_text_caption" />
                     </LinearLayout>
@@ -1078,7 +1079,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="INSTALLED"
+                    android:text="@string/installed"
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
@@ -1098,7 +1099,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="No plugins installed"
+                    android:text="@string/no_plugins_installed"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
                     android:visibility="gone" />
@@ -1117,7 +1118,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="RESULTS"
+                        android:text="@string/results"
                         android:letterSpacing="0.08"
                         android:textColor="@color/text_tertiary"
                         android:textSize="@dimen/settings_text_caption"
@@ -1166,7 +1167,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="About" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/about" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -1176,7 +1177,7 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Version" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" />
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/version" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" />
                     <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_body" />
                 </LinearLayout>
 
@@ -1193,8 +1194,8 @@
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="GitHub" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="github.com/disclosurez/Lumora" android:textColor="@color/primary_light" android:textSize="@dimen/settings_text_caption" />
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/github" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/github_url" android:textColor="@color/primary_light" android:textSize="@dimen/settings_text_caption" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1208,7 +1209,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Check for Updates" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/check_for_updates" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -1246,7 +1247,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Cancel"
+                android:text="@string/cancel"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/settings_text_subtitle"
                 android:textStyle="bold" />
@@ -1266,7 +1267,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Save"
+                android:text="@string/save"
                 android:textColor="@color/text_primary"
                 android:textSize="@dimen/settings_text_subtitle"
                 android:textStyle="bold" />

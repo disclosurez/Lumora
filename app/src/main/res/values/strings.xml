@@ -112,4 +112,102 @@
     <string name="av_offset_global">Global offset</string>
     <string name="av_offset_per_channel">Channel offset</string>
     <string name="av_offset_reset">Reset to global</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Search</string>
+    <string name="tab_home">🏠 Home</string>
+    <string name="tab_live_tv">📡 Live TV</string>
+    <string name="series_tab">📺 Series</string>
+    <string name="films_tab">🎬 Films</string>
+    <string name="discover_tab">🧭 Discover</string>
+    <string name="downloads_tab">⬇️ Downloads</string>
+    <string name="no_provider_configured">No provider configured</string>
+    <string name="press_settings_to_add_playlist">Press Settings to add a playlist URL</string>
+    <string name="add_a_provider">Add a Provider</string>
+    <string name="search_main_hint">Search live TV, films &amp; series…</string>
+    <string name="no_downloads_yet">No downloads yet</string>
+    <string name="overview">Overview</string>
+    <string name="cast">Cast</string>
+    <string name="play">Play</string>
+    <string name="find_stream">Find Stream</string>
+    <string name="trailer">Trailer</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Sleep</string>
+    <string name="diag">Diag</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versions</string>
+    <string name="fit">Fit</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Subtitles</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Providers</string>
+    <string name="playback">Playback</string>
+    <string name="filters">Filters</string>
+    <string name="privacy">Privacy</string>
+    <string name="downloads">Downloads</string>
+    <string name="plugins">Plugins</string>
+    <string name="about">About</string>
+    <string name="providers_description">Run multiple providers together - enable or disable each independently</string>
+    <string name="your_providers">YOUR PROVIDERS</string>
+    <string name="no_iptv_providers_added_yet">No IPTV providers added yet</string>
+    <string name="add_provider">+ Add Provider</string>
+    <string name="what_kind_of_provider">What kind of provider is this?</string>
+    <string name="provider_type_m3u">M3U</string>
+    <string name="playlist_link">Playlist link</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Login codes</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC address</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Media server</string>
+    <string name="change">Change</string>
+    <string name="show_phone_qr_pairing_code">Show phone QR pairing code</string>
+    <string name="or_enter_manually">OR enter manually</string>
+    <string name="name">Name</string>
+    <string name="server_url">Server URL</string>
+    <string name="sign_in_with_quick_connect">Sign in with Quick Connect</string>
+    <string name="username_if_quick_connect_off">Username (if Quick Connect is off)</string>
+    <string name="playback_settings">Playback settings</string>
+    <string name="hide_non_english">Hide non-English movies/series</string>
+    <string name="hide_adult_categories">Hide adult categories</string>
+    <string name="set_parental_pin">Set parental PIN</string>
+    <string name="clear_watch_history">Clear watch history</string>
+    <string name="plugins_description">Separate companion apps that add features - finding providers, or searching for streams. A plugin runs in its own app, only when you enable it, and anything it proposes is only used if you confirm it.</string>
+    <string name="add_a_plugin">ADD A PLUGIN</string>
+    <string name="install_from_url">Install from URL</string>
+    <string name="enter_apk_link">Enter an APK link</string>
+    <string name="install_via_phone">Install via phone</string>
+    <string name="scan_qr_paste_link">Scan a QR, paste the link</string>
+    <string name="installed">INSTALLED</string>
+    <string name="no_plugins_installed">No plugins installed</string>
+    <string name="results">RESULTS</string>
+    <string name="version">Version</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="check_for_updates">Check for Updates</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Type to search</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="pair_with_phone">Pair with Phone</string>
+    <string name="select_provider_then_scan_qr">Select provider type, then scan QR</string>
+    <string name="m3u_url_option">M3U URL</string>
+    <string name="stop">Stop</string>
+    <string name="close">Close</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Edit</string>
+    <string name="remove">Remove</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Run</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESTED</string>
+    <string name="add">Add</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">See All</string>
 </resources>

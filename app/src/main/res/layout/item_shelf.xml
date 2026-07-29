@@ -36,7 +36,7 @@
             android:paddingHorizontal="14dp"
             android:paddingVertical="8dp"
             android:stateListAnimator="@animator/focus_scale"
-            android:text="See All"
+            android:text="@string/see_all"
             android:textAllCaps="true"
             android:textColor="@color/primary_light"
             android:textSize="@dimen/shelf_action_text"
