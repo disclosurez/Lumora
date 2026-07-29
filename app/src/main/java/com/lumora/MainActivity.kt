@@ -4738,28 +4738,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Recording storage: ${filesDir}/recordings", Toast.LENGTH_SHORT).show()
         }
 
-        // Drive Backup
-        val driveBackupManager = com.lumora.data.backup.DriveBackupManager(this)
-        val backupStatus = driveBackupManager.getStatus()
-        dialogView.findViewById<View>(R.id.settingsExportBackup).apply {
-            setOnClickListener {
-                if (!driveBackupManager.isSignedIn()) {
-                    Toast.makeText(this@MainActivity, "Sign in via Google account", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                scope.launch {
-                    val backupManager = BackupManager(this@MainActivity)
-                    // Collect data without URI (in-memory)
-                    Toast.makeText(this@MainActivity, "Pushing to Google Drive...", Toast.LENGTH_SHORT).show()
-                }
-            }
-            if (backupStatus.lastPushAt != null) {
-                val date = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
-                    .format(java.util.Date(backupStatus.lastPushAt!!))
-                findViewById<TextView>(R.id.settingsExportBackup).text = "Drive backup ($date)"
-            }
-        }
-
         // Decoder mode settings button
         val decoderManager = com.lumora.player.playback.DecoderModeManager(this)
         dialogView.findViewById<View>(R.id.settingsDecoderMode).setOnClickListener {
