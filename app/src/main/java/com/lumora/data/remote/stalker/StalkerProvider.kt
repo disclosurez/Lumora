@@ -38,7 +38,7 @@ class StalkerProvider(private val httpClient: OkHttpClient) {
             val vodEntries = api.getVodList(serverUrl, mac)
             val seriesEntries = api.getSeriesList(serverUrl, mac)
 
-            val live = liveEntries.map { StalkerApiService.toChannel(it, provider) }
+            val live = liveEntries.map { StalkerApiService.toChannel(it) }
             val films = vodEntries.map { e ->
                 Channel(
                     id = e.id, name = e.name, url = e.url,

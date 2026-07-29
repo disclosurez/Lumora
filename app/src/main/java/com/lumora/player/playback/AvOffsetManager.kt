@@ -70,7 +70,7 @@ class AvOffsetManager(private val context: Context) {
      */
     fun buildPlaybackParameters(current: PlaybackParameters, channelId: String?): PlaybackParameters {
         val offsetMs = getEffectiveOffsetMs(channelId)
-        if (offsetMs == 0) return PlaybackParameters.DEFAULT
+        if (offsetMs == 0) return current
         // Return the current speed/pitch (offset is stored for reference)
         return PlaybackParameters(current.speed, current.pitch)
     }

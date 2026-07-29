@@ -3652,6 +3652,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }, mainHandler)
         } catch (e: Exception) {
+            sample.recycle()
             mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
         }
     }
@@ -3687,6 +3688,7 @@ class MainActivity : AppCompatActivity() {
         }
         val sample = runCatching { textureView.getBitmap(32, 18) }.getOrNull()
         val isBlack = sample != null && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+        sample?.recycle()
         previewBlackFrameStreak = if (isBlack) previewBlackFrameStreak + 1 else 0
         if (previewBlackFrameStreak < BLACK_FRAME_STREAK_THRESHOLD) {
             mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)

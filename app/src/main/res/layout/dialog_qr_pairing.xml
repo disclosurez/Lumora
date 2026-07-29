@@ -130,8 +130,7 @@
             android:layout_width="0dp"
             android:layout_height="44dp"
             android:layout_weight="1"
-            android:nextFocusDown="@id/btnClosePairing"
-            android:nextFocusUp="@id/btnClosePairing"
+            android:nextFocusRight="@id/btnClosePairing"
             android:text="@string/stop" />
 
         <Button
@@ -141,8 +140,7 @@
             android:layout_height="44dp"
             android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:nextFocusDown="@id/btnStopPairing"
-            android:nextFocusUp="@id/btnStopPairing"
+            android:nextFocusLeft="@id/btnStopPairing"
             android:text="@string/close" />
     </LinearLayout>
 </LinearLayout>

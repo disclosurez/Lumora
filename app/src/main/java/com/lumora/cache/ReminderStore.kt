@@ -80,7 +80,10 @@ object ReminderStore {
                     put("startTimestamp", r.startTimestamp)
                 })
             }
-            File(context.filesDir, FILE_NAME).writeText(arr.toString())
+            val file = File(context.filesDir, FILE_NAME)
+            val tempFile = File(context.filesDir, "${FILE_NAME}.tmp")
+            tempFile.writeText(arr.toString())
+            tempFile.renameTo(file)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save: ${e.message}")
         }

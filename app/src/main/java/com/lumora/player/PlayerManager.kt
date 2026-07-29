@@ -67,8 +67,7 @@ class PlayerManager(
     /** Prepare and start playing a stream URL. */
     fun playUrl(
         url: String,
-        userAgent: String? = null,
-        headers: Map<String, String>? = null
+        userAgent: String? = null
     ) {
         val dataSourceFactory = buildDataSourceFactory(userAgent)
 

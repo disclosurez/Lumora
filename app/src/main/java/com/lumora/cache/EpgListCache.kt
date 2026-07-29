@@ -28,9 +28,11 @@ object EpgListCache {
     }
 
     fun markInFlight(channelId: String): Boolean {
-        if (channelId in inFlight) return false
-        inFlight.add(channelId)
-        return true
+        synchronized(inFlight) {
+            if (channelId in inFlight) return false
+            inFlight.add(channelId)
+            return true
+        }
     }
 
     /** Releases an in-flight claim without caching a result - for fetches that were

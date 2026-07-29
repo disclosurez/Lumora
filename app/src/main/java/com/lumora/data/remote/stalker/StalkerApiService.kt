@@ -331,23 +331,7 @@ class StalkerApiService(private val client: OkHttpClient) {
         return out
     }
 
-    /**
-     * Get EPG data for a channel.
-     * Stalker portal EPG is typically provided via XMLTV, not the API directly.
-     * Users should configure an XMLTV EPG source in Settings for guide data.
-     */
-    suspend fun getEpg(channelId: String): List<EpgProgram> {
-        // Stalker's API doesn't expose a reliable EPG endpoint.
-        // EPG for Stalker providers should use the generic XMLTV EPG system
-        // configured separately in Settings → EPG Sources.
-        return emptyList()
-    }
 
-    data class EpgProgram(
-        val title: String,
-        val startTimestamp: Long,
-        val stopTimestamp: Long
-    )
 
     // ── Internal helpers ───────────────────────
 
@@ -477,7 +461,7 @@ class StalkerApiService(private val client: OkHttpClient) {
         private const val LIVE_MAX_PAGES = 200
         private const val VOD_MAX_PAGES = 50
 
-        fun toChannel(entry: ChannelEntry, provider: Provider): Channel = Channel(
+        fun toChannel(entry: ChannelEntry): Channel = Channel(
             id = entry.id,
             name = entry.name,
             url = entry.url,

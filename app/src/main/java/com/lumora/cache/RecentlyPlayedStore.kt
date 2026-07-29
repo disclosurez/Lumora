@@ -48,7 +48,10 @@ object RecentlyPlayedStore {
         try {
             val arr = JSONArray()
             ids.forEach { arr.put(it) }
-            File(context.filesDir, FILE_NAME).writeText(arr.toString())
+            val file = File(context.filesDir, FILE_NAME)
+            val tempFile = File(context.filesDir, "${FILE_NAME}.tmp")
+            tempFile.writeText(arr.toString())
+            tempFile.renameTo(file)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save: ${e.message}")
         }

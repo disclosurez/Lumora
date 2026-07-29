@@ -52,7 +52,7 @@ class RecordingCaptureEngine(private val context: Context) {
 
                 // Check available disk space before starting
                 val usableSpace = outputDir.usableSpace
-                val estimatedBytes = (recording.stopTimeUtc - recording.startTimeUtc) / 1000 * 2_500_000L
+                val estimatedBytes = (recording.stopTimeUtc - recording.startTimeUtc) * 2_500_000L
                 if (usableSpace < estimatedBytes) {
                     Log.w(TAG, "Insufficient disk space for recording: ${usableSpace / 1_000_000}MB available, ~${estimatedBytes / 1_000_000}MB needed")
                     return@withContext Result.failure(Exception("Insufficient disk space for recording"))

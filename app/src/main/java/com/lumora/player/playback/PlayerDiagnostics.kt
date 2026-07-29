@@ -5,7 +5,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.analytics.DefaultAnalyticsCollector
 import java.util.Locale
 
 /**
@@ -25,9 +24,7 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
         val renderSurface: String = "N/A",
         val playbackState: String = "IDLE",
         val isUsingMediaCodec: Boolean = false,
-        val audioOutputPath: String = "N/A",
-        val ffmpegAvailable: Boolean = false,
-        val lastFrameAge: Long = 0
+        val ffmpegAvailable: Boolean = false
     )
 
     private var videoDecoderName: String = "N/A"
@@ -37,7 +34,6 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
     private var stallCount = 0
     private var totalStallDurationMs = 0L
     private var lastStallStartMs = 0L
-    private var lastFrameAgeUs: Long = 0L
     private var isBuffering = false
 
     private val analyticsListener = object : AnalyticsListener {
@@ -118,23 +114,16 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
             audioDecoder = audioDecoderName,
             videoFormat = formatToString(videoFormat),
             audioFormat = formatToString(audioFormat),
-            bandwidthEstimate = formatBandwidth(player),
             stallCount = stallCount,
             totalStallDuration = totalStallDurationMs,
             playbackState = stateToString(player.playbackState),
             isUsingMediaCodec = videoDecoderName.contains("MediaCodec", ignoreCase = true),
             renderSurface = if (hasVideo) "SurfaceView" else "N/A",
-            ffmpegAvailable = videoDecoderName.contains("FFmpeg", ignoreCase = true),
-            lastFrameAge = lastFrameAgeUs
+            ffmpegAvailable = videoDecoderName.contains("FFmpeg", ignoreCase = true)
         )
     }
 
     fun getAnalyticsListener(): AnalyticsListener = analyticsListener
-
-    fun resetStalls() {
-        stallCount = 0
-        totalStallDurationMs = 0L
-    }
 
     private fun formatToString(format: Format?): String {
         if (format == null) return "N/A"
@@ -156,14 +145,6 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
         } else {
             String.format(Locale.US, "%d kbps", bitrate / 1000)
         }
-    }
-
-    private fun formatBandwidth(player: ExoPlayer): String {
-        val bandwidth = player.analyticsCollector?.let { 
-            // Attempt to extract from analytics if available
-            null 
-        }
-        return bandwidth?.let { formatBitrate(it) } ?: "N/A"
     }
 
     private fun stateToString(state: Int): String = when (state) {
