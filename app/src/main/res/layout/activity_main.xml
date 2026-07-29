@@ -993,6 +993,32 @@
                                 android:textSize="@dimen/text_body"
                                 android:textStyle="bold" />
                         </LinearLayout>
+
+                        <!-- Shown only when TMDB has a trailer for this title (see
+                             wireTrailerButton). Opens a YouTube /embed player in-app. -->
+                        <LinearLayout
+                            android:id="@+id/detailTrailerButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:layout_marginStart="10dp"
+                            android:background="@drawable/bg_toolbar_button"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="18dp"
+                            android:stateListAnimator="@animator/focus_scale"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Trailer"
+                                android:textAllCaps="true"
+                                android:textColor="@color/text_primary"
+                                android:textSize="@dimen/text_body"
+                                android:textStyle="bold" />
+                        </LinearLayout>
                     </LinearLayout>
 
                     <!-- clipChildren/clipToPadding false: item_category chips inside scale to

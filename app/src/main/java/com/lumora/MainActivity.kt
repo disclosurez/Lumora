@@ -2,6 +2,7 @@ package com.lumora
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.Dialog
 import android.app.DownloadManager
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
@@ -23,6 +24,14 @@ import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.PlaybackException
@@ -2023,24 +2032,50 @@ class MainActivity : AppCompatActivity() {
                 addView(label("✓ Available in your ${if (it.isJellyfin) "Jellyfin" else "provider"} library"))
             }
         }
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.END
+            setPadding(pad, (12 * density).toInt(), pad, pad)
+        }
+        fun actionButton(text: String, onClick: () -> Unit) = Button(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = (8 * density).toInt() }
+            setOnClickListener { onClick() }
+        }
+
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(backdrop)
             addView(content)
+            addView(buttonRow)
         }
         val scroll = ScrollView(this).apply { addView(body) }
 
-        val builder = AlertDialog.Builder(this)
-            .setView(scroll)
-            .setNegativeButton("Close", null)
-        // Prefer the already-owned copy; the torrent path is always offered too.
+        val dialog = AlertDialog.Builder(this).setView(scroll).create()
+        // Prefer the already-owned copy; the torrent path is offered too, but only when a
+        // stream-search plugin is actually enabled to serve it.
         if (match != null) {
-            builder.setPositiveButton("Play from library") { _, _ -> showContentDetail(match) }
-            builder.setNeutralButton("Find stream") { _, _ -> startDiscoverStreamSearch(item) }
-        } else {
-            builder.setPositiveButton("Find stream") { _, _ -> startDiscoverStreamSearch(item) }
+            buttonRow.addView(actionButton("Play") {
+                dialog.dismiss()
+                showContentDetail(match)
+            })
         }
-        builder.show()
+        if (enabledStreamSearchPlugin() != null) {
+            buttonRow.addView(actionButton("Find stream") {
+                dialog.dismiss()
+                startDiscoverStreamSearch(item)
+            })
+        }
+        if (tmdbClient.hasKey()) {
+            buttonRow.addView(actionButton("Trailer") {
+                dialog.dismiss()
+                showTrailerForDiscoverItem(item)
+            })
+        }
+        buttonRow.addView(actionButton("Close") { dialog.dismiss() })
+        dialog.show()
     }
 
     /** Kicks off the torrent-plugin search for a Discover title (episode picker for series). */
@@ -2457,6 +2492,7 @@ class MainActivity : AppCompatActivity() {
         itemsList.layoutManager = LinearLayoutManager(this)
         loadDetailImage(item.posterUrl ?: item.logoUrl, backdrop)
         wireFindStreamButton(item)
+        wireTrailerButton(item)
 
         // Series version chips. A film's versions are alternate streams of one thing, so its
         // chips play directly; a series' are whole separate episode lists, one per provider
@@ -4938,6 +4974,147 @@ class MainActivity : AppCompatActivity() {
     /** Shows the detail screen's "Find Stream" button when a stream-search plugin is enabled,
      *  and only for movies - a series detail screen isn't a single episode, so there's nothing
      *  specific to resolve from here (per-episode search would hang off the episode list). */
+    /** Parses a Discover [Channel.id] of the form "tmdb:movie:123" / "tmdb:tv:123". */
+    private fun tmdbTypeAndId(id: String): Pair<String, Int>? {
+        val parts = id.split(":")
+        if (parts.size != 3 || parts[0] != "tmdb") return null
+        return parts[1] to (parts[2].toIntOrNull() ?: return null)
+    }
+
+    /** Looks up and plays a TMDB trailer for a Discover item (id already carries the TMDB id). */
+    private fun showTrailerForDiscoverItem(item: Channel) {
+        val (type, id) = tmdbTypeAndId(item.id) ?: run {
+            android.util.Log.d("TrailerPlayer", "showTrailerForDiscoverItem: '${item.id}' not a tmdb id")
+            return
+        }
+        scope.launch {
+            val key = try {
+                tmdbClient.trailerKey(type, id)
+            } catch (e: Exception) {
+                android.util.Log.e("TrailerPlayer", "trailerKey($type,$id) threw", e)
+                null
+            }
+            android.util.Log.d("TrailerPlayer", "trailerKey($type,$id) = $key")
+            if (key == null) {
+                Toast.makeText(this@MainActivity, "No trailer found.", Toast.LENGTH_SHORT).show()
+            } else {
+                showTrailerPlayer(key)
+            }
+        }
+    }
+
+    /** Shows/hides the detail screen's Trailer button, resolving a catalog item to a TMDB id
+     *  by title/year search since provider/Jellyfin content carries no TMDB id of its own. */
+    private fun wireTrailerButton(item: Channel) {
+        val button = binding.detailTrailerButton
+        button.visibility = View.GONE
+        button.setOnClickListener(null)
+        if (!tmdbClient.hasKey()) {
+            android.util.Log.d("TrailerPlayer", "wireTrailerButton: no TMDB key configured")
+            return
+        }
+        scope.launch {
+            try {
+                val direct = tmdbTypeAndId(item.id)
+                val resolved = direct ?: tmdbClient.resolveId(item.name, item.year, item.mediaType == MediaType.SERIES)
+                android.util.Log.d("TrailerPlayer", "wireTrailerButton('${item.name}', year=${item.year}): resolved=$resolved (direct=${direct != null})")
+                val (type, id) = resolved ?: return@launch
+                val key = tmdbClient.trailerKey(type, id)
+                android.util.Log.d("TrailerPlayer", "wireTrailerButton('${item.name}'): trailerKey=$key")
+                if (key == null) return@launch
+                button.visibility = View.VISIBLE
+                button.setOnClickListener { showTrailerPlayer(key) }
+            } catch (e: Exception) {
+                android.util.Log.e("TrailerPlayer", "wireTrailerButton('${item.name}') threw", e)
+            }
+        }
+    }
+
+    /** Plays a YouTube trailer in-app, fullscreen, via the standard /embed player - loaded
+     *  directly (no hand-built HTML wrapper: that rendered blank with no logged error). */
+    private fun showTrailerPlayer(youtubeKey: String) {
+        val density = resources.displayMetrics.density
+        val webView = WebView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true // YouTube's iframe player needs this or it stays blank with no error
+            settings.mediaPlaybackRequiresUserGesture = false
+            webViewClient = object : WebViewClient() {
+                // YouTube's watch/embed page top-navigates to plain youtube.com/ as a fallback
+                // when an internal resource (e.g. the doubleclick ad request) fails to load -
+                // seen on networks that block ad domains. Refuse every main-frame navigation
+                // outright: this player never legitimately needs to leave the embed URL.
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    if (request.isForMainFrame && !request.url.toString().contains("/embed/")) {
+                        android.util.Log.d("TrailerPlayer", "blocked main-frame navigation to ${request.url}")
+                        return true
+                    }
+                    return false
+                }
+                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                    android.util.Log.e(
+                        "TrailerPlayer",
+                        "onReceivedError url=${request.url} code=${error.errorCode} desc=${error.description}"
+                    )
+                }
+                override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                    android.util.Log.e(
+                        "TrailerPlayer",
+                        "onReceivedHttpError url=${request.url} status=${response.statusCode}"
+                    )
+                }
+                override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                    android.util.Log.d("TrailerPlayer", "onPageStarted url=$url")
+                }
+                override fun onPageFinished(view: WebView, url: String?) {
+                    android.util.Log.d("TrailerPlayer", "onPageFinished url=$url")
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                    android.util.Log.d("TrailerPlayer", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                    return true
+                }
+            }
+        }
+        val closeButton = Button(this).apply {
+            text = "Close"
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.END
+                topMargin = (16 * density).toInt()
+                rightMargin = (16 * density).toInt()
+            }
+        }
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            addView(webView)
+            addView(closeButton)
+        }
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        dialog.setContentView(root)
+        closeButton.setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { webView.destroy() }
+        // A raw loadUrl only sends the Referer header on the very first request, not on the
+        // player's own follow-up calls - got as far as fixing error 153 but still hit 152.
+        // Giving the WebView's document itself a youtube-nocookie.com origin (via
+        // loadDataWithBaseURL) plus an explicit iframe referrerpolicy covers those too.
+        val html = """
+            <html><body style="margin:0;padding:0;background:#000;">
+            <iframe width="100%" height="100%"
+                src="https://www.youtube-nocookie.com/embed/$youtubeKey?autoplay=1&playsinline=1"
+                frameborder="0" referrerpolicy="strict-origin-when-cross-origin"
+                allow="autoplay; encrypted-media" allowfullscreen></iframe>
+            </body></html>
+        """.trimIndent()
+        webView.loadDataWithBaseURL("https://www.youtube-nocookie.com", html, "text/html", "utf-8", null)
+        dialog.show()
+        closeButton.requestFocus()
+    }
+
     private fun wireFindStreamButton(item: Channel) {
         val button = binding.detailFindStreamButton
         val plugin = enabledStreamSearchPlugin()

@@ -39,6 +39,53 @@ class TmdbClient {
         return get("/search/multi", "include_adult=false&language=en-US&query=$q")
     }
 
+    /**
+     * Best YouTube trailer key for a movie/tv title, or null if TMDB has none. Prefers an
+     * official "Trailer" over a "Teaser" over whatever else is listed.
+     */
+    suspend fun trailerKey(mediaType: String, id: Int): String? = withContext(Dispatchers.IO) {
+        val path = if (mediaType == "tv") "/tv/$id/videos" else "/movie/$id/videos"
+        val body = fetchBody(path, "language=en-US") ?: return@withContext null
+        val results = JSONObject(body).optJSONArray("results") ?: return@withContext null
+        val youtube = (0 until results.length()).mapNotNull { results.optJSONObject(it) }
+            .filter { it.optString("site") == "YouTube" && it.optString("key").isNotBlank() }
+        (youtube.firstOrNull { it.optString("type") == "Trailer" && it.optBoolean("official") }
+            ?: youtube.firstOrNull { it.optString("type") == "Trailer" }
+            ?: youtube.firstOrNull { it.optString("type") == "Teaser" }
+            ?: youtube.firstOrNull())?.optString("key")
+    }
+
+    /**
+     * Resolves a catalog title (no TMDB id of its own) to a `(mediaType, id)` pair via search,
+     * so provider/Jellyfin content can still look up a trailer. Matches on year when known.
+     */
+    suspend fun resolveId(title: String, year: String?, isSeries: Boolean): Pair<String, Int>? {
+        // IPTV/Jellyfin titles often carry quality/language/source tags ("Movie Name 4K
+        // [MULTI]", "Movie Name (2026) HDR") that TMDB's search tolerates poorly - strip
+        // anything in brackets/parens and trailing quality/audio tags before searching.
+        val cleaned = title
+            .replace(Regex("^[A-Z0-9+]{2,6}\\s*-\\s*"), "") // strip provider/channel prefix, e.g. "TOP - ", "DSC+ - "
+            .replace(Regex("[\\[({][^\\])}]*[\\])}]"), " ")
+            .replace(Regex("(?i)\\b(4k|2160p|1080p|720p|hdr|multi|dual audio|dubbed|subbed|remux|web[- ]?dl|bluray)\\b"), " ")
+            .replace("_", " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .ifBlank { title }
+        val all = search(cleaned)
+        android.util.Log.d("TmdbClient", "resolveId('$title' -> '$cleaned'): ${all.size} results")
+        val byTypeAndYear = all.filter { (it.mediaType == MediaType.SERIES) == isSeries && (year == null || it.year == year) }
+        val byTypeOnly = all.filter { (it.mediaType == MediaType.SERIES) == isSeries }
+        val id = (byTypeAndYear.firstOrNull() ?: byTypeOnly.firstOrNull())?.id
+        if (id == null) {
+            android.util.Log.d("TmdbClient", "resolveId('$cleaned'): no type/year match among ${all.size} results")
+            return null
+        }
+        val parts = id.split(":")
+        if (parts.size != 3) return null
+        val tmdbId = parts[2].toIntOrNull() ?: return null
+        return parts[1] to tmdbId
+    }
+
     /** Seasons of a TV show (season 0 / specials dropped), for the episode picker. */
     suspend fun tvSeasons(tvId: Int): List<TvSeason> = withContext(Dispatchers.IO) {
         val body = fetchBody("/tv/$tvId", "language=en-US") ?: return@withContext emptyList()
