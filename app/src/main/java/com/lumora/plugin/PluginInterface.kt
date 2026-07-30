@@ -31,8 +31,9 @@ sealed class SearchResult {
 
 /** Outcome of resolving one [TorrentResult] to something playable. */
 sealed class ResolveResult {
-    /** [url] is a validated http/https URL for the host's player. */
-    data class Ready(val url: String) : ResolveResult()
+    /** [url] is a validated http/https URL for the host's player. [headers] are extra request
+     *  headers the stream needs (e.g. a Referer for a hotlink-protected CDN), empty if none. */
+    data class Ready(val url: String, val headers: Map<String, String> = emptyMap()) : ResolveResult()
     data class Failed(val message: String) : ResolveResult()
 }
 

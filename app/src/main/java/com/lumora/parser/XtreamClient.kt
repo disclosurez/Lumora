@@ -205,7 +205,12 @@ class XtreamClient(private val client: OkHttpClient) {
             (0 until arr.length()).mapNotNull { i ->
                 val obj = arr.optJSONObject(i) ?: return@mapNotNull null
                 val id = obj.optString("category_id", "")
+                // Some panels pad category names with non-breaking spaces (U+00A0) that render as
+                // odd gaps and break keyword grouping; fold them to plain spaces and collapse runs.
                 val name = obj.optString("category_name", "")
+                    .replace(' ', ' ')
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
                 if (id.isNotBlank()) id to name else null
             }
         }
@@ -247,13 +252,32 @@ class XtreamClient(private val client: OkHttpClient) {
             }
         }
 
+    /**
+     * A stream's category id. Prefers the singular `category_id`, but some panels leave it null and
+     * only populate a plural `category_ids` array; fall back to the first entry there. Only the
+     * first is used because across the live providers surveyed no stream ever belonged to more than
+     * one category - the plural field is redundant, not true multi-membership.
+     */
+    private fun resolveCategoryId(obj: JSONObject): String {
+        val single = obj.optString("category_id", "")
+        if (single.isNotBlank() && single != "null") return single
+        val arr = obj.optJSONArray("category_ids") ?: return ""
+        for (i in 0 until arr.length()) {
+            val v = arr.optString(i, "")
+            if (v.isNotBlank() && v != "null") return v
+        }
+        return ""
+    }
+
     private fun parseStream(obj: JSONObject, mediaType: MediaType, provider: Provider): Channel? {
         val streamId = obj.optString("stream_id", "")
         if (streamId.isBlank()) return null
         val name = obj.optString("name", "Unknown")
         val streamIcon = obj.optString("stream_icon", "")
-        val categoryId = obj.optString("category_id", "")
-        val categoryName = obj.optString("category_name", "")
+        val categoryId = resolveCategoryId(obj)
+        // optString returns the literal "null" for a JSON null value on Android, not "" - treat
+        // that as absent so it doesn't become a category row named "null".
+        val categoryName = obj.optString("category_name", "").let { if (it == "null") "" else it }
         val rating = obj.optString("rating", "")
         val year = obj.optString("year", "")
         val container = obj.optString("container_extension", if (mediaType == MediaType.LIVE) "m3u8" else "mp4")
@@ -282,8 +306,10 @@ class XtreamClient(private val client: OkHttpClient) {
         if (seriesId.isBlank()) return null
         val name = obj.optString("name", "Unknown")
         val cover = obj.optString("cover", "")
-        val categoryId = obj.optString("category_id", "")
-        val categoryName = obj.optString("category_name", "")
+        val categoryId = resolveCategoryId(obj)
+        // optString returns the literal "null" for a JSON null value on Android, not "" - treat
+        // that as absent so it doesn't become a category row named "null".
+        val categoryName = obj.optString("category_name", "").let { if (it == "null") "" else it }
         val rating = obj.optString("rating", "")
         val year = obj.optString("year", "")
         // Bulk get_series actually carries a real release date (unlike movies, which

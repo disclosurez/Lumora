@@ -43,6 +43,9 @@ data class Channel(
     // IptvProviderConfig this channel came from - playback needs the *source* provider's
     // header, not whichever IPTV provider happens to be first/active.
     val streamUserAgent: String? = null,
+    // Extra HTTP request headers the stream URL needs - e.g. a plugin-resolved anime CDN that
+    // hotlink-protects its playlist behind a Referer. Applied by PlayerManager alongside the UA.
+    val streamHeaders: Map<String, String>? = null,
     // IptvProviderConfig.id of the Xtream provider this item came from - detail/EPG calls
     // (get_series_info, get_short_epg, get_vod_info) need the *matching* server/credentials,
     // not whichever Xtream provider happened to load last into the old single shared

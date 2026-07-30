@@ -17,6 +17,8 @@ import org.jsoup.Jsoup
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 
 /**
  * The `host` object bound into every JS plugin script's globalThis. Replaces the Bundle
@@ -57,6 +59,7 @@ class JsHostImpl(
         token?.let { host.setProperty("token", it) }
 
         host.setProperty("httpGet", JSCallFunction { args -> httpGet(context, args) })
+        host.setProperty("httpGetAll", JSCallFunction { args -> httpGetAll(context, args) })
         host.setProperty("httpPost", JSCallFunction { args -> httpPost(context, args) })
         host.setProperty("reportProgress", JSCallFunction { args -> reportProgress(args); null })
         host.setProperty("reportCandidate", JSCallFunction { args -> reportCandidate(args); null })
@@ -120,6 +123,55 @@ class JsHostImpl(
         }.post(body.toRequestBody(contentType.toMediaTypeOrNull())).build()
         execute(context, request)
     }.getOrElse { failedResponse(context, "POST", url = args.getOrNull(0) as? String, it) }
+
+    /**
+     * Fires a batch of GET requests concurrently and returns their responses in input order.
+     *
+     * The plugin runtime is single-threaded (QuickJS), so a script testing N providers one
+     * host.httpGet at a time blocks on each in turn - slow when each is a multi-MB playlist fetch.
+     * This lets a script hand over a whole batch and pay roughly one request's latency for all of
+     * them: the JSObject/JSArray reads and writes stay on the JS thread (required), only the
+     * network I/O fans out across a bounded pool.
+     *
+     * Input: an array of `{ url, headers? }`. Output: an array of `{ status, body }`, same order.
+     */
+    private fun httpGetAll(context: QuickJSContext, args: Array<out Any?>): JSArray {
+        val out = context.createNewJSArray()
+        val requests = args.getOrNull(0) as? JSArray ?: return out
+        // Read each request off the JS heap here, on the JS thread - JSObject access must not
+        // happen from the worker threads below.
+        val specs = (0 until requests.length()).map { i ->
+            val o = (requests.get(i) as? JSObject)?.toMap().orEmpty()
+            val url = o["url"] as? String ?: ""
+            @Suppress("UNCHECKED_CAST")
+            val headers = (o["headers"] as? Map<String, Any?>)?.entries
+                ?.associate { it.key to it.value.toString() }.orEmpty()
+            url to headers
+        }
+        val pool = Executors.newFixedThreadPool(minOf(specs.size.coerceAtLeast(1), MAX_PARALLEL_REQUESTS))
+        val results = try {
+            specs.map { (url, headers) ->
+                pool.submit(Callable {
+                    runCatching {
+                        val builder = Request.Builder().url(url)
+                        headers.forEach { (k, v) -> builder.header(k, v) }
+                        client.newCall(builder.get().build()).execute().use { resp ->
+                            resp.code to resp.body?.string().orEmpty()
+                        }
+                    }.getOrElse { 0 to "" }
+                })
+            }.map { it.get() }
+        } finally {
+            pool.shutdown()
+        }
+        results.forEachIndexed { i, (status, body) ->
+            val obj = context.createNewJSObject()
+            obj.setProperty("status", status)
+            obj.setProperty("body", body)
+            out.set(obj, i)
+        }
+        return out
+    }
 
     /** The returned [JSObject] is handed back to JS by the caller - do not release it here. */
     private fun execute(context: QuickJSContext, request: Request): JSObject {
@@ -335,5 +387,8 @@ class JsHostImpl(
 
     companion object {
         private const val TAG = "PluginEngine"
+        /** Cap on concurrent host.httpGetAll requests, so a big batch doesn't open a socket per
+         *  provider at once (memory + fd pressure from multi-MB playlist bodies). */
+        private const val MAX_PARALLEL_REQUESTS = 8
     }
 }

@@ -263,6 +263,40 @@ private fun lightStem(word: String): String =
 
 fun normalizeLiveChannelName(name: String): String = stripDecorativeTags(name).lowercase()
 
+// Language/region/quality tags messy VOD panels stamp on the FRONT of a category name -
+// "VOD | MULTI-LANG - NEW RELEASES", "EN - ACTION MOVIES", "4K-D+ - HORROR". Only these known
+// decoration tokens are stripped (not arbitrary leading words), so real leading brands survive
+// intact: NETFLIX, DISNEY, OSN, TOP, etc. are never touched.
+private val VOD_LEADING_TAGS = setOf(
+    "en", "uk", "us", "usa", "ca", "au", "ar", "fr", "de", "es", "it", "pt", "pt-br", "br",
+    "nl", "tr", "gr", "ru", "pl", "ro", "se", "no", "dk", "fi", "in", "pk", "mx", "lat",
+    "latino", "eu", "multi", "multi-lang", "multilang", "multi-sub", "multi-subs", "multisub",
+    "multisubs", "vod", "vip", "4k", "4k-d+", "d+", "uhd", "fhd", "hd", "sd", "hevc", "raw", "h265", "h264"
+)
+// A leading "<tag><delimiter>" segment: a token (letters/digits/+, internal dashes allowed so
+// "MULTI-LANG"/"4K-D+" stay whole) then a delimiter - a pipe/colon, or a dash that is *spaced*
+// on both sides (" - "). A bare hyphen is NOT a delimiter, or it would split "MULTI-LANG" at its
+// own dash. Matched repeatedly so a chain ("VOD | MULTI-LANG - ") peels tag by tag, stopping at
+// the first token that isn't a known decoration.
+private val VOD_LEADING_SEGMENT_REGEX = Regex("""^\s*([\p{L}0-9+]+(?:-[\p{L}0-9+]+)*)(?:\s*[|:]\s*|\s+[-–]\s+)""")
+
+/**
+ * Cleans a VOD/Series category name for display and grouping: expands superscripts, then peels
+ * off any leading language/region/quality decoration ("VOD | ", "EN - ", "4K-D+ - "). Leaves the
+ * meaningful core - and any real leading brand - untouched. Never applied to Live, whose leading
+ * country tags ("UK|", "US:") are the actual grouping the user wants there.
+ */
+fun cleanVodCategoryLabel(raw: String): String {
+    var s = deSuperscript(raw).trim()
+    var guard = 0
+    while (guard++ < 5) {
+        val m = VOD_LEADING_SEGMENT_REGEX.find(s) ?: break
+        val tag = m.groupValues[1].lowercase()
+        if (tag in VOD_LEADING_TAGS) s = s.substring(m.range.last + 1).trimStart() else break
+    }
+    return WHITESPACE_REGEX.replace(s, " ").trim().ifBlank { raw.trim() }
+}
+
 /** Same as [normalizeLiveChannelName] but additionally singular-stems each word, for use as a dedup/grouping key (never for display - see [lightStem]). */
 fun normalizeLiveChannelKey(name: String): String =
     normalizeLiveChannelName(name)

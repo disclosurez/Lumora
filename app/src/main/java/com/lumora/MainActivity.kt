@@ -94,6 +94,7 @@ import com.lumora.util.groupCategories
 import com.lumora.util.groupSeriesFilmCategories
 import com.lumora.util.CategoryGroup
 import com.lumora.util.newestByDate
+import com.lumora.util.cleanVodCategoryLabel
 import com.lumora.util.isAdultCategory
 import com.lumora.util.isTvDevice
 import com.lumora.util.normalizeServerUrl
@@ -216,6 +217,10 @@ class MainActivity : AppCompatActivity() {
     private val trackController = PlayerTrackController()
     private val qrManager by lazy { QrPairingManager(this) }
     private var activeSettingsOverlay: FullScreenOverlay? = null
+    /** Set by showProviderSettings to its local renderIptvProviderList, so the plugin-discovery
+     *  pane (a sibling scope in the same settings screen) can refresh the provider list after it
+     *  adds a discovered provider - otherwise the new provider is saved but the list stays stale. */
+    private var refreshIptvProviderList: (() -> Unit)? = null
     private var activeSearchOverlay: FullScreenOverlay? = null
 
     // Live TV inline preview: a separate, muted player instance so browsing the
@@ -1041,7 +1046,10 @@ class MainActivity : AppCompatActivity() {
             // Anime catalog: only fetched when a stream_search plugin is installed & enabled.
             // The plugin handles stream resolution; this provides the browse-layer catalog.
             if (enabledStreamSearchPlugin() != null) {
-                val animeChannels = fetchAnimeChannels()
+                // On Dispatchers.IO: fetchAnimeChannels does synchronous OkHttp calls, and this
+                // loader coroutine runs on Main - calling it directly threw NetworkOnMainThreadException
+                // (caught, so anime silently came back empty every time).
+                val animeChannels = withContext(Dispatchers.IO) { fetchAnimeChannels() }
                 if (animeChannels.isNotEmpty()) {
                     combined += animeChannels
                 }
@@ -1492,15 +1500,25 @@ class MainActivity : AppCompatActivity() {
                 val vodCatNames = vodCatsDeferred.await().toMap()
                 val seriesCatNames = seriesCatsDeferred.await().toMap()
 
-                live = liveDeferred.await().map { ch ->
-                    (liveCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch).copy(sourceProviderId = config.id)
+                // Resolve each stream's category name from the authoritative category list.
+                // get_vod_streams (and often get_live_streams) carries only a numeric category_id
+                // and no category_name, and some panels tag streams with category_ids that never
+                // appear in get_*_categories at all - 860 VOD items on one live provider. Left
+                // as-is those rendered as a sidebar row literally titled "1411"/"1071". When the id
+                // can't be resolved and the stream has no name of its own, fold it into a single
+                // "Uncategorised" row (shared id) rather than one bare-number row per orphan id.
+                fun withCategory(ch: Channel, names: Map<String, String>, uncatId: String): Channel {
+                    val resolved = names[ch.categoryId]
+                    val mapped = when {
+                        resolved != null -> ch.copy(categoryName = resolved)
+                        !ch.categoryName.isNullOrBlank() -> ch
+                        else -> ch.copy(categoryId = uncatId, categoryName = "Uncategorised")
+                    }
+                    return mapped.copy(sourceProviderId = config.id)
                 }
-                films = filmsDeferred.await().map { ch ->
-                    (vodCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch).copy(sourceProviderId = config.id)
-                }
-                series = seriesDeferred.await().map { ch ->
-                    (seriesCatNames[ch.categoryId]?.let { ch.copy(categoryName = it) } ?: ch).copy(sourceProviderId = config.id)
-                }
+                live = liveDeferred.await().map { withCategory(it, liveCatNames, "uncat_live") }
+                films = filmsDeferred.await().map { withCategory(it, vodCatNames, "uncat_vod") }
+                series = seriesDeferred.await().map { withCategory(it, seriesCatNames, "uncat_series") }
             }
 
             onExpiry(formatSubscriptionStatus(auth.expDateSeconds, auth.isTrial))
@@ -1994,7 +2012,12 @@ class MainActivity : AppCompatActivity() {
                 if (ch.id.startsWith(AnimeCatalogClient.ID_PREFIX)) continue
                 val key = ch.filterKey() ?: continue
                 if (key in hiddenIds) continue
-                val label = ch.categoryName?.takeIf { it.isNotBlank() } ?: ch.group?.takeIf { it.isNotBlank() } ?: key
+                val rawLabel = ch.categoryName?.takeIf { it.isNotBlank() } ?: ch.group?.takeIf { it.isNotBlank() } ?: key
+                // Films/Series only: strip leading provider decoration ("VOD | ", "EN - ",
+                // "4K-D+ - ") so noisy panels get a clean, consistent sidebar and more categories
+                // fall into the genre buckets. Live keeps its raw names - its leading country tags
+                // ("UK|", "US:") are the grouping people actually want there.
+                val label = if (tab != 0) cleanVodCategoryLabel(rawLabel) else rawLabel
                 names.putIfAbsent(key, label)
                 counts[key] = (counts[key] ?: 0) + 1
             }
@@ -3643,6 +3666,11 @@ class MainActivity : AppCompatActivity() {
     // ── Search ───────────────────────────────────────
 
     private fun showSearchDialog() {
+        // Search and Settings are sibling content slots in the same weighted LinearLayout, so if
+        // Settings is still up when Search opens, the layout splits the content area between the
+        // two and they render on top of each other. The toolbar stays usable over Settings by
+        // design, so opening Search here has to close Settings first.
+        activeSettingsOverlay?.dismiss()
         val searchView = layoutInflater.inflate(R.layout.dialog_search, null)
         val input = searchView.findViewById<EditText>(R.id.searchInput)
         val statusText = searchView.findViewById<TextView>(R.id.searchStatus)
@@ -4203,7 +4231,11 @@ class MainActivity : AppCompatActivity() {
                 loadJellyfinPlaybackExtras(startVersion.id)
             }
             else -> {
-                playerManager.playUrl(startVersion.url, startVersion.streamUserAgent)
+                playerManager.playUrl(
+                    startVersion.url,
+                    startVersion.streamUserAgent,
+                    headers = startVersion.streamHeaders
+                )
                 resumeFromMs?.let { playerManager.seekTo(it) }
             }
         }
@@ -5198,6 +5230,9 @@ class MainActivity : AppCompatActivity() {
 
     @Suppress("DEPRECATION")
     private fun showProviderSettings() {
+        // Close Search if it's open - the two share the weighted content slot and would otherwise
+        // render stacked on top of each other (see showSearchDialog).
+        activeSearchOverlay?.dismiss()
         val dialogView = layoutInflater.inflate(R.layout.activity_settings, null)
         // Deliberately no width cap here. Settings used to be pinned to 660dp and centred on
         // TV, which left a wide band of the tab background down both sides - it read as a
@@ -5634,6 +5669,8 @@ class MainActivity : AppCompatActivity() {
         iptvFormCancel.setOnClickListener { closeIptvForm() }
 
         renderIptvProviderList()
+        // Exposed so the plugin-discovery pane can refresh this list after adding a provider.
+        refreshIptvProviderList = { renderIptvProviderList() }
         // First run, nothing configured at all yet - the empty list + tiny "+ Add" button
         // would leave the user staring at nothing to interact with, so open the form
         // immediately (matches the old single-slot behavior of showing fields right away).
@@ -5890,6 +5927,7 @@ class MainActivity : AppCompatActivity() {
             pluginDiscoveryJob?.cancel()
             pluginDiscoveryJob = null
             activeSettingsOverlay = null
+            refreshIptvProviderList = null
             // With no content (e.g. the last provider was just disabled), fall back to the
             // empty state rather than a blank Home/tab - selectHome() would show empty
             // shelves and leave the chrome half-populated.
@@ -6237,7 +6275,9 @@ class MainActivity : AppCompatActivity() {
                                 id = "plugin:${result.token.hashCode()}",
                                 name = item.name,
                                 url = resolved.url,
-                                mediaType = MediaType.MOVIE
+                                mediaType = MediaType.MOVIE,
+                                // Headers the CDN needs (e.g. a Referer) so the player doesn't 403.
+                                streamHeaders = resolved.headers.ifEmpty { null }
                             )
                         )
                     }
@@ -6413,6 +6453,9 @@ class MainActivity : AppCompatActivity() {
                         addLabel.text = "Added"
                         addButton.isEnabled = false
                         addButton.isFocusable = false
+                        // Rebuild the provider list in the same settings screen so the newly
+                        // added provider shows up immediately instead of only after reopening.
+                        refreshIptvProviderList?.invoke()
                         loadAllConfiguredProviders(forceRefresh = true)
                     }
                     .setNegativeButton("Cancel", null)

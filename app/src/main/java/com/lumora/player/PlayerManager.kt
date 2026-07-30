@@ -48,7 +48,10 @@ class PlayerManager(
         get() = player.playbackState
 
     /** Build a data source factory with optional custom headers. */
-    private fun buildDataSourceFactory(userAgent: String? = null): DataSource.Factory {
+    private fun buildDataSourceFactory(
+        userAgent: String? = null,
+        headers: Map<String, String>? = null
+    ): DataSource.Factory {
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
@@ -56,6 +59,11 @@ class PlayerManager(
 
         if (!userAgent.isNullOrBlank()) {
             httpFactory.setUserAgent(userAgent)
+        }
+        // Extra per-stream headers (e.g. a Referer a hotlink-protected CDN requires). Applied to
+        // every request the source makes, so playlist and segment fetches both carry them.
+        if (!headers.isNullOrEmpty()) {
+            httpFactory.setDefaultRequestProperties(headers)
         }
 
         return DefaultDataSource.Factory(
@@ -89,9 +97,10 @@ class PlayerManager(
         url: String,
         userAgent: String? = null,
         subtitles: List<ExternalSubtitle> = emptyList(),
-        startPositionMs: Long = 0L
+        startPositionMs: Long = 0L,
+        headers: Map<String, String>? = null
     ) {
-        val dataSourceFactory = buildDataSourceFactory(userAgent)
+        val dataSourceFactory = buildDataSourceFactory(userAgent, headers)
 
         val mediaItemBuilder = MediaItem.Builder()
             .setUri(Uri.parse(url))

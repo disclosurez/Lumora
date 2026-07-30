@@ -141,13 +141,39 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
             episode = episode,
             onLog = { PluginLog.d(TAG, "script: $it") },
         )
+        // resolve() may return either a bare URL string, or an object { url, headers: {...} } when
+        // the stream needs extra request headers (e.g. a Referer for a hotlink-protected CDN). The
+        // JSObject must be flattened here, on the context's own thread, before runScript destroys
+        // the context - reading a live JS reference after destroy() throws (see probeManifest).
         val result = when (val outcome = runScript(JsPluginContract.RESOLVE_TIMEOUT_MS, host) { context ->
-            context.evaluate("$source\nresolve(host, host.token, host.season, host.episode);")
+            when (val r = context.evaluate("$source\nresolve(host, host.token, host.season, host.episode);")) {
+                is String -> ResolvedStream(r, emptyMap())
+                is JSObject -> {
+                    val m = r.toMap()
+                    val url = m["url"] as? String ?: return@runScript null
+                    // Headers come across as a JSON string (`headers: JSON.stringify({...})`), which
+                    // survives toMap deterministically - a nested object property can be dropped or
+                    // returned as an already-freed handle depending on the bridge. A raw map/object
+                    // is still accepted as a fallback for any script that sends one.
+                    val headers: Map<String, String> = when (val h = m["headers"]) {
+                        is String -> runCatching {
+                            val jo = org.json.JSONObject(h)
+                            jo.keys().asSequence().associateWith { k -> jo.getString(k) }
+                        }.getOrDefault(emptyMap())
+                        is JSObject -> h.toMap().entries.associate { it.key to it.value.toString() }
+                        is Map<*, *> -> h.entries.associate { it.key.toString() to it.value.toString() }
+                        else -> emptyMap()
+                    }
+                    ResolvedStream(url, headers)
+                }
+                else -> null
+            }
         }) {
             is ScriptOutcome.Success -> {
-                val url = outcome.result as? String
+                val resolved = outcome.result as? ResolvedStream
+                val url = resolved?.url
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    ResolveResult.Ready(url)
+                    ResolveResult.Ready(url, resolved.headers)
                 } else {
                     ResolveResult.Failed("Plugin returned an invalid stream URL")
                 }
@@ -244,6 +270,9 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         data class Failure(val message: String) : ScriptOutcome()
         data object TimedOut : ScriptOutcome()
     }
+
+    /** A resolve() result flattened off the JS heap: the stream URL plus any request headers. */
+    private data class ResolvedStream(val url: String, val headers: Map<String, String>)
 
     companion object {
         private const val TAG = "PluginEngine"

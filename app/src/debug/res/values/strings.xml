@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overlays the main app_name so debug installs are distinguishable in the launcher
+         from a side-by-side release install (see applicationIdSuffix in build.gradle.kts). -->
+    <string name="app_name">Lumora Debug</string>
+</resources>
