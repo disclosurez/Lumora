@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One installed plugin in Settings > Plugins. Same shape as item_iptv_provider_row: an
-     enable checkbox, name/detail, and the row's one action. -->
+<!-- One plugin store in Settings > Plugins > Plugin Stores. Same shape as item_plugin_row. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -12,14 +11,6 @@
     android:orientation="horizontal"
     android:padding="12dp">
 
-    <CheckBox
-        android:id="@+id/pluginEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="12dp"
-        android:clickable="false"
-        android:focusable="false" />
-
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -27,7 +18,7 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/pluginName"
+            android:id="@+id/storeName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
@@ -37,18 +28,18 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/pluginDetail"
+            android:id="@+id/storeUrl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:maxLines="2"
+            android:ellipsize="middle"
+            android:maxLines="1"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption" />
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/pluginRunButton"
+        android:id="@+id/storeBrowseButton"
         android:layout_width="wrap_content"
         android:layout_height="36dp"
         android:layout_marginStart="8dp"
@@ -59,17 +50,16 @@
         android:paddingHorizontal="12dp"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
-            android:id="@+id/pluginRunLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/run"
+            android:text="@string/browse"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_caption"
             android:textStyle="bold" />
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/pluginRemoveButton"
+        android:id="@+id/storeRemoveButton"
         android:layout_width="wrap_content"
         android:layout_height="36dp"
         android:layout_marginStart="8dp"

@@ -1,38 +1,12 @@
 package com.lumora.plugin
 
-import android.content.ComponentName
-
 /**
- * Models for the plugin system. The contract itself - what a plugin declares and how the host
- * talks to it - lives in [PluginContract].
- *
- * There is deliberately no cross-APK Kotlin interface here any more: a plugin runs in its own
- * process with its own class loader, so an interface the host declares is something a plugin
- * can never actually implement. The Messenger protocol is the whole API surface.
+ * Data models shared by the plugin system - transport-agnostic, so they survived the migration
+ * from companion-APK/Messenger plugins to in-process JS plugins unchanged (see
+ * [com.lumora.plugin.js.JsPluginContract] for the current contract and
+ * [com.lumora.plugin.js.PluginScript] for the current "plugin found" model, which replaced
+ * the old package/Messenger-based `InstalledPlugin`).
  */
-
-/** A plugin service found on the device by [PluginManager.discoverPlugins]. */
-data class InstalledPlugin(
-    val packageName: String,
-    /** The Service to bind - a package may in principle export more than one. */
-    val component: ComponentName,
-    /** Self-declared id from meta-data, falling back to the package name. */
-    val pluginId: String,
-    val label: String,
-    val description: String?,
-    val versionName: String,
-    val versionCode: Int,
-    /** Declared capabilities, filtered to the ones this host understands. */
-    val capabilities: Set<String>,
-    /** Plugins are opt-in: nothing is bound or run until the user enables it. */
-    val enabled: Boolean
-) {
-    val supportsDiscovery: Boolean
-        get() = PluginContract.CAPABILITY_PROVIDER_DISCOVERY in capabilities
-
-    val supportsStreamSearch: Boolean
-        get() = PluginContract.CAPABILITY_STREAM_SEARCH in capabilities
-}
 
 /**
  * One source option a stream-search plugin returned for a title. [token] is opaque to the
@@ -64,9 +38,10 @@ sealed class ResolveResult {
 
 /**
  * A provider a plugin proposes adding. Nothing here is trusted: the type is checked against
- * [PluginContract.SUPPORTED_PROVIDER_TYPES], the URL against http/https, and every string is
- * length-capped before any of it reaches the UI (see PluginClient). It becomes a real
- * IptvProviderConfig only when the user confirms it.
+ * [com.lumora.plugin.js.JsPluginContract.SUPPORTED_PROVIDER_TYPES], the URL against http/https,
+ * and every string is length-capped before any of it reaches the UI (see
+ * [com.lumora.plugin.js.JsHostImpl]). It becomes a real IptvProviderConfig only when the user
+ * confirms it.
  */
 data class DiscoveredProvider(
     /** "m3u", "xtream" or "stalker". */

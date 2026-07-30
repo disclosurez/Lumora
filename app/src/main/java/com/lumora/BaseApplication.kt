@@ -28,6 +28,10 @@ class BaseApplication : Application() {
             // Google Play Services not available on this device
         }
 
+        // Loads the native QuickJS .so; every QuickJSContext.create() call throws until this
+        // has run once (see com.lumora.plugin.js.JsPluginEngine).
+        com.whl.quickjs.android.QuickJSLoader.init()
+
         okHttpClient = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)

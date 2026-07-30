@@ -73,6 +73,8 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Multiple jlibtorrent per-ABI artifacts carry the same license/notice files.
+            excludes += setOf("META-INF/LICENSE*", "META-INF/NOTICE*")
         }
     }
 }
@@ -117,6 +119,23 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // In-process JS plugin engine - replaces the old Messenger/APK plugin protocol. Plain Java
+    // JNI wrapper (no Kotlin-version coupling, unlike Cash App's quickjs-android/Zipline line,
+    // which requires Kotlin 2.4+ and would have forced an unrelated toolchain bump here).
+    implementation("wang.harlon.quickjs:wrapper-android:3.2.3")
+
+    // HTML parsing for JS plugin host API (torrent scraper plugin uses host.parseHtml).
+    implementation("org.jsoup:jsoup:1.17.2")
+
+    // Native torrent streaming engine (com.lumora.torrent) - moved in-process from the old
+    // torrentplugin APK; only the scraper/search half became a JS script (torrent-search.js),
+    // this half needs libtorrent itself so it stays native Kotlin.
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("com.frostwire:jlibtorrent:1.2.0.18")
+    implementation("com.frostwire:jlibtorrent-android-arm64:1.2.0.18")
+    implementation("com.frostwire:jlibtorrent-android-arm:1.2.0.18")
+    implementation("com.frostwire:jlibtorrent-android-x86_64:1.2.0.18")
+
     // Security - credential encryption
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
@@ -127,4 +146,17 @@ dependencies {
     // Android TV
     implementation("androidx.tvprovider:tvprovider:1.1.0")
     implementation("androidx.leanback:leanback:1.2.0-alpha02")
+
+    // Tests
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+}
+
+// Passes -Dtest.quickjs.so through to the test JVM. wrapper-android's prebuilt native lib only
+// covers Android ABIs, so JsPluginEngineTest's real QuickJS execution needs a desktop build of
+// wrapper-java's native lib to run locally (see JsPluginEngineTest for the build steps) - a
+// no-op when the property isn't set.
+tasks.withType<Test>().configureEach {
+    systemProperty("test.quickjs.so", System.getProperty("test.quickjs.so") ?: "")
 }

@@ -1005,75 +1005,86 @@
                     android:textStyle="bold" />
 
                 <LinearLayout
+                    android:id="@+id/settingsPluginInstallUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:layout_marginBottom="20dp"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:stateListAnimator="@animator/focus_scale">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/install_from_url"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/settings_text_body"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/enter_apk_link"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/settings_text_caption" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/plugin_stores"
+                    android:letterSpacing="0.08"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="@dimen/settings_text_caption"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/settingsPluginStoreList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:orientation="horizontal">
+                    android:orientation="vertical" />
 
-                    <LinearLayout
-                        android:id="@+id/settingsPluginInstallUrl"
-                        android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/settingsPluginStoreListEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/no_plugin_stores"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/settingsPluginAddStore"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="20dp"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="14dp"
+                    android:stateListAnimator="@animator/focus_scale">
+
+                    <TextView
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="6dp"
-                        android:background="@drawable/card_surface_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="16dp"
-                        android:stateListAnimator="@animator/focus_scale">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/install_from_url"
-                            android:textColor="@color/text_primary"
-                            android:textSize="@dimen/settings_text_body"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/enter_apk_link"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="@dimen/settings_text_caption" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/settingsPluginInstallQr"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/card_surface_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="16dp"
-                        android:stateListAnimator="@animator/focus_scale">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/install_via_phone"
-                            android:textColor="@color/text_primary"
-                            android:textSize="@dimen/settings_text_body"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/scan_qr_paste_link"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="@dimen/settings_text_caption" />
-                    </LinearLayout>
+                        android:text="@string/add_plugin_store"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/settings_text_body"
+                        android:textStyle="bold" />
                 </LinearLayout>
 
                 <TextView

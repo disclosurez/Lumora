@@ -71,14 +71,17 @@ import com.lumora.data.IptvProviderStore
 import com.lumora.pairing.QrPairingManager
 import com.lumora.plugin.DiscoveredProvider
 import com.lumora.plugin.DiscoveryResult
-import com.lumora.plugin.InstalledPlugin
-import com.lumora.plugin.PluginClient
-import com.lumora.plugin.PluginInstallServer
-import com.lumora.plugin.PluginManager
 import com.lumora.plugin.ResolveResult
 import com.lumora.plugin.SearchResult
+import com.lumora.plugin.js.JsPluginEngine
+import com.lumora.plugin.js.PluginScript
+import com.lumora.plugin.js.PluginScriptManager
+import com.lumora.plugin.js.PluginStore
+import com.lumora.plugin.js.PluginStoreManager
+import com.lumora.plugin.js.StoreScript
+import com.lumora.torrent.TorrentEngine
+import com.lumora.torrent.TorrentForegroundService
 import com.lumora.anime.AnimeCatalogClient
-import com.lumora.plugin.StreamSearchClient
 import com.lumora.plugin.TorrentResult
 import com.lumora.parser.M3uParser
 import com.lumora.parser.XtreamClient
@@ -112,6 +115,7 @@ import com.lumora.data.domain.CombinedM3uRepository
 import com.lumora.player.playback.AvOffsetManager
 import com.lumora.player.playback.PlayerErrorClassifier
 import kotlinx.coroutines.*
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.Locale
 
@@ -261,12 +265,15 @@ class MainActivity : AppCompatActivity() {
     private var providerNamesById: Map<String, String> = emptyMap()
     /** The in-flight plugin discovery run, if any - one at a time, cancelled when Settings closes. */
     private var pluginDiscoveryJob: Job? = null
-    /** The stream-search plugin binding backing whatever's currently playing from a plugin, so
-     *  it can be told to stop (freeing the plugin's local stream server) when the player closes. */
-    private var activeStreamSession: StreamSearchClient? = null
+    /** Installed JS plugin scripts - see PluginScriptManager. Discovered once at startup and
+     *  refreshed whenever Settings > Plugins is opened. */
+    private val pluginScriptManager by lazy { PluginScriptManager(this, prefs) }
+    private val pluginStoreManager by lazy { PluginStoreManager(prefs) }
+    private val jsPluginEngine by lazy { JsPluginEngine() }
+    /** Backs whatever's currently playing via a resolvesNatively plugin - the
+     *  local HTTP server it owns must stay alive for the life of playback. See showStreamSearchDialog. */
+    private var activeTorrentSession: TorrentEngine? = null
     private var animeCatalog: AnimeCatalogClient? = null
-    /** Live phone-pairing server for installing a plugin by URL; stopped when its dialog closes. */
-    private var pluginInstallServer: PluginInstallServer? = null
     // Kept around after a successful Jellyfin content load so a series' detail page can
     // fetch its episodes without re-authenticating - Jellyfin's episode API has no
     // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
@@ -459,6 +466,13 @@ class MainActivity : AppCompatActivity() {
         applySystemBarInsets()
 
         prefs = getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+        // Cheap (no network) - just parses each script's PLUGIN manifest header - but async
+        // since it runs the JS engine, so kick it off early rather than on first use.
+        // loadSavedProvider()'s gate (see loadAllConfiguredProviders) checks enabledStreamSearchPlugin(),
+        // which reads this discovery's cached result - awaited here so a plugin-only setup
+        // (no traditional provider) isn't wrongly bounced to "Add a Provider" on cold start
+        // because that check ran against the still-empty pre-discovery cache.
+        val pluginDiscoveryOnStart = scope.launch { pluginScriptManager.discoverScripts() }
         playerManager = PlayerManager(this)
         playerDiagnostics = PlayerDiagnostics(playerManager.getExoPlayer())
         playerManager.getExoPlayer().addAnalyticsListener(playerDiagnostics.getAnalyticsListener())
@@ -477,7 +491,7 @@ class MainActivity : AppCompatActivity() {
         // user back into the player.
         pendingLiveResumeId = if (savedInstanceState == null) prefs.getString(PREF_LAST_LIVE_CHANNEL, null) else null
         loadDeadStreams()
-        loadSavedProvider()
+        scope.launch { pluginDiscoveryOnStart.join(); loadSavedProvider() }
         requestNotificationPermissionIfNeeded()
         checkAndPromptUpdate()
 
@@ -646,8 +660,9 @@ class MainActivity : AppCompatActivity() {
         playerManager.release()
         if (::sleepTimer.isInitialized) sleepTimer.stop()
         if (::castManager.isInitialized) castManager.release()
-        activeStreamSession?.close()
-        pluginInstallServer?.stop()
+        activeTorrentSession?.let { engine -> Thread { runCatching { engine.stop() } }.start() }
+        activeTorrentSession = null
+        TorrentForegroundService.stop(this)
         releaseLivePreview()
         if (!isTv) runCatching { unregisterReceiver(downloadCompleteReceiver) }
     }
@@ -873,12 +888,13 @@ class MainActivity : AppCompatActivity() {
         IptvProviderStore.load(prefs).any { it.enabled } ||
             (hasJellyfinConfigured() && isJellyfinEnabled())
 
-    /** Search and the tab bar are only useful once there's an enabled provider to browse -
-     *  with none, they point at nothing, so hide them and leave just the Settings button as
-     *  the way in. The empty state carries its own Settings/Demo actions. Settings and
+    /** Search and the tab bar are useful once there's either an enabled provider to browse, or
+     *  an enabled stream_search plugin to find content through (Discover/anime tabs, Find
+     *  Stream) - with neither, they point at nothing, so hide them and leave just the Settings
+     *  button as the way in. The empty state carries its own Settings/Demo actions. Settings and
      *  refresh stay visible so the user can always get back to configuring one. */
     private fun updateTopChromeVisibility() {
-        val enabled = hasProviderEnabled()
+        val enabled = hasProviderEnabled() || enabledStreamSearchPlugin() != null
         binding.tabBar.visibility = if (enabled) View.VISIBLE else View.GONE
         binding.btnSearch.visibility = if (enabled) View.VISIBLE else View.GONE
         if (!enabled) binding.homeSearchBar.visibility = View.GONE
@@ -948,7 +964,10 @@ class MainActivity : AppCompatActivity() {
      *  settings change, where showing stale content would be actively wrong) and re-fetches
      *  from the network(s) directly. */
     private fun loadAllConfiguredProviders(forceRefresh: Boolean = false) {
-        if (!hasProviderConfigured()) { showProviderSettings(); return }
+        // A stream_search plugin (anime catalog, Discover/Find Stream) still has work to do here
+        // even with zero traditional providers configured - bailing out before reaching the
+        // anime-catalog fetch below meant a plugin-only setup never populated anything.
+        if (!hasProviderConfigured() && enabledStreamSearchPlugin() == null) { showProviderSettings(); return }
         // Raised for the cached path too: reading and re-deriving a big catalog still takes
         // a few seconds, and with no status up the app just looks frozen.
         setStatus("Loading...", visible = true)
@@ -1509,7 +1528,11 @@ class MainActivity : AppCompatActivity() {
         seriesVersions = derived.seriesVersions
         seriesShelves = derived.seriesShelves
 
-        val hasContent = allChannels.isNotEmpty()
+        // Discover (TMDB browsing) and any stream_search plugin's Find Stream flow need no
+        // provider-sourced channels at all - gating the whole content area on allChannels alone
+        // trapped a plugin-only setup (e.g. just torrent-search enabled, which contributes no
+        // catalog entries) behind the "No provider configured" empty state for no reason.
+        val hasContent = allChannels.isNotEmpty() || enabledStreamSearchPlugin() != null
 
         // Adapters are safe to (re)bind under an open overlay - only the visible screen
         // must not be, since it lives behind the overlay. Bind first, then swap visibility
@@ -2698,9 +2721,9 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /** Kicks off the torrent-plugin search for a Discover title (episode picker for series). */
+    /** Kicks off a stream-search plugin for a Discover title (episode picker for series). */
     private fun startDiscoverStreamSearch(item: Channel) {
-        val plugin = enabledStreamSearchPlugin()
+        val plugin = enabledStreamSearchPlugin(item)
         if (plugin == null) {
             Toast.makeText(
                 this,
@@ -2731,7 +2754,7 @@ class MainActivity : AppCompatActivity() {
             .replace(Regex("[^a-z0-9]+"), " ").trim()
 
     /** Fetches the show's seasons from TMDB, then lets the user pick season → episode to search. */
-    private fun showSeriesEpisodePicker(plugin: InstalledPlugin, item: Channel) {
+    private fun showSeriesEpisodePicker(plugin: PluginScript, item: Channel) {
         val tvId = item.id.substringAfterLast(':').toIntOrNull()
         if (tvId == null) { showStreamSearchDialog(plugin, item); return }
         val loading = AlertDialog.Builder(this)
@@ -4516,10 +4539,11 @@ class MainActivity : AppCompatActivity() {
         mainHandler.removeCallbacks(upNextTickRunnable)
         playerManager.stop()
         sleepTimer.stop()
-        // A plugin-served stream (Find Stream) keeps a torrent + local server alive in the
-        // plugin's process for as long as we're playing its URL - release it now.
-        activeStreamSession?.close()
-        activeStreamSession = null
+        // A plugin-served stream (Find Stream) keeps a torrent + local server alive for as long
+        // as we're playing its URL - release it now.
+        activeTorrentSession?.let { engine -> Thread { runCatching { engine.stop() } }.start() }
+        activeTorrentSession = null
+        TorrentForegroundService.stop(this)
         if (::castManager.isInitialized) castManager.stopCasting()
         if (activeTab == 0) {
             showLivePreviewPane()
@@ -5694,12 +5718,6 @@ class MainActivity : AppCompatActivity() {
         // as the Downloads tab being mobile-only).
         dialogView.findViewById<View>(R.id.navDownloads).visibility = if (isTv) View.GONE else View.VISIBLE
 
-        // First-run: force the user through provider setup before anything else is even
-        // reachable - the rest of Settings assumes a working provider already exists.
-        val providerConfigured = hasProviderConfigured()
-        dialogView.findViewById<View>(R.id.settingsNavRail).visibility = if (providerConfigured) View.VISIBLE else View.GONE
-        dialogView.findViewById<View>(R.id.settingsNavDivider).visibility = if (providerConfigured) View.VISIBLE else View.GONE
-
         // Downloads pane reuses the exact same adapter/data as the Downloads tab -
         // RecyclerView supports multiple views sharing one adapter instance fine.
         dialogView.findViewById<RecyclerView>(R.id.settingsDownloadsList).apply {
@@ -5769,8 +5787,6 @@ class MainActivity : AppCompatActivity() {
             // plugin rather than leaving another app's service bound with nowhere to report.
             pluginDiscoveryJob?.cancel()
             pluginDiscoveryJob = null
-            pluginInstallServer?.stop()
-            pluginInstallServer = null
             activeSettingsOverlay = null
             // With no content (e.g. the last provider was just disabled), fall back to the
             // empty state rather than a blank Home/tab - selectHome() would show empty
@@ -5989,7 +6005,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun wireFindStreamButton(item: Channel) {
         val button = binding.detailFindStreamButton
-        val plugin = enabledStreamSearchPlugin()
+        val plugin = enabledStreamSearchPlugin(item)
         val eligible = plugin != null && (item.mediaType == MediaType.MOVIE || item.mediaType == MediaType.SERIES)
         button.visibility = if (eligible) View.VISIBLE else View.GONE
         if (!eligible || plugin == null) {
@@ -5999,24 +6015,69 @@ class MainActivity : AppCompatActivity() {
         button.setOnClickListener { showStreamSearchDialog(plugin, item) }
     }
 
-    private fun enabledStreamSearchPlugin(): InstalledPlugin? =
-        PluginManager(this, prefs).discoverPlugins().firstOrNull { it.enabled && it.supportsStreamSearch }
+    /**
+     * Resolves a magnet token via the native [TorrentEngine] instead of a JS plugin's own
+     * `resolve()` - see [PluginScript.resolvesNatively]. Unlike a JS-resolved plain http(s) URL,
+     * this one is served by a local HTTP server this engine instance owns, so it's kept alive in
+     * [activeTorrentSession] for the life of playback (see [hidePlayer]/`onDestroy`).
+     *
+     * [activeTorrentSession] is set *before* the blocking [TorrentEngine.start] call, not after -
+     * `start()` can take minutes (metadata fetch + buffering), and [TorrentEngine] only stops
+     * that wait when its own `cancelled` flag is set by [TorrentEngine.stop] (coroutine
+     * cancellation alone doesn't interrupt it - see [TorrentEngine]'s kdoc). Setting the field
+     * early lets a caller that cancels mid-resolve (e.g. the Find Stream dialog's cancel
+     * listener) actually reach and stop this engine instead of it finishing unattended minutes
+     * later and popping up playback for a stream the user already backed out of.
+     */
+    private suspend fun resolveTorrentStream(
+        magnet: String,
+        season: Int?,
+        episode: Int?,
+        onProgress: (String) -> Unit
+    ): ResolveResult {
+        activeTorrentSession?.let { old -> Thread { runCatching { old.stop() } }.start() }
+        TorrentForegroundService.start(this)
+        val engine = TorrentEngine(cacheDir)
+        activeTorrentSession = engine
+        return try {
+            val url = withContext(Dispatchers.IO) { engine.start(magnet, season, episode, onProgress) }
+            ResolveResult.Ready(url)
+        } catch (e: Exception) {
+            if (activeTorrentSession === engine) activeTorrentSession = null
+            withContext(Dispatchers.IO) { runCatching { engine.stop() } }
+            TorrentForegroundService.stop(this)
+            ResolveResult.Failed(e.message ?: "Could not resolve stream")
+        }
+    }
+
+    /**
+     * The enabled `stream_search` plugin to use for [item], if any. With more than one enabled
+     * (e.g. an anime plugin and a general torrent plugin) this picks by declared
+     * [PluginScript.contentTypes] instead of an arbitrary one - without [item] (existence-only
+     * checks: is *any* stream_search plugin enabled, at all, for gating tabs/chrome) it just
+     * returns the first. Anime catalog items carry the "anime:" id prefix set by
+     * [fetchAnimeChannels] - the only signal Lumora itself has for "this title is anime",
+     * entirely independent of which plugin (if any) declares itself able to handle that.
+     */
+    private fun enabledStreamSearchPlugin(item: Channel? = null): PluginScript? {
+        val candidates = pluginScriptManager.getDiscoveredScripts().filter { it.enabled && it.supportsStreamSearch }
+        if (item == null) return candidates.firstOrNull()
+        val isAnime = item.id.startsWith("anime:")
+        return candidates.firstOrNull { isAnime == it.contentTypes.contains("anime") } ?: candidates.firstOrNull()
+    }
 
     /**
      * Runs a plugin stream search for [item], lists what comes back, and on a pick resolves it
-     * to a playable URL and starts the player. The plugin binding is held open in
-     * [activeStreamSession] for the whole life of playback (the URL is served by the plugin's
-     * own process), and closed when the player is dismissed - see [hidePlayer].
+     * to a playable URL and starts the player. Unlike the old Messenger plugins, a JS script has
+     * no process of its own to keep bound during playback - `resolve()` just returns a plain
+     * http(s) URL the player hits directly, so there's nothing to hold open past the pick.
      */
     private fun showStreamSearchDialog(
-        plugin: InstalledPlugin,
+        plugin: PluginScript,
         item: Channel,
         season: Int? = null,
         episode: Int? = null
     ) {
-        // A previous plugin stream (from an earlier pick) is superseded by starting a new search.
-        activeStreamSession?.close()
-        activeStreamSession = null
         val epTag = if (season != null && episode != null)
             " S%02dE%02d".format(season, episode) else ""
 
@@ -6049,22 +6110,20 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .create()
 
-        val session = StreamSearchClient(this)
+        val source = pluginScriptManager.readSource(plugin)
         val results = mutableListOf<TorrentResult>()
 
         fun playResult(result: TorrentResult) {
             status.text = "Loading ${result.title}…"
             resultsHost.removeAllViews()
             scope.launch {
-                val resolved = session.resolve(
-                    token = result.token, season = season, episode = episode,
-                    onProgress = { status.text = it }
-                )
+                val resolved = if (plugin.resolvesNatively) {
+                    resolveTorrentStream(result.token, season, episode) { status.text = it }
+                } else {
+                    jsPluginEngine.resolve(source, result.token, season, episode)
+                }
                 when (resolved) {
                     is ResolveResult.Ready -> {
-                        // Keep the binding alive - the plugin is serving this URL - and hand it
-                        // to the normal player as a synthetic movie channel.
-                        activeStreamSession = session
                         dialog.dismiss()
                         hideContentDetail()
                         showPlayerFor(
@@ -6077,7 +6136,6 @@ class MainActivity : AppCompatActivity() {
                         )
                     }
                     is ResolveResult.Failed -> {
-                        session.close()
                         Toast.makeText(this@MainActivity, resolved.message, Toast.LENGTH_LONG).show()
                         dialog.dismiss()
                     }
@@ -6098,21 +6156,11 @@ class MainActivity : AppCompatActivity() {
             resultsHost.addView(row)
         }
 
-        // Closing the dialog before a pick tears the (search-only) binding down; a successful
-        // pick has already moved the session into activeStreamSession, so this won't touch it.
-        dialog.setOnDismissListener {
-            if (activeStreamSession !== session) session.close()
-        }
-
         val searchJob = scope.launch {
-            if (!session.connect(plugin)) {
-                status.text = "Couldn't connect to ${plugin.label}"
-                return@launch
-            }
             val query = item.name
             val year = item.year?.toIntOrNull()
-            val outcome = session.search(
-                query = query, year = year, season = season, episode = episode,
+            val outcome = jsPluginEngine.runSearch(
+                source = source, query = query, year = year, season = season, episode = episode,
                 onProgress = { if (results.isEmpty()) status.text = it },
                 onResult = { result ->
                     results.add(result)
@@ -6127,21 +6175,30 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        dialog.setOnCancelListener { searchJob.cancel() }
+        dialog.setOnCancelListener {
+            searchJob.cancel()
+            // A native-torrent resolve in progress won't stop on its own past this point (see
+            // resolveTorrentStream's kdoc) - only reachable while it hasn't succeeded yet, since
+            // a successful resolve already dismissed this dialog before the user could cancel it.
+            if (plugin.resolvesNatively) {
+                activeTorrentSession?.let { engine -> Thread { runCatching { engine.stop() } }.start() }
+                activeTorrentSession = null
+                TorrentForegroundService.stop(this)
+            }
+        }
         dialog.show()
     }
 
     // ── Plugins ────────────────────────────────────
 
     /**
-     * Settings > Plugins. Lists the plugin APKs installed on the device, lets the user switch
-     * one on, run its discovery job, and add whatever it proposes.
+     * Settings > Plugins. Lists the user's installed JS plugin scripts, lets them switch one on,
+     * run its discovery job, and add whatever it proposes.
      *
-     * Two deliberate gates, because a plugin is another app's code proposing servers and
-     * credentials to point this one at: nothing is bound or run until the plugin is enabled,
-     * and no proposal is written to the provider list without a per-item confirmation naming
-     * which plugin it came from. [PluginClient] does the input validation before any of this
-     * sees a candidate.
+     * A deliberate gate, because a script's output is still untrusted input proposing servers
+     * and credentials to point this app at: no proposal is written to the provider list without
+     * a per-item confirmation naming which plugin it came from. [com.lumora.plugin.js.JsHostImpl]
+     * does the field validation before any of this sees a candidate.
      */
     private fun wirePluginsPane(dialogView: View) {
         val listContainer = dialogView.findViewById<LinearLayout>(R.id.settingsPluginList)
@@ -6150,16 +6207,65 @@ class MainActivity : AppCompatActivity() {
         val progress = dialogView.findViewById<View>(R.id.settingsPluginProgress)
         val status = dialogView.findViewById<TextView>(R.id.settingsPluginStatus)
         val candidateList = dialogView.findViewById<LinearLayout>(R.id.settingsPluginCandidateList)
-        val manager = PluginManager(this, prefs)
+        val manager = pluginScriptManager
+
+        lateinit var renderPluginList: () -> Unit
+
+        fun fetchAndAddPluginScript(url: String) {
+            val scheme = url.substringBefore("://", "").lowercase(Locale.US)
+            if (url.isBlank() || (scheme != "http" && scheme != "https")) {
+                Toast.makeText(this, "Enter a valid http(s) link", Toast.LENGTH_SHORT).show()
+                return
+            }
+            scope.launch {
+                val text: String? = try {
+                    withContext(Dispatchers.IO) {
+                        val request = Request.Builder().url(url).build()
+                        OkHttpClient().newCall(request).execute().use { resp ->
+                            if (resp.isSuccessful) resp.body?.string() else null
+                        }
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+                if (text.isNullOrBlank()) {
+                    Toast.makeText(this@MainActivity, "Couldn't fetch that script", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                when (val result = manager.installScript(text)) {
+                    is PluginScriptManager.InstallResult.Installed -> {
+                        Toast.makeText(this@MainActivity, "Added ${result.script.label}", Toast.LENGTH_SHORT).show()
+                        renderPluginList()
+                    }
+                    is PluginScriptManager.InstallResult.Rejected ->
+                        Toast.makeText(this@MainActivity, result.reason, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        fun showAddPluginScriptFromUrlDialog() {
+            val input = EditText(this).apply {
+                hint = "https://example.com/my-plugin.js"
+                inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+                setSingleLine()
+            }
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            val container = FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
+            AlertDialog.Builder(this)
+                .setTitle("Add plugin script from URL")
+                .setMessage("Enter the link to a Lumora plugin script (.js).")
+                .setView(container)
+                .setPositiveButton("Add") { _, _ -> fetchAndAddPluginScript(input.text.toString().trim()) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
 
         dialogView.findViewById<View>(R.id.settingsPluginInstallUrl)?.setOnClickListener {
-            showInstallPluginFromUrlDialog()
+            showAddPluginScriptFromUrlDialog()
         }
-        dialogView.findViewById<View>(R.id.settingsPluginInstallQr)?.setOnClickListener {
-            showInstallPluginViaQrDialog()
-        }
+        wirePluginStoresSection(dialogView, manager) { renderPluginList() }
 
-        fun addCandidateRow(plugin: InstalledPlugin, candidate: DiscoveredProvider) {
+        fun addCandidateRow(plugin: PluginScript, candidate: DiscoveredProvider) {
             val row = layoutInflater.inflate(R.layout.item_plugin_candidate_row, candidateList, false)
             val typeLabel = when (candidate.type) {
                 "xtream" -> "Xtream"
@@ -6209,18 +6315,23 @@ class MainActivity : AppCompatActivity() {
             candidateList.addView(row)
         }
 
-        lateinit var renderPluginList: () -> Unit
-
-        fun runDiscovery(plugin: InstalledPlugin) {
+        fun runDiscovery(plugin: PluginScript) {
             pluginDiscoveryJob?.cancel()
             candidateList.removeAllViews()
             runSection.visibility = View.VISIBLE
             progress.visibility = View.VISIBLE
             status.text = "Starting ${plugin.label}…"
+            // The Results section can be a full screen below the fold once the plugin/store
+            // lists above it grow - without this, "it's running" was only visible on the row's
+            // own button, easy to miss if the user then loses focus/scroll position.
+            runSection.post {
+                runSection.requestRectangleOnScreen(android.graphics.Rect(0, 0, runSection.width, runSection.height), false)
+            }
             renderPluginList()
             pluginDiscoveryJob = scope.launch {
-                val result = PluginClient(this@MainActivity).runDiscovery(
-                    plugin,
+                val source = manager.readSource(plugin)
+                val result = jsPluginEngine.runDiscovery(
+                    source,
                     onProgress = { status.text = it },
                     onCandidate = { addCandidateRow(plugin, it) }
                 )
@@ -6237,178 +6348,216 @@ class MainActivity : AppCompatActivity() {
         }
 
         renderPluginList = {
-            listContainer.removeAllViews()
-            val plugins = manager.discoverPlugins()
-            listEmpty.visibility = if (plugins.isEmpty()) View.VISIBLE else View.GONE
-            val running = pluginDiscoveryJob?.isActive == true
-            for (plugin in plugins) {
-                val row = layoutInflater.inflate(R.layout.item_plugin_row, listContainer, false)
-                row.findViewById<CheckBox>(R.id.pluginEnabled).apply {
-                    setOnCheckedChangeListener(null)
-                    isChecked = plugin.enabled
-                    setOnCheckedChangeListener { _, checked ->
-                        manager.setEnabled(plugin.packageName, checked)
-                        renderPluginList()
+            scope.launch {
+                val plugins = manager.discoverScripts()
+                listContainer.removeAllViews()
+                listEmpty.visibility = if (plugins.isEmpty()) View.VISIBLE else View.GONE
+                val running = pluginDiscoveryJob?.isActive == true
+                for (plugin in plugins) {
+                    val row = layoutInflater.inflate(R.layout.item_plugin_row, listContainer, false)
+                    row.findViewById<CheckBox>(R.id.pluginEnabled).apply {
+                        setOnCheckedChangeListener(null)
+                        isChecked = plugin.enabled
+                        setOnCheckedChangeListener { _, checked ->
+                            manager.setEnabled(plugin.id, checked)
+                            renderPluginList()
+                        }
                     }
+                    row.findViewById<TextView>(R.id.pluginName).text = plugin.label
+                    row.findViewById<TextView>(R.id.pluginDetail).text = plugin.description.orEmpty()
+                    val runButton = row.findViewById<View>(R.id.pluginRunButton)
+                    val runLabel = row.findViewById<TextView>(R.id.pluginRunLabel)
+                    // The "Run" button only applies to discovery plugins, which the user kicks off
+                    // from here. Stream-search plugins are driven from a title's "Find stream" instead,
+                    // so they get enable/disable only - no Run button.
+                    if (plugin.supportsDiscovery) {
+                        runButton.visibility = View.VISIBLE
+                        // One run at a time: the results list below is shared, and two plugins
+                        // reporting into it at once would be unattributable.
+                        val busy = running
+                        runLabel.text = if (busy) "Running…" else "Run"
+                        runButton.isEnabled = plugin.enabled && !busy
+                        runButton.alpha = if (runButton.isEnabled) 1f else 0.4f
+                        runButton.setOnClickListener { runDiscovery(plugin) }
+                    } else {
+                        runButton.visibility = View.GONE
+                        runButton.setOnClickListener(null)
+                    }
+                    row.findViewById<View>(R.id.pluginRemoveButton).setOnClickListener {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Remove ${plugin.label}?")
+                            .setMessage("This deletes the installed script. You can reinstall it later from a plugin store or its URL.")
+                            .setPositiveButton("Remove") { _, _ ->
+                                manager.setEnabled(plugin.id, false)
+                                manager.removeUserScript(plugin.fileName)
+                                renderPluginList()
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    listContainer.addView(row)
                 }
-                row.findViewById<TextView>(R.id.pluginName).text = plugin.label
-                row.findViewById<TextView>(R.id.pluginDetail).text = listOfNotNull(
-                    plugin.description,
-                    listOfNotNull(
-                        plugin.packageName,
-                        plugin.versionName.takeIf { it.isNotBlank() }?.let { "v$it" }
-                    ).joinToString(" · ")
-                ).joinToString("\n")
-                val runButton = row.findViewById<View>(R.id.pluginRunButton)
-                val runLabel = row.findViewById<TextView>(R.id.pluginRunLabel)
-                // The "Run" button only applies to discovery plugins, which the user kicks off
-                // from here. Stream-search plugins are driven from a title's "Find stream" instead,
-                // so they get enable/disable only - no Run button.
-                if (plugin.supportsDiscovery) {
-                    runButton.visibility = View.VISIBLE
-                    // One run at a time: the results list below is shared, and two plugins
-                    // reporting into it at once would be unattributable.
-                    val busy = running
-                    runLabel.text = if (busy) "Running…" else "Run"
-                    runButton.isEnabled = plugin.enabled && !busy
-                    runButton.alpha = if (runButton.isEnabled) 1f else 0.4f
-                    runButton.setOnClickListener { runDiscovery(plugin) }
-                } else {
-                    runButton.visibility = View.GONE
-                    runButton.setOnClickListener(null)
-                }
-                listContainer.addView(row)
             }
+            Unit
         }
         renderPluginList()
     }
 
-    // ── Plugin install (URL / phone QR) ─────────────
+    /**
+     * Settings > Plugins > Plugin Stores. A store is a small JSON catalog listing scripts a user
+     * can install with one tap - see [PluginStoreManager]'s kdoc for the schema. The default
+     * store (Lumora's own plugin repo) is always present; users can add more (a community repo,
+     * their own fork, ...) and remove any they added. [onInstalled] refreshes the plain
+     * installed-plugin list above once something new lands.
+     */
+    private fun wirePluginStoresSection(dialogView: View, manager: PluginScriptManager, onInstalled: () -> Unit) {
+        val listContainer = dialogView.findViewById<LinearLayout>(R.id.settingsPluginStoreList)
+        val listEmpty = dialogView.findViewById<View>(R.id.settingsPluginStoreListEmpty)
 
-    /** Prompts for an APK URL on the TV itself, then confirms and installs it. */
-    private fun showInstallPluginFromUrlDialog() {
-        val input = EditText(this).apply {
-            hint = "https://example.com/plugin.apk"
-            inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
-            setSingleLine()
-        }
-        val pad = (20 * resources.displayMetrics.density).toInt()
-        val container = FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
-        AlertDialog.Builder(this)
-            .setTitle("Install from URL")
-            .setMessage("Enter the download link for a plugin APK.")
-            .setView(container)
-            .setPositiveButton("Continue") { _, _ -> confirmAndInstallPlugin(input.text.toString().trim()) }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    /** Shows a QR the phone scans to open a page where it can paste the APK URL for the TV. */
-    private fun showInstallPluginViaQrDialog() {
-        val density = resources.displayMetrics.density
-        val pad = (20 * density).toInt()
-        val qrPx = (240 * density).toInt()
-        val image = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(qrPx, qrPx)
-        }
-        val status = TextView(this).apply {
-            text = "Starting…"
-            gravity = android.view.Gravity.CENTER
-            setPadding(0, pad / 2, 0, 0)
-        }
-        val urlLabel = TextView(this).apply {
-            gravity = android.view.Gravity.CENTER
-            textSize = 12f
-            setPadding(0, pad / 4, 0, 0)
-        }
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = android.view.Gravity.CENTER_HORIZONTAL
-            setPadding(pad, pad, pad, 0)
-            addView(image); addView(status); addView(urlLabel)
-        }
-
-        val server = PluginInstallServer(this)
-        pluginInstallServer?.stop()
-        pluginInstallServer = server
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Install via phone")
-            .setView(container)
-            .setNegativeButton("Cancel", null)
-            .create()
-
-        server.onApkUrl = { url ->
-            runOnUiThread {
-                runCatching { dialog.dismiss() }
-                server.stop()
-                if (pluginInstallServer === server) pluginInstallServer = null
-                confirmAndInstallPlugin(url)
-            }
-        }
-        server.onError = { msg -> runOnUiThread { status.text = msg } }
-        dialog.setOnDismissListener {
-            server.stop()
-            if (pluginInstallServer === server) pluginInstallServer = null
-        }
-        dialog.show()
-
-        scope.launch {
-            val session = server.start()
-            if (session == null) {
-                status.text = "Couldn't start. Check Wi-Fi and try again."
-                return@launch
-            }
-            image.setImageBitmap(session.qrBitmap)
-            status.text = "Scan with your phone, then paste the plugin's APK link."
-            urlLabel.text = session.url
-        }
-    }
-
-    /** Final confirmation on the TV before any download/install actually happens. */
-    private fun confirmAndInstallPlugin(url: String) {
-        val scheme = url.substringBefore("://", "").lowercase(Locale.US)
-        if (url.isBlank() || (scheme != "http" && scheme != "https")) {
-            Toast.makeText(this, "Enter a valid http(s) link", Toast.LENGTH_SHORT).show()
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Install this plugin?")
-            .setMessage(
-                "Lumora will download and install:\n\n$url\n\n" +
-                    "Only install plugins from sources you trust. Your device will ask you to confirm the install."
-            )
-            .setPositiveButton("Install") { _, _ -> startPluginDownload(url) }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun startPluginDownload(url: String) {
-        val installer = AppUpdateInstaller(this)
-        val id = installer.downloadApk(url, "plugin")
-        Toast.makeText(this, "Downloading plugin…", Toast.LENGTH_SHORT).show()
-        scope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                while (true) {
-                    if (installer.isDownloadComplete(id)) return@withContext true
-                    if (installer.isDownloadFailed(id)) return@withContext false
-                    delay(500)
+        fun installFromStore(storeScript: StoreScript, onDone: (PluginScriptManager.InstallResult) -> Unit) {
+            scope.launch {
+                val text = pluginStoreManager.fetchScriptText(storeScript.fileUrl)
+                if (text.isNullOrBlank()) {
+                    onDone(PluginScriptManager.InstallResult.Rejected("Couldn't download that script"))
+                    return@launch
                 }
-                @Suppress("UNREACHABLE_CODE") false
+                onDone(manager.installScript(text))
             }
-            if (!ok) {
-                Toast.makeText(this@MainActivity, "Plugin download failed", Toast.LENGTH_LONG).show()
-                return@launch
-            }
-            val path = installer.getDownloadedFilePath(id)
-            if (path == null) {
-                Toast.makeText(this@MainActivity, "Downloaded file not found", Toast.LENGTH_LONG).show()
-                return@launch
-            }
-            // Hands off to the system package installer, which prompts the user. Once they
-            // finish, the plugin shows up in this pane on next open (discovery re-scans).
-            installer.installApk(path)
         }
+
+        fun showBrowseStoreDialog(store: PluginStore) {
+            val status = TextView(this).apply {
+                text = "Loading…"
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            }
+            val resultsHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            val container = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(pad, pad / 2, pad, 0)
+                addView(status)
+                addView(resultsHost)
+            }
+            val dialog = AlertDialog.Builder(this)
+                .setTitle(store.name ?: store.url)
+                .setView(ScrollView(this).apply { addView(container) })
+                .setNegativeButton("Close", null)
+                .create()
+            dialog.show()
+
+            scope.launch {
+                val installedIds = manager.discoverScripts().map { it.id }.toSet()
+                val result = pluginStoreManager.fetchCatalog(store.url)
+                val catalog = result.getOrNull()
+                if (catalog == null) {
+                    status.text = "Couldn't load this store"
+                    return@launch
+                }
+                if (catalog.isEmpty()) {
+                    status.text = "No scripts listed"
+                    return@launch
+                }
+                status.text = "${catalog.size} script${if (catalog.size == 1) "" else "s"}"
+                for (storeScript in catalog) {
+                    val row = layoutInflater.inflate(R.layout.item_plugin_candidate_row, resultsHost, false)
+                    row.findViewById<TextView>(R.id.candidateName).text = storeScript.label
+                    row.findViewById<TextView>(R.id.candidateDetail).text = listOfNotNull(
+                        storeScript.capabilities.joinToString(", ").takeIf { it.isNotBlank() },
+                        storeScript.description
+                    ).joinToString("\n")
+                    row.findViewById<View>(R.id.candidateVerified).visibility = View.GONE
+                    val installButton = row.findViewById<View>(R.id.candidateAddButton)
+                    val installLabel = row.findViewById<TextView>(R.id.candidateAddLabel)
+                    // Already installed doesn't mean "nothing to do" - re-installing overwrites
+                    // in place (see PluginScriptManager.installScript), which is exactly how you
+                    // pick up a store update. Stays clickable either way, just relabeled.
+                    val alreadyInstalled = storeScript.id in installedIds
+                    val idleLabel = if (alreadyInstalled) "Update" else "Install"
+                    installLabel.text = idleLabel
+                    installButton.setOnClickListener {
+                        installButton.isEnabled = false
+                        installLabel.text = if (alreadyInstalled) "Updating…" else "Installing…"
+                        installFromStore(storeScript) { outcome ->
+                            when (outcome) {
+                                is PluginScriptManager.InstallResult.Installed -> {
+                                    installLabel.text = if (alreadyInstalled) "Updated" else "Installed"
+                                    installButton.isEnabled = true
+                                    onInstalled()
+                                }
+                                is PluginScriptManager.InstallResult.Rejected -> {
+                                    installLabel.text = idleLabel
+                                    installButton.isEnabled = true
+                                    Toast.makeText(this@MainActivity, outcome.reason, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                    resultsHost.addView(row)
+                }
+            }
+        }
+
+        lateinit var renderStoreList: () -> Unit
+
+        fun showAddStoreDialog() {
+            val input = EditText(this).apply {
+                hint = "https://example.com/plugins/index.json"
+                inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+                setSingleLine()
+            }
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            val container = FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
+            AlertDialog.Builder(this)
+                .setTitle("Add plugin store")
+                .setMessage("Enter the link to a plugin store's catalog (a small JSON file listing its scripts).")
+                .setView(container)
+                .setPositiveButton("Add") { _, _ ->
+                    val url = input.text.toString().trim()
+                    val scheme = url.substringBefore("://", "").lowercase(Locale.US)
+                    if (url.isBlank() || (scheme != "http" && scheme != "https")) {
+                        Toast.makeText(this, "Enter a valid http(s) link", Toast.LENGTH_SHORT).show()
+                    } else {
+                        pluginStoreManager.addStore(url)
+                        renderStoreList()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
+        renderStoreList = {
+            listContainer.removeAllViews()
+            val stores = pluginStoreManager.storeUrls()
+            listEmpty.visibility = if (stores.isEmpty()) View.VISIBLE else View.GONE
+            for (store in stores) {
+                val row = layoutInflater.inflate(R.layout.item_plugin_store_row, listContainer, false)
+                row.findViewById<TextView>(R.id.storeName).text = store.name ?: store.url
+                row.findViewById<TextView>(R.id.storeUrl).text = store.url
+                row.findViewById<View>(R.id.storeBrowseButton).setOnClickListener { showBrowseStoreDialog(store) }
+                val removeButton = row.findViewById<View>(R.id.storeRemoveButton)
+                if (store.removable) {
+                    removeButton.visibility = View.VISIBLE
+                    removeButton.setOnClickListener {
+                        pluginStoreManager.removeStore(store.url)
+                        renderStoreList()
+                    }
+                } else {
+                    removeButton.visibility = View.GONE
+                }
+                listContainer.addView(row)
+                // Fetch the store's self-declared name in the background and fill it in once
+                // known - showing the URL immediately means the row isn't empty while loading.
+                if (store.name == null) {
+                    scope.launch {
+                        pluginStoreManager.fetchStoreName(store.url)?.let { name ->
+                            row.findViewById<TextView>(R.id.storeName).text = name
+                        }
+                    }
+                }
+            }
+        }
+        dialogView.findViewById<View>(R.id.settingsPluginAddStore)?.setOnClickListener { showAddStoreDialog() }
+        renderStoreList()
     }
 
     // ── Parental PIN ───────────────────────────────

@@ -1,0 +1,248 @@
+package com.lumora.plugin.js
+
+import android.os.Handler
+import android.os.Looper
+import com.lumora.plugin.DiscoveredProvider
+import com.lumora.plugin.DiscoveryResult
+import com.lumora.plugin.ResolveResult
+import com.lumora.plugin.SearchResult
+import com.lumora.plugin.TorrentResult
+import com.whl.quickjs.wrapper.JSObject
+import com.whl.quickjs.wrapper.QuickJSContext
+import java.util.concurrent.Executors
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.OkHttpClient
+
+/**
+ * Runs a JS plugin script's `discover()`/`search()`/`resolve()` entry points, replacing
+ * [com.lumora.plugin.PluginClient]/[com.lumora.plugin.StreamSearchClient]'s bind-a-Messenger-
+ * service dance. Every call gets a fresh [QuickJSContext] and a fresh [JsHostImpl] - scripts
+ * are short-lived (one discovery run, one search, one resolve) exactly like the old
+ * per-operation Messenger bind, so there's no state to leak between runs and no pool to reason
+ * about. See [JsPluginContract] for the script-facing contract this drives.
+ */
+class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
+
+    /**
+     * `onProgress`/`onCandidate`/`onResult` are called from [runScript]'s dedicated background
+     * executor thread, not the caller's thread - but every real caller is Android UI code
+     * (`status.text = ...`, inflating and adding a result row, ...) that assumes it's on the
+     * main thread. Calling it straight from the executor thread is a real `CalledFromWrongThreadException`
+     * risk once a callback does anything beyond a plain field write (verified against a real
+     * device: a torrent search that reported one result crashed there, aborting the rest of the
+     * script's execution and leaving one half-added, unclickable row behind - "1 result,
+     * nothing selectable"). Every UI-facing callback this class exposes is hopped onto the main
+     * thread before the caller ever sees it, so callers don't each have to remember to do this
+     * themselves.
+     */
+    // Lazy: touching Looper.getMainLooper() eagerly would break every JVM unit test (no
+    // Android framework Looper exists there) even for paths like probeManifest/resolve that
+    // never need this at all - only construct it once a runDiscovery/runSearch actually does.
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+
+    /**
+     * Posting decouples the executor thread from the callback's completion - it no longer
+     * blocks waiting for the UI update, so a caller's callback throwing must never escape
+     * uncaught here: an exception from a `Handler.post` runnable is fatal to the whole app
+     * (there's nothing upstream to catch it, unlike the old synchronous-call behavior where
+     * [JsPluginEngine]'s own `runScript` would catch it and just fail that one plugin run).
+     */
+    private fun <T> onMain(callback: (T) -> Unit): (T) -> Unit = { value ->
+        fun dispatch() {
+            runCatching { callback(value) }.onFailure { PluginLog.w(TAG, "UI callback threw: ${it.message}") }
+        }
+        // Looper itself is an unmocked Android stub under this project's plain JVM unit tests
+        // (no Robolectric) - treat that as "just call it directly" (which is what a test wants
+        // anyway: a synchronous, same-thread callback) rather than let it blow up runDiscovery/
+        // runSearch outright.
+        val isMainThread = runCatching { Looper.myLooper() == Looper.getMainLooper() }.getOrDefault(true)
+        if (isMainThread) dispatch() else mainHandler.post { dispatch() }
+    }
+
+    suspend fun runDiscovery(
+        source: String,
+        onProgress: (String) -> Unit = {},
+        onCandidate: (DiscoveredProvider) -> Unit = {},
+    ): DiscoveryResult {
+        PluginLog.i(TAG, "discover() start")
+        val mainProgress = onMain(onProgress)
+        val mainCandidate = onMain(onCandidate)
+        val host = JsHostImpl(
+            client = httpClient,
+            onProgress = { PluginLog.d(TAG, "discover progress: $it"); mainProgress(it) },
+            onCandidate = {
+                PluginLog.d(TAG, "discover candidate: type=${it[JsPluginContract.KEY_TYPE]} url=${it[JsPluginContract.KEY_URL]}")
+                mainCandidate(it.toDiscoveredProvider())
+            },
+            onLog = { PluginLog.d(TAG, "script: $it") },
+        )
+        val result = when (val outcome = runScript(JsPluginContract.DISCOVERY_TIMEOUT_MS, host) { context ->
+            context.evaluate("$source\ndiscover(host);")
+        }) {
+            // discover()'s return value is its specific reason ("No credentials found in
+            // pastes", "Tested N, none responded", ...) - discarding it and always showing
+            // null left the UI falling back to a generic "Nothing found" no matter why.
+            is ScriptOutcome.Success -> DiscoveryResult.Finished(outcome.result as? String)
+            is ScriptOutcome.Failure -> DiscoveryResult.Failed(outcome.message)
+            ScriptOutcome.TimedOut -> DiscoveryResult.Failed("Plugin timed out")
+        }
+        PluginLog.i(TAG, "discover() finished: $result")
+        return result
+    }
+
+    suspend fun runSearch(
+        source: String,
+        query: String,
+        year: Int?,
+        season: Int?,
+        episode: Int?,
+        onProgress: (String) -> Unit = {},
+        onResult: (TorrentResult) -> Unit = {},
+    ): SearchResult {
+        PluginLog.i(TAG, "search() start: query=\"$query\" year=$year season=$season episode=$episode")
+        val mainProgress = onMain(onProgress)
+        val mainResult = onMain(onResult)
+        val host = JsHostImpl(
+            client = httpClient,
+            query = query,
+            year = year,
+            season = season,
+            episode = episode,
+            onProgress = { PluginLog.d(TAG, "search progress: $it"); mainProgress(it) },
+            onResult = {
+                PluginLog.d(TAG, "search result: title=${it[JsPluginContract.KEY_TITLE]} source=${it[JsPluginContract.KEY_SOURCE]}")
+                mainResult(it.toTorrentResult())
+            },
+            onLog = { PluginLog.d(TAG, "script: $it") },
+        )
+        val result = when (val outcome = runScript(JsPluginContract.SEARCH_TIMEOUT_MS, host) { context ->
+            context.evaluate("$source\nsearch(host, host.query, host.year, host.season, host.episode);")
+        }) {
+            is ScriptOutcome.Success -> SearchResult.Finished(outcome.result as? String)
+            is ScriptOutcome.Failure -> SearchResult.Failed(outcome.message)
+            ScriptOutcome.TimedOut -> SearchResult.Failed("Plugin timed out")
+        }
+        PluginLog.i(TAG, "search() finished: $result")
+        return result
+    }
+
+    suspend fun resolve(source: String, token: String, season: Int?, episode: Int?): ResolveResult {
+        PluginLog.i(TAG, "resolve() start: token=$token season=$season episode=$episode")
+        val host = JsHostImpl(
+            client = httpClient,
+            token = token,
+            season = season,
+            episode = episode,
+            onLog = { PluginLog.d(TAG, "script: $it") },
+        )
+        val result = when (val outcome = runScript(JsPluginContract.RESOLVE_TIMEOUT_MS, host) { context ->
+            context.evaluate("$source\nresolve(host, host.token, host.season, host.episode);")
+        }) {
+            is ScriptOutcome.Success -> {
+                val url = outcome.result as? String
+                if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    ResolveResult.Ready(url)
+                } else {
+                    ResolveResult.Failed("Plugin returned an invalid stream URL")
+                }
+            }
+            is ScriptOutcome.Failure -> ResolveResult.Failed(outcome.message)
+            ScriptOutcome.TimedOut -> ResolveResult.Failed("Plugin timed out")
+        }
+        PluginLog.i(TAG, "resolve() finished: $result")
+        return result
+    }
+
+    /** Evaluates just enough of [source] to read its `PLUGIN` manifest object, if any. */
+    suspend fun probeManifest(source: String): Map<String, Any?>? {
+        val host = JsHostImpl(client = httpClient)
+        // toMap() must happen here, on the context's own thread, before runScript's `finally`
+        // destroys the context - a JSObject is a live reference into the JS heap and reading it
+        // after destroy() throws (refcount already zero).
+        val outcome = runScript(MANIFEST_PROBE_TIMEOUT_MS, host) { context ->
+            (context.evaluate("$source\nPLUGIN;") as? JSObject)?.toMap()
+        }
+        @Suppress("UNCHECKED_CAST")
+        return (outcome as? ScriptOutcome.Success)?.result as? Map<String, Any?>
+    }
+
+    /**
+     * Runs [body] on a dedicated single-thread executor, since [QuickJSContext] requires every
+     * call against one instance (creation, evaluation, destruction) to happen on the thread that
+     * created it.
+     *
+     * The timeout is soft: [withTimeoutOrNull] only ever gets to abandon *waiting* for the
+     * background thread - this QuickJS binding has no exposed way to interrupt a script that's
+     * stuck in a synchronous, non-I/O loop (unlike the old Messenger protocol, where a wedged
+     * plugin ran in its own OS process and the host just stopped listening to it). A script
+     * busy-looping with no host calls leaks that one thread for as long as it runs; every I/O
+     * call it makes (`host.httpGet`, etc.) is still bounded by OkHttp's own timeouts, which
+     * covers the realistic slow-plugin case. This is a deliberate, documented trade-off for
+     * running plugins in-process instead of as separate installable apps.
+     */
+    private suspend fun runScript(
+        timeoutMs: Long,
+        host: JsHostImpl,
+        body: (QuickJSContext) -> Any?,
+    ): ScriptOutcome {
+        val executor = Executors.newSingleThreadExecutor()
+        return withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine { cont ->
+                executor.execute {
+                    val outcome: ScriptOutcome = try {
+                        val context = QuickJSContext.create()
+                        try {
+                            host.install(context)
+                            ScriptOutcome.Success(body(context))
+                        } finally {
+                            context.destroy()
+                        }
+                    } catch (e: Exception) {
+                        ScriptOutcome.Failure(shortMessage(e))
+                    }
+                    runCatching { cont.resume(outcome) }
+                    executor.shutdown()
+                }
+            }
+        } ?: ScriptOutcome.TimedOut
+    }
+
+    /** QuickJSException appends a JS stack trace after the message on its own lines - keep only the first. */
+    private fun shortMessage(e: Throwable): String =
+        (e.message ?: e::class.simpleName ?: "Plugin error")
+            .lineSequence().first()
+            .take(JsPluginContract.MAX_TEXT_LENGTH)
+
+    private fun Map<String, Any?>.toDiscoveredProvider(): DiscoveredProvider = DiscoveredProvider(
+        type = this[JsPluginContract.KEY_TYPE] as? String ?: "",
+        label = this[JsPluginContract.KEY_LABEL] as? String ?: "",
+        url = this[JsPluginContract.KEY_URL] as? String ?: "",
+        username = this[JsPluginContract.KEY_USERNAME] as? String,
+        password = this[JsPluginContract.KEY_PASSWORD] as? String,
+        userAgent = this[JsPluginContract.KEY_USER_AGENT] as? String,
+        detail = this[JsPluginContract.KEY_DETAIL] as? String,
+        verified = this[JsPluginContract.KEY_VERIFIED] as? Boolean ?: false,
+    )
+
+    private fun Map<String, Any?>.toTorrentResult(): TorrentResult = TorrentResult(
+        title = this[JsPluginContract.KEY_TITLE] as? String ?: "",
+        token = this[JsPluginContract.KEY_TOKEN] as? String ?: "",
+        seeders = (this[JsPluginContract.KEY_SEEDERS] as? Number)?.toInt(),
+        size = this[JsPluginContract.KEY_SIZE] as? String,
+        quality = this[JsPluginContract.KEY_QUALITY] as? String,
+        source = this[JsPluginContract.KEY_SOURCE] as? String,
+    )
+
+    private sealed class ScriptOutcome {
+        data class Success(val result: Any?) : ScriptOutcome()
+        data class Failure(val message: String) : ScriptOutcome()
+        data object TimedOut : ScriptOutcome()
+    }
+
+    companion object {
+        private const val TAG = "PluginEngine"
+        private const val MANIFEST_PROBE_TIMEOUT_MS = 5_000L
+    }
+}
