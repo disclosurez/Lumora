@@ -313,6 +313,24 @@ class MainActivity : AppCompatActivity() {
     private var resumePromptShown = false
     private var progressTickCount = 0
 
+    // ── Jellyfin server-side state ──────────────
+    /** The server's own Continue Watching / Next Up, refreshed with the catalog. Kept apart
+     *  from [allChannels] because these are ordered *views* of items already in the catalog,
+     *  not extra content - merging them in would duplicate every partly-watched title. */
+    private var jellyfinResumeItems: List<Channel> = emptyList()
+    private var jellyfinNextUpItems: List<Channel> = emptyList()
+    /** The negotiated stream for whatever Jellyfin item is playing (see
+     *  JellyfinProvider.resolveStream). Its PlaySessionId is what ties every progress report
+     *  to this play, and what lets the server tear a transcode down when it ends. */
+    private var jellyfinPlaySession: JellyfinProvider.ResolvedStream? = null
+    private var jellyfinPlayingItemId: String? = null
+    private var jellyfinChapters: List<JellyfinProvider.Chapter> = emptyList()
+    private var jellyfinTrickplay: JellyfinProvider.TrickplayInfo? = null
+    /** Last decoded trickplay sprite sheet, kept so scrubbing within one sheet (~100
+     *  thumbnails) doesn't re-download it on every seek step. */
+    private var trickplayTileCache: Pair<Int, android.graphics.Bitmap>? = null
+    private var trickplayLoadJob: kotlinx.coroutines.Job? = null
+
     // ── A/V Sync Offset ─────────────────────────
     private val avOffsetManager by lazy { AvOffsetManager(this) }
 
@@ -543,7 +561,14 @@ class MainActivity : AppCompatActivity() {
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
         // Entering PiP also triggers onPause() - don't pause playback or we'd defeat the point of PiP.
         if (!inPip) {
-            if (isPlayerVisible) { saveCurrentPlaybackPosition(); playerManager.pause() }
+            if (isPlayerVisible) {
+                saveCurrentPlaybackPosition()
+                playerManager.pause()
+                // After the pause, so it reports the paused state: the play is still open
+                // (onResume resumes it), but the server's resume point should already be
+                // current if the process is killed while backgrounded and no stop ever lands.
+                reportJellyfinProgress()
+            }
             releaseLivePreview()
         }
     }
@@ -1042,15 +1067,279 @@ class MainActivity : AppCompatActivity() {
             val stub = jellyfinProviderStub(url)
             val items: List<Channel> = withContext(Dispatchers.IO) {
                 val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
-                val movies = jellyfin.getMovies().map { JellyfinProvider.toChannel(it, stub) }
-                val series = jellyfin.getSeries().map { JellyfinProvider.toChannel(it, stub) }
-                liveItems + movies + series
+                val movies = jellyfin.getMovies()
+                val series = jellyfin.getSeries()
+                importJellyfinUserState(movies + series)
+                liveItems +
+                    movies.map { JellyfinProvider.toChannel(it, stub) } +
+                    series.map { JellyfinProvider.toChannel(it, stub) }
             }
             jellyfinClient = jellyfin
+            refreshJellyfinRows(jellyfin, stub)
             FetchResult.Success(items)
         } catch (e: Exception) {
             FetchResult.Failure("Jellyfin: ${e.message?.take(60)}")
         }
+    }
+
+    // ── Jellyfin server-side state sync ────────────
+
+    /**
+     * Pulls the server's per-user state (UserData) into the local stores, so watched marks
+     * and resume points made in *any* Jellyfin client show up here. Without this the app
+     * treated a personal media server like a plain catalogue: every title looked unwatched
+     * no matter what had already been seen elsewhere.
+     *
+     * Local progress is only overwritten when the server is *ahead* (or when nothing local
+     * exists). A resume point written here and not yet reported - the app was offline, or the
+     * report failed - is still the more recent truth, and clobbering it would rewind the
+     * user to where the server last heard about.
+     */
+    private fun importJellyfinUserState(
+        items: List<JellyfinProvider.JellyfinItem>,
+        includePlayed: Boolean = false
+    ) {
+        val stub = jellyfinProviderStub(jellyfinServerUrl())
+        for (item in items) {
+            if (item.mediaType == "Series") {
+                // Favourites are reconciled to the server both ways for Jellyfin items:
+                // un-favouriting on the server has to be able to clear the local star too,
+                // which a toggle-only import could never do.
+                FavoritesStore.setFavoriteSeries(this, item.id, item.favorite)
+                continue
+            }
+            val runtime = item.runtimeMs ?: continue
+            when {
+                // Watched, not cleared: a full-duration entry is exactly what EpisodeAdapter
+                // reads as "watched" (PlaybackPosition.isNearComplete) to dim the row and show
+                // its badge, and getAllInProgress excludes it from Continue Watching for the
+                // same reason. Clearing it instead would leave a watched episode looking
+                // untouched.
+                //
+                // Only imported where something actually renders it (an episode list), because
+                // the position store holds 500 entries and evicts the oldest: seeding a watched
+                // mark for every film in a large library would push out the resume points that
+                // Continue Watching is built from, to show a badge nothing displays.
+                item.played && includePlayed -> PlaybackPositionStore.save(
+                    this,
+                    item.id,
+                    runtime,
+                    runtime,
+                    JellyfinProvider.toChannel(item, stub, prefixSeriesName = true)
+                )
+                item.resumePositionMs > 0 -> {
+                    val local = PlaybackPositionStore.get(this, item.id)
+                    if (local == null || item.resumePositionMs > local.positionMs) {
+                        PlaybackPositionStore.save(
+                            this,
+                            item.id,
+                            item.resumePositionMs,
+                            runtime,
+                            JellyfinProvider.toChannel(item, stub, prefixSeriesName = true)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** The server's own Resume and Next Up lists, for the Home rows. Also seeds resume
+     *  positions for the items in them - these are the partly-watched titles, so they carry
+     *  the positions worth having even when the catalog fetch didn't include them. */
+    private suspend fun refreshJellyfinRows(jellyfin: JellyfinProvider, stub: Provider) {
+        val (resume, nextUp) = withContext(Dispatchers.IO) {
+            jellyfin.getResumeItems() to jellyfin.getNextUp()
+        }
+        importJellyfinUserState(resume)
+        jellyfinResumeItems = resume.map { JellyfinProvider.toChannel(it, stub, prefixSeriesName = true) }
+        jellyfinNextUpItems = nextUp.map { JellyfinProvider.toChannel(it, stub, prefixSeriesName = true) }
+    }
+
+    // ── Jellyfin playback reporting ────────────────
+
+    /** Media3 mime type for a Jellyfin subtitle codec, or null for the image-based formats
+     *  (PGS/VOBSUB) that have no Media3 renderer - those are left to the server to burn in,
+     *  never sideloaded as a track that would silently render nothing. */
+    private fun subtitleMimeType(codec: String?): String? = when (codec?.lowercase()) {
+        "vtt", "webvtt" -> androidx.media3.common.MimeTypes.TEXT_VTT
+        "srt", "subrip" -> androidx.media3.common.MimeTypes.APPLICATION_SUBRIP
+        "ass", "ssa" -> androidx.media3.common.MimeTypes.TEXT_SSA
+        "ttml" -> androidx.media3.common.MimeTypes.APPLICATION_TTML
+        // The server hands extracted text tracks over as WebVTT regardless of their original
+        // codec, so anything else that came back with a URL is treated as VTT.
+        else -> androidx.media3.common.MimeTypes.TEXT_VTT
+    }
+
+    private fun externalSubtitlesFor(resolved: JellyfinProvider.ResolvedStream): List<PlayerManager.ExternalSubtitle> =
+        resolved.subtitles.mapNotNull { stream ->
+            val url = stream.url ?: return@mapNotNull null
+            val mime = subtitleMimeType(stream.codec) ?: return@mapNotNull null
+            PlayerManager.ExternalSubtitle(
+                uri = url,
+                mimeType = mime,
+                language = stream.language,
+                label = stream.title ?: stream.language,
+                isDefault = stream.isDefault,
+                isForced = stream.isForced
+            )
+        }
+
+    /** Reports a Jellyfin play as started, so the server opens a session for it (and knows
+     *  not to reap the transcode it just set up). */
+    private fun reportJellyfinStart(itemId: String, resolved: JellyfinProvider.ResolvedStream?, positionMs: Long) {
+        val client = jellyfinClient ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                client.reportPlaybackStart(
+                    itemId,
+                    resolved?.playSessionId,
+                    positionMs,
+                    resolved?.playMethod ?: "DirectPlay"
+                )
+            }
+        }
+    }
+
+    /** Progress heartbeat for the Jellyfin item playing, if any. Called off the same 1s
+     *  progress tick the local position save uses, throttled to ~10s. */
+    private fun reportJellyfinProgress() {
+        val itemId = jellyfinPlayingItemId ?: return
+        val client = jellyfinClient ?: return
+        val position = playerManager.currentPosition.takeIf { it >= 0 } ?: return
+        val paused = !playerManager.isPlaying
+        val session = jellyfinPlaySession
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                client.reportPlaybackProgress(itemId, session?.playSessionId, position, paused, session?.playMethod ?: "DirectPlay")
+            }
+        }
+    }
+
+    /** End of a Jellyfin play. The position reported here is what the server turns into a
+     *  watched mark or a resume point, so this runs before the player state is torn down. */
+    private fun reportJellyfinStopped(): Boolean {
+        val itemId = jellyfinPlayingItemId ?: return false
+        val client = jellyfinClient
+        val session = jellyfinPlaySession
+        val position = playerManager.currentPosition.takeIf { it >= 0 } ?: 0L
+        jellyfinPlayingItemId = null
+        jellyfinPlaySession = null
+        jellyfinChapters = emptyList()
+        jellyfinTrickplay = null
+        trickplayTileCache = null
+        trickplayLoadJob?.cancel()
+        if (client == null) return false
+        scope.launch(Dispatchers.IO) {
+            runCatching { client.reportPlaybackStopped(itemId, session?.playSessionId, position) }
+        }
+        return true
+    }
+
+    /** Re-pulls Resume/Next Up after a Jellyfin play ends, so finishing an episode advances
+     *  the Next Up row instead of leaving it stale until the next catalog reload. Waits a
+     *  beat first - the lists are derived from the stop we just reported, and asking before
+     *  the server has recorded it hands back the pre-play state. */
+    private fun refreshJellyfinRowsAfterPlayback() {
+        val client = jellyfinClient ?: return
+        scope.launch {
+            delay(1500)
+            val stub = jellyfinProviderStub(jellyfinServerUrl())
+            runCatching { refreshJellyfinRows(client, stub) }
+            if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        }
+    }
+
+    /** Chapter markers and trickplay tiles for the Jellyfin item now playing - both are
+     *  per-item and only ever needed for the one title on screen, so they're fetched at play
+     *  time rather than carried on every catalog entry. */
+    private fun loadJellyfinPlaybackExtras(itemId: String) {
+        val client = jellyfinClient ?: return
+        scope.launch {
+            val (chapters, trickplay) = withContext(Dispatchers.IO) {
+                runCatching { client.getChapters(itemId) }.getOrDefault(emptyList()) to
+                    runCatching { client.getTrickplay(itemId) }.getOrNull()
+            }
+            if (jellyfinPlayingItemId != itemId) return@launch
+            jellyfinChapters = chapters
+            jellyfinTrickplay = trickplay
+            updateChaptersButtonVisibility()
+        }
+    }
+
+    private fun updateChaptersButtonVisibility() {
+        binding.btnChapters.visibility = if (jellyfinChapters.size > 1) View.VISIBLE else View.GONE
+    }
+
+    /** Chapter picker - jumps straight to a chapter's start. Only reachable when the item
+     *  actually has chapters (see updateChaptersButtonVisibility). */
+    private fun showChapterPicker() {
+        val chapters = jellyfinChapters
+        if (chapters.isEmpty()) return
+        val position = playerManager.currentPosition
+        val currentIdx = chapters.indexOfLast { it.positionMs <= position }.coerceAtLeast(0)
+        val labels = chapters.mapIndexed { index, chapter ->
+            val marker = if (index == currentIdx) "▶ " else ""
+            "$marker${chapter.name}  ·  ${formatTime(chapter.positionMs)}"
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Chapters")
+            .setItems(labels) { _, which ->
+                playerManager.seekTo(chapters[which].positionMs)
+                showControls()
+            }
+            .show()
+    }
+
+    /** Seek-preview thumbnail from the trickplay sprite sheets, shown while scrubbing a
+     *  Jellyfin item. Sheets are downloaded whole and cropped locally - one sheet covers
+     *  ~100 thumbnails, so scrubbing within it costs nothing after the first fetch. */
+    private fun showTrickplayPreview(targetMs: Long) {
+        val info = jellyfinTrickplay ?: return
+        val itemId = jellyfinPlayingItemId ?: return
+        val client = jellyfinClient ?: return
+        val thumbIndex = (targetMs / info.intervalMs).toInt().coerceAtLeast(0)
+        if (info.thumbnailCount > 0 && thumbIndex >= info.thumbnailCount) return
+        val tileIndex = thumbIndex / info.perTile
+        val withinTile = thumbIndex % info.perTile
+
+        fun render(sheet: android.graphics.Bitmap) {
+            val cellWidth = sheet.width / info.tileWidth.coerceAtLeast(1)
+            val cellHeight = sheet.height / info.tileHeight.coerceAtLeast(1)
+            if (cellWidth <= 0 || cellHeight <= 0) return
+            val col = withinTile % info.tileWidth.coerceAtLeast(1)
+            val row = withinTile / info.tileWidth.coerceAtLeast(1)
+            val x = col * cellWidth
+            val y = row * cellHeight
+            if (x + cellWidth > sheet.width || y + cellHeight > sheet.height) return
+            val crop = runCatching {
+                android.graphics.Bitmap.createBitmap(sheet, x, y, cellWidth, cellHeight)
+            }.getOrNull() ?: return
+            binding.trickplayPreview.setImageBitmap(crop)
+            binding.trickplayPreview.visibility = View.VISIBLE
+        }
+
+        trickplayTileCache?.takeIf { it.first == tileIndex }?.let { render(it.second); return }
+
+        trickplayLoadJob?.cancel()
+        trickplayLoadJob = scope.launch {
+            val url = client.trickplayTileUrl(itemId, info, tileIndex) ?: return@launch
+            val sheet = withContext(Dispatchers.IO) {
+                runCatching {
+                    val request = Request.Builder().url(url).build()
+                    BaseApplication.instance.okHttpClient.newCall(request).execute()
+                        .body?.byteStream()?.use { BitmapFactory.decodeStream(it) }
+                }.getOrNull()
+            } ?: return@launch
+            if (jellyfinPlayingItemId != itemId) return@launch
+            trickplayTileCache = tileIndex to sheet
+            render(sheet)
+        }
+    }
+
+    private fun hideTrickplayPreview() {
+        trickplayLoadJob?.cancel()
+        binding.trickplayPreview.visibility = View.GONE
+        binding.trickplayPreview.setImageDrawable(null)
     }
 
     private suspend fun fetchM3uChannels(config: IptvProviderConfig): FetchResult {
@@ -1247,6 +1536,8 @@ class MainActivity : AppCompatActivity() {
         // pinned at the top, sorted by release date descending regardless of category.
         val newestFilms = newestByDate(films)
         val filmShelvesLocal = buildShelves(films, tab = 2).let { shelves ->
+            jellyfinShelf(films, versions, tab = 2)?.let { listOf(it) + shelves } ?: shelves
+        }.let { shelves ->
             if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms)) + shelves
         }
 
@@ -1265,12 +1556,35 @@ class MainActivity : AppCompatActivity() {
         val favoriteSeries = series.filter { it.id in favoriteSeriesIds }
         val newestSeries = newestByDate(series)
         val seriesShelvesLocal = buildShelves(series, tab = 1).let { shelves ->
+            jellyfinShelf(series, seriesVers, tab = 1)?.let { listOf(it) + shelves } ?: shelves
+        }.let { shelves ->
             (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries)) + shelves)
         }.let { shelves ->
             if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
         }
 
         return DerivedContent(groupedLive, liveVers, films, versions, filmShelvesLocal, series, seriesVers, seriesShelvesLocal)
+    }
+
+    /** The "Jellyfin" shelf for a Series/Films tab - the personal library browsed as a
+     *  library, sitting directly under "Newest" while its titles stay merged into the
+     *  genre/provider shelves below like any other item.
+     *
+     *  Matches on any version in a deduped group, not just the representative's own
+     *  isJellyfin flag: a title both the library and an IPTV provider carry is one card,
+     *  and the copy that wins it is whichever had a poster - often the IPTV one - so flag-
+     *  only matching drops library titles out of the shelf. Same reasoning as the sidebar's
+     *  Jellyfin row (see JELLYFIN_CATEGORY_ID), and it honours the same hidden-shelf pref. */
+    private fun jellyfinShelf(
+        list: List<Channel>,
+        versionsById: Map<String, List<Channel>>,
+        tab: Int
+    ): ContentShelf? {
+        if ("Jellyfin" in getHiddenCategories(tab)) return null
+        val items = list.filter { ch ->
+            ch.isJellyfin || versionsById[ch.id]?.any { it.isJellyfin } == true
+        }
+        return if (items.isEmpty()) null else ContentShelf("Jellyfin", items)
     }
 
     /**
@@ -2436,8 +2750,20 @@ class MainActivity : AppCompatActivity() {
         val shelves = mutableListOf<ContentShelf>()
         val hidden = getHiddenHomeShelves()
 
-        val continueItems = PlaybackPositionStore.getAllInProgress(this).filterNot(::isAdultHomeItem)
+        // Jellyfin's own resume list leads Continue Watching: the server knows about playback
+        // from every other client, which a purely local position store never can. Local
+        // entries follow, minus anything the server already covered (same item, one card).
+        val localContinue = PlaybackPositionStore.getAllInProgress(this)
+        val serverContinue = jellyfinResumeItems
+        val serverIds = serverContinue.map { it.id }.toSet()
+        val continueItems = (serverContinue + localContinue.filterNot { it.id in serverIds })
+            .filterNot(::isAdultHomeItem)
         if (continueItems.isNotEmpty()) shelves.add(ContentShelf("Continue Watching", continueItems))
+
+        // "Next Up" is the row that makes a series library usable - the next unwatched episode
+        // of everything in flight, straight from the server's own tracking.
+        val nextUpItems = jellyfinNextUpItems.filterNot(::isAdultHomeItem)
+        if (nextUpItems.isNotEmpty()) shelves.add(ContentShelf("Next Up", nextUpItems))
 
         val recentItems = RecentlyPlayedStore.getRecentIds(this)
             .mapNotNull { id -> liveChannels.firstOrNull { it.id == id } }
@@ -2617,12 +2943,29 @@ class MainActivity : AppCompatActivity() {
         return when {
             item.isJellyfin -> {
                 val jellyfin = jellyfinClientOrConnect()
-                val episodes = if (jellyfin != null) withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) } else emptyList()
+                val (episodes, seasons) = if (jellyfin != null) {
+                    withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) to jellyfin.getSeasons(item.id) }
+                } else {
+                    emptyList<JellyfinProvider.JellyfinItem>() to emptyList()
+                }
                 val stub = jellyfinProviderStub(jellyfinServerUrl())
+                // Watched/resume state for these episodes comes from the same UserData the
+                // catalog fetch reads, so an episode list opened here shows progress made in
+                // any other client (EpisodeAdapter reads it out of PlaybackPositionStore).
+                importJellyfinUserState(episodes, includePlayed = true)
+                // Season *names* come from the server - grouping on ParentIndexNumber alone
+                // can only ever produce "Season 0" for specials, which is not what any
+                // Jellyfin library calls that row.
+                val seasonNames = seasons.mapNotNull { season ->
+                    season.indexNumber?.let { it to season.name }
+                }.toMap()
                 itemDetails to episodes
                     .groupBy { it.seasonNumber ?: 0 }
                     .toSortedMap()
-                    .map { (num, eps) -> "Season $num" to eps.map { JellyfinProvider.toChannel(it, stub) } }
+                    .map { (num, eps) ->
+                        val label = seasonNames[num] ?: if (num == 0) "Specials" else "Season $num"
+                        label to eps.map { JellyfinProvider.toChannel(it, stub) }
+                    }
             }
             stalkerConfig != null -> {
                 val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
@@ -2767,8 +3110,16 @@ class MainActivity : AppCompatActivity() {
             }
             refreshFavoriteIcon()
             favoriteButton.setOnClickListener {
-                FavoritesStore.toggleFavoriteSeries(this, item.id)
+                val nowFavorite = FavoritesStore.toggleFavoriteSeries(this, item.id)
                 refreshFavoriteIcon()
+                // A Jellyfin item's favourite state belongs to the server - push it so the
+                // star shows up in every other client, and survives a reinstall here.
+                if (item.isJellyfin && item.id.isNotBlank()) {
+                    scope.launch {
+                        val client = jellyfinClientOrConnect() ?: return@launch
+                        withContext(Dispatchers.IO) { runCatching { client.setFavorite(item.id, nowFavorite) } }
+                    }
+                }
                 scope.launch { classifyAndShow() }
             }
         }
@@ -3148,6 +3499,7 @@ class MainActivity : AppCompatActivity() {
         )
         binding.homeContent.visibility = View.GONE
         binding.homeSearchBar.visibility = View.GONE
+        binding.discoverContent.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
         binding.emptyState.visibility = View.GONE
 
@@ -3265,6 +3617,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { hidePlayer() }
         binding.btnAudioTrack.setOnClickListener { showTrackPicker(isAudio = true) }
         binding.btnSubtitleTrack.setOnClickListener { showTrackPicker(isAudio = false) }
+        binding.btnChapters.setOnClickListener { showChapterPicker() }
         binding.btnLiveVersions.setOnClickListener { showVersionPicker() }
         binding.btnRewind.setOnClickListener { playerManager.seekBy(-15_000); showControls() }
         binding.btnFastForward.setOnClickListener { playerManager.seekBy(30_000); showControls() }
@@ -3396,7 +3749,15 @@ class MainActivity : AppCompatActivity() {
 
         binding.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             private var tracking = false
-            override fun onProgressChanged(s: SeekBar?, p: Int, u: Boolean) {}
+            override fun onProgressChanged(s: SeekBar?, p: Int, u: Boolean) {
+                // Preview the frame at the scrub target while the bar is being moved - by the
+                // user (touch drag or D-pad, both of which arrive as fromUser) rather than by
+                // the 1s progress tick, which would flash a thumbnail during normal playback.
+                if (!u) return
+                val duration = playerManager.duration
+                if (duration <= 0) return
+                showTrickplayPreview(duration * p / 100)
+            }
             override fun onStartTrackingTouch(s: SeekBar?) { tracking = true }
             override fun onStopTrackingTouch(s: SeekBar?) {
                 tracking = false
@@ -3404,8 +3765,12 @@ class MainActivity : AppCompatActivity() {
                     playerManager.seekTo((playerManager.duration * (s?.progress ?: 0)) / 100)
                     resetStallTracking()
                 }
+                hideTrickplayPreview()
             }
         })
+        // D-pad seeking never goes through onStopTrackingTouch (no touch involved), so the
+        // preview has to be dismissed on focus loss too or it stays up over the video.
+        binding.seekBar.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) hideTrickplayPreview() }
 
         binding.playerLayout.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_UP) toggleControls(); true
@@ -3597,8 +3962,18 @@ class MainActivity : AppCompatActivity() {
         // Stalker VOD carries a base64 play command, not a URL - it must be create_link'd at
         // play time (the resolved link is short-lived and per-session). Everything else has a
         // direct url already.
-        if (startVersion.url.isBlank() && !startVersion.stalkerCmd.isNullOrBlank()) {
-            scope.launch {
+        // Reset per-play Jellyfin state before anything below can populate it - a chapters
+        // button left over from the last title would otherwise seek into the wrong film.
+        jellyfinPlaySession = null
+        jellyfinPlayingItemId = null
+        jellyfinChapters = emptyList()
+        jellyfinTrickplay = null
+        trickplayTileCache = null
+        updateChaptersButtonVisibility()
+        hideTrickplayPreview()
+
+        when {
+            startVersion.url.isBlank() && !startVersion.stalkerCmd.isNullOrBlank() -> scope.launch {
                 val resolved = resolveStalkerPlayUrl(startVersion)
                 if (nowPlayingChannel?.id != channel.id) return@launch
                 if (resolved.isNullOrBlank()) {
@@ -3612,9 +3987,36 @@ class MainActivity : AppCompatActivity() {
                 }
                 resumeFromMs?.let { playerManager.seekTo(it) }
             }
-        } else {
-            playerManager.playUrl(startVersion.url, startVersion.streamUserAgent)
-            resumeFromMs?.let { playerManager.seekTo(it) }
+            // Jellyfin VOD/episodes ask the server how to play them rather than assuming the
+            // file is directly playable: `?static=true` hands the raw file over untouched, so
+            // anything this device has no decoder for (HEVC 10-bit, TrueHD, DTS) opened to a
+            // black screen or silence. PlaybackInfo picks direct play where it fits and an
+            // HLS transcode where it doesn't, and brings the subtitle tracks with it.
+            startVersion.isJellyfin && startVersion.mediaType != MediaType.LIVE && startVersion.id.isNotBlank() -> scope.launch {
+                val startAt = resumeFromMs ?: 0L
+                val jellyfin = jellyfinClientOrConnect()
+                val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
+                    runCatching { jellyfin.resolveStream(startVersion.id, startAt) }.getOrNull()
+                }
+                if (nowPlayingChannel?.id != channel.id) return@launch
+                // A failed negotiation is not a failed play: the plain static URL is what the
+                // app always used, and for most files it works - so fall back to it rather
+                // than refusing to open the title.
+                playerManager.playUrl(
+                    resolved?.url ?: startVersion.url,
+                    startVersion.streamUserAgent,
+                    subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
+                    startPositionMs = startAt
+                )
+                jellyfinPlaySession = resolved
+                jellyfinPlayingItemId = startVersion.id
+                reportJellyfinStart(startVersion.id, resolved, startAt)
+                loadJellyfinPlaybackExtras(startVersion.id)
+            }
+            else -> {
+                playerManager.playUrl(startVersion.url, startVersion.streamUserAgent)
+                resumeFromMs?.let { playerManager.seekTo(it) }
+            }
         }
 
         // Apply persisted A/V sync offset (per-channel or global)
@@ -4030,6 +4432,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun hidePlayer() {
         saveCurrentPlaybackPosition()
+        // Before nowPlayingChannel is cleared: the server turns this final position into a
+        // watched mark or a resume point, and closes out any transcode it started.
+        if (reportJellyfinStopped()) refreshJellyfinRowsAfterPlayback()
+        hideTrickplayPreview()
         // What was playing is the best preview target when nothing in the guide was ever
         // focused - a launch that resumes straight into the player never fires a focus
         // event, so lastFocusedLiveChannel is null and the preview pane came back blank.
@@ -4434,6 +4840,9 @@ class MainActivity : AppCompatActivity() {
         // Ticks every ~1s while playing; persist progress every ~5s instead of every tick.
         progressTickCount++
         if (progressTickCount % 5 == 0) saveCurrentPlaybackPosition()
+        // Jellyfin expects a heartbeat roughly every 10s - it's what keeps the server's
+        // resume point current and stops it reaping an active transcode as abandoned.
+        if (progressTickCount % 10 == 0) reportJellyfinProgress()
     }
 
     private fun formatTime(ms: Long): String {
@@ -5282,8 +5691,12 @@ class MainActivity : AppCompatActivity() {
         // No selectType() call here - the form starts closed with no type chosen; see
         // openIptvForm()/closeIptvForm() above for how that gets set per add/edit.
         // Hide whatever the active tab is showing so it doesn't render doubled-up behind
-        // Settings in the same weight=1 slot - restored on dismiss below.
+        // Settings in the same weight=1 slot - restored on dismiss below. That includes
+        // Home's search bar and the Discover pane, which sit outside homeContent/contentRow
+        // and so used to stay on screen above Settings as if they belonged to it.
         binding.homeContent.visibility = View.GONE
+        binding.homeSearchBar.visibility = View.GONE
+        binding.discoverContent.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
         binding.emptyState.visibility = View.GONE
         dialog.setOnDismissListener {

@@ -13,6 +13,13 @@ import java.security.MessageDigest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/** Jellyfin expresses every time value in 100-nanosecond ticks. */
+private const val TICKS_PER_MS = 10_000L
+private const val PAGE_SIZE = 500
+/** Backstop for the paging loop - a server that keeps returning full pages can't spin us
+ *  forever. Well past any realistic personal library. */
+private const val MAX_ITEMS = 50_000
+
 /**
  * Jellyfin media server provider integration.
  * Fetches live TV, movies, series, and episodes from a Jellyfin server via its REST API.
@@ -56,7 +63,74 @@ class JellyfinProvider(private val client: OkHttpClient) {
         val rating: Double? = null,
         val releaseDate: String? = null, // ISO "YYYY-MM-DD"
         val seasonNumber: Int? = null,
-        val episodeNumber: Int? = null
+        val episodeNumber: Int? = null,
+        val runtimeMs: Long? = null,
+        // Server-side per-user state (UserData). This is the whole point of talking to a
+        // personal media server rather than a catalogue: resume points and watched marks
+        // made in any other Jellyfin client belong here too.
+        val resumePositionMs: Long = 0L,
+        val played: Boolean = false,
+        val favorite: Boolean = false,
+        // Episodes only - a Next Up row is meaningless without saying which show it's from.
+        val seriesId: String? = null,
+        val seriesName: String? = null
+    )
+
+    /** One season of a series as the server names it - "Specials" (index 0) included, which
+     *  grouping episodes by their own ParentIndexNumber alone can't produce. */
+    data class JellyfinSeason(
+        val id: String,
+        val name: String,
+        val indexNumber: Int?
+    )
+
+    /** A chapter marker, for chapter skip in the player. */
+    data class Chapter(
+        val name: String,
+        val positionMs: Long,
+        val imageUrl: String?
+    )
+
+    /** Trickplay tile-sheet geometry for seek-preview thumbnails (Jellyfin 10.9+). Tiles are
+     *  sprite sheets of [tileWidth]x[tileHeight] thumbnails, one thumbnail per [intervalMs]. */
+    data class TrickplayInfo(
+        val width: Int,
+        val height: Int,
+        val tileWidth: Int,
+        val tileHeight: Int,
+        val thumbnailCount: Int,
+        val intervalMs: Int
+    ) {
+        val perTile: Int get() = (tileWidth * tileHeight).coerceAtLeast(1)
+    }
+
+    /** One subtitle track offered by a resolved media source. [url] is set for anything the
+     *  server can deliver as a sidecar file (external files, and embedded text tracks it can
+     *  extract) - those get sideloaded into the MediaItem so Media3 renders them itself. */
+    data class SubtitleStream(
+        val index: Int,
+        val url: String?,
+        val language: String?,
+        val title: String?,
+        val codec: String?,
+        val isExternal: Boolean,
+        val isForced: Boolean,
+        val isDefault: Boolean
+    )
+
+    /**
+     * The outcome of a PlaybackInfo negotiation: the URL to actually play, plus the session
+     * identity that playback reporting has to quote back so the server can tie progress to
+     * this play (and tear down a transcode when it ends).
+     */
+    data class ResolvedStream(
+        val url: String,
+        val playSessionId: String?,
+        val mediaSourceId: String?,
+        // "DirectPlay", "DirectStream" or "Transcode" - reported as-is to /Sessions/Playing.
+        val playMethod: String,
+        val runtimeMs: Long?,
+        val subtitles: List<SubtitleStream> = emptyList()
     )
 
     /** A device id that's stable for a given server+account (so the server's device list
@@ -262,11 +336,8 @@ class JellyfinProvider(private val client: OkHttpClient) {
         val base = serverBase ?: return emptyList()
 
         return try {
-            val url = "$base/LiveTv/Channels?userId=$userId" +
-                    "&Limit=500&ImageTypeLimit=1&EnableImageTypes=Primary"
-
-            val items = fetchItems(url, token)
-            items.mapNotNull { parseLiveTvItem(it) }
+            val url = "$base/LiveTv/Channels?userId=$userId&ImageTypeLimit=1&EnableImageTypes=Primary"
+            fetchAllItems(url, token).mapNotNull { parseLiveTvItem(it) }
         } catch (e: Exception) {
             emptyList()
         }
@@ -295,18 +366,140 @@ class JellyfinProvider(private val client: OkHttpClient) {
 
         return try {
             val url = "$base/Shows/$seriesId/Episodes?userId=$userId" +
-                    "&Fields=Overview,Genres,ProductionYear,PremiereDate,CommunityRating,ParentIndexNumber,IndexNumber,BackdropImageTags,ImageTags" +
+                    "&Fields=$mediaItemFields,ParentIndexNumber,IndexNumber" +
                     "&ImageTypeLimit=1&EnableImageTypes=Primary"
-
-            val items = fetchItems(url, token)
-            items.mapNotNull { parseMediaItem(it) }
+            fetchAllItems(url, token).mapNotNull { parseMediaItem(it) }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
+    /** The series' seasons as the server names them. Grouping episodes by ParentIndexNumber
+     *  alone can only ever produce "Season 0" for specials, and loses any season the server
+     *  has a real name for. */
+    suspend fun getSeasons(seriesId: String): List<JellyfinSeason> {
+        val token = accessToken ?: return emptyList()
+        val base = serverBase ?: return emptyList()
+
+        return try {
+            val url = "$base/Shows/$seriesId/Seasons?userId=$userId&Fields=ItemCounts"
+            fetchAllItems(url, token).mapNotNull { json ->
+                val id = json.optString("Id", "").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                JellyfinSeason(
+                    id = id,
+                    name = json.optString("Name", "").takeIf { it.isNotBlank() } ?: "Season",
+                    indexNumber = json.optInt("IndexNumber", -1).takeIf { it >= 0 }
+                )
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Partly-watched movies/episodes, newest first - the server's own "Continue Watching",
+     *  which knows about playback that happened in any other client. */
+    suspend fun getResumeItems(limit: Int = 24): List<JellyfinItem> {
+        val token = accessToken ?: return emptyList()
+        val base = serverBase ?: return emptyList()
+
+        return try {
+            val url = "$base/Users/$userId/Items/Resume?includeItemTypes=Movie,Episode" +
+                    "&Fields=$mediaItemFields,ParentIndexNumber,IndexNumber&Recursive=true" +
+                    "&MediaTypes=Video&Limit=$limit&ImageTypeLimit=1"
+            fetchItems(url, token).first.mapNotNull { parseMediaItem(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** The next unwatched episode of each series the user is partway through. */
+    suspend fun getNextUp(limit: Int = 24): List<JellyfinItem> {
+        val token = accessToken ?: return emptyList()
+        val base = serverBase ?: return emptyList()
+
+        return try {
+            val url = "$base/Shows/NextUp?userId=$userId" +
+                    "&Fields=$mediaItemFields,ParentIndexNumber,IndexNumber" +
+                    "&Limit=$limit&ImageTypeLimit=1"
+            fetchItems(url, token).first.mapNotNull { parseMediaItem(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Chapter markers for one item, for chapter skip. Fetched per item rather than as a
+     *  catalog field - Chapters on a few thousand items is a large payload for something
+     *  only ever needed for the one title being played. */
+    suspend fun getChapters(itemId: String): List<Chapter> {
+        val base = serverBase ?: return emptyList()
+        val json = getJson("$base/Users/$userId/Items/$itemId?Fields=Chapters") ?: return emptyList()
+        val chapters = json.optJSONArray("Chapters") ?: return emptyList()
+        return (0 until chapters.length()).mapNotNull { i ->
+            val chapter = chapters.optJSONObject(i) ?: return@mapNotNull null
+            val ticks = chapter.optLong("StartPositionTicks", -1L).takeIf { it >= 0 } ?: return@mapNotNull null
+            val imageTag = chapter.optString("ImageTag", "").takeIf { it.isNotBlank() }
+            Chapter(
+                name = chapter.optString("Name", "").takeIf { it.isNotBlank() } ?: "Chapter ${i + 1}",
+                positionMs = ticks / TICKS_PER_MS,
+                imageUrl = imageTag?.let {
+                    "$base/Items/$itemId/Images/Chapter/$i?tag=${URLEncoder.encode(it, "UTF-8")}"
+                }
+            )
+        }
+    }
+
+    /** Trickplay tile geometry for [itemId], or null on a server/library without it. Picks the
+     *  smallest available tile width - these are thumbnails behind a seek bar, and a larger
+     *  sheet is just more to download and crop on a device that has no spare bandwidth. */
+    suspend fun getTrickplay(itemId: String): TrickplayInfo? {
+        val base = serverBase ?: return null
+        val json = getJson("$base/Users/$userId/Items/$itemId?Fields=Trickplay") ?: return null
+        val trickplay = json.optJSONObject("Trickplay") ?: return null
+        // Shape is { mediaSourceId: { width: {...} } } - any source will do, the geometry is
+        // per-width and the URL only takes a width.
+        val bySource = trickplay.keys().asSequence().firstOrNull()?.let { trickplay.optJSONObject(it) } ?: return null
+        val widthKey = bySource.keys().asSequence().mapNotNull { it.toIntOrNull() }.minOrNull() ?: return null
+        val info = bySource.optJSONObject(widthKey.toString()) ?: return null
+        val interval = info.optInt("Interval", 0).takeIf { it > 0 } ?: return null
+        return TrickplayInfo(
+            width = info.optInt("Width", widthKey),
+            height = info.optInt("Height", 0),
+            tileWidth = info.optInt("TileWidth", 1),
+            tileHeight = info.optInt("TileHeight", 1),
+            thumbnailCount = info.optInt("ThumbnailCount", 0),
+            intervalMs = interval
+        )
+    }
+
+    /** URL of one trickplay sprite sheet. [tileIndex] is the sheet, not the thumbnail -
+     *  each sheet holds TrickplayInfo.perTile thumbnails. */
+    fun trickplayTileUrl(itemId: String, info: TrickplayInfo, tileIndex: Int): String? {
+        val base = serverBase ?: return null
+        val token = accessToken ?: return null
+        return "$base/Videos/$itemId/Trickplay/${info.width}/$tileIndex.jpg?api_key=$token"
+    }
+
+    /** Adds or removes [itemId] from the server's favourites, so a star set here shows up in
+     *  every other Jellyfin client (and survives a reinstall of this one). */
+    suspend fun setFavorite(itemId: String, favorite: Boolean): Boolean {
+        val base = serverBase ?: return false
+        val token = accessToken ?: return false
+        val url = "$base/Users/$userId/FavoriteItems/$itemId"
+        return runCatching {
+            val builder = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("User-Agent", "Lumora/1.0")
+            val request = if (favorite) {
+                builder.post("{}".toRequestBody("application/json".toMediaType())).build()
+            } else {
+                builder.delete().build()
+            }
+            client.newCall(request).execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
+
     private val mediaItemFields =
-        "Overview,Genres,ProductionYear,PremiereDate,CommunityRating,BackdropImageTags,ImageTags"
+        "Overview,Genres,ProductionYear,PremiereDate,CommunityRating,BackdropImageTags,ImageTags,UserData,RunTimeTicks"
 
     private suspend fun fetchMediaItems(type: String): List<JellyfinItem> {
         val token = accessToken ?: return emptyList()
@@ -316,29 +509,81 @@ class JellyfinProvider(private val client: OkHttpClient) {
             val url = "$base/Items?userId=$userId" +
                     "&includeItemTypes=$type" +
                     "&recursive=true&fields=$mediaItemFields" +
-                    "&Limit=500&ImageTypeLimit=1"
-
-            val items = fetchItems(url, token)
-            items.mapNotNull { parseMediaItem(it) }
+                    "&ImageTypeLimit=1"
+            fetchAllItems(url, token).mapNotNull { parseMediaItem(it) }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    private suspend fun fetchItems(url: String, token: String): List<JSONObject> {
+    /**
+     * Every item [url] matches, a page at a time. The single fixed `Limit=500` this replaced
+     * silently truncated any library past 500 titles - the items simply weren't there, with
+     * nothing to indicate why. Stops on a short page (the server has nothing more) or once
+     * TotalRecordCount is reached, with [MAX_ITEMS] as a backstop against a server that
+     * keeps handing back full pages forever.
+     */
+    private suspend fun fetchAllItems(url: String, token: String): List<JSONObject> {
+        val all = mutableListOf<JSONObject>()
+        var startIndex = 0
+        while (startIndex < MAX_ITEMS) {
+            val separator = if (url.contains('?')) "&" else "?"
+            val paged = "$url${separator}StartIndex=$startIndex&Limit=$PAGE_SIZE"
+            val (items, total) = fetchItems(paged, token)
+            all += items
+            if (items.size < PAGE_SIZE) break
+            startIndex += items.size
+            if (total != null && all.size >= total) break
+        }
+        return all
+    }
+
+    /** One page: the items, plus TotalRecordCount when the endpoint reports one. */
+    private suspend fun fetchItems(url: String, token: String): Pair<List<JSONObject>, Int?> {
         val request = Request.Builder().url(url)
             .header("X-Emby-Token", token)
             .header("User-Agent", "Lumora/1.0")
             .build()
 
         val response = client.newCall(request).execute()
-        if (!response.isSuccessful) return emptyList()
+        if (!response.isSuccessful) return emptyList<JSONObject>() to null
 
-        val body = response.body?.string() ?: return emptyList()
+        val body = response.body?.string() ?: return emptyList<JSONObject>() to null
         val json = JSONObject(body)
-        val items = json.optJSONArray("Items") ?: return emptyList()
+        val items = json.optJSONArray("Items") ?: return emptyList<JSONObject>() to null
+        val total = json.optInt("TotalRecordCount", -1).takeIf { it >= 0 }
 
-        return (0 until items.length()).map { items.getJSONObject(it) }
+        return (0 until items.length()).map { items.getJSONObject(it) } to total
+    }
+
+    /** GET one JSON object (an item, not a list). */
+    private fun getJson(url: String): JSONObject? {
+        val token = accessToken ?: return null
+        return runCatching {
+            val request = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("User-Agent", "Lumora/1.0")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.string()?.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
+            }
+        }.getOrNull()
+    }
+
+    /** POST a JSON body, ignoring the response beyond success/failure - what every
+     *  fire-and-forget reporting call needs. */
+    private fun postJson(url: String, payload: JSONObject): Boolean {
+        val token = accessToken ?: return false
+        return runCatching {
+            val request = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "Lumora/1.0")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        }.getOrDefault(false)
     }
 
     private fun parseLiveTvItem(json: JSONObject): JellyfinItem? {
@@ -372,6 +617,7 @@ class JellyfinProvider(private val client: OkHttpClient) {
             json.optString("Name", "Unknown")
         }
 
+        val userData = json.optJSONObject("UserData")
         return JellyfinItem(
             id = id,
             name = name,
@@ -392,9 +638,194 @@ class JellyfinProvider(private val client: OkHttpClient) {
             rating = rating,
             releaseDate = premiere,
             seasonNumber = season,
-            episodeNumber = episode
+            episodeNumber = episode,
+            runtimeMs = json.optLong("RunTimeTicks", 0L).takeIf { it > 0 }?.div(TICKS_PER_MS),
+            resumePositionMs = (userData?.optLong("PlaybackPositionTicks", 0L) ?: 0L) / TICKS_PER_MS,
+            played = userData?.optBoolean("Played", false) ?: false,
+            favorite = userData?.optBoolean("IsFavorite", false) ?: false,
+            seriesId = json.optString("SeriesId", "").takeIf { it.isNotBlank() },
+            seriesName = json.optString("SeriesName", "").takeIf { it.isNotBlank() }
         )
     }
+
+    // ── Playback reporting ─────────────────────────
+
+    /**
+     * Tells the server a play has started. Without this trio of calls, nothing watched in
+     * Lumora ever reaches the server: watched marks, resume points, "Continue Watching" and
+     * "Next Up" all stay as they were, and a transcode started by PlaybackInfo is left
+     * running with no session to attribute it to.
+     */
+    suspend fun reportPlaybackStart(
+        itemId: String,
+        playSessionId: String?,
+        positionMs: Long,
+        playMethod: String
+    ): Boolean {
+        val base = serverBase ?: return false
+        return postJson("$base/Sessions/Playing", playStatePayload(itemId, playSessionId, positionMs, playMethod))
+    }
+
+    /** Progress heartbeat. Jellyfin expects these every ~10s while playing; it's also what
+     *  keeps a live transcode from being reaped as abandoned. */
+    suspend fun reportPlaybackProgress(
+        itemId: String,
+        playSessionId: String?,
+        positionMs: Long,
+        isPaused: Boolean,
+        playMethod: String
+    ): Boolean {
+        val base = serverBase ?: return false
+        val payload = playStatePayload(itemId, playSessionId, positionMs, playMethod)
+            .put("IsPaused", isPaused)
+            .put("EventName", "timeupdate")
+        return postJson("$base/Sessions/Playing/Progress", payload)
+    }
+
+    /** End of play. The server decides watched-vs-resume from the position reported here, so
+     *  this is what actually marks a finished title as watched. */
+    suspend fun reportPlaybackStopped(
+        itemId: String,
+        playSessionId: String?,
+        positionMs: Long
+    ): Boolean {
+        val base = serverBase ?: return false
+        val payload = JSONObject()
+            .put("ItemId", itemId)
+            .put("PositionTicks", positionMs * TICKS_PER_MS)
+        playSessionId?.let { payload.put("PlaySessionId", it) }
+        return postJson("$base/Sessions/Playing/Stopped", payload)
+    }
+
+    private fun playStatePayload(
+        itemId: String,
+        playSessionId: String?,
+        positionMs: Long,
+        playMethod: String
+    ): JSONObject = JSONObject()
+        .put("ItemId", itemId)
+        .put("PositionTicks", positionMs * TICKS_PER_MS)
+        .put("PlayMethod", playMethod)
+        .put("CanSeek", true)
+        .apply { playSessionId?.let { put("PlaySessionId", it) } }
+
+    // ── Playback negotiation (PlaybackInfo) ────────
+
+    /**
+     * Asks the server how this item should actually be played, given what this device can
+     * decode ([JellyfinDeviceProfile]). Returns the URL to hand ExoPlayer - a direct stream
+     * where the file is playable as-is, an HLS transcode where it isn't - plus the subtitle
+     * tracks that come with it and the PlaySessionId that reporting must quote.
+     *
+     * Falls back to null on any failure; callers keep using the plain `?static=true` URL,
+     * which is what the app did unconditionally before.
+     */
+    suspend fun resolveStream(
+        itemId: String,
+        startPositionMs: Long = 0L,
+        maxBitrate: Int = JellyfinDeviceProfile.DEFAULT_MAX_BITRATE
+    ): ResolvedStream? {
+        val base = serverBase ?: return null
+        val token = accessToken ?: return null
+        val payload = JSONObject()
+            .put("DeviceProfile", JellyfinDeviceProfile.build(maxBitrate))
+            .put("MaxStreamingBitrate", maxBitrate)
+            .put("StartTimeTicks", startPositionMs * TICKS_PER_MS)
+
+        val url = "$base/Items/$itemId/PlaybackInfo?userId=$userId" +
+            "&startTimeTicks=${startPositionMs * TICKS_PER_MS}" +
+            "&isPlayback=true&autoOpenLiveStream=true&maxStreamingBitrate=$maxBitrate"
+
+        val json = runCatching {
+            val request = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "Lumora/1.0")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.string()?.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
+            }
+        }.getOrNull() ?: return null
+
+        val playSessionId = json.optString("PlaySessionId", "").takeIf { it.isNotBlank() }
+        val sources = json.optJSONArray("MediaSources") ?: return null
+        val source = (0 until sources.length()).mapNotNull { sources.optJSONObject(it) }
+            .firstOrNull() ?: return null
+
+        val mediaSourceId = source.optString("Id", "").takeIf { it.isNotBlank() }
+        val transcodingUrl = source.optString("TranscodingUrl", "").takeIf { it.isNotBlank() }
+        val directPlay = source.optBoolean("SupportsDirectPlay", false)
+        val directStream = source.optBoolean("SupportsDirectStream", false)
+
+        // Direct play beats a transcode whenever the server says the file is playable as-is:
+        // no re-encode on the server, no quality loss, and seeking stays instant. Only when
+        // it isn't do we take the TranscodingUrl (already carries its own api_key and
+        // PlaySessionId, so it's used verbatim).
+        val (streamUrl, playMethod) = when {
+            directPlay || directStream -> {
+                val query = buildString {
+                    append("static=true")
+                    mediaSourceId?.let { append("&mediaSourceId=$it") }
+                    playSessionId?.let { append("&playSessionId=$it") }
+                    append("&api_key=$token")
+                }
+                "$base/Videos/$itemId/stream?$query" to if (directPlay) "DirectPlay" else "DirectStream"
+            }
+            transcodingUrl != null -> "$base$transcodingUrl" to "Transcode"
+            else -> return null
+        }
+
+        return ResolvedStream(
+            url = streamUrl,
+            playSessionId = playSessionId,
+            mediaSourceId = mediaSourceId,
+            playMethod = playMethod,
+            runtimeMs = source.optLong("RunTimeTicks", 0L).takeIf { it > 0 }?.div(TICKS_PER_MS),
+            subtitles = parseSubtitleStreams(source, itemId, mediaSourceId, token, base)
+        )
+    }
+
+    /** Subtitle tracks of a resolved source. Anything the server can hand over as a sidecar
+     *  file gets a URL here so it can be sideloaded into the MediaItem and rendered by Media3;
+     *  image-based tracks (PGS/VOBSUB) have no URL and are left to the server to burn in. */
+    private fun parseSubtitleStreams(
+        source: JSONObject,
+        itemId: String,
+        mediaSourceId: String?,
+        token: String,
+        base: String
+    ): List<SubtitleStream> {
+        val streams = source.optJSONArray("MediaStreams") ?: return emptyList()
+        return (0 until streams.length()).mapNotNull { i ->
+            val stream = streams.optJSONObject(i) ?: return@mapNotNull null
+            if (!stream.optString("Type", "").equals("Subtitle", ignoreCase = true)) return@mapNotNull null
+            val index = stream.optInt("Index", -1).takeIf { it >= 0 } ?: return@mapNotNull null
+            val codec = stream.optString("Codec", "").takeIf { it.isNotBlank() }?.lowercase()
+            val deliveryUrl = stream.optString("DeliveryUrl", "").takeIf { it.isNotBlank() }
+            val supportsExternal = stream.optBoolean("SupportsExternalStream", false)
+            val url = when {
+                deliveryUrl != null -> if (deliveryUrl.startsWith("http")) deliveryUrl else "$base$deliveryUrl"
+                supportsExternal && mediaSourceId != null && isTextSubtitle(codec) ->
+                    "$base/Videos/$itemId/$mediaSourceId/Subtitles/$index/0/Stream.vtt?api_key=$token"
+                else -> null
+            }
+            SubtitleStream(
+                index = index,
+                url = url,
+                language = stream.optString("Language", "").takeIf { it.isNotBlank() },
+                title = stream.optString("DisplayTitle", "").takeIf { it.isNotBlank() },
+                codec = codec,
+                isExternal = stream.optBoolean("IsExternal", false),
+                isForced = stream.optBoolean("IsForced", false),
+                isDefault = stream.optBoolean("IsDefault", false)
+            )
+        }
+    }
+
+    private fun isTextSubtitle(codec: String?): Boolean =
+        codec in setOf("subrip", "srt", "webvtt", "vtt", "ass", "ssa", "ttml", "mov_text", "text")
 
     /** Includes the image's own tag as a cache-buster/existence check where Jellyfin
      *  provides one - without it a stale or entirely absent image can get cached as if
@@ -412,7 +843,11 @@ class JellyfinProvider(private val client: OkHttpClient) {
     }
 
     companion object {
-        fun toChannel(item: JellyfinItem, provider: Provider): Channel {
+        /** [prefixSeriesName] labels an episode with the show it belongs to - needed for the
+         *  Next Up / Continue Watching rows, where a bare "S02E04 · Title" says nothing about
+         *  which series is being offered. Off inside a series' own episode list, which is
+         *  already scoped to one show. */
+        fun toChannel(item: JellyfinItem, provider: Provider, prefixSeriesName: Boolean = false): Channel {
             val mediaType = when (item.mediaType) {
                 "LiveTV" -> MediaType.LIVE
                 "Movie" -> MediaType.MOVIE
@@ -423,9 +858,15 @@ class JellyfinProvider(private val client: OkHttpClient) {
             val serverBase = provider.serverUrl?.trimEnd('/') ?: ""
             val streamUrl = "$serverBase/Videos/${item.id}/stream?static=true"
 
+            val displayName = if (prefixSeriesName && !item.seriesName.isNullOrBlank()) {
+                "${item.seriesName} · ${item.name}"
+            } else {
+                item.name
+            }
+
             return Channel(
                 id = item.id,
-                name = item.name,
+                name = displayName,
                 url = streamUrl,
                 logoUrl = item.imageUrl,
                 posterUrl = item.imageUrl,

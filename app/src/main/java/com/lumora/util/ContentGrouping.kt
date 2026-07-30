@@ -45,6 +45,14 @@ private val LANGUAGE_BRACKET_REGEX = Regex("""[\[(]([A-Za-z]{2,4})[\])]""")
 
 private val ENGLISH_LANGUAGE_CODES = setOf("IE", "GB", "UK", "EN", "US", "CA", "AU", "NZ")
 
+// Region/quality tag in round parens, the way IPTV catalogues suffix a title after the year:
+// "Stuart Fails to Save the Universe (2026) (US)", "Naked and Afraid (US)", "... (FHD)".
+// Only the year form was stripped for grouping, so an IPTV copy carrying one of these never
+// matched the Jellyfin copy of the same title and both got their own card. Uppercase-only
+// (BRACKET_REGEX already handles the square-bracket style) so a real parenthesised title
+// word isn't eaten - this only ever feeds the grouping key, never what's displayed.
+private val PAREN_TAG_REGEX = Regex("""\([A-Z]{2,5}\)""")
+
 /**
  * Pulls a release year out of a "(YYYY)" suffix in the title. Requires the
  * parens so titles with a bare number in them (e.g. "Blade Runner 2049") don't
@@ -63,13 +71,15 @@ fun Channel.withResolvedYear(): Channel =
 
 /**
  * Normalizes a title for duplicate grouping: strips a leading source tag
- * ("TOP - ", "NF - ", "4K-D+ - "), the release year, and any bracketed tags, so
- * "TOP - The Breadwinner (2026)" and "NF - The Breadwinner" group together.
+ * ("TOP - ", "NF - ", "4K-D+ - "), the release year, and any bracketed or parenthesised
+ * region/quality tag, so "TOP - The Breadwinner (2026)", "NF - The Breadwinner" and
+ * "4K-MAX - The Breadwinner (2026) (US)" all group together.
  */
 fun normalizeTitleForGrouping(name: String): String {
     var n = leadingTagMatch(name)?.let { name.removePrefix(it) } ?: name
     n = YEAR_PAREN_REGEX.replace(n, "")
     n = BRACKET_REGEX.replace(n, "")
+    n = PAREN_TAG_REGEX.replace(n, "")
     n = WHITESPACE_REGEX.replace(n, " ").trim().lowercase()
     return n
 }

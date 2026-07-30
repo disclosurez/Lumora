@@ -64,10 +64,32 @@ class PlayerManager(
         )
     }
 
-    /** Prepare and start playing a stream URL. */
+    /**
+     * A subtitle track that lives outside the media container - a sidecar file, or one the
+     * server extracts on request (Jellyfin does both). Sideloading these is the only way they
+     * reach the track picker at all: nothing in the stream itself advertises them.
+     */
+    data class ExternalSubtitle(
+        val uri: String,
+        val mimeType: String,
+        val language: String? = null,
+        val label: String? = null,
+        val isDefault: Boolean = false,
+        val isForced: Boolean = false
+    )
+
+    /**
+     * Prepare and start playing a stream URL.
+     *
+     * [startPositionMs] seeks *before* prepare rather than after, so a resumed title buffers
+     * once at the right place instead of buffering the opening seconds and then throwing
+     * that away on a seek.
+     */
     fun playUrl(
         url: String,
-        userAgent: String? = null
+        userAgent: String? = null,
+        subtitles: List<ExternalSubtitle> = emptyList(),
+        startPositionMs: Long = 0L
     ) {
         val dataSourceFactory = buildDataSourceFactory(userAgent)
 
@@ -79,6 +101,23 @@ class PlayerManager(
                     .build()
             )
 
+        if (subtitles.isNotEmpty()) {
+            mediaItemBuilder.setSubtitleConfigurations(
+                subtitles.map { subtitle ->
+                    MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle.uri))
+                        .setMimeType(subtitle.mimeType)
+                        .setLanguage(subtitle.language)
+                        .setLabel(subtitle.label)
+                        // FORCED carries the "only show this for foreign dialogue" meaning the
+                        // track was authored with; DEFAULT is what makes the renderer pick it
+                        // without the user going into the picker.
+                        .setSelectionFlags(if (subtitle.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
+                        .setRoleFlags(if (subtitle.isForced) C.ROLE_FLAG_SUBTITLE or C.ROLE_FLAG_TRANSCRIBES_DIALOG else C.ROLE_FLAG_SUBTITLE)
+                        .build()
+                }
+            )
+        }
+
         val mediaItem = mediaItemBuilder.build()
 
         // Auto-detects HLS/DASH/SmoothStreaming/progressive (mp4, mkv, ts...) from the
@@ -87,6 +126,10 @@ class PlayerManager(
             .createMediaSource(mediaItem)
 
         player.setMediaSource(mediaSource)
+        // Seek before prepare, not after: the position is applied as the start position when
+        // preparation runs, so a resumed title buffers once at the right place instead of
+        // buffering the opening seconds and throwing that away on a seek.
+        if (startPositionMs > 0) player.seekTo(startPositionMs)
         player.prepare()
         player.play()
     }
