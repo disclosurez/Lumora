@@ -194,69 +194,79 @@ class JsHostImpl(
     // ── Crypto (relocated from the old redditscan plugin's PasteShDecryptor - a script never
     //    implements crypto itself, it only orchestrates calls into these primitives). ──
 
-    private fun aesCbcDecrypt(args: Array<out Any?>): String {
+    // The crypto/base64 primitives all return null on any failure rather than throwing. A raw
+    // Kotlin exception thrown out of a host function (e.g. javax.crypto's BadPaddingException on a
+    // wrong AES key/padding, or an IllegalArgumentException on malformed base64) does NOT surface
+    // as a JS-catchable error through the QuickJS bridge - it aborts the whole script run with the
+    // native error message (verified: a single un-decryptable paste.sh paste killed an entire
+    // reddit scan with "OPENSSL_internal:BAD_DECRYPT"). Returning null instead lets the script's
+    // own try/catch and null checks handle a failed operation, the same contract httpGet uses.
+
+    private fun aesCbcDecrypt(args: Array<out Any?>): String? = runCatching {
         val cipherBytes = Base64.getDecoder().decode(args[0] as String)
         val keyBytes = Base64.getDecoder().decode(args[1] as String)
         val ivBytes = Base64.getDecoder().decode(args[2] as String)
         val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(keyBytes, "AES"), IvParameterSpec(ivBytes))
-        return String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
-    }
+        String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+    }.getOrNull()
 
     /** Returns the derived key, base64-encoded. */
-    private fun pbkdf2Sha512(args: Array<out Any?>): String {
+    private fun pbkdf2Sha512(args: Array<out Any?>): String? = runCatching {
         val password = args[0] as String
         val salt = Base64.getDecoder().decode(args[1] as String)
         val iterations = (args[2] as Number).toInt()
         val keyLenBytes = (args[3] as Number).toInt()
         val spec = PBEKeySpec(password.toCharArray(), salt, iterations, keyLenBytes * 8)
         val key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512").generateSecret(spec)
-        return Base64.getEncoder().encodeToString(key.encoded)
-    }
+        Base64.getEncoder().encodeToString(key.encoded)
+    }.getOrNull()
 
     /** Hex-encoded MD5 of a UTF-8 string - used by the EVP_BytesToKey fallback path. */
-    private fun md5(args: Array<out Any?>): String {
+    private fun md5(args: Array<out Any?>): String? = runCatching {
         val digest = MessageDigest.getInstance("MD5").digest((args[0] as String).toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
-    }
+        digest.joinToString("") { "%02x".format(it) }
+    }.getOrNull()
 
-    private fun base64Decode(args: Array<out Any?>): String =
+    private fun base64Decode(args: Array<out Any?>): String? = runCatching {
         String(Base64.getDecoder().decode(args[0] as String), Charsets.UTF_8)
+    }.getOrNull()
 
-    private fun base64Encode(args: Array<out Any?>): String =
+    private fun base64Encode(args: Array<out Any?>): String? = runCatching {
         Base64.getEncoder().encodeToString((args[0] as String).toByteArray(Charsets.UTF_8))
+    }.getOrNull()
 
     // ── Binary-safe primitives (base64 in/out) for scripts that need to manipulate raw bytes -
     //    e.g. redditscan.js's paste.sh key derivation - without ever round-tripping binary data
     //    through a JS string (which is lossy: JS strings are UTF-16, not byte arrays). ──
 
     /** [start, end) byte slice of base64-decoded [args][0], re-encoded. `end` omitted/null = to the end. */
-    private fun base64Slice(args: Array<out Any?>): String {
+    private fun base64Slice(args: Array<out Any?>): String? = runCatching {
         val bytes = Base64.getDecoder().decode(args[0] as String)
         val start = (args[1] as Number).toInt()
         val end = (args.getOrNull(2) as? Number)?.toInt() ?: bytes.size
-        return Base64.getEncoder().encodeToString(bytes.copyOfRange(start, end))
-    }
+        Base64.getEncoder().encodeToString(bytes.copyOfRange(start, end))
+    }.getOrNull()
 
-    private fun base64Concat(args: Array<out Any?>): String {
+    private fun base64Concat(args: Array<out Any?>): String? = runCatching {
         val a = Base64.getDecoder().decode(args[0] as String)
         val b = Base64.getDecoder().decode(args[1] as String)
-        return Base64.getEncoder().encodeToString(a + b)
-    }
+        Base64.getEncoder().encodeToString(a + b)
+    }.getOrNull()
 
     /** Raw MD5 digest bytes (base64), unlike [md5] which hex-encodes a digest of UTF-8 text. */
-    private fun md5Bytes(args: Array<out Any?>): String {
+    private fun md5Bytes(args: Array<out Any?>): String? = runCatching {
         val bytes = Base64.getDecoder().decode(args[0] as String)
-        return Base64.getEncoder().encodeToString(MessageDigest.getInstance("MD5").digest(bytes))
-    }
+        Base64.getEncoder().encodeToString(MessageDigest.getInstance("MD5").digest(bytes))
+    }.getOrNull()
 
-    private fun hmacSha512(args: Array<out Any?>): String {
+    private fun hmacSha512(args: Array<out Any?>): String? = runCatching {
         val key = Base64.getDecoder().decode(args[0] as String)
         val message = Base64.getDecoder().decode(args[1] as String)
         val mac = Mac.getInstance("HmacSHA512")
         mac.init(SecretKeySpec(key, "HmacSHA512"))
-        return Base64.getEncoder().encodeToString(mac.doFinal(message))
-    }
+        Base64.getEncoder().encodeToString(mac.doFinal(message))
+    }.getOrNull()
 
     // ── HTML parsing (Jsoup) for scraper scripts like torrent-search.js. A script re-parses a
     //    row's own outerHTML as its own mini-document for sub-selection rather than round-
