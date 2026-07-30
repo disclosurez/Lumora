@@ -95,6 +95,16 @@ a server, and everything below is inert if you don't.
 - Downloads manager for offline movie/episode playback (phone only)
 - Custom EPG source support (XMLTV)
 
+## Tested devices
+
+Verified on real hardware, not just an emulator:
+
+- **Amazon Fire TV Stick** — multiple generations, from the 1st gen through to the current one (the oldest sticks are exactly the low-powered hardware the Views-only UI exists for)
+- **Sony Bravia** Android TV
+- **Samsung** Android phone
+
+Anything else on Android 7.1 (SDK 25) or newer should work; those are just the devices it's actually been exercised on.
+
 ## Tech Stack
 
 - **Language:** Kotlin
