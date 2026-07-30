@@ -53,16 +53,39 @@ jobs:
           path: app/build/outputs/apk/release/Lumora.apk
           compression-level: 0
 
+      # Release notes come from the tag's own section of CHANGELOG.md, so a release says
+      # what actually changed rather than just "download the APK". The awk block takes
+      # everything between this version's "## x.y" heading and the next one; if the tag has
+      # no section (or the file is missing), it falls back to a generic body rather than
+      # publishing an empty release.
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          {
+            echo "## Lumora ${GITHUB_REF_NAME}"
+            echo
+            awk -v ver="$VERSION" '
+              $0 == "## " ver { found = 1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md
+            echo
+            echo "### Installation"
+            echo "Download the APK below and install on your Android TV, Fire TV Stick, or phone."
+          } > release-notes.md
+          if [ "$(grep -c '[^[:space:]]' release-notes.md)" -le 4 ]; then
+            echo "No CHANGELOG entry for $VERSION - using generic notes"
+            printf '## Lumora %s\n\n### Installation\nDownload the APK below and install on your Android TV, Fire TV Stick, or phone.\n' "$GITHUB_REF_NAME" > release-notes.md
+          fi
+          cat release-notes.md
+
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: Lumora ${{ github.ref_name }}
-          body: |
-            ## Lumora ${{ github.ref_name }}
-
-            ### Installation
-            Download the APK below and install on your Android TV or phone.
+          body_path: release-notes.md
           files: |
             app/build/outputs/apk/release/Lumora.apk
