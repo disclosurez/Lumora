@@ -43,6 +43,11 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            // Distinct applicationId + label so a debug build installs alongside the release
+            // "Lumora" on a device instead of replacing it. Manifest provider authorities are
+            // already ${applicationId}-derived, so they follow the suffix automatically; the
+            // label override lives in src/debug/res/values/strings.xml.
+            applicationIdSuffix = ".debug"
         }
         release {
             isMinifyEnabled = true
@@ -131,10 +136,15 @@ dependencies {
     // torrentplugin APK; only the scraper/search half became a JS script (torrent-search.js),
     // this half needs libtorrent itself so it stays native Kotlin.
     implementation("org.nanohttpd:nanohttpd:2.3.1")
-    implementation("com.frostwire:jlibtorrent:1.2.0.18")
-    implementation("com.frostwire:jlibtorrent-android-arm64:1.2.0.18")
-    implementation("com.frostwire:jlibtorrent-android-arm:1.2.0.18")
-    implementation("com.frostwire:jlibtorrent-android-x86_64:1.2.0.18")
+    // libtorrent4j (libtorrent 2.0.x), not FrostWire's jlibtorrent (libtorrent 1.2). 1.2 decides
+    // whether it may connect to an address from the routing table it reads over netlink, and
+    // Android only shows an app LAN + loopback routes - no default route - so every listen socket
+    // was treated as local-network-only and the engine refused to dial a single peer or announce
+    // to a single tracker (verified on device: 1000 known candidates, 0 connections).
+    implementation("org.libtorrent4j:libtorrent4j:2.1.0-35")
+    implementation("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-35")
+    implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-35")
+    implementation("org.libtorrent4j:libtorrent4j-android-x86_64:2.1.0-35")
 
     // Security - credential encryption
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

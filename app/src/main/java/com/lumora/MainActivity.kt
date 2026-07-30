@@ -146,6 +146,11 @@ private const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
 /** Films/Series sidebar row that filters the tab down to Jellyfin-sourced items only.
  *  Only built when the tab actually contains Jellyfin content. */
 private const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
+/** Series sidebar row for the plugin-gated anime catalog. Expandable: its children are the
+ *  catalog's sections (Trending Now, Currently Airing, one per genre, ...). Built explicitly
+ *  rather than derived from the channels' own category name, because anime titles carry a
+ *  single "Anime" category and the sections they belong to overlap. */
+private const val ANIME_CATEGORY_ID = "__anime__"
 // Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema),
 // each vacuuming up every matching provider category *and* brand cluster
 // regardless of where it lives in the raw catalog; everything left over cascades
@@ -274,6 +279,10 @@ class MainActivity : AppCompatActivity() {
      *  local HTTP server it owns must stay alive for the life of playback. See showStreamSearchDialog. */
     private var activeTorrentSession: TorrentEngine? = null
     private var animeCatalog: AnimeCatalogClient? = null
+    /** Section membership from the last anime catalog fetch (Trending Now, Action, ...), used to
+     *  build the Series sidebar's Anime parent and its child rows. A title belongs to several
+     *  sections at once, so these are ids into the tab's channel list, not separate channels. */
+    private var animeSections: List<AnimeCatalogClient.Section> = emptyList()
     // Kept around after a successful Jellyfin content load so a series' detail page can
     // fetch its episodes without re-authenticating - Jellyfin's episode API has no
     // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
@@ -990,10 +999,18 @@ class MainActivity : AppCompatActivity() {
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
                 if (!cached.isNullOrEmpty() && !isCatalogStale()) {
-                    allChannels = cached
-                    classifyAndShow()
-                    setStatus("", visible = false)
-                    return@launch
+                    // If an anime stream-search plugin is enabled but cache predates it
+                    // (no "anime:"-prefixed channels), skip cache so the catalog is fetched.
+                    val hasAnimePlugin = pluginScriptManager.getDiscoveredScripts().any {
+                        it.enabled && it.supportsStreamSearch && "anime" in it.contentTypes
+                    }
+                    val cachedHasAnime = cached.any { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
+                    if (!hasAnimePlugin || cachedHasAnime) {
+                        allChannels = cached
+                        classifyAndShow()
+                        setStatus("", visible = false)
+                        return@launch
+                    }
                 }
             }
 
@@ -1159,8 +1176,14 @@ class MainActivity : AppCompatActivity() {
     private fun fetchAnimeChannels(): List<Channel> {
         return try {
             val client = AnimeCatalogClient(BaseApplication.instance.okHttpClient)
-            client.fetchCatalog()
+            val catalog = client.fetchCatalog()
+            // Sections are only meaningful alongside the channels they point at - a stale set
+            // left over from a previous load would build sidebar rows whose ids aren't in the
+            // tab any more, so it's replaced (or cleared) on every fetch.
+            animeSections = catalog.sections
+            catalog.channels
         } catch (e: Exception) {
+            animeSections = emptyList()
             emptyList()
         }
     }
@@ -1952,6 +1975,7 @@ class MainActivity : AppCompatActivity() {
         val tab = activeTab
         val expandedSnapshot = expandedGroupKeys.toSet()
         val favoriteChannelIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this) else emptySet()
+        val animeSectionsSnapshot = animeSections
         // Snapshot on the caller's thread - the block below runs on Dispatchers.Default.
         val versionsById = when (tab) {
             1 -> seriesVersions
@@ -1963,6 +1987,11 @@ class MainActivity : AppCompatActivity() {
             val names = LinkedHashMap<String, String>()
             val counts = LinkedHashMap<String, Int>()
             for (ch in list) {
+                // Anime gets its own explicit parent row further down; leaving it in here as an
+                // ordinary category would also file it under the "Kids & Family" genre bucket
+                // (which matches on the word "anime"), so the catalog would appear twice, once
+                // buried two levels deep.
+                if (ch.id.startsWith(AnimeCatalogClient.ID_PREFIX)) continue
                 val key = ch.filterKey() ?: continue
                 if (key in hiddenIds) continue
                 val label = ch.categoryName?.takeIf { it.isNotBlank() } ?: ch.group?.takeIf { it.isNotBlank() } ?: key
@@ -2193,6 +2222,43 @@ class MainActivity : AppCompatActivity() {
                             isDynamic = true
                         )
                     )
+                }
+            }
+            // Series: the anime catalog is one expandable row whose children are the catalog's
+            // sections, so browsing it is "Anime > Currently Airing" rather than one 500-title
+            // heap. Cached cold starts restore the channels but not the sections (they aren't
+            // in the flat channel cache), so the row degrades to a plain, unexpandable Anime
+            // category until the next catalog refresh rather than vanishing.
+            if (tab == 1 && ANIME_CATEGORY_ID !in hiddenIds) {
+                val animeIds = list.filter { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
+                    .map { it.id }.toSet()
+                if (animeIds.isNotEmpty()) {
+                    val children = animeSectionsSnapshot.mapNotNull { section ->
+                        val ids = section.channelIds.filterTo(mutableSetOf()) { it in animeIds }
+                        if (ids.isEmpty()) return@mapNotNull null
+                        CategoryFilter(
+                            id = "$ANIME_CATEGORY_ID:${section.label}",
+                            name = section.label,
+                            count = ids.size,
+                            pinned = pinned.contains("$ANIME_CATEGORY_ID:${section.label}"),
+                            isChild = true,
+                            channelIds = ids
+                        )
+                    }
+                    val expanded = expandedSnapshot.contains(ANIME_CATEGORY_ID)
+                    val parent = CategoryFilter(
+                        id = ANIME_CATEGORY_ID,
+                        name = "Anime",
+                        count = animeIds.size,
+                        pinned = pinned.contains(ANIME_CATEGORY_ID),
+                        channelIds = animeIds,
+                        isParent = children.isNotEmpty(),
+                        expanded = expanded && children.isNotEmpty(),
+                        isDynamic = true
+                    )
+                    if (children.isNotEmpty()) childrenByParent[ANIME_CATEGORY_ID] = children
+                    result.add(parent)
+                    if (parent.expanded) result.addAll(children)
                 }
             }
             if (tab != 0) result.add(allRow)
@@ -3028,6 +3094,26 @@ class MainActivity : AppCompatActivity() {
         )
         val stalkerConfig = stalkerConfigFor(item)
         return when {
+            // Anime catalog: build a flat episode list from the total episode count
+            // carried on the Channel. Each episode click triggers a plugin stream search
+            // for that specific episode (see showContentDetail's onEpisodeClick).
+            item.id.startsWith(AnimeCatalogClient.ID_PREFIX) -> {
+                val epCount = item.episodeNum?.coerceAtLeast(1) ?: 12
+                val episodes = (1..epCount).map { epNum ->
+                    Channel(
+                        id = "${item.id}:ep$epNum",
+                        name = "Episode $epNum",
+                        url = "",
+                        posterUrl = item.posterUrl,
+                        backdropUrl = item.backdropUrl,
+                        mediaType = MediaType.SERIES,
+                        episodeNum = epNum,
+                        categoryName = item.categoryName,
+                        group = item.group
+                    )
+                }
+                itemDetails to listOf("Season 1" to episodes)
+            }
             item.isJellyfin -> {
                 val jellyfin = jellyfinClientOrConnect()
                 val (episodes, seasons) = if (jellyfin != null) {
@@ -3215,13 +3301,21 @@ class MainActivity : AppCompatActivity() {
         itemAdapter = EpisodeAdapter(
             onEpisodeClick = { chosen ->
                 hideContentDetail()
-                currentIndex = if (isSeries) -1 else filmList.indexOf(item)
-                val queue = if (isSeries) itemAdapter.currentList else emptyList()
-                showPlayerFor(chosen)
-                if (isSeries) {
-                    currentEpisodeQueue = queue
-                    currentEpisodeQueueIndex = queue.indexOf(chosen)
-                    currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
+                // Anime items have no direct stream URL — route through plugin.
+                if (item.id.startsWith(AnimeCatalogClient.ID_PREFIX)) {
+                    val plugin = enabledStreamSearchPlugin(item)
+                    if (plugin != null) {
+                        showStreamSearchDialog(plugin, item, season = null, episode = chosen.episodeNum)
+                    }
+                } else {
+                    currentIndex = if (isSeries) -1 else filmList.indexOf(item)
+                    val queue = if (isSeries) itemAdapter.currentList else emptyList()
+                    showPlayerFor(chosen)
+                    if (isSeries) {
+                        currentEpisodeQueue = queue
+                        currentEpisodeQueueIndex = queue.indexOf(chosen)
+                        currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
+                    }
                 }
             },
             showDownloadButton = !isTv,
@@ -3300,12 +3394,20 @@ class MainActivity : AppCompatActivity() {
             playButton.requestFocus()
             playButton.setOnClickListener {
                 hideContentDetail()
-                currentIndex = -1
-                val queue = seasonPair?.second ?: allEpisodes
-                showPlayerFor(target)
-                currentEpisodeQueue = queue
-                currentEpisodeQueueIndex = queue.indexOf(target)
-                currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
+                // Anime items route through the plugin instead of direct playback.
+                if (item.id.startsWith(AnimeCatalogClient.ID_PREFIX)) {
+                    val plugin = enabledStreamSearchPlugin(item)
+                    if (plugin != null) {
+                        showStreamSearchDialog(plugin, item, season = null, episode = target.episodeNum)
+                    }
+                } else {
+                    currentIndex = -1
+                    val queue = seasonPair?.second ?: allEpisodes
+                    showPlayerFor(target)
+                    currentEpisodeQueue = queue
+                    currentEpisodeQueueIndex = queue.indexOf(target)
+                    currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
+                }
             }
         }
 
@@ -6037,7 +6139,7 @@ class MainActivity : AppCompatActivity() {
     ): ResolveResult {
         activeTorrentSession?.let { old -> Thread { runCatching { old.stop() } }.start() }
         TorrentForegroundService.start(this)
-        val engine = TorrentEngine(cacheDir)
+        val engine = TorrentEngine(this)
         activeTorrentSession = engine
         return try {
             val url = withContext(Dispatchers.IO) { engine.start(magnet, season, episode, onProgress) }
@@ -6118,7 +6220,11 @@ class MainActivity : AppCompatActivity() {
             resultsHost.removeAllViews()
             scope.launch {
                 val resolved = if (plugin.resolvesNatively) {
-                    resolveTorrentStream(result.token, season, episode) { status.text = it }
+                    // TorrentEngine.start calls onProgress from its IO thread, so the TextView
+                    // update has to hop to the main thread.
+                    resolveTorrentStream(result.token, season, episode) { line ->
+                        runOnUiThread { status.text = line }
+                    }
                 } else {
                     jsPluginEngine.resolve(source, result.token, season, episode)
                 }
@@ -6359,8 +6465,14 @@ class MainActivity : AppCompatActivity() {
                         setOnCheckedChangeListener(null)
                         isChecked = plugin.enabled
                         setOnCheckedChangeListener { _, checked ->
+                            val wasEnabled = plugin.enabled
                             manager.setEnabled(plugin.id, checked)
                             renderPluginList()
+                            // Toggling a stream_search plugin affects the anime catalog —
+                            // refresh so channels appear/disappear without a manual reload.
+                            if (plugin.supportsStreamSearch && wasEnabled != checked) {
+                                loadAllConfiguredProviders(forceRefresh = true)
+                            }
                         }
                     }
                     row.findViewById<TextView>(R.id.pluginName).text = plugin.label

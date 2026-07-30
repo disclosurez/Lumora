@@ -16,6 +16,13 @@ import java.util.Calendar
  * The returned channels use id format "anime:{animeId}" and carry
  * mediaType=SERIES so they appear in the Series section.
  *
+ * The catalog is fetched as *sections* (Trending, this season, per-genre, ...) rather than one
+ * flat list, because the Series sidebar shows Anime as an expandable parent whose children are
+ * those sections. A title legitimately belongs to several of them (Trending *and* Action), so a
+ * section holds channel *ids* and the channel list itself is deduplicated - one card per title,
+ * referenced by however many section rows contain it. Duplicating the Channel per section would
+ * instead give the same title several entries in the tab's list, each with its own watch state.
+ *
  * Catalog fetching is gated on a stream_search plugin being installed and enabled.
  */
 class AnimeCatalogClient(private val client: OkHttpClient) {
@@ -24,8 +31,28 @@ class AnimeCatalogClient(private val client: OkHttpClient) {
         private const val TAG = "AnimeCatalog"
         private const val API_URL = "https://graphql.anilist.co"
         private const val CATEGORY_LABEL = "Anime"
-        private const val MAX_ITEMS = 50
+        /** Items per section. */
+        private const val PER_SECTION = 30
+        /** Aliased Page queries per HTTP request - AniList rejects very large queries, and one
+         *  request per section would burn the (30/min) rate limit on a single catalog load. */
+        private const val SECTIONS_PER_REQUEST = 5
+        /** Channel id prefix, also the marker MainActivity uses for "this title is anime". */
+        const val ID_PREFIX = "anime:"
+
+        /** Genre sections, in AniList's own genre spelling. Deliberately excludes Ecchi/Hentai -
+         *  the catalog query filters adult titles out, so those rows would come back empty. */
+        private val GENRES = listOf(
+            "Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mecha", "Music",
+            "Mystery", "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports",
+            "Supernatural", "Thriller"
+        )
     }
+
+    /** One sidebar child row: a label and the anime channel ids that belong under it. */
+    data class Section(val label: String, val channelIds: List<String>)
+
+    /** Deduplicated channels plus the section membership that groups them in the sidebar. */
+    data class Catalog(val channels: List<Channel>, val sections: List<Section>)
 
     data class AnimeItem(
         val id: Int,
@@ -39,84 +66,120 @@ class AnimeCatalogClient(private val client: OkHttpClient) {
         val episodes: Int?,
         val seasonYear: Int?,
         val status: String?,
-        val format: String?
+        val format: String?,
+        val genres: List<String>
     )
 
-    /**
-     * Fetches trending anime + current season's popular anime.
-     * Returns merged list (trending first, season second, deduplicated by id).
-     */
-    fun fetchCatalog(): List<Channel> {
-        val trending = fetchPage("trending: Page(page: 1, perPage: $MAX_ITEMS) { media(sort: TRENDING_DESC, type: ANIME) { ... fields ... } }")
-        val season = fetchCurrentSeason()
+    /** A section as requested: its label and the `media(...)` arguments that select it. */
+    private data class SectionQuery(val label: String, val mediaArgs: String)
 
-        // Merge: trending first, then season items not already present
-        val seen = trending.map { it.id }.toSet()
-        val merged = trending + season.filter { it.id !in seen }
-        return merged.mapNotNull { it.toChannel() }
+    /**
+     * Fetches every section in as few requests as possible and returns them in display order,
+     * dropping any that came back empty (a genre with no non-adult results, a next season not
+     * yet announced) so the sidebar never shows a child row that filters to nothing.
+     */
+    fun fetchCatalog(): Catalog {
+        val queries = sectionQueries()
+        val channelsById = LinkedHashMap<String, Channel>()
+        val sections = mutableListOf<Section>()
+
+        for (batch in queries.chunked(SECTIONS_PER_REQUEST)) {
+            val byLabel = fetchBatch(batch)
+            for (query in batch) {
+                val items = byLabel[query.label] ?: continue
+                val ids = mutableListOf<String>()
+                for (item in items) {
+                    val channel = item.toChannel() ?: continue
+                    channelsById.putIfAbsent(channel.id, channel)
+                    if (channel.id !in ids) ids.add(channel.id)
+                }
+                if (ids.isNotEmpty()) sections.add(Section(query.label, ids))
+            }
+        }
+        return Catalog(channelsById.values.toList(), sections)
     }
 
-    private fun fetchCurrentSeason(): List<AnimeItem> {
+    /**
+     * The curated sections first (what a browse screen leads with), then one row per genre.
+     * "Popular This Season"/"Upcoming Next Season" are computed from today's date rather than
+     * hardcoded, so the catalog stays current without a release.
+     */
+    private fun sectionQueries(): List<SectionQuery> {
         val cal = Calendar.getInstance()
         val year = cal.get(Calendar.YEAR)
-        val season = when (cal.get(Calendar.MONTH)) {
-            Calendar.JANUARY, Calendar.FEBRUARY, Calendar.MARCH -> "WINTER"
-            Calendar.APRIL, Calendar.MAY, Calendar.JUNE -> "SPRING"
-            Calendar.JULY, Calendar.AUGUST, Calendar.SEPTEMBER -> "SUMMER"
-            else -> "FALL"
+        val season = seasonOf(cal.get(Calendar.MONTH))
+        val (nextSeason, nextSeasonYear) = when (season) {
+            "WINTER" -> "SPRING" to year
+            "SPRING" -> "SUMMER" to year
+            "SUMMER" -> "FALL" to year
+            else -> "WINTER" to year + 1
         }
-        val query = "season: Page(page: 1, perPage: $MAX_ITEMS) { media(season: $season, seasonYear: $year, sort: POPULARITY_DESC, type: ANIME) { ... fields ... } }"
-        return fetchPage(query)
+        val curated = listOf(
+            SectionQuery("Trending Now", "sort: TRENDING_DESC"),
+            SectionQuery("Popular This Season", "season: $season, seasonYear: $year, sort: POPULARITY_DESC"),
+            SectionQuery("Upcoming Next Season", "season: $nextSeason, seasonYear: $nextSeasonYear, sort: POPULARITY_DESC"),
+            SectionQuery("All Time Popular", "sort: POPULARITY_DESC"),
+            SectionQuery("Top Rated", "sort: SCORE_DESC"),
+            // Airing now, so "what can I catch up on this week" is one row rather than a filter.
+            SectionQuery("Currently Airing", "status: RELEASING, sort: POPULARITY_DESC")
+        )
+        return curated + GENRES.map { SectionQuery(it, "genre: \"$it\", sort: POPULARITY_DESC") }
     }
 
-    private fun fetchPage(queryFragment: String): List<AnimeItem> {
-        val query = """
-            query {
-              $queryFragment
+    private fun seasonOf(month: Int): String = when (month) {
+        Calendar.JANUARY, Calendar.FEBRUARY, Calendar.MARCH -> "WINTER"
+        Calendar.APRIL, Calendar.MAY, Calendar.JUNE -> "SPRING"
+        Calendar.JULY, Calendar.AUGUST, Calendar.SEPTEMBER -> "SUMMER"
+        else -> "FALL"
+    }
+
+    /**
+     * Runs one request holding an aliased `Page` query per section. Aliases are `s0`, `s1`, ...
+     * rather than the section label because a GraphQL alias can't contain spaces or punctuation.
+     */
+    private fun fetchBatch(batch: List<SectionQuery>): Map<String, List<AnimeItem>> {
+        val body = batch.mapIndexed { index, section ->
+            """
+            s$index: Page(page: 1, perPage: $PER_SECTION) {
+              media(type: ANIME, isAdult: false, ${section.mediaArgs}) {
+                $FIELDS
+              }
             }
-        """.trimIndent()
-
-        // Replace the ...fields... placeholder with actual field list
-        val fullQuery = query.replace("... fields ...", FIELDS)
-
-        val body = JSONObject()
-            .put("query", fullQuery)
+            """.trimIndent()
+        }.joinToString("\n")
+        val query = "query {\n$body\n}"
 
         val request = Request.Builder()
             .url(API_URL)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
-            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .post(JSONObject().put("query", query).toString().toRequestBody("application/json".toMediaType()))
             .build()
 
         return try {
             val response = client.newCall(request).execute()
-            val responseBody = response.body?.string() ?: return emptyList()
-            if (!response.isSuccessful) {
+            val responseBody = response.body?.string()
+            if (!response.isSuccessful || responseBody == null) {
                 Log.w(TAG, "API HTTP ${response.code}")
-                return emptyList()
+                return emptyMap()
             }
-
-            val root = JSONObject(responseBody)
-            val pageKey = queryFragment.substringBefore(":").trim()
-            val mediaArray = root.optJSONObject("data")
-                ?.optJSONObject(pageKey)
-                ?.optJSONArray("media") ?: return emptyList()
-
-            val results = mutableListOf<AnimeItem>()
-            for (i in 0 until mediaArray.length()) {
-                val item = mediaArray.optJSONObject(i) ?: continue
-                results.add(parseItem(item))
-            }
-            results
+            val data = JSONObject(responseBody).optJSONObject("data") ?: return emptyMap()
+            batch.mapIndexedNotNull { index, section ->
+                val media = data.optJSONObject("s$index")?.optJSONArray("media") ?: return@mapIndexedNotNull null
+                val items = (0 until media.length()).mapNotNull { i ->
+                    media.optJSONObject(i)?.let(::parseItem)
+                }
+                section.label to items
+            }.toMap()
         } catch (e: Exception) {
             Log.w(TAG, "Fetch failed", e)
-            emptyList()
+            emptyMap()
         }
     }
 
     private fun parseItem(obj: JSONObject): AnimeItem {
         val title = obj.optJSONObject("title") ?: JSONObject()
+        val genresArray = obj.optJSONArray("genres")
         return AnimeItem(
             id = obj.optInt("id", 0),
             malId = intOrNull(obj, "idMal"),
@@ -129,7 +192,9 @@ class AnimeCatalogClient(private val client: OkHttpClient) {
             episodes = intOrNull(obj, "episodes"),
             seasonYear = intOrNull(obj, "seasonYear"),
             status = stringOrNull(obj, "status"),
-            format = stringOrNull(obj, "format")
+            format = stringOrNull(obj, "format"),
+            genres = if (genresArray == null) emptyList()
+            else (0 until genresArray.length()).mapNotNull { genresArray.optString(it).takeIf { g -> g.isNotBlank() } }
         )
     }
 
@@ -150,7 +215,7 @@ class AnimeCatalogClient(private val client: OkHttpClient) {
         val name = titleEnglish?.takeIf { it.isNotBlank() } ?: titleRomaji.takeIf { it.isNotBlank() } ?: return null
         val score = averageScore?.let { if (it > 0) "$it" else null }
         return Channel(
-            id = "anime:$id",
+            id = "$ID_PREFIX$id",
             name = name,
             url = "",  // No direct URL — resolved via plugin at play time
             logoUrl = coverImage,
@@ -163,7 +228,11 @@ class AnimeCatalogClient(private val client: OkHttpClient) {
             year = seasonYear?.toString(),
             rating = score,
             episodeNum = episodes,
-            sourceProviderId = null
+            sourceProviderId = null,
+            // Store MAL ID so downstream anime-aware code can pick it off the item
+            // without re-running an AniList search. The host passes this to the
+            // stream_search plugin's search()/resolve() as query metadata.
+            tvgId = malId?.takeIf { it > 0 }?.toString()
         )
     }
 
@@ -188,5 +257,6 @@ class AnimeCatalogClient(private val client: OkHttpClient) {
         seasonYear
         status
         format
+        genres
     """.trimIndent()
 }

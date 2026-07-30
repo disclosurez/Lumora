@@ -69,14 +69,18 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         PluginLog.i(TAG, "discover() start")
         val mainProgress = onMain(onProgress)
         val mainCandidate = onMain(onCandidate)
+        // Discovery diagnostics are logged at INFO, not DEBUG: the reddit scanner's own
+        // host.log() lines (oauth status, post/paste counts, per-paste results, token state) are
+        // the whole story when a scan finds nothing, and the tested Fire TV drops DEBUG from its
+        // logcat ring buffer - so at .d they never survive to be read back.
         val host = JsHostImpl(
             client = httpClient,
-            onProgress = { PluginLog.d(TAG, "discover progress: $it"); mainProgress(it) },
+            onProgress = { PluginLog.i(TAG, "discover progress: $it"); mainProgress(it) },
             onCandidate = {
-                PluginLog.d(TAG, "discover candidate: type=${it[JsPluginContract.KEY_TYPE]} url=${it[JsPluginContract.KEY_URL]}")
+                PluginLog.i(TAG, "discover candidate: type=${it[JsPluginContract.KEY_TYPE]} url=${it[JsPluginContract.KEY_URL]}")
                 mainCandidate(it.toDiscoveredProvider())
             },
-            onLog = { PluginLog.d(TAG, "script: $it") },
+            onLog = { PluginLog.i(TAG, "script: $it") },
         )
         val result = when (val outcome = runScript(JsPluginContract.DISCOVERY_TIMEOUT_MS, host) { context ->
             context.evaluate("$source\ndiscover(host);")

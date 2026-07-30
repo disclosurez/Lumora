@@ -1,7 +1,7 @@
 package com.lumora.torrent
 
-import com.frostwire.jlibtorrent.Priority
-import com.frostwire.jlibtorrent.TorrentHandle
+import org.libtorrent4j.Priority
+import org.libtorrent4j.TorrentHandle
 
 /**
  * Maps a position inside the chosen file to libtorrent pieces, and keeps only a small rolling
@@ -40,7 +40,7 @@ class PieceGate(
         val end = (start + AHEAD_PIECES).coerceAtMost(lastPiece)
         var deadline = 0
         for (p in start..end) {
-            handle.piecePriority(p, Priority.SEVEN)
+            handle.piecePriority(p, Priority.TOP_PRIORITY)
             handle.setPieceDeadline(p, deadline)
             deadline += 80
         }
