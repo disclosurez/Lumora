@@ -1,12 +1,25 @@
 # Lumora
 
-**Lumora** is a fast, lightweight IPTV client for Android, Android TV, and Fire TV. It's built as a native XML/View app (no Jetpack Compose) specifically to stay smooth on low-powered TV boxes and streaming sticks, where heavier UI frameworks can pin the CPU and tank playback performance.
+**Lumora** is a fast, lightweight IPTV client for Android, Android TV, and Fire TV. It speaks **Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin** — any number of them running at the same time — and merges Live TV, Movies, and Series from all of them into one clean, D-pad-friendly interface.
+
+It's a native XML/Views app with **no Jetpack Compose anywhere**, and that's deliberate: on the budget TV boxes and streaming sticks these apps actually run on, heavier UI frameworks pin the CPU and cost you frames mid-playback. Everything here is built to stay smooth on hardware that has nothing to spare.
+
+Nothing is behind a paywall — the multi-playlist support, EPG guide, recording, and catch-up that comparable players charge for are simply included.
 
 # DOWNLOADER CODE - 6626802
 
-Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, and brings Live TV, Movies, and Series together under one clean, D-pad-friendly interface.
-
 > **Lumora is a player, not a provider.** It doesn't include, sell, host, or supply any channels, streams, or subscriptions of any kind. You bring your own IPTV service (Xtream Codes / M3U / Stalker Portal) or your own Jellyfin server, and Lumora simply plays it back. See [Disclaimer](#disclaimer).
+
+## Highlights
+
+- **Similar to TiVimate or Sparkle TV, without paying for the features.** Multiple playlists, the EPG guide, DVR recording, catch-up, favourites and multi-provider support are the things those players put behind a premium subscription or one-off unlock. In Lumora they're all just included, free.
+- **Optional Jellyfin support, properly done.** Point it at your own Jellyfin server and its films and series merge into the same shelves as your IPTV catalogue (same title from both = one card). Resume points, watched marks and favourites sync both ways with the server, and files your stick can't decode are converted by the server on the fly rather than opening to a black screen.
+- **Run every subscription at once.** Any number of Xtream Codes, M3U and Stalker Portal providers active together, merged into one catalogue instead of switching between playlists.
+- **Live TV that tidies itself up.** Duplicate feeds of the same channel collapse into one entry at the best available quality (4K → FHD → HD → SD), with instant fallback to any other copy mid-playback; Sports, News, Music and Cinema surface at the top automatically whatever your provider filed them under.
+- **A proper EPG guide.** Scrollable program grid with per-channel schedules, now/next info, program reminders, timeshift/catch-up and DVR recording.
+- **Full VOD browsing.** Movies and Series with category shelves, poster grids, season/episode browsing, episode-level Continue Watching and auto-advance to the next episode.
+- **Offline downloads.** Save movies and episodes to the phone and watch them with no connection at all (phone only).
+- **Built for the remote and for cheap hardware.** Native XML/Views, no Jetpack Compose — it stays smooth on the low-powered sticks these apps usually stutter on, and everything is reachable with a D-pad.
 
 ## Screenshots
 
@@ -18,13 +31,9 @@ Lumora speaks Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin, an
 |---|---|
 | ![Films library with Newest and category shelves](docs/screenshots/films.png) | ![Discover search with poster results](docs/screenshots/discover.png) |
 
-| Home shelves | Provider setup |
+| Provider setup | Multiple providers at once |
 |---|---|
-| ![Home screen shelves](docs/screenshots/home.png) | ![Settings screen showing QR phone-pairing flow](docs/screenshots/settings-qr.png) |
-
-**Multiple providers running side by side** (server addresses redacted)
-
-![Providers settings listing an Xtream provider and a Jellyfin server together, both enabled](docs/screenshots/settings-providers.png)
+| ![Settings screen showing QR phone-pairing flow](docs/screenshots/settings-qr.png) | ![Providers settings listing an Xtream provider and a Jellyfin server together, both enabled, with server addresses redacted](docs/screenshots/settings-providers.png) |
 
 ## Highlights
 
