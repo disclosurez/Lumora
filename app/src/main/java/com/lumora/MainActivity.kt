@@ -8,6 +8,8 @@ import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.net.Uri
 import android.os.Build
 import java.io.File
@@ -452,6 +454,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applySystemBarInsets()
 
         prefs = getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
         playerManager = PlayerManager(this)
@@ -547,6 +550,40 @@ class MainActivity : AppCompatActivity() {
                     break
                 }
             }
+        }
+    }
+
+    /**
+     * Insets the app's chrome out from under the system bars.
+     *
+     * With targetSdk 36 the window is laid out edge-to-edge on Android 15+, so without this
+     * the toolbar draws *behind* the status bar: on a portrait phone the settings/refresh
+     * buttons sat under the clock and signal icons, and couldn't be tapped at all because the
+     * status bar takes those touches first (landscape "worked" only because the bar is shorter
+     * there and the buttons cleared it).
+     *
+     * Applied to the chrome layers rather than the window root so video keeps filling the
+     * screen behind them - the player's controls overlay gets the same padding, so its own
+     * buttons stay clear of the bars, while the surface underneath stays full-bleed. The
+     * cutout inset is included for phones with a camera notch in the status bar area.
+     */
+    private fun applySystemBarInsets() {
+        val targets = listOf(binding.mainContent, binding.contentDetailLayout, binding.controlsOverlay)
+        val basePadding = targets.map { intArrayOf(it.paddingLeft, it.paddingTop, it.paddingRight, it.paddingBottom) }
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            targets.forEachIndexed { index, view ->
+                val base = basePadding[index]
+                view.setPadding(
+                    base[0] + insets.left,
+                    base[1] + insets.top,
+                    base[2] + insets.right,
+                    base[3] + insets.bottom
+                )
+            }
+            windowInsets
         }
     }
 
