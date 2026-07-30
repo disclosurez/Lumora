@@ -77,6 +77,7 @@ import com.lumora.plugin.PluginInstallServer
 import com.lumora.plugin.PluginManager
 import com.lumora.plugin.ResolveResult
 import com.lumora.plugin.SearchResult
+import com.lumora.anime.AnimeCatalogClient
 import com.lumora.plugin.StreamSearchClient
 import com.lumora.plugin.TorrentResult
 import com.lumora.parser.M3uParser
@@ -263,6 +264,7 @@ class MainActivity : AppCompatActivity() {
     /** The stream-search plugin binding backing whatever's currently playing from a plugin, so
      *  it can be told to stop (freeing the plugin's local stream server) when the player closes. */
     private var activeStreamSession: StreamSearchClient? = null
+    private var animeCatalog: AnimeCatalogClient? = null
     /** Live phone-pairing server for installing a plugin by URL; stopped when its dialog closes. */
     private var pluginInstallServer: PluginInstallServer? = null
     // Kept around after a successful Jellyfin content load so a series' detail page can
@@ -1000,6 +1002,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            // Anime catalog: only fetched when a stream_search plugin is installed & enabled.
+            // The plugin handles stream resolution; this provides the browse-layer catalog.
+            if (enabledStreamSearchPlugin() != null) {
+                val animeChannels = fetchAnimeChannels()
+                if (animeChannels.isNotEmpty()) {
+                    combined += animeChannels
+                }
+            }
+
             allChannels = combined
             classifyAndShow()
             withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
@@ -1116,6 +1127,22 @@ class MainActivity : AppCompatActivity() {
             FetchResult.Success(items)
         } catch (e: Exception) {
             FetchResult.Failure("Jellyfin: ${e.message?.take(60)}")
+        }
+    }
+
+    // ── Anime catalog (gated on plugin) ─────────────
+
+    /**
+     * Fetches trending anime from the public anime database. Returns Channel objects
+     * (mediaType=SERIES) that populate the Series section. Playback is handled by the
+     * stream_search plugin — these channels have no direct URL, just metadata for browsing.
+     */
+    private fun fetchAnimeChannels(): List<Channel> {
+        return try {
+            val client = AnimeCatalogClient(BaseApplication.instance.okHttpClient)
+            client.fetchCatalog()
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
@@ -5963,7 +5990,7 @@ class MainActivity : AppCompatActivity() {
     private fun wireFindStreamButton(item: Channel) {
         val button = binding.detailFindStreamButton
         val plugin = enabledStreamSearchPlugin()
-        val eligible = plugin != null && item.mediaType == MediaType.MOVIE
+        val eligible = plugin != null && (item.mediaType == MediaType.MOVIE || item.mediaType == MediaType.SERIES)
         button.visibility = if (eligible) View.VISIBLE else View.GONE
         if (!eligible || plugin == null) {
             button.setOnClickListener(null)
