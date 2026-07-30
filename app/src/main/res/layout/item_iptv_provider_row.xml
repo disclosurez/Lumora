@@ -13,6 +13,7 @@
     android:clipToPadding="false"
     android:focusable="true"
     android:gravity="center_vertical"
+    android:nextFocusRight="@+id/rowEditButton"
     android:orientation="horizontal"
     android:padding="12dp"
     android:stateListAnimator="@animator/focus_scale">
@@ -61,6 +62,8 @@
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
+        android:nextFocusLeft="@+id/rowRoot"
+        android:nextFocusRight="@+id/rowRemoveButton"
         android:paddingHorizontal="12dp"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
@@ -81,6 +84,7 @@
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
+        android:nextFocusLeft="@+id/rowEditButton"
         android:paddingHorizontal="12dp"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
