@@ -6,6 +6,7 @@ import android.app.Dialog
 import android.app.DownloadManager
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
+import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -603,6 +604,8 @@ class MainActivity : AppCompatActivity() {
             binding.tabDiscover.nextFocusRightId = R.id.tabLive
             binding.tabLive.nextFocusLeftId = R.id.tabDiscover
         }
+
+        onBackPressedDispatcher.addCallback(this, backCallback)
     }
 
     /** Needed on API 33+ for reminder notifications to actually show; older Fire OS builds don't gate on it. */
@@ -760,7 +763,26 @@ class MainActivity : AppCompatActivity() {
         if (!isTv) runCatching { unregisterReceiver(downloadCompleteReceiver) }
     }
 
-    override fun onBackPressed() {
+    /** Registered in onCreate. Everything back-related goes through the dispatcher rather
+     *  than `onBackPressed()`: at targetSdk 36 the platform drives back through
+     *  OnBackInvokedCallback and never calls the legacy override, so on a phone the system
+     *  gesture bypassed all of the navigation below and closed the Activity outright. TV
+     *  remotes still went through the old path, which is why it only misbehaved on phones. */
+    private val backCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            if (handleBackNavigation()) return
+            // Nothing left to unwind - hand this press back to the system (finishing the
+            // Activity, or running the predictive-back animation) by standing down for the
+            // duration of that one dispatch.
+            isEnabled = false
+            onBackPressedDispatcher.onBackPressed()
+            isEnabled = true
+        }
+    }
+
+    /** Unwinds one level of navigation. Returns false when there's nothing left above the
+     *  current screen, i.e. Back should leave the app. */
+    private fun handleBackNavigation(): Boolean {
         // A plugin's page is a level inside Settings, not a screen of its own - Back goes up to
         // the plugin list first rather than dropping the user out of Settings entirely.
         if (activeSettingsOverlay != null && openPluginId != null) closeOpenPluginPage?.invoke()
@@ -775,9 +797,10 @@ class MainActivity : AppCompatActivity() {
         // and only once already at the top does the next press go Home. Back on Home itself
         // exits. Leaving the app was previously one press from anywhere, which on a remote
         // is very easy to do by accident.
-        else if (showingHome) super.onBackPressed()
+        else if (showingHome) return false
         else if (!isAtSectionTop()) goToSectionTop()
         else goHomeFromBack()
+        return true
     }
 
     /** The list filling the content area of whatever section is on screen. */
@@ -872,10 +895,12 @@ class MainActivity : AppCompatActivity() {
         list.post { if (!attempt()) list.post { attempt() } }
     }
 
-    /** True while there's actually an overlay/screen for swipe-back to close - guards edge-swipe
-     *  so it doesn't fall through to super.onBackPressed() (exiting the app) on a stray swipe. */
+    /** True while Back has somewhere to go - guards edge-swipe so a stray swipe can't exit
+     *  the app. Anything but Home qualifies now that Back unwinds tabs too (see
+     *  handleBackNavigation). */
     private fun hasDismissibleScreen(): Boolean =
-        activeSettingsOverlay != null || activeSearchOverlay != null || isPlayerVisible || isContentDetailVisible
+        activeSettingsOverlay != null || activeSearchOverlay != null || isPlayerVisible ||
+            isContentDetailVisible || !showingHome
 
     /** Phone-only edge-swipe-to-back: a left-to-right swipe starting within the leftmost
      *  [EDGE_SWIPE_ZONE_DP] of the screen closes whatever's on top, mirroring the system
@@ -883,7 +908,7 @@ class MainActivity : AppCompatActivity() {
      *  so it can't be triggered by scrolling a shelf/episode row, which are horizontal
      *  RecyclerViews spanning the full width and would otherwise fire this constantly.
      *  Observes via dispatchTouchEvent rather than consuming, so normal clicks/scrolls are
-     *  untouched - it never returns true from here, just calls onBackPressed() as a side effect. */
+     *  untouched - it never returns true from here, just dispatches Back as a side effect. */
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
         if (!isTv) {
             val density = resources.displayMetrics.density
@@ -899,7 +924,7 @@ class MainActivity : AppCompatActivity() {
                         val dy = kotlin.math.abs(ev.y - edgeSwipeStartY)
                         if (dx >= EDGE_SWIPE_THRESHOLD_DP * density && dy < dx * 0.5f) {
                             edgeSwipeTracking = false
-                            onBackPressed()
+                            onBackPressedDispatcher.onBackPressed()
                         }
                     }
                 }
