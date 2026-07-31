@@ -25,9 +25,19 @@ object M3uParser {
     private val MOVIE_GROUP_KEYWORDS = setOf(
         "movie", "movies", "film", "films", "vod", "cinema", "pelicula", "peliculas"
     )
+    /** Tested *before* the movie keywords, because the two overlap constantly: a provider that
+     *  files its shows under "TV VOD", "Series VOD" or "VOD - TV Shows" matches "vod" as well,
+     *  and whichever set is checked first wins. Series is the more specific claim of the two -
+     *  "vod" only says "not live" - so it gets the first look. "tv" is deliberately absent:
+     *  as a substring it would swallow every live group called "UK TV", "TV Sports" and so on. */
     private val SERIES_GROUP_KEYWORDS = setOf(
-        "series", "serie", "tv show", "tv shows", "episode", "episodio"
+        "series", "serie", "tv show", "tv shows", "episode", "episodio", "episodes",
+        "season", "seasons", "tv vod"
     )
+    /** Explicit `tvg-type` values, which say outright what the entry is. */
+    private val MOVIE_TVG_TYPES = setOf("movie", "movies", "vod", "film")
+    private val SERIES_TVG_TYPES = setOf("series", "serie", "tv", "show", "tvshow", "tv-show")
+    private val LIVE_TVG_TYPES = setOf("live", "channel", "tv channel")
 
     /** Parse an M3U playlist from a URL using the provided OkHttp client. */
     suspend fun parseFromUrl(url: String, client: OkHttpClient): ParseResult =
@@ -67,11 +77,39 @@ object M3uParser {
         })
     }
 
-    private fun classifyMediaType(group: String?): MediaType {
-        if (group == null) return MediaType.LIVE
-        val lower = group.lowercase()
-        if (MOVIE_GROUP_KEYWORDS.any { lower.contains(it) }) return MediaType.MOVIE
+    /**
+     * What kind of thing an entry is, from the most reliable signal available down to a guess.
+     *
+     * `group-title` alone - all this used to read - is only a media type on playlists whose
+     * author happened to use it as one. Plenty of providers put the *category* there (Action,
+     * Comedy, Drama, Kids), which named nothing this could match and left an entire VOD library
+     * sitting in Live TV. Worse, the two keyword sets overlap: "TV VOD" is a series group that
+     * contains "vod", so with movies tested first every show in it landed in Films.
+     *
+     * So the order is: what the playlist states outright, then what the URL structure proves,
+     * then the group name as a heuristic, then live as the historical default.
+     */
+    private fun classifyMediaType(tvgType: String?, group: String?, url: String): MediaType {
+        // 1. The provider saying so directly. Nothing beats this.
+        when (tvgType?.trim()?.lowercase().orEmpty()) {
+            in SERIES_TVG_TYPES -> return MediaType.SERIES
+            in MOVIE_TVG_TYPES -> return MediaType.MOVIE
+            in LIVE_TVG_TYPES -> return MediaType.LIVE
+        }
+
+        // 2. Xtream-compatible URL layout - /live/, /movie/ and /series/ are structural, not a
+        // naming convention, so they hold whatever the provider calls its categories.
+        val lowerUrl = url.lowercase()
+        when {
+            "/series/" in lowerUrl -> return MediaType.SERIES
+            "/movie/" in lowerUrl -> return MediaType.MOVIE
+            "/live/" in lowerUrl -> return MediaType.LIVE
+        }
+
+        // 3. Group name keywords, series first - see SERIES_GROUP_KEYWORDS.
+        val lower = group?.lowercase() ?: return MediaType.LIVE
         if (SERIES_GROUP_KEYWORDS.any { lower.contains(it) }) return MediaType.SERIES
+        if (MOVIE_GROUP_KEYWORDS.any { lower.contains(it) }) return MediaType.MOVIE
         return MediaType.LIVE
     }
 
@@ -115,6 +153,7 @@ object M3uParser {
         var tvgId: String? = null
         var tvgName: String? = null
         var tvgChno: String? = null
+        var tvgType: String? = null
         var year: String? = null
         var rating: String? = null
 
@@ -128,6 +167,7 @@ object M3uParser {
                     "tvg-name" -> tvgName = match.groupValues[2]
                     "tvg-logo" -> logoUrl = match.groupValues[2].ifBlank { null }
                     "tvg-chno" -> tvgChno = match.groupValues[2]
+                    "tvg-type" -> tvgType = match.groupValues[2]
                     "group-title" -> group = match.groupValues[2]
                     "year" -> year = match.groupValues[2]
                     "rating" -> rating = match.groupValues[2]
@@ -141,7 +181,7 @@ object M3uParser {
             }
         }
 
-        val mediaType = classifyMediaType(group)
+        val mediaType = classifyMediaType(tvgType, group, cleanUrl)
 
         return Channel(
             // The stream url, because an M3U has no id of its own and Channel.id defaults to
