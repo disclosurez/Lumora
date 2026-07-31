@@ -134,6 +134,24 @@ class PlayerManager(
         val mediaSource = DefaultMediaSourceFactory(dataSourceFactory)
             .createMediaSource(mediaItem)
 
+        // A sideloaded track is there because the source has no other way to show subtitles at
+        // all - an anime episode whose only subtitles are the sidecar file plays as raw
+        // Japanese without it. So turn text on and point the selector at this track's language
+        // rather than relying on SELECTION_FLAG_DEFAULT: text stays disabled across items once
+        // anything has switched subtitles off (the flag is per-track, the disable is per-player,
+        // and the disable wins), which would have carried straight into the next episode.
+        if (subtitles.isNotEmpty()) {
+            val preferred = subtitles.firstOrNull { it.isDefault } ?: subtitles.first()
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .apply { preferred.language?.let { setPreferredTextLanguage(it) } }
+                // Sources routinely ship a track with no language tag at all; without this the
+                // selector skips it and the subtitles the user was given go unused.
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        }
+
         player.setMediaSource(mediaSource)
         // Seek before prepare, not after: the position is applied as the start position when
         // preparation runs, so a resumed title buffers once at the right place instead of
