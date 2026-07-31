@@ -2,6 +2,13 @@ package com.lumora.data.remote.stalker
 
 import android.util.Log
 import com.lumora.model.Channel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.io.IOException
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
 import okhttp3.OkHttpClient
@@ -115,6 +122,9 @@ class StalkerApiService(private val client: OkHttpClient) {
             authToken = null
             authCookie = null
             endpoint = null
+            // Per-authenticate, not per-instance: a portal that was down last time deserves a
+            // fresh verdict on a retry the user asked for.
+            hostUnreachable = false
             // The cookie/param MAC keeps its colons - portals match the session on the exact
             // string, and the colon-stripped form generateProfile() derives is only for the
             // signature/device-id maths. Uppercased for consistency with the fingerprint.
@@ -125,6 +135,10 @@ class StalkerApiService(private val client: OkHttpClient) {
             // trying each candidate until one returns a token.
             var jsTokenFromServer: String? = null
             for (candidate in endpointCandidates) {
+                // Candidates differ only by path, so once the host itself has proved
+                // unreachable the remaining three will fail identically - and each costs
+                // another connect timeout to find that out. Give up on the host, not the path.
+                if (hostUnreachable) break
                 val handshakeJson = fetchJson(
                     "$base$candidate?type=stb&action=handshake&JsHttpRequest=1-xml", null
                 ) ?: continue
@@ -436,27 +450,120 @@ class StalkerApiService(private val client: OkHttpClient) {
         return builder.build()
     }
 
-    private suspend fun fetchJson(url: String, jsToken: String?): JSONObject? {
-        return try {
+    /**
+     * Paces requests to one portal.
+     *
+     * Portals throttle, and they do it by dropping the TCP connection rather than answering
+     * with a status: 5tv.pro serves two requests back to back and resets everything after,
+     * including reconnects, for a short window. A catalogue load fires nine or more calls in
+     * about 300ms, so every one after get_profile came back "Connection reset" and the portal
+     * looked dead when it was simply refusing to be hammered - verified against the live portal,
+     * where the same calls spaced out all return 200.
+     *
+     * So requests to a portal are spaced, and never run concurrently: the mutex also stops the
+     * live/VOD/series fetches overlapping each other.
+     */
+    private val requestGate = Mutex()
+    private var lastRequestAt = 0L
+    /** Set once a call fails in a way that says the host itself is not there (see isRetryable),
+     *  so the endpoint probe stops walking its remaining candidates against it. */
+    private var hostUnreachable = false
+    /** Set the first time this portal drops a connection or returns an empty body - the two
+     *  ways a Stalker portal says "too fast". Until then requests are not spaced at all. */
+    private var throttleSeen = false
+
+    private suspend fun <T> pacedRequest(block: () -> T): T = requestGate.withLock {
+        // The gap is only paid by portals that have actually thrown a reset. Most don't, and
+        // charging every request 250ms is ruinous where the catalogue is paged: this API returns
+        // 14 items a page, so VOD and series alone are 100 requests, and a flat gap added a
+        // minute of pure waiting to a provider that had no problem being asked quickly.
+        if (throttleSeen) {
+            val since = System.currentTimeMillis() - lastRequestAt
+            if (since < MIN_REQUEST_GAP_MS) delay(MIN_REQUEST_GAP_MS - since)
+        }
+        try {
+            block()
+        } finally {
+            lastRequestAt = System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * Runs [block], retrying the connection-level failures a throttling portal produces. A reset
+     * is not a verdict on the request - the same one succeeds moments later - so treating it as
+     * "no data" is what turned a slow portal into an empty catalogue. Backs off between tries to
+     * let whatever tripped the limit expire.
+     */
+    private suspend fun <T> withPortalRetry(label: String, block: () -> T?): T? {
+        var wait = RETRY_BACKOFF_MS
+        repeat(MAX_ATTEMPTS) { attempt ->
+            val result = try {
+                pacedRequest(block)
+            } catch (e: IOException) {
+                if (!isRetryable(e)) {
+                    // The host isn't answering at all. Retrying spends another connect timeout
+                    // per attempt to learn the same thing, and providers are fetched one after
+                    // another - so a dead entry that retries everything holds up every provider
+                    // behind it in the list.
+                    Log.w(TAG, "$label: ${e.javaClass.simpleName}: ${e.message}, not retryable")
+                    hostUnreachable = true
+                    return null
+                }
+                if (attempt == MAX_ATTEMPTS - 1) {
+                    Log.w(TAG, "$label: ${e.javaClass.simpleName}: ${e.message}, giving up")
+                    return null
+                }
+                // A reset is this portal telling us it is being asked too quickly - start
+                // spacing requests from here on, for this portal only.
+                throttleSeen = true
+                Log.i(TAG, "$label: ${e.javaClass.simpleName}, retrying in ${wait}ms")
+                delay(wait)
+                wait *= 2
+                return@repeat
+            }
+            if (result != null) return result
+        }
+        return null
+    }
+
+    /**
+     * Whether a failure is worth another attempt. Retrying exists for one thing: portals that
+     * throttle by dropping the connection, which surfaces as a plain "Connection reset" and
+     * succeeds moments later. A host that can't be resolved, refuses the connection, or never
+     * answers is not going to change its mind, and each retry costs a full connect timeout.
+     *
+     * Listed by type rather than by catching SocketException, because ConnectException and
+     * NoRouteToHostException are *subclasses* of it - the reset case is the parent class itself.
+     */
+    private fun isRetryable(e: IOException): Boolean = when (e) {
+        is java.net.UnknownHostException,
+        is java.net.ConnectException,
+        is java.net.NoRouteToHostException,
+        is java.net.SocketTimeoutException -> false
+        else -> true
+    }
+
+    private suspend fun fetchJson(url: String, jsToken: String?): JSONObject? =
+        withPortalRetry(url.redactCredentials()) {
             val response = client.newCall(buildRequest(url, jsToken)).execute()
             if (!response.isSuccessful) {
                 Log.w(TAG, "HTTP ${response.code} for ${url.redactCredentials()}")
                 response.close()
-                return null
+                return@withPortalRetry null
             }
 
-            val body = response.body?.string() ?: return null
+            val body = response.body?.string() ?: return@withPortalRetry null
             val cookies = response.header("Set-Cookie")
             if (cookies != null) updateAuthState(cookies.split(";").firstOrNull(), null)
 
-            JSONObject(body)
-        } catch (e: Exception) {
-            // Every failure used to collapse to a bare null here, which is why a portal that
-            // wouldn't connect produced not one line in logcat to work from.
-            Log.w(TAG, "${e.javaClass.simpleName}: ${e.message} for ${url.redactCredentials()}")
-            null
+            // A throttled portal also answers with an empty body rather than closing - seen on a
+            // second handshake issued straight after the first. Null so the retry above covers it
+            // instead of it surfacing as "malformed response".
+            if (body.isBlank()) {
+                throttleSeen = true
+                null
+            } else JSONObject(body)
         }
-    }
 
     /** Portal URLs carry the MAC (and on some portals a token) as query parameters, and these
      *  lines go to logcat, which any app on the device can read. */
@@ -478,18 +585,31 @@ class StalkerApiService(private val client: OkHttpClient) {
      * [android.util.JsonReader] walks the same bytes as a stream, so only one item is in memory
      * at a time and the peak is the returned list itself, which [cap] bounds.
      */
-    private fun streamAllChannels(
+    private suspend fun streamAllChannels(
         url: String, jsToken: String?, base: String, categories: Map<String, String>, cap: Int
     ): List<ChannelEntry> {
+        // Captured so the blocking read below can see cancellation. Reading a 70MB body is a
+        // plain loop with no suspension point in it, so a cancelled load used to run to
+        // completion anyway - which is how two catalogue streams ended up in flight at once.
+        val job = currentCoroutineContext()[Job]
+        return withPortalRetry("get_all_channels") {
+            streamAllChannelsOnce(url, jsToken, base, categories, cap, job)
+        } ?: emptyList()
+    }
+
+    private fun streamAllChannelsOnce(
+        url: String, jsToken: String?, base: String, categories: Map<String, String>, cap: Int,
+        job: Job?
+    ): List<ChannelEntry>? {
         val out = ArrayList<ChannelEntry>()
         try {
             val response = client.newCall(buildRequest(url, jsToken)).execute()
             if (!response.isSuccessful) {
                 response.close()
-                return emptyList()
+                return null
             }
             response.header("Set-Cookie")?.let { updateAuthState(it.split(";").firstOrNull(), null) }
-            val body = response.body ?: return emptyList()
+            val body = response.body ?: return null
             body.charStream().use { stream ->
                 val reader = android.util.JsonReader(stream)
                 reader.isLenient = true
@@ -500,7 +620,7 @@ class StalkerApiService(private val client: OkHttpClient) {
                 while (reader.hasNext()) {
                     if (reader.nextName() != "js") { reader.skipValue(); continue }
                     when (reader.peek()) {
-                        android.util.JsonToken.BEGIN_ARRAY -> readEntryArray(reader, base, categories, cap, out)
+                        android.util.JsonToken.BEGIN_ARRAY -> readEntryArray(reader, base, categories, cap, out, job)
                         android.util.JsonToken.BEGIN_OBJECT -> {
                             reader.beginObject()
                             while (reader.hasNext()) {
@@ -508,7 +628,7 @@ class StalkerApiService(private val client: OkHttpClient) {
                                 if ((key == "data" || key.isEmpty()) &&
                                     reader.peek() == android.util.JsonToken.BEGIN_ARRAY
                                 ) {
-                                    readEntryArray(reader, base, categories, cap, out)
+                                    readEntryArray(reader, base, categories, cap, out, job)
                                 } else {
                                     reader.skipValue()
                                 }
@@ -522,9 +642,20 @@ class StalkerApiService(private val client: OkHttpClient) {
                     break
                 }
             }
+        } catch (e: IOException) {
+            // Rethrown so withPortalRetry sees it: a reset partway through a 70MB body is the
+            // throttle again, and the right answer is to try once more rather than to keep a
+            // half-read catalogue. Anything already parsed is kept only if the retries run out.
+            Log.w(TAG, "streamAllChannels: ${e.javaClass.simpleName}: ${e.message} after ${out.size}")
+            if (out.isEmpty()) throw e
+            return out
+        } catch (e: CancellationException) {
+            // Must not be swallowed by the catch below: this load has been superseded, and
+            // returning a partial catalogue would let it overwrite the newer one's result.
+            throw e
         } catch (e: Exception) {
-            // Same contract as the DOM path: a malformed or truncated response is "no channels
-            // from this call", which makes getLiveChannels fall through to the paged list.
+            // A malformed response is not worth retrying - it will be malformed again. Falls
+            // through to the paged list in getLiveChannels.
             Log.w(TAG, "streamAllChannels: ${e.javaClass.simpleName}: ${e.message} after ${out.size}")
             return out
         }
@@ -533,10 +664,13 @@ class StalkerApiService(private val client: OkHttpClient) {
 
     private fun readEntryArray(
         reader: android.util.JsonReader, base: String, categories: Map<String, String>,
-        cap: Int, out: MutableList<ChannelEntry>
+        cap: Int, out: MutableList<ChannelEntry>, job: Job?
     ) {
         reader.beginArray()
         while (reader.hasNext()) {
+            // The only cancellation check in the whole read - without it a superseded load
+            // keeps pulling the remaining tens of MB off the socket for nothing.
+            if (job?.isActive == false) throw CancellationException("provider load superseded")
             if (out.size >= cap) {
                 // Stop reading rather than skipping to the end: the remainder can be many MB,
                 // and nothing past the cap is going to be used.
@@ -638,6 +772,10 @@ class StalkerApiService(private val client: OkHttpClient) {
         // ~700 each - enough to browse immediately, without the multi-minute upfront crawl a
         // full 17k-item catalogue would need over a one-page-at-a-time API.
         private const val TAG = "Stalker"
+        /** Minimum spacing between two requests to one portal - see [pacedRequest]. */
+        private const val MIN_REQUEST_GAP_MS = 250L
+        private const val MAX_ATTEMPTS = 3
+        private const val RETRY_BACKOFF_MS = 600L
         private const val LIVE_MAX_PAGES = 200
         private const val VOD_MAX_PAGES = 50
         /** Ceiling on one portal's bulk live list. Well past any real channel count, and there
