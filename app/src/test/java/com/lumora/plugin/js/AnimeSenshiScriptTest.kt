@@ -72,6 +72,8 @@ class AnimeSenshiScriptTest {
             assertEquals(2, results.size)
             assertTrue(results.any { it.token == "senshi:5114:sub" && it.quality == "Sub" })
             assertTrue(results.any { it.token == "senshi:5114:dub" && it.quality == "Dub" })
+            assertTrue(results.any { it.token == "senshi:5114:sub" && it.audio == "sub" })
+            assertTrue(results.any { it.token == "senshi:5114:dub" && it.audio == "dub" })
             assertTrue(results.all { it.source == "Senshi" })
         } finally {
             server.shutdown()
@@ -89,6 +91,7 @@ class AnimeSenshiScriptTest {
             val outcome = engine.resolve(patchedScript, "senshi:5114:sub", season = null, episode = 1)
             assertTrue(outcome is ResolveResult.Ready)
             assertEquals("https://cdn.example/ep1-sub.m3u8", (outcome as ResolveResult.Ready).url)
+            assertEquals("sub", (outcome as ResolveResult.Ready).audio)
         } finally {
             server.shutdown()
         }
@@ -105,6 +108,7 @@ class AnimeSenshiScriptTest {
             val outcome = engine.resolve(patchedScript, "senshi:5114:dub", season = null, episode = 1)
             assertTrue(outcome is ResolveResult.Ready)
             assertEquals("https://cdn.example/ep1-dub.m3u8", (outcome as ResolveResult.Ready).url)
+            assertEquals("dub", (outcome as ResolveResult.Ready).audio)
         } finally {
             server.shutdown()
         }

@@ -8,6 +8,8 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DataSource
@@ -98,7 +100,8 @@ class PlayerManager(
         userAgent: String? = null,
         subtitles: List<ExternalSubtitle> = emptyList(),
         startPositionMs: Long = 0L,
-        headers: Map<String, String>? = null
+        headers: Map<String, String>? = null,
+        audio: String? = null
     ) {
         val dataSourceFactory = buildDataSourceFactory(userAgent, headers)
 
@@ -140,7 +143,11 @@ class PlayerManager(
         // rather than relying on SELECTION_FLAG_DEFAULT: text stays disabled across items once
         // anything has switched subtitles off (the flag is per-track, the disable is per-player,
         // and the disable wins), which would have carried straight into the next episode.
-        if (subtitles.isNotEmpty()) {
+        // A stream known to be a dub usually has its dialog baked into the audio track, so the
+        // sidecar subtitles only come on when the user opted in (subtitles_with_dub).
+        val subtitlesWithDub = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+            .getBoolean("subtitles_with_dub", false)
+        if (subtitles.isNotEmpty() && (audio?.equals("dub", ignoreCase = true) != true || subtitlesWithDub)) {
             val preferred = subtitles.firstOrNull { it.isDefault } ?: subtitles.first()
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
@@ -158,7 +165,87 @@ class PlayerManager(
         // buffering the opening seconds and throwing that away on a seek.
         if (startPositionMs > 0) player.seekTo(startPositionMs)
         player.prepare()
+        if (audio != null) {
+            attachOneShotAudioPreference(audio)
+        }
         player.play()
+    }
+
+    /**
+     * When the caller knows whether this stream is a dub or a sub (the plugin carries the
+     * hint on the search result and on the resolve), prefer the matching audio track once the
+     * manifest's tracks are known. Ported from Anilili's PlayerSurface: rank every audio
+     * track name against the wanted category, and only override when there are multiple
+     * tracks and the best is a confident match (rank < 50). One-shot per playUrl call - the
+     * listener removes itself after deciding, so a later episode's track listing can't make
+     * it re-apply against the wrong media.
+     */
+    private fun attachOneShotAudioPreference(audio: String) {
+        val wantsDub = audio.equals("dub", ignoreCase = true)
+        val listener = object : Player.Listener {
+            private var decided = false
+            override fun onTracksChanged(tracks: Tracks) {
+                if (decided) return
+                val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
+                // Track info isn't here yet (still preparing) - stay attached for the real event.
+                if (audioGroups.isEmpty()) return
+                decided = true
+                player.removeListener(this)
+                // A single audio track is all this stream has to offer - nothing to switch to.
+                if (audioGroups.sumOf { it.length } <= 1) return
+                var bestGroup: Tracks.Group? = null
+                var bestIndex = -1
+                var bestRank = Int.MAX_VALUE
+                for (group in audioGroups) {
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val name = listOfNotNull(format.label, format.language).joinToString(" ")
+                            .trim().ifBlank { "Audio" }
+                        val rank = audioTrackRank(name, wantsDub)
+                        if (rank < bestRank) {
+                            bestRank = rank
+                            bestGroup = group
+                            bestIndex = i
+                        }
+                    }
+                }
+                // Ranks 0/5 are a confident match; anything >= 50 carries no signal, and
+                // overriding on that would just fight the source's own default.
+                if (bestRank < 50 && bestGroup != null && bestIndex >= 0 && !bestGroup.isTrackSelected(bestIndex)) {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                        .setOverrideForType(
+                            TrackSelectionOverride(bestGroup.mediaTrackGroup, listOf(bestIndex))
+                        )
+                        .build()
+                }
+            }
+        }
+        player.addListener(listener)
+        // Covers sources that fired onTracksChanged synchronously during prepare(), before the
+        // listener was attached; a no-op until track info is actually there.
+        listener.onTracksChanged(player.currentTracks)
+    }
+
+    /**
+     * Anilili's categoryAudioRank table: a track name's affinity for the wanted audio
+     * category. 0 = exact match, 5 = likely match, 100 = no signal.
+     */
+    private fun audioTrackRank(name: String, wantsDub: Boolean): Int {
+        val lower = name.lowercase()
+        return if (wantsDub) {
+            when {
+                lower == "en" || lower.contains("english") || lower.contains(" eng") -> 0
+                lower.contains("dub") -> 5
+                else -> 100
+            }
+        } else {
+            when {
+                lower == "ja" || lower.contains("japanese") || lower.contains(" jpn") || lower.contains(" ja") -> 0
+                lower.contains("native") -> 5
+                else -> 100
+            }
+        }
     }
 
     /** Attach to a SurfaceView for video rendering. */

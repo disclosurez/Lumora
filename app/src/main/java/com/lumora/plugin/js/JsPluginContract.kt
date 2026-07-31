@@ -72,6 +72,8 @@ object JsPluginContract {
     const val KEY_SIZE = "size"
     const val KEY_QUALITY = "quality"
     const val KEY_SOURCE = "source"
+    /** Audio category hint on a search result / resolve return: "sub", "dub", or absent. */
+    const val KEY_AUDIO = "audio"
 
     /** Provider types the host can actually build an IptvProviderConfig for. */
     val SUPPORTED_PROVIDER_TYPES = setOf("m3u", "xtream", "stalker")

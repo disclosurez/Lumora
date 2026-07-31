@@ -233,6 +233,7 @@ class JsHostImpl(
                 JsPluginContract.KEY_SIZE to cap(obj[JsPluginContract.KEY_SIZE] as? String),
                 JsPluginContract.KEY_QUALITY to cap(obj[JsPluginContract.KEY_QUALITY] as? String),
                 JsPluginContract.KEY_SOURCE to cap(obj[JsPluginContract.KEY_SOURCE] as? String),
+                JsPluginContract.KEY_AUDIO to cap(obj[JsPluginContract.KEY_AUDIO] as? String),
             )
         )
     }

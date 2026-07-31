@@ -20,7 +20,10 @@ data class TorrentResult(
     val seeders: Int?,
     val size: String?,
     val quality: String?,
-    val source: String?
+    val source: String?,
+    /** Audio category hint ("sub"/"dub"), when the plugin can tell the two apart. Display and
+     *  playback-preference only; the host never derives behavior beyond that from it. */
+    val audio: String? = null
 )
 
 /** Terminal outcome of the search phase. */
@@ -51,7 +54,9 @@ sealed class ResolveResult {
     data class Ready(
         val url: String,
         val headers: Map<String, String> = emptyMap(),
-        val subtitles: List<PluginSubtitle> = emptyList()
+        val subtitles: List<PluginSubtitle> = emptyList(),
+        /** Audio category hint ("sub"/"dub") so the player can prefer the matching audio track. */
+        val audio: String? = null
     ) : ResolveResult()
     data class Failed(val message: String) : ResolveResult()
 }

@@ -1,6 +1,7 @@
 // Anime stream_search plugin: AniList search + senshi.live streaming.
 // Ported from the old animeplugin APK (AniListClient.kt + SenshiProvider.kt/SenshiParser.kt +
 // StreamService.kt) onto Lumora's in-process JS plugin host API - see JsPluginContract.kt.
+// Search results and resolve returns carry audio ("sub"/"dub") for the host's audioOf.
 
 PLUGIN = {
     id: "anime.senshi",
@@ -233,6 +234,7 @@ function search(host, query, year, season, episode) {
                 title: title + epTag + " [Sub]" + yearTag,
                 token: "senshi:" + malId + ":sub",
                 quality: "Sub",
+                audio: "sub",
                 source: "Senshi",
                 size: info,
             });
@@ -243,6 +245,7 @@ function search(host, query, year, season, episode) {
                 title: title + epTag + " [Dub]" + yearTag,
                 token: "senshi:" + malId + ":dub",
                 quality: "Dub",
+                audio: "dub",
                 source: "Senshi",
                 size: info,
             });
@@ -312,5 +315,6 @@ function resolve(host, token, season, episode) {
             "User-Agent": SENSHI_UA,
         }),
         subtitles: JSON.stringify(subtitles),
+        audio: audio,
     };
 }

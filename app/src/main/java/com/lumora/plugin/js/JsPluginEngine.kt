@@ -166,7 +166,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
                         is Map<*, *> -> h.entries.associate { it.key.toString() to it.value.toString() }
                         else -> emptyMap()
                     }
-                    ResolvedStream(url, headers, parseSubtitles(m["subtitles"]))
+                    ResolvedStream(url, headers, parseSubtitles(m["subtitles"]), audioOf(m["audio"]))
                 }
                 else -> null
             }
@@ -175,7 +175,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
                 val resolved = outcome.result as? ResolvedStream
                 val url = resolved?.url
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    ResolveResult.Ready(url, resolved.headers, resolved.subtitles)
+                    ResolveResult.Ready(url, resolved.headers, resolved.subtitles, resolved.audio)
                 } else {
                     ResolveResult.Failed("Plugin returned an invalid stream URL")
                 }
@@ -265,7 +265,14 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         size = this[JsPluginContract.KEY_SIZE] as? String,
         quality = this[JsPluginContract.KEY_QUALITY] as? String,
         source = this[JsPluginContract.KEY_SOURCE] as? String,
+        audio = audioOf(this[JsPluginContract.KEY_AUDIO]),
     )
+
+    /** Audio category hint from a script value, normalised to "sub"/"dub"/null. */
+    private fun audioOf(raw: Any?): String? = when (val s = raw as? String) {
+        null -> null
+        else -> s.lowercase().takeIf { it == "sub" || it == "dub" }
+    }
 
     private sealed class ScriptOutcome {
         data class Success(val result: Any?) : ScriptOutcome()
@@ -273,12 +280,13 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         data object TimedOut : ScriptOutcome()
     }
 
-    /** A resolve() result flattened off the JS heap: the stream URL, any request headers, and
-     *  any sidecar subtitle tracks. */
+    /** A resolve() result flattened off the JS heap: the stream URL, any request headers, any
+     *  sidecar subtitle tracks, and the audio category hint ("sub"/"dub") if the script sent one. */
     private data class ResolvedStream(
         val url: String,
         val headers: Map<String, String>,
-        val subtitles: List<PluginSubtitle>
+        val subtitles: List<PluginSubtitle>,
+        val audio: String? = null
     )
 
     /**
