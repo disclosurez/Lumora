@@ -27,10 +27,24 @@ private const val FIELD_COUNT = 22
  */
 object ChannelCache {
 
+    /**
+     * Written a channel at a time straight to the file, not built up in memory first.
+     *
+     * The whole catalogue used to go into one StringBuilder and then `toString()` - so at the
+     * moment of writing, the text existed twice: once in the builder's char[] and once in the
+     * copy handed to writeText, each ~2 bytes per character. A merged multi-provider catalogue
+     * reached tens of MB of text, which is where a TV stick died with
+     * `Failed to allocate a 175786432 byte allocation` while the builder was still doubling.
+     * A BufferedWriter holds only its buffer, whatever the catalogue's size.
+     */
     fun save(context: Context, channels: List<Channel>) {
         try {
-            val sb = StringBuilder((channels.size * 96).coerceAtLeast(1024))
+            val target = File(context.filesDir, CACHE_FILE)
+            val tempFile = File(target.absolutePath + ".tmp")
+            tempFile.bufferedWriter().use { out ->
+            val sb = StringBuilder(256)
             for (ch in channels) {
+                sb.setLength(0)
                 sb.append(clean(ch.id)).append(FIELD_SEP)
                 sb.append(clean(ch.name)).append(FIELD_SEP)
                 sb.append(clean(ch.url)).append(FIELD_SEP)
@@ -56,8 +70,12 @@ object ChannelCache {
                 // blank url and nothing to create_link, so playback opens "" as a local file
                 // and dies with ENOENT.
                 sb.append(clean(ch.stalkerCmd)).append('\n')
+                out.append(sb)
             }
-            writeToFile(File(context.filesDir, CACHE_FILE), sb.toString())
+            }
+            // Same atomic swap writeToFile did: a half-written cache must never replace a
+            // good one, and a torn file would fail FIELD_COUNT on the next load anyway.
+            tempFile.renameTo(target)
             runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save cache: ${e.message}")
@@ -120,12 +138,6 @@ object ChannelCache {
     }
 
     /** Atomically writes text to file: write to a temp file, then rename to prevent corruption on process death. */
-    private fun writeToFile(file: File, text: String) {
-        val tempFile = File(file.absolutePath + ".tmp")
-        tempFile.writeText(text)
-        tempFile.renameTo(file)
-    }
-
     /** Strips characters that would corrupt the line/field format; real channel data never needs them. */
     private fun clean(value: String?): String {
         if (value == null) return ""
