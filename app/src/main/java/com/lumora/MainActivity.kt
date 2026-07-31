@@ -1082,7 +1082,7 @@ class MainActivity : AppCompatActivity() {
             // away when the user changes a provider, which force-refreshes.
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
-                if (!cached.isNullOrEmpty() && !isCatalogStale()) {
+                if (!cached.isNullOrEmpty()) {
                     // If an anime stream-search plugin is enabled but cache predates it
                     // (no "anime:"-prefixed channels), skip cache so the catalog is fetched.
                     val hasAnimePlugin = pluginScriptManager.getDiscoveredScripts().any {
@@ -1090,10 +1090,19 @@ class MainActivity : AppCompatActivity() {
                     }
                     val cachedHasAnime = cached.any { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
                     if (!hasAnimePlugin || cachedHasAnime) {
+                        if (!isCatalogStale()) {
+                            allChannels = cached
+                            classifyAndShow()
+                            setStatus("", visible = false)
+                            return@launch
+                        }
+                        // Stale, but still worth painting immediately: this is what lets
+                        // resumeLastLiveChannelIfPending() reopen the last-played channel (and
+                        // the guide show *something*) right away instead of leaving the user on
+                        // "Loading..." for however long the real fetch below takes. Falls
+                        // through to refresh it for real.
                         allChannels = cached
                         classifyAndShow()
-                        setStatus("", visible = false)
-                        return@launch
                     }
                 }
             }
@@ -1102,22 +1111,38 @@ class MainActivity : AppCompatActivity() {
             val errors = mutableListOf<String>()
             var expiryText: String? = null
 
-            for (config in IptvProviderStore.load(prefs).filter { it.enabled }) {
-                setStatus("Connecting to ${config.name}...", visible = true)
-                // Bounded, because these run one after another and a provider that is simply
-                // dead does not fail fast: a Stalker portal walks up to 200 live pages plus 50
-                // each of VOD and series, and every one of those calls has its own retries and
-                // backoff behind it. One unreachable provider could therefore hold the loop for
-                // many minutes, and everything after it in the list - a perfectly good provider
-                // included - never got fetched at all. A provider that cannot answer inside this
-                // is reported as failed and the rest of the catalogue still loads.
-                val result = withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
-                    when (config.type) {
-                        "xtream" -> fetchXtreamChannels(config) { expiryText = it }
-                        "stalker" -> fetchStalkerChannels(config)
-                        else -> fetchM3uChannels(config)
-                    }
-                } ?: FetchResult.Failure("timed out")
+            val enabledConfigs = IptvProviderStore.load(prefs).filter { it.enabled }
+            if (enabledConfigs.isNotEmpty()) {
+                setStatus(
+                    if (enabledConfigs.size == 1) "Connecting to ${enabledConfigs.first().name}..."
+                    else "Connecting to ${enabledConfigs.size} providers...",
+                    visible = true
+                )
+            }
+            // Fetched concurrently, not one after another - they used to run sequentially, so
+            // a single dead/slow provider (up to PROVIDER_FETCH_TIMEOUT_MS - a Stalker portal
+            // alone walks up to 200 live pages plus 50 each of VOD and series, each with its own
+            // retries and backoff) held up every provider after it in the list. A routine
+            // remove/toggle that left one stale provider behind therefore read as the whole app
+            // freezing for minutes. Each is still individually bounded by the same timeout and
+            // reported as failed on its own if it can't answer in time.
+            val fetchResults = enabledConfigs.map { config ->
+                async {
+                    config to (withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
+                        when (config.type) {
+                            "xtream" -> fetchXtreamChannels(config) { expiryText = it }
+                            "stalker" -> fetchStalkerChannels(config) { live ->
+                                // Live TV on screen the moment it's in, rather than waiting on
+                                // this provider's VOD/series too - see fetchStalkerChannels' kdoc.
+                                allChannels = allChannels.filterNot { it.sourceProviderId == config.id } + live
+                                classifyAndShow()
+                            }
+                            else -> fetchM3uChannels(config)
+                        }
+                    } ?: FetchResult.Failure("timed out"))
+                }
+            }.awaitAll()
+            for ((config, result) in fetchResults) {
                 when (result) {
                     is FetchResult.Success -> combined += result.channels
                     is FetchResult.Failure -> errors += "${config.name}: ${result.message}"
@@ -1177,7 +1202,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun fetchStalkerChannels(config: IptvProviderConfig): FetchResult {
+    /** [onLive] fires with the live channels alone as soon as they land, before VOD/series are
+     *  even requested - a portal with tens of thousands of live channels plus a large VOD/series
+     *  library used to hold all three in memory at once before anything was shown, which is
+     *  what ran a low-RAM box out of heap (lowmemorykiller killing the process) and read as the
+     *  whole app freezing. Splitting the fetch also gets Live TV on screen while VOD/series -
+     *  the slower, bulkier part - are still loading. */
+    private suspend fun fetchStalkerChannels(config: IptvProviderConfig, onLive: suspend (List<Channel>) -> Unit): FetchResult {
         return try {
             val mac = config.userAgent ?: return FetchResult.Failure("no MAC address")
             val stalkerProvider = Provider(
@@ -1185,14 +1216,19 @@ class MainActivity : AppCompatActivity() {
                 serverUrl = config.url?.let { normalizeServerUrl(it) }, userAgent = mac
             )
             val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
-            val result = withContext(Dispatchers.IO) { stalker.loadContent(stalkerProvider) }
-            if (result.isFailure) return FetchResult.Failure(result.exceptionOrNull()?.message?.take(60) ?: "error")
-            val content = result.getOrThrow()
             // sourceProviderId ties each item back to this portal config, so the play step
             // can re-auth against the right one to resolve a Stalker VOD create_link.
-            FetchResult.Success((content.live + content.films + content.series).map {
-                it.copy(streamUserAgent = mac, sourceProviderId = config.id)
-            })
+            fun tag(channels: List<Channel>) = channels.map { it.copy(streamUserAgent = mac, sourceProviderId = config.id) }
+
+            val liveResult = withContext(Dispatchers.IO) { stalker.loadLiveChannels(stalkerProvider) }
+            if (liveResult.isFailure) return FetchResult.Failure(liveResult.exceptionOrNull()?.message?.take(60) ?: "error")
+            val live = tag(liveResult.getOrThrow())
+            onLive(live)
+
+            val vodSeriesResult = withContext(Dispatchers.IO) { stalker.loadVodAndSeries(stalkerProvider) }
+            if (vodSeriesResult.isFailure) return FetchResult.Failure(vodSeriesResult.exceptionOrNull()?.message?.take(60) ?: "error")
+            val (films, series) = vodSeriesResult.getOrThrow()
+            FetchResult.Success(live + tag(films) + tag(series))
         } catch (e: Exception) {
             FetchResult.Failure(e.message?.take(60) ?: "error")
         }
@@ -1741,11 +1777,15 @@ class MainActivity : AppCompatActivity() {
      *  Skips adult channels so they don't auto-resume on next launch. */
     private fun resumeLastLiveChannelIfPending() {
         val id = pendingLiveResumeId ?: return
-        pendingLiveResumeId = null
-        if (isPlayerVisible) return
+        if (isPlayerVisible) { pendingLiveResumeId = null; return }
         val channel = liveChannels.firstOrNull { it.id == id }
             ?: liveVersions.values.firstNotNullOfOrNull { versions -> versions.firstOrNull { it.id == id } }
+            // Not in this pass - left set rather than cleared, so a later, more complete
+            // classifyAndShow() (e.g. once a stale-cache first paint is replaced by the real
+            // fetch) still gets a chance to find it instead of silently giving up on the one
+            // that happened to run first.
             ?: return
+        pendingLiveResumeId = null
         if (isAdultCategory(channel.categoryName, channel.group)) return
         selectTab(0)
         currentIndex = liveChannels.indexOf(channel)
@@ -6219,6 +6259,11 @@ class MainActivity : AppCompatActivity() {
             // rail's own listener, which opens either the list or a specific plugin's page.
             openPluginId = null
             dialogView.findViewById<View>(R.id.panePluginDetail)?.visibility = View.GONE
+            // Reachable from code, not just a rail click (e.g. onProviderAdded() jumping here
+            // after a plugin candidate is added) - without this the D-pad's focus is left on
+            // whatever view triggered the jump, which has often just been removed from the
+            // tree by the same re-render, leaving nothing focused and the remote stuck.
+            navRows[index].first.requestFocus()
         }
         navRows.forEachIndexed { i, (row, _) -> row.setOnClickListener { selectSection(i) } }
         selectSection(0)
@@ -6242,7 +6287,7 @@ class MainActivity : AppCompatActivity() {
         }
         refreshDownloadsList()
 
-        wirePluginsPane(dialogView)
+        wirePluginsPane(dialogView) { selectSection(0) }
         // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
         // which that call is what sets. navRows' index 7 is Plugins (see the list above).
         wirePluginNavRows(dialogView) { selectSection(7) }
@@ -6800,7 +6845,7 @@ class MainActivity : AppCompatActivity() {
      * a per-item confirmation naming which plugin it came from. [com.lumora.plugin.js.JsHostImpl]
      * does the field validation before any of this sees a candidate.
      */
-    private fun wirePluginsPane(dialogView: View) {
+    private fun wirePluginsPane(dialogView: View, onProviderAdded: () -> Unit = {}) {
         val listContainer = dialogView.findViewById<LinearLayout>(R.id.settingsPluginList)
         val listEmpty = dialogView.findViewById<View>(R.id.settingsPluginListEmpty)
         val manager = pluginScriptManager
@@ -6828,6 +6873,13 @@ class MainActivity : AppCompatActivity() {
 
         fun openPluginPage(id: String) {
             openPluginId = id
+            // Reachable straight from the nav rail's plugin dropdown, bypassing selectSection() -
+            // so whichever section pane (e.g. EPG) was showing before has to be hidden here too,
+            // or it stays visible underneath this page.
+            listOf(
+                R.id.paneProviders, R.id.panePlayback, R.id.paneFilters, R.id.panePrivacy,
+                R.id.paneBackup, R.id.paneEpg, R.id.paneDownloads, R.id.paneAbout
+            ).forEach { dialogView.findViewById<View>(it)?.visibility = View.GONE }
             listPane.visibility = View.GONE
             detailPane.visibility = View.VISIBLE
             // Landing on Back rather than nowhere: the page is rebuilt asynchronously, so
@@ -6964,6 +7016,10 @@ class MainActivity : AppCompatActivity() {
                         // added provider shows up immediately instead of only after reopening.
                         refreshIptvProviderList?.invoke()
                         loadAllConfiguredProviders(forceRefresh = true)
+                        // The user was on this plugin's page when they tapped Add; the providers
+                        // list they actually want to see is in the Providers pane, so jump there
+                        // rather than leaving them staring at the now-empty "Added" button.
+                        onProviderAdded()
                     }
                     .setNegativeButton("Cancel", null)
                     .show()

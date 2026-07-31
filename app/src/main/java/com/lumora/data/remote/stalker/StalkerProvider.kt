@@ -14,31 +14,43 @@ class StalkerProvider(private val httpClient: OkHttpClient) {
     private val api = StalkerApiService(httpClient)
     private var authenticated = false
 
-    data class StalkerContent(
-        val live: List<Channel>,
-        val films: List<Channel>,
-        val series: List<Channel>
-    )
-
-    /**
-     * Authenticate with the Stalker portal and fetch all content.
-     */
-    suspend fun loadContent(provider: Provider): Result<StalkerContent> {
-        val serverUrl = provider.serverUrl ?: return Result.failure(Exception("No server URL"))
-        val mac = provider.userAgent ?: return Result.failure(Exception("No MAC address"))
-
+    /** Authenticates against the portal, if a prior [loadLiveChannels]/[loadVodAndSeries] call
+     *  on this instance hasn't already done so. */
+    private suspend fun ensureAuthenticated(serverUrl: String, mac: String): Result<Unit> {
+        if (authenticated) return Result.success(Unit)
         val auth = api.authenticate(serverUrl, mac)
         if (auth.isFailure) return Result.failure(auth.exceptionOrNull() ?: Exception("Auth failed"))
         if (!auth.getOrThrow().success) return Result.failure(Exception("Invalid MAC or server"))
-
         authenticated = true
+        return Result.success(Unit)
+    }
 
+    /** Live channels only - split out from VOD/series so a caller can show the part people
+     *  open the app for as soon as it lands, instead of waiting on the whole catalogue. A
+     *  portal with a huge live lineup (tens of thousands of channels across hundreds of
+     *  genres) plus a large VOD/series library held all three fully in memory at once before
+     *  anything was shown, which is what ran a low-RAM box out of heap and read as the app
+     *  freezing. */
+    suspend fun loadLiveChannels(provider: Provider): Result<List<Channel>> {
+        val serverUrl = provider.serverUrl ?: return Result.failure(Exception("No server URL"))
+        val mac = provider.userAgent ?: return Result.failure(Exception("No MAC address"))
+        ensureAuthenticated(serverUrl, mac).onFailure { return Result.failure(it) }
         return try {
-            val liveEntries = api.getLiveChannels(serverUrl, mac)
+            Result.success(api.getLiveChannels(serverUrl, mac).map { StalkerApiService.toChannel(it) })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** VOD + series, fetched after live so the live list's own memory (raw entries, the
+     *  intermediate map) is already reclaimable by the time this starts. */
+    suspend fun loadVodAndSeries(provider: Provider): Result<Pair<List<Channel>, List<Channel>>> {
+        val serverUrl = provider.serverUrl ?: return Result.failure(Exception("No server URL"))
+        val mac = provider.userAgent ?: return Result.failure(Exception("No MAC address"))
+        ensureAuthenticated(serverUrl, mac).onFailure { return Result.failure(it) }
+        return try {
             val vodEntries = api.getVodList(serverUrl, mac)
             val seriesEntries = api.getSeriesList(serverUrl, mac)
-
-            val live = liveEntries.map { StalkerApiService.toChannel(it) }
             val films = vodEntries.map { e ->
                 Channel(
                     id = e.id, name = e.name, url = e.url,
@@ -57,8 +69,7 @@ class StalkerProvider(private val httpClient: OkHttpClient) {
                     rating = e.rating, stalkerCmd = e.rawCmd, mediaType = MediaType.SERIES
                 )
             }
-
-            Result.success(StalkerContent(live, films, series))
+            Result.success(films to series)
         } catch (e: Exception) {
             Result.failure(e)
         }
