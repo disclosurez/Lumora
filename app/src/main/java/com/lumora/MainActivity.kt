@@ -135,11 +135,6 @@ private const val PREF_SUBTITLES_WITH_DUB = "subtitles_with_dub"
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
-// The live channel that was playing when the app was last closed, reopened on next launch,
-// plus the exact version of it that was on - restoring the channel alone re-runs the
-// quality/dead-stream auto-pick and can land on a different (often broken) stream.
-private const val PREF_LAST_LIVE_CHANNEL = "last_live_channel_id"
-private const val PREF_LAST_LIVE_VERSION = "last_live_version_id"
 // When the catalog was last fetched from the network; the cache serves every launch until
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
@@ -568,12 +563,18 @@ class MainActivity : AppCompatActivity() {
         setupTabs()
         setupPlayerControls()
         setupToolbar()
-        // Consumed once, by the first catalog load of this process. Read here (not at the
-        // point of use) so a rotation/recreate with the same catalog doesn't re-trigger it,
-        // and so a later reload - toggling a provider in Settings, say - doesn't yank the
-        // user back into the player.
-        pendingLiveResumeId = if (savedInstanceState == null) prefs.getString(PREF_LAST_LIVE_CHANNEL, null) else null
         loadDeadStreams()
+        // Shown immediately rather than waiting for loadSavedProvider(): that call sits behind
+        // pluginDiscoveryOnStart.join() below, which is real async work (runs the JS engine over
+        // every installed plugin's manifest header) - without this the screen was blank for that
+        // whole stretch, then jumped straight to content with no loading state ever having been
+        // visible, which read as the app hanging rather than working.
+        //
+        // contentRow has no android:visibility in the layout, so it inflates VISIBLE - applyStatus()
+        // reads that as "a pane already owns the screen" and refuses to show the status row at
+        // all until something else explicitly hides it first.
+        binding.contentRow.visibility = View.GONE
+        setStatus("Loading...", visible = true)
         scope.launch { pluginDiscoveryOnStart.join(); loadSavedProvider() }
         requestNotificationPermissionIfNeeded()
         checkAndPromptUpdate()
@@ -1082,7 +1083,7 @@ class MainActivity : AppCompatActivity() {
             // away when the user changes a provider, which force-refreshes.
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
-                if (!cached.isNullOrEmpty()) {
+                if (!cached.isNullOrEmpty() && !isCatalogStale()) {
                     // If an anime stream-search plugin is enabled but cache predates it
                     // (no "anime:"-prefixed channels), skip cache so the catalog is fetched.
                     val hasAnimePlugin = pluginScriptManager.getDiscoveredScripts().any {
@@ -1090,19 +1091,10 @@ class MainActivity : AppCompatActivity() {
                     }
                     val cachedHasAnime = cached.any { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
                     if (!hasAnimePlugin || cachedHasAnime) {
-                        if (!isCatalogStale()) {
-                            allChannels = cached
-                            classifyAndShow()
-                            setStatus("", visible = false)
-                            return@launch
-                        }
-                        // Stale, but still worth painting immediately: this is what lets
-                        // resumeLastLiveChannelIfPending() reopen the last-played channel (and
-                        // the guide show *something*) right away instead of leaving the user on
-                        // "Loading..." for however long the real fetch below takes. Falls
-                        // through to refresh it for real.
                         allChannels = cached
                         classifyAndShow()
+                        setStatus("", visible = false)
+                        return@launch
                     }
                 }
             }
@@ -1752,48 +1744,9 @@ class MainActivity : AppCompatActivity() {
             binding.contentRow.visibility = View.VISIBLE
             updateTopChromeVisibility()
             if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else selectTab(activeTab)
-            resumeLastLiveChannelIfPending()
         } else {
             showEmptyState()
         }
-    }
-
-    /** Persists what to reopen on next launch: the channel *and* the exact version of it
-     *  that's playing. Written on every tune and every version switch rather than at exit,
-     *  since the process can be killed outright from the launcher with no further callback.
-     *  Skips adult channels - they shouldn't auto-reopen on next launch. */
-    private fun rememberLastLiveTune(channel: Channel) {
-        if (isAdultCategory(channel.categoryName, channel.group)) return
-        prefs.edit()
-            .putString(PREF_LAST_LIVE_CHANNEL, channel.id)
-            .putString(PREF_LAST_LIVE_VERSION, currentVersionGroup.getOrNull(currentVersionIndex)?.id)
-            .apply()
-    }
-
-    /** Reopens whatever live channel was playing when the app was last closed, once the
-     *  catalog it lives in is actually loaded. Looks through the version lists too, since a
-     *  channel that was tuned from a dynamic/brand row can be a non-representative copy that
-     *  never appears in [liveChannels] itself.
-     *  Skips adult channels so they don't auto-resume on next launch. */
-    private fun resumeLastLiveChannelIfPending() {
-        val id = pendingLiveResumeId ?: return
-        if (isPlayerVisible) { pendingLiveResumeId = null; return }
-        val channel = liveChannels.firstOrNull { it.id == id }
-            ?: liveVersions.values.firstNotNullOfOrNull { versions -> versions.firstOrNull { it.id == id } }
-            // Not in this pass - left set rather than cleared, so a later, more complete
-            // classifyAndShow() (e.g. once a stale-cache first paint is replaced by the real
-            // fetch) still gets a chance to find it instead of silently giving up on the one
-            // that happened to run first.
-            ?: return
-        pendingLiveResumeId = null
-        if (isAdultCategory(channel.categoryName, channel.group)) return
-        selectTab(0)
-        currentIndex = liveChannels.indexOf(channel)
-        // Stash the resumed channel so hidePlayer() can return to it rather than
-        // the first channel in the list (which applyCategoryFilter with
-        // focusFirstLiveChannel true just loaded into the live preview).
-        lastFocusedLiveChannel = channel
-        showPlayerFor(channel, preferredVersionId = prefs.getString(PREF_LAST_LIVE_VERSION, null))
     }
 
     private fun computeDerivedContent(allChannels: List<Channel>, hideNonEnglish: Boolean, hideAdult: Boolean): DerivedContent {
@@ -4438,7 +4391,6 @@ class MainActivity : AppCompatActivity() {
         // switchToVersionIndex() does on failover/manual switch.
         if (channel.mediaType == MediaType.LIVE) {
             binding.playerChannelName.text = currentVersionGroup.getOrNull(currentVersionIndex)?.name ?: channel.name
-            rememberLastLiveTune(channel)
         }
 
         resetStallTracking()
@@ -4689,9 +4641,6 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
         binding.bufferingSpinner.visibility = View.VISIBLE
         playerManager.playUrl(next.url, next.streamUserAgent)
-        // Whatever version ends up playing - picked by hand or arrived at by failover - is
-        // what should come back on next launch.
-        nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE }?.let { rememberLastLiveTune(it) }
     }
 
     /** Lets the user manually pick a specific version of whatever's playing - the auto-picked
@@ -5124,9 +5073,6 @@ class MainActivity : AppCompatActivity() {
     // ── Live TV inline preview ──────────────────────
 
     private var lastFocusedLiveChannel: Channel? = null
-
-    /** Live channel id to reopen on launch (see [PREF_LAST_LIVE_CHANNEL]); null once used. */
-    private var pendingLiveResumeId: String? = null
 
     private fun ensurePreviewPlayer(): PlayerManager {
         previewPlayerManager?.let { return it }
