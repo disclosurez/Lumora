@@ -33,12 +33,16 @@
         </intent>
     </queries>
 
+    <!-- largeHeap: merged catalogues run to six figures of Channel objects across several
+         providers, all resident so browsing and search stay instant. A TV stick's default heap
+         caps around 170MB, which one large Stalker portal was enough on its own to exhaust. -->
     <application
         android:name=".BaseApplication"
         android:allowBackup="true"
         android:banner="@mipmap/banner_tv"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:largeHeap="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Lumora"

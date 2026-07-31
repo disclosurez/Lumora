@@ -1,5 +1,6 @@
 package com.lumora.data.remote.stalker
 
+import android.util.Log
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
@@ -136,6 +137,7 @@ class StalkerApiService(private val client: OkHttpClient) {
                 }
             }
             if (jsTokenFromServer == null || endpoint == null) {
+                Log.w(TAG, "handshake: no endpoint responded with a token (tried $endpointCandidates against $base)")
                 return Result.failure(Exception("Handshake failed - no Stalker endpoint responded"))
             }
             jsToken = jsTokenFromServer
@@ -154,7 +156,10 @@ class StalkerApiService(private val client: OkHttpClient) {
                     "&mac=${URLEncoder.encode(deviceMac, "UTF-8")}"
 
             val profileJson = fetchJson(profileUrl, jsTokenFromServer)
-            if (profileJson == null) return Result.failure(Exception("Profile fetch failed"))
+            if (profileJson == null) {
+                Log.w(TAG, "get_profile: no/unparseable response from $base$endpoint")
+                return Result.failure(Exception("Profile fetch failed"))
+            }
 
             // get_profile may mint a fresh token; if it doesn't, the handshake token stays
             // valid, so fall back to it rather than dropping to null and losing the session.
@@ -171,18 +176,21 @@ class StalkerApiService(private val client: OkHttpClient) {
             )
 
             if (!authResult.success) {
+                Log.w(TAG, "authenticate: profile returned no token")
                 return Result.failure(Exception("Authentication failed"))
             }
 
-            // Step 3: Get channels (test auth)
-            val channelsUrl = buildApiUrl("get_all_channels", mac, token)
-            val channelsJson = fetchJson(channelsUrl, jsTokenFromServer)
-            if (channelsJson != null) {
-                return Result.success(authResult)
-            }
-
+            // No "test the auth by fetching the channel list" step here any more. It pulled the
+            // portal's entire live catalogue - the one unpaged call this API has - through
+            // fetchJson's whole-body String + JSONObject DOM, and then discarded the result:
+            // both of its branches returned the same success. On a large portal that single
+            // throwaway call was enough to exhaust a TV stick's heap, so connecting died with
+            // an OutOfMemoryError before the catalogue was ever really loaded (see
+            // streamAllChannels, which is how the list is read for real).
+            Log.i(TAG, "authenticate: ok, endpoint=$endpoint")
             Result.success(authResult)
         } catch (e: Exception) {
+            Log.w(TAG, "authenticate: ${e.javaClass.simpleName}: ${e.message}")
             Result.failure(e)
         }
     }
@@ -196,7 +204,17 @@ class StalkerApiService(private val client: OkHttpClient) {
         // populate the paged get_ordered_list (portal-dependent, not a fault we can detect
         // ahead of time) - so fall through to that when the bulk call comes back empty.
         val cats = fetchCategories("itv", mac, token)
-        val bulk = fetchChannelList(serverUrl, mac, token, "itv", "get_all_channels", cats)
+        Log.i(TAG, "getLiveChannels: ${cats.size} genres")
+        // Streamed, not fetched into a JSONObject: this response is a whole catalogue in one
+        // body and is what ran a TV stick out of heap on a large portal. See streamAllChannels.
+        val bulk = streamAllChannels(
+            url = buildApiUrl("get_all_channels", mac, token, "itv"),
+            jsToken = jsToken,
+            base = serverUrl.trimEnd('/'),
+            categories = cats,
+            cap = MAX_BULK_CHANNELS
+        )
+        Log.i(TAG, "getLiveChannels: get_all_channels streamed ${bulk.size}")
         if (bulk.isNotEmpty()) return bulk
         // Only portals that leave get_all_channels empty reach the paged path. Live TV gets
         // the largest budget of the three - it's what people open the app for.
@@ -335,22 +353,6 @@ class StalkerApiService(private val client: OkHttpClient) {
 
     // ── Internal helpers ───────────────────────
 
-    private suspend fun fetchChannelList(
-        serverUrl: String, mac: String, token: String, type: String, action: String,
-        categories: Map<String, String> = emptyMap()
-    ): List<ChannelEntry> {
-        return try {
-            val base = serverUrl.trimEnd('/')
-            val url = buildApiUrl(action, mac, token, type)
-            val json = fetchJson(url, jsToken)
-            val js = json?.optJSONObject("js")
-            val items = js?.optJSONArray("data") ?: js?.optJSONArray("") ?: return emptyList()
-            parseEntries(base, items, categories)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
     private fun parseEntries(base: String, items: JSONArray, categories: Map<String, String>): List<ChannelEntry> =
         (0 until items.length()).mapNotNull { i ->
             val obj = items.optJSONObject(i) ?: return@mapNotNull null
@@ -411,30 +413,34 @@ class StalkerApiService(private val client: OkHttpClient) {
                 "&JsHttpRequest=1-xml"
     }
 
+    private fun buildRequest(url: String, jsToken: String?): Request {
+        val builder = Request.Builder().url(url)
+            .header("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; Linux; MAG250; Model: MAG250; Link: WiFi) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250")
+
+        // The MAG session cookie: the MAC (colon form) plus locale/timezone. Portals key
+        // the whole session to this and 401/404 without it - this was the second thing
+        // (after the endpoint path) the old client never sent, so even a reachable portal
+        // rejected it. A Set-Cookie from the server, if any, is appended after.
+        val mac = deviceMac
+        if (mac != null) {
+            val base = "mac=${URLEncoder.encode(mac, "UTF-8")}; stb_lang=en; timezone=${URLEncoder.encode(deviceTimezone, "UTF-8")}"
+            builder.header("Cookie", if (authCookie != null) "$base; $authCookie" else base)
+        } else if (authCookie != null) {
+            builder.header("Cookie", authCookie!!)
+        }
+        // Stalker authorises API calls with a Bearer token, not a query param alone.
+        authToken?.let { builder.header("Authorization", "Bearer $it") }
+        if (jsToken != null) {
+            builder.header("X-Js-Request-Token", jsToken)
+        }
+        return builder.build()
+    }
+
     private suspend fun fetchJson(url: String, jsToken: String?): JSONObject? {
         return try {
-            val builder = Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; Linux; MAG250; Model: MAG250; Link: WiFi) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250")
-
-            // The MAG session cookie: the MAC (colon form) plus locale/timezone. Portals key
-            // the whole session to this and 401/404 without it - this was the second thing
-            // (after the endpoint path) the old client never sent, so even a reachable portal
-            // rejected it. A Set-Cookie from the server, if any, is appended after.
-            val mac = deviceMac
-            if (mac != null) {
-                val base = "mac=${URLEncoder.encode(mac, "UTF-8")}; stb_lang=en; timezone=${URLEncoder.encode(deviceTimezone, "UTF-8")}"
-                builder.header("Cookie", if (authCookie != null) "$base; $authCookie" else base)
-            } else if (authCookie != null) {
-                builder.header("Cookie", authCookie!!)
-            }
-            // Stalker authorises API calls with a Bearer token, not a query param alone.
-            authToken?.let { builder.header("Authorization", "Bearer $it") }
-            if (jsToken != null) {
-                builder.header("X-Js-Request-Token", jsToken)
-            }
-
-            val response = client.newCall(builder.build()).execute()
+            val response = client.newCall(buildRequest(url, jsToken)).execute()
             if (!response.isSuccessful) {
+                Log.w(TAG, "HTTP ${response.code} for ${url.redactCredentials()}")
                 response.close()
                 return null
             }
@@ -445,8 +451,181 @@ class StalkerApiService(private val client: OkHttpClient) {
 
             JSONObject(body)
         } catch (e: Exception) {
+            // Every failure used to collapse to a bare null here, which is why a portal that
+            // wouldn't connect produced not one line in logcat to work from.
+            Log.w(TAG, "${e.javaClass.simpleName}: ${e.message} for ${url.redactCredentials()}")
             null
         }
+    }
+
+    /** Portal URLs carry the MAC (and on some portals a token) as query parameters, and these
+     *  lines go to logcat, which any app on the device can read. */
+    private fun String.redactCredentials(): String =
+        replace(Regex("(mac=)[^&]*", RegexOption.IGNORE_CASE), "$1***")
+            .replace(Regex("(token=)[^&]*", RegexOption.IGNORE_CASE), "$1***")
+
+    /**
+     * Streams `get_all_channels` straight off the socket instead of materialising it.
+     *
+     * This is the one Stalker call with no page size behind it - a portal answers it with its
+     * entire live catalogue in a single response, tens of MB on a large one. [fetchJson]'s
+     * `body.string()` turns that into one Java String (UTF-16, so ~2 bytes per byte of JSON) and
+     * `JSONObject(body)` then builds a full DOM of boxed objects on top of it, so peak usage is
+     * several times the payload before a single ChannelEntry exists. On a TV stick, whose heap
+     * caps around 170MB, that is an OutOfMemoryError rather than a slow load - which is what a
+     * large portal looked like from the outside: "it can't connect".
+     *
+     * [android.util.JsonReader] walks the same bytes as a stream, so only one item is in memory
+     * at a time and the peak is the returned list itself, which [cap] bounds.
+     */
+    private fun streamAllChannels(
+        url: String, jsToken: String?, base: String, categories: Map<String, String>, cap: Int
+    ): List<ChannelEntry> {
+        val out = ArrayList<ChannelEntry>()
+        try {
+            val response = client.newCall(buildRequest(url, jsToken)).execute()
+            if (!response.isSuccessful) {
+                response.close()
+                return emptyList()
+            }
+            response.header("Set-Cookie")?.let { updateAuthState(it.split(";").firstOrNull(), null) }
+            val body = response.body ?: return emptyList()
+            body.charStream().use { stream ->
+                val reader = android.util.JsonReader(stream)
+                reader.isLenient = true
+                // {"js": {"data": [...]}} on most portals, {"js": [...]} on some, and a few name
+                // the array with an empty key - all three shapes the DOM path handled before it
+                // was replaced, so all three are handled here.
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    if (reader.nextName() != "js") { reader.skipValue(); continue }
+                    when (reader.peek()) {
+                        android.util.JsonToken.BEGIN_ARRAY -> readEntryArray(reader, base, categories, cap, out)
+                        android.util.JsonToken.BEGIN_OBJECT -> {
+                            reader.beginObject()
+                            while (reader.hasNext()) {
+                                val key = reader.nextName()
+                                if ((key == "data" || key.isEmpty()) &&
+                                    reader.peek() == android.util.JsonToken.BEGIN_ARRAY
+                                ) {
+                                    readEntryArray(reader, base, categories, cap, out)
+                                } else {
+                                    reader.skipValue()
+                                }
+                            }
+                            reader.endObject()
+                        }
+                        else -> reader.skipValue()
+                    }
+                    // Everything wanted has been read; the rest of the response can be dropped
+                    // without parsing it.
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            // Same contract as the DOM path: a malformed or truncated response is "no channels
+            // from this call", which makes getLiveChannels fall through to the paged list.
+            Log.w(TAG, "streamAllChannels: ${e.javaClass.simpleName}: ${e.message} after ${out.size}")
+            return out
+        }
+        return out
+    }
+
+    private fun readEntryArray(
+        reader: android.util.JsonReader, base: String, categories: Map<String, String>,
+        cap: Int, out: MutableList<ChannelEntry>
+    ) {
+        reader.beginArray()
+        while (reader.hasNext()) {
+            if (out.size >= cap) {
+                // Stop reading rather than skipping to the end: the remainder can be many MB,
+                // and nothing past the cap is going to be used.
+                return
+            }
+            readEntry(reader, base, categories)?.let(out::add)
+        }
+        reader.endArray()
+    }
+
+    /** One list item, field by field - the streaming equivalent of [parseEntries]'s body. */
+    private fun readEntry(
+        reader: android.util.JsonReader, base: String, categories: Map<String, String>
+    ): ChannelEntry? {
+        if (reader.peek() != android.util.JsonToken.BEGIN_OBJECT) {
+            reader.skipValue()
+            return null
+        }
+        var id = ""
+        var name = ""
+        var cmd: String? = null
+        var logo: String? = null
+        var categoryId: String? = null
+        var categoryName: String? = null
+        var tvGenreId: String? = null
+        var number: String? = null
+        var isAdult = false
+        var screenshot: String? = null
+        var pic: String? = null
+        var description: String? = null
+        var date: String? = null
+        var rating: String? = null
+
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "id" -> id = reader.nextStringOrNull().orEmpty()
+                "name" -> name = reader.nextStringOrNull().orEmpty()
+                "cmd" -> cmd = reader.nextStringOrNull()?.ifBlank { null }
+                "logo" -> logo = reader.nextStringOrNull()?.ifBlank { null }
+                "category_id" -> categoryId = reader.nextStringOrNull()?.ifBlank { null }
+                "category_name" -> categoryName = reader.nextStringOrNull()?.ifBlank { null }
+                "tv_genre_id" -> tvGenreId = reader.nextStringOrNull()?.ifBlank { null }
+                "number" -> number = reader.nextStringOrNull()?.ifBlank { null }
+                "is_adult" -> isAdult = reader.nextStringOrNull() == "1"
+                "screenshot_uri" -> screenshot = reader.nextStringOrNull()?.ifBlank { null }
+                "pic" -> pic = reader.nextStringOrNull()?.ifBlank { null }
+                "description" -> description = reader.nextStringOrNull()?.ifBlank { null }
+                // "year" is actually a full release date ("2026-07-07") on this API.
+                "year" -> date = reader.nextStringOrNull()?.ifBlank { null }
+                "rating_imdb" -> rating = reader.nextStringOrNull()?.ifBlank { null }
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+
+        if (id.isBlank()) return null
+        val catId = categoryId ?: tvGenreId
+        return ChannelEntry(
+            id = id,
+            name = name,
+            // Live commands ("ffmpeg http://…") resolve to a URL inline; VOD commands are
+            // base64 and only become playable via create_link, so leave url blank for
+            // those and carry the raw cmd for the play step to resolve.
+            url = if (cmd != null && cmd.startsWith("ffmpeg")) buildStreamUrl(base, cmd)
+                  else if (cmd != null && cmd.startsWith("http")) cmd
+                  else "",
+            logo = logo,
+            categoryId = catId,
+            categoryName = catId?.let { categories[it] } ?: categoryName,
+            tvgId = tvGenreId,
+            tvgChno = number,
+            isAdult = isAdult,
+            poster = screenshot ?: pic,
+            description = description,
+            releaseDate = date,
+            rating = rating,
+            rawCmd = cmd
+        )
+    }
+
+    /** Stalker sends numbers unquoted about as often as quoted, and nulls for absent fields -
+     *  [android.util.JsonReader.nextString] throws on a null and a bare object/array, where the
+     *  DOM path's optString() quietly coerced everything. */
+    private fun android.util.JsonReader.nextStringOrNull(): String? = when (peek()) {
+        android.util.JsonToken.NULL -> { nextNull(); null }
+        android.util.JsonToken.BOOLEAN -> nextBoolean().toString()
+        android.util.JsonToken.BEGIN_OBJECT, android.util.JsonToken.BEGIN_ARRAY -> { skipValue(); null }
+        else -> nextString()
     }
 
     private fun md5(input: String): String {
@@ -458,8 +637,13 @@ class StalkerApiService(private val client: OkHttpClient) {
         // ~14 items per page on this API. Live gets ~2800 channels before the cap, VOD/series
         // ~700 each - enough to browse immediately, without the multi-minute upfront crawl a
         // full 17k-item catalogue would need over a one-page-at-a-time API.
+        private const val TAG = "Stalker"
         private const val LIVE_MAX_PAGES = 200
         private const val VOD_MAX_PAGES = 50
+        /** Ceiling on one portal's bulk live list. Well past any real channel count, and there
+         *  purely so a portal that answers get_all_channels with something enormous (or with a
+         *  stream that never ends) can't take the app's heap with it. */
+        private const val MAX_BULK_CHANNELS = 60_000
 
         fun toChannel(entry: ChannelEntry): Channel = Channel(
             id = entry.id,
