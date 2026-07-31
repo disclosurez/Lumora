@@ -100,7 +100,8 @@
     <dimen name="guide_channel_column_width">190dp</dimen>
     <!-- Narrower than the old 240dp: the rows are short labels with a count, and the width
          they were given came straight off the guide grid and the poster columns next to
-         them. Long category names still ellipsise at 40 chars in the adapter regardless. -->
+         them. Long names wrap to a second line rather than taking more width - see
+         item_category.xml. -->
     <dimen name="category_sidebar_width">200dp</dimen>
 
     <!-- Toolbar / tab bar / poster grid, all +~30% over the phone scale. Tab padding drops
