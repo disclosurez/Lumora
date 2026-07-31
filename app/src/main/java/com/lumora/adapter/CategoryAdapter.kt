@@ -72,7 +72,11 @@ class CategoryAdapter(
             // uppercased here rather than in their label: the label is part of the id that
             // expansion state and pins are keyed on, so renaming would orphan both.
             val rawName = if (category.isDynamic) category.name.uppercase() else category.name
-            val name = rawName.let { if (it.length > 40) it.take(39) + "…" else it }
+            // Only a sanity bound against a pathological provider label, not the thing that
+            // decides what fits - the row wraps to two lines and ellipsises on width, which is
+            // the real limit. The old 40 sat close enough to that limit to clip names the row
+            // had room for.
+            val name = rawName.let { if (it.length > 80) it.take(79) + "…" else it }
             textView.text = "$chevron$pinPrefix$name$countSuffix"
             textView.isSelected = selected
             textView.setTextColor(

@@ -4,13 +4,13 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clipChildren="false"
     android:clipToPadding="false"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="@dimen/settings_gap">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -32,19 +32,19 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_body"
+                android:textSize="@dimen/settings_text_body"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/candidateVerified"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="@dimen/settings_gap_s"
                 android:background="@drawable/pill_number"
                 android:paddingHorizontal="8dp"
                 android:text="@string/tested"
                 android:textColor="@color/success_green"
-                android:textSize="@dimen/text_tiny"
+                android:textSize="@dimen/settings_text_micro"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </LinearLayout>
@@ -57,19 +57,19 @@
             android:ellipsize="end"
             android:maxLines="2"
             android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_caption" />
+            android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/candidateAddButton"
         android:layout_width="wrap_content"
-        android:layout_height="36dp"
-        android:layout_marginStart="8dp"
+        android:layout_height="@dimen/settings_action_button_height"
+        android:layout_marginStart="@dimen/settings_gap_s"
         android:background="@drawable/card_surface_background"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
-        android:paddingHorizontal="12dp"
+        android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
             android:id="@+id/candidateAddLabel"
@@ -77,7 +77,7 @@
             android:layout_height="wrap_content"
             android:text="@string/add"
             android:textColor="@color/accent"
-            android:textSize="@dimen/text_caption"
+            android:textSize="@dimen/settings_text_caption"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

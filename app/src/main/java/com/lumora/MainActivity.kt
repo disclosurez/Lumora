@@ -34,6 +34,11 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.text.Spanned
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.ForegroundColorSpan
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.PlaybackException
@@ -123,6 +128,10 @@ import java.util.Locale
 
 private const val PREF_HIDE_NON_ENGLISH = "hide_non_english_vod"
 private const val PREF_HIDE_ADULT = "hide_adult_categories"
+// Dub handling: prefer dub-flagged search results, and keep sideloaded subtitles on when a
+// stream plays back with its dubbed audio track (both default off).
+private const val PREF_PREFER_DUB_AUDIO = "prefer_dub_audio"
+private const val PREF_SUBTITLES_WITH_DUB = "subtitles_with_dub"
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
@@ -135,6 +144,14 @@ private const val PREF_LAST_LIVE_VERSION = "last_live_version_id"
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
 private const val CATALOG_TTL_MS = 12 * 60 * 60 * 1000L
+/** Per-provider ceiling on a catalogue fetch. Deliberately far above what a healthy provider
+ *  needs: this exists to stop a *dead* entry starving the providers queued behind it, not to
+ *  discipline a slow one. A real portal measured here streams 67MB of live channels in 4s and
+ *  then pages VOD and series 14 items at a time - two minutes was inside that envelope, and
+ *  because a timeout fails the whole provider it threw away the 51,545 live channels it had
+ *  already fetched along with the rest. An unreachable host is now identified in seconds by
+ *  isRetryable()/hostUnreachable, so this only has to be an outer backstop. */
+private const val PROVIDER_FETCH_TIMEOUT_MS = 360_000L
 private const val SEARCH_BATCH_SIZE = 50
 
 // Free-TV/IPTV: a community-maintained list of publicly available free-to-air streams.
@@ -276,11 +293,13 @@ class MainActivity : AppCompatActivity() {
     private var providerNamesById: Map<String, String> = emptyMap()
     /** The in-flight plugin discovery run, if any - one at a time, cancelled when Settings closes. */
     private var pluginDiscoveryJob: Job? = null
-    /** Which plugin sections in Settings > Plugins are expanded. Held here rather than on the
-     *  row views because [wirePluginsPane] rebuilds every row from scratch on any change
-     *  (enable, remove, install, each discovery progress line), which would otherwise collapse
-     *  whatever the user had open - including the section they are watching run. */
-    private val expandedPluginIds = mutableSetOf<String>()
+    /** The plugin whose page is open in Settings > Plugins, or null on the list. Held here
+     *  rather than on the views because the page is rebuilt from scratch on any change (enable,
+     *  update, remove, a discovery run's progress), and it has to know what it is showing. */
+    private var openPluginId: String? = null
+    /** Returns from an open plugin page to the plugin list. Held so Back can go up one level
+     *  inside Settings instead of closing the whole overlay from two screens deep. */
+    private var closeOpenPluginPage: (() -> Unit)? = null
     /** The plugin whose run output the rows below belong to, and that output. Same reason as
      *  above: a re-render must be able to put the results back where they were, so they live
      *  outside the views. Cleared when a different plugin is run. */
@@ -307,6 +326,10 @@ class MainActivity : AppCompatActivity() {
      *  [wirePluginsPane] while the settings overlay is up, so the nav rail's plugin rows can
      *  drive the pane. Null when settings isn't open. */
     private var revealPluginInPane: ((String) -> Unit)? = null
+    /** What the last setStatus() asked for, kept because whether it can actually be shown
+     *  depends on screen state that changes after the fact - see applyStatus(). */
+    private var statusText = ""
+    private var statusWanted = false
     /** Whether the nav rail's Plugins row is showing its installed-plugin children. */
     private var navPluginsExpanded = false
     /** Rebuilds those child rows - the pane calls it after anything that changes a plugin's
@@ -728,7 +751,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
+        // A plugin's page is a level inside Settings, not a screen of its own - Back goes up to
+        // the plugin list first rather than dropping the user out of Settings entirely.
+        if (activeSettingsOverlay != null && openPluginId != null) closeOpenPluginPage?.invoke()
+        else if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
         else if (activeSearchOverlay != null) activeSearchOverlay?.dismiss()
         else if (isPlayerVisible) hidePlayer()
         else if (isContentDetailVisible) hideContentDetail()
@@ -1040,8 +1066,15 @@ class MainActivity : AppCompatActivity() {
         // ordering guarantee between the launched coroutines - without cancelling the
         // previous one, whichever network fetch happens to finish last wins and gets written
         // to allChannels/ChannelCache, which can silently persist a stale provider list.
-        providerLoadJob?.cancel()
+        //
+        // Waited on, not just cancelled: cancel() only sets a flag and returns, so the outgoing
+        // load carried on fetching while the new one started. Against one Stalker portal that
+        // meant several handshakes and two 70MB catalogue streams in flight at once - enough on
+        // its own to trip the portal's rate limit (every call after the handshake came back
+        // "Connection reset") and to double the peak memory of the load.
+        val previousLoad = providerLoadJob
         providerLoadJob = scope.launch {
+            previousLoad?.cancelAndJoin()
             // The cached catalog is authoritative until it goes stale: re-fetching every
             // launch means several seconds of "Loading..." and, on a large catalog, real
             // work for a result that is almost always identical. Providers change rarely,
@@ -1071,11 +1104,20 @@ class MainActivity : AppCompatActivity() {
 
             for (config in IptvProviderStore.load(prefs).filter { it.enabled }) {
                 setStatus("Connecting to ${config.name}...", visible = true)
-                val result = when (config.type) {
-                    "xtream" -> fetchXtreamChannels(config) { expiryText = it }
-                    "stalker" -> fetchStalkerChannels(config)
-                    else -> fetchM3uChannels(config)
-                }
+                // Bounded, because these run one after another and a provider that is simply
+                // dead does not fail fast: a Stalker portal walks up to 200 live pages plus 50
+                // each of VOD and series, and every one of those calls has its own retries and
+                // backoff behind it. One unreachable provider could therefore hold the loop for
+                // many minutes, and everything after it in the list - a perfectly good provider
+                // included - never got fetched at all. A provider that cannot answer inside this
+                // is reported as failed and the rest of the catalogue still loads.
+                val result = withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
+                    when (config.type) {
+                        "xtream" -> fetchXtreamChannels(config) { expiryText = it }
+                        "stalker" -> fetchStalkerChannels(config)
+                        else -> fetchM3uChannels(config)
+                    }
+                } ?: FetchResult.Failure("timed out")
                 when (result) {
                     is FetchResult.Success -> combined += result.channels
                     is FetchResult.Failure -> errors += "${config.name}: ${result.message}"
@@ -1124,6 +1166,12 @@ class MainActivity : AppCompatActivity() {
                     (expiryText?.let { "  ·  $it" } ?: "") +
                     (errors.takeIf { it.isNotEmpty() }?.let { "  ·  ⚠ " + it.joinToString(", ") } ?: "")
                 setStatus(summary, visible = true)
+                // A refresh over existing content can't use the status row (suppressed while a
+                // pane owns the slot), so the outcome would otherwise be silent - and a failed
+                // provider is exactly what the user needs told.
+                if (binding.statusRow.visibility != View.VISIBLE) {
+                    Toast.makeText(this@MainActivity, summary, Toast.LENGTH_LONG).show()
+                }
                 if (errors.isEmpty()) mainHandler.postDelayed({ setStatus("", visible = false) }, 4000)
             }
         }
@@ -2327,11 +2375,30 @@ class MainActivity : AppCompatActivity() {
             // in the flat channel cache), so the row degrades to a plain, unexpandable Anime
             // category until the next catalog refresh rather than vanishing.
             if (tab == 1 && ANIME_CATEGORY_ID !in hiddenIds) {
-                val animeIds = list.filter { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
-                    .map { it.id }.toSet()
+                // Anime titles are deduped against the rest of the catalog by name like
+                // everything else, so a show an IPTV provider also carries becomes one card -
+                // and the copy that wins it is whichever had a poster, very often the provider's.
+                // Matching on the representative's own "anime:" id therefore lost every title
+                // the provider happened to stock, which with a large provider is most of them
+                // and took the whole Anime row with it. Same failure the Jellyfin row above
+                // already handles: look at every version in the group, not just the winner.
+                //
+                // Mapped rather than filtered, because the sections below index titles by their
+                // catalog id: once a title is represented by the provider's copy, its section
+                // has to point at that representative or the row would be empty.
+                val animeRepById = HashMap<String, String>()
+                for (ch in list) {
+                    if (ch.id.startsWith(AnimeCatalogClient.ID_PREFIX)) animeRepById[ch.id] = ch.id
+                    versionsById[ch.id]?.forEach { version ->
+                        if (version.id.startsWith(AnimeCatalogClient.ID_PREFIX)) {
+                            animeRepById[version.id] = ch.id
+                        }
+                    }
+                }
+                val animeIds = animeRepById.values.toSet()
                 if (animeIds.isNotEmpty()) {
                     val children = animeSectionsSnapshot.mapNotNull { section ->
-                        val ids = section.channelIds.filterTo(mutableSetOf()) { it in animeIds }
+                        val ids = section.channelIds.mapNotNullTo(mutableSetOf()) { animeRepById[it] }
                         if (ids.isEmpty()) return@mapNotNull null
                         CategoryFilter(
                             id = "$ANIME_CATEGORY_ID:${section.label}",
@@ -2637,15 +2704,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setStatus(text: String, visible: Boolean) {
-        binding.statusText.text = text
-        // A settings/search overlay owns the content slot while it's up - a status raised
-        // underneath it shows through as loose text floating on the dialog's backdrop.
-        val hiddenByOverlay = activeSettingsOverlay != null || activeSearchOverlay != null
-        binding.statusRow.visibility = if (visible && !hiddenByOverlay) View.VISIBLE else View.GONE
+        statusText = text
+        statusWanted = visible
+        applyStatus()
+    }
+
+    /**
+     * Decides whether the status actually goes on screen, from the current state rather than
+     * from what was true when the message was raised.
+     *
+     * A provider load runs for a long time - a large Stalker portal is a minute of streaming -
+     * and the user is free to move around while it does. statusRow is a sibling of the content
+     * panes holding the same 0dp/weight=1 slot, so any pane shown while it was up got half the
+     * screen and "Connecting to <provider>..." got the other half. Raising it once and leaving
+     * it also meant opening Settings afterwards couldn't take it down, because nothing
+     * re-evaluated it until the next message.
+     *
+     * So the status only owns the slot when nothing else does, and every screen change calls
+     * this. The load itself is unaffected - it just stops being narrated over whatever the user
+     * went to look at instead.
+     */
+    private fun applyStatus() {
+        binding.statusText.text = statusText
+        val slotTaken = activeSettingsOverlay != null || activeSearchOverlay != null ||
+            isPlayerVisible || isContentDetailVisible ||
+            binding.contentRow.visibility == View.VISIBLE ||
+            binding.homeContent.visibility == View.VISIBLE ||
+            binding.discoverContent.visibility == View.VISIBLE
+        val show = statusWanted && !slotTaken
+        binding.statusRow.visibility = if (show) View.VISIBLE else View.GONE
         // In-progress messages ("Loading...", "Connecting...") get a spinner; final
         // results ("N items", errors) don't - "..." is what already distinguishes them
         // at every call site, no need for a second parameter everywhere.
-        binding.statusSpinner.visibility = if (visible && text.trimEnd().endsWith("...")) View.VISIBLE else View.GONE
+        binding.statusSpinner.visibility =
+            if (show && statusText.trimEnd().endsWith("...")) View.VISIBLE else View.GONE
     }
 
     // ── Tabs ───────────────────────────────────────
@@ -2700,6 +2792,7 @@ class MainActivity : AppCompatActivity() {
         applyPanelWidth(binding.homeSearchBar, R.dimen.home_search_bar_width)
         updateTabStyles(binding.tabHome)
         homeShelfAdapter.submitList(buildHomeShelves())
+        applyStatus()
     }
 
     /** Applies [widthDimen] as an explicit width, treating 0 as "leave it as laid out".
@@ -2730,6 +2823,7 @@ class MainActivity : AppCompatActivity() {
         updateTabStyles(binding.tabDownloads)
         refreshDownloadsList()
         mainHandler.post(downloadsProgressRunnable)
+        applyStatus()
     }
 
     // ── Discover (TMDB browse + plugin playback) ────
@@ -2766,6 +2860,7 @@ class MainActivity : AppCompatActivity() {
         } else if (discoverGridAdapter.itemCount == 0) {
             loadDiscover(null)
         }
+        applyStatus()
     }
 
     private fun runDiscoverSearch() {
@@ -3132,6 +3227,7 @@ class MainActivity : AppCompatActivity() {
             // don't override its call here.
             binding.contentRow.visibility = View.VISIBLE
             setStatus("", visible = false)
+            applyStatus()
         }
     }
 
@@ -3302,6 +3398,7 @@ class MainActivity : AppCompatActivity() {
         isContentDetailVisible = true
         binding.mainContent.visibility = View.GONE
         binding.contentDetailLayout.visibility = View.VISIBLE
+        applyStatus()
 
         val backdrop = binding.detailBackdrop
         val titleText = binding.detailTitle
@@ -3638,6 +3735,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun hideContentDetail() {
         isContentDetailVisible = false
+        applyStatus()
         nowShowingDetailId = null
         binding.contentDetailLayout.visibility = View.GONE
         binding.mainContent.visibility = View.VISIBLE
@@ -3857,9 +3955,11 @@ class MainActivity : AppCompatActivity() {
             searchRunnable?.let { mainHandler.removeCallbacks(it) }
             searchKeyHandler = null
             activeSearchOverlay = null
+            applyStatus()
             if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
         }
         activeSearchOverlay = overlay
+        applyStatus()
         overlay.show()
     }
 
@@ -3919,7 +4019,20 @@ class MainActivity : AppCompatActivity() {
         statusText.text = "${searchDisplayedCount}/${searchAllResults.size} results"
     }
 
+    /**
+     * The toolbar's refresh button: re-connect to every enabled provider, ignoring the cache.
+     *
+     * Announced with a toast rather than the status row, because once there is content on
+     * screen the status row is suppressed (it shares the content slot - see applyStatus), so
+     * pressing refresh over a populated Home gave no sign anything had happened at all.
+     */
     private fun reloadCurrentProvider() {
+        if (!hasProviderEnabled()) {
+            Toast.makeText(this, "No provider is enabled - turn one on in Settings", Toast.LENGTH_LONG).show()
+            showProviderSettings()
+            return
+        }
+        Toast.makeText(this, "Refreshing providers…", Toast.LENGTH_SHORT).show()
         loadAllConfiguredProviders(forceRefresh = true)
     }
 
@@ -4172,13 +4285,16 @@ class MainActivity : AppCompatActivity() {
      *
      *  [externalSubtitles] are sidecar tracks a caller already resolved (the Find Stream
      *  dialog); [pluginStreamAlreadyResolved] marks that same caller's URL as freshly resolved,
-     *  so the plugin branch below doesn't resolve it a second time. */
+     *  so the plugin branch below doesn't resolve it a second time. [audio] is the stream's
+     *  audio category hint ("sub"/"dub") when the caller knows it - the player prefers the
+     *  matching audio track and gates sidecar subtitles on it. */
     private fun showPlayerFor(
         channel: Channel,
         resumeFromMs: Long? = null,
         preferredVersionId: String? = null,
         externalSubtitles: List<PlayerManager.ExternalSubtitle> = emptyList(),
-        pluginStreamAlreadyResolved: Boolean = false
+        pluginStreamAlreadyResolved: Boolean = false,
+        audio: String? = null
     ) {
         // Reset Up Next state on any new playback
         cancelUpNext()
@@ -4208,6 +4324,7 @@ class MainActivity : AppCompatActivity() {
         binding.mainContent.visibility = View.GONE
         binding.playerLayout.visibility = View.VISIBLE
         binding.playerLayout.keepScreenOn = true
+        applyStatus()
         binding.playerChannelName.text = channel.name
         binding.playerSubtitle.visibility = View.GONE
         binding.playerLiveBadge.visibility = if (channel.mediaType == MediaType.LIVE) View.VISIBLE else View.GONE
@@ -4316,7 +4433,7 @@ class MainActivity : AppCompatActivity() {
                     // Not the MAC (which Stalker channels carry as their UA for the portal API):
                     // the resolved movie.php/live.php stream is plain HTTP and wants a normal
                     // player UA. Sending the MAC as User-Agent is what errored the playback.
-                    playerManager.playUrl(resolved, STREAM_USER_AGENT)
+                    playerManager.playUrl(resolved, STREAM_USER_AGENT, audio = audio)
                 }
                 resumeFromMs?.let { playerManager.seekTo(it) }
             }
@@ -4339,7 +4456,8 @@ class MainActivity : AppCompatActivity() {
                     resolved?.url ?: startVersion.url,
                     startVersion.streamUserAgent,
                     subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
-                    startPositionMs = startAt
+                    startPositionMs = startAt,
+                    audio = audio
                 )
                 jellyfinPlaySession = resolved
                 jellyfinPlayingItemId = startVersion.id
@@ -4389,7 +4507,10 @@ class MainActivity : AppCompatActivity() {
                         startVersion.streamUserAgent,
                         subtitles = resolved.subtitles.map(::externalSubtitleFor),
                         startPositionMs = startAt,
-                        headers = resolved.headers.ifEmpty { null }
+                        headers = resolved.headers.ifEmpty { null },
+                        // The fresh resolve may know the audio category even when the original
+                        // caller didn't (or better), so its hint wins.
+                        audio = resolved.audio ?: audio
                     )
                     is ResolveResult.Failed -> {
                         binding.bufferingSpinner.visibility = View.GONE
@@ -4402,7 +4523,8 @@ class MainActivity : AppCompatActivity() {
                     startVersion.url,
                     startVersion.streamUserAgent,
                     subtitles = externalSubtitles,
-                    headers = startVersion.streamHeaders
+                    headers = startVersion.streamHeaders,
+                    audio = audio
                 )
                 resumeFromMs?.let { playerManager.seekTo(it) }
             }
@@ -5350,9 +5472,22 @@ class MainActivity : AppCompatActivity() {
             }
             container.addView(view)
             container.visibility = View.VISIBLE
+            // isShown, not visibility: a VISIBLE view inside a GONE parent is not focusable, and
+            // requestFocus() on it returns false rather than throwing. Its return value is what
+            // says whether focus actually landed - checking visibility alone reported success
+            // while nothing had been focused at all.
+            fun applyFocus(): Boolean {
+                val target = initialFocus?.invoke() ?: return false
+                return target.isShown && target.requestFocus()
+            }
+            // Retried on the next frame, same as showEmptyState()'s focusFirstAction: setup
+            // code can hide or reveal the intended target after this post is queued
+            // (openIptvForm swaps the provider list for the type picker doing exactly that),
+            // and a first attempt that lands too early silently does nothing. What was left
+            // behind was the root FrameLayout holding focus - which looks like a normal screen
+            // but has no focused control, so the D-pad moves nowhere and nothing can be picked.
             view.post {
-                val target = initialFocus?.invoke()
-                if (target != null && target.visibility == View.VISIBLE) target.requestFocus() else view.requestFocus()
+                if (!applyFocus()) view.post { if (!applyFocus()) view.requestFocus() }
             }
         }
 
@@ -5407,8 +5542,44 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    /** A Filters-pane checkbox with a dimmed caption line under its title - the other filter
+     *  toggles carry a single line, but these need the caption to say what the toggle changes
+     *  about playback. Wired straight to [key] in the shared "iptv_prefs" file, so PlayerManager
+     *  sees the same value (subtitles_with_dub) without any extra plumbing. */
+    private fun dubCheckBoxRow(title: String, subtitle: String, key: String): CheckBox {
+        val checkBox = CheckBox(this)
+        val caption = SpannableString(subtitle)
+        caption.setSpan(
+            ForegroundColorSpan(getColor(R.color.text_secondary)),
+            0, caption.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        caption.setSpan(
+            AbsoluteSizeSpan(resources.getDimensionPixelSize(R.dimen.settings_text_caption)),
+            0, caption.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        checkBox.text = SpannableStringBuilder(title).append("\n").append(caption)
+        checkBox.setTextColor(getColor(R.color.text_primary))
+        checkBox.textSize = resources.getDimension(R.dimen.settings_text_body)
+        checkBox.isChecked = prefs.getBoolean(key, false)
+        checkBox.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(key, checked).apply()
+        }
+        checkBox.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = resources.getDimensionPixelSize(R.dimen.settings_gap)
+        }
+        return checkBox
+    }
+
     @Suppress("DEPRECATION")
     private fun showProviderSettings() {
+        // Already open: unticking the last provider or plugin from inside Settings reloads, and
+        // that load's "nothing configured" branch calls straight back in here - which would
+        // inflate a second settings tree on top of the live one, leaving the first orphaned
+        // behind it and only the second reachable by Back.
+        if (activeSettingsOverlay != null) return
         // Close Search if it's open - the two share the weighted content slot and would otherwise
         // render stacked on top of each other (see showSearchDialog).
         activeSearchOverlay?.dismiss()
@@ -6011,6 +6182,21 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Dub playback preferences: prefer dub-flagged search results, and keep the
+        // sideloaded subtitles on when a stream plays back with its dubbed audio track.
+        // Both default off; the subtitles one is read by PlayerManager from the same prefs.
+        val filtersPane = dialogView.findViewById<LinearLayout>(R.id.paneFilters)
+        filtersPane.addView(dubCheckBoxRow(
+            "Prefer dubbed audio",
+            "Show dub results first when available",
+            PREF_PREFER_DUB_AUDIO
+        ))
+        filtersPane.addView(dubCheckBoxRow(
+            "Subtitles with dubbed audio",
+            "Show subtitles on dubbed episodes too",
+            PREF_SUBTITLES_WITH_DUB
+        ))
+
         // StreamVault-style nav rail: one section visible at a time.
         val navRows = listOf(
             R.id.navProviders to R.id.paneProviders,
@@ -6028,6 +6214,11 @@ class MainActivity : AppCompatActivity() {
                 row.isSelected = i == index
                 pane.visibility = if (i == index) View.VISIBLE else View.GONE
             }
+            // A plugin's page is not one of these panes and would otherwise stay up underneath
+            // whichever section was just chosen. Selecting Plugins itself is handled by the
+            // rail's own listener, which opens either the list or a specific plugin's page.
+            openPluginId = null
+            dialogView.findViewById<View>(R.id.panePluginDetail)?.visibility = View.GONE
         }
         navRows.forEachIndexed { i, (row, _) -> row.setOnClickListener { selectSection(i) } }
         selectSection(0)
@@ -6109,22 +6300,50 @@ class MainActivity : AppCompatActivity() {
             pluginDiscoveryJob?.cancel()
             pluginDiscoveryJob = null
             activeSettingsOverlay = null
+            applyStatus()
             refreshIptvProviderList = null
             // Both close over views in the dismissed dialog - holding them past this leaks the
             // whole inflated settings tree and would touch detached views on the next call.
             revealPluginInPane = null
             refreshPluginNavRows = null
+            closeOpenPluginPage = null
+            openPluginId = null
             liveDiscoveryStatusView = null
             liveDiscoveryCandidateList = null
             liveDiscoveryPlugin = null
-            // With no content (e.g. the last provider was just disabled), fall back to the
-            // empty state rather than a blank Home/tab - selectHome() would show empty
-            // shelves and leave the chrome half-populated.
-            if (allChannels.isEmpty()) {
+            // The tab bar and search are gated on there being something to browse, and
+            // classifyAndShow() deliberately skips that check while this overlay is up (it
+            // would flip the chrome underneath the dialog). Adding a provider or switching a
+            // plugin on is exactly what changes the answer, so re-derive it here - on the
+            // non-empty path nothing else did, and the tab bar stayed hidden until the app was
+            // restarted. showEmptyState() runs it itself on the other branch.
+            //
+            // "Nothing to show" is the same question classifyAndShow() asks, and it counts an
+            // enabled stream_search plugin as content: a torrent or anime plugin contributes no
+            // catalog entries of its own but makes Discover and Find Stream usable. Testing
+            // allChannels alone sent a plugin-only setup back to the "no provider" empty state
+            // the moment Settings closed, however many plugins had just been switched on.
+            val hasPlugin = enabledStreamSearchPlugin() != null
+            // Unticking the last provider (or the last plugin) has to take the tab bar and
+            // search back down, and land on the empty state - which is the only screen left
+            // with a way back into Settings. Asked of the enabled providers rather than of
+            // allChannels: disabling one drops its items, but a provider whose channels are
+            // still in memory from a cache load would otherwise keep the chrome up with
+            // nothing enabled behind it.
+            if (!hasProviderEnabled() && !hasPlugin) {
                 showEmptyState()
-            } else if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
+            } else if (allChannels.isEmpty() && !hasPlugin) {
+                // Enabled, but it returned nothing (fetch failed, or an empty catalogue).
+                showEmptyState()
+            } else {
+                binding.emptyState.visibility = View.GONE
+                updateTopChromeVisibility()
+                if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
+            }
         }
         activeSettingsOverlay = dialog
+        // The overlay takes the slot now; a load still narrating into it must come down.
+        applyStatus()
         dialog.show()
 
         // The Save button's listener validates and keeps the form open on error instead of
@@ -6132,7 +6351,15 @@ class MainActivity : AppCompatActivity() {
         // the same footer button is shared by every nav pane, most of which have nothing
         // for it to save.
         dialogView.findViewById<View>(R.id.settingsSaveButton).setOnClickListener {
-            if (iptvFormSection.visibility != View.VISIBLE) return@setOnClickListener
+            // Save is a footer button shown on every pane, but only the provider add/edit form
+            // has anything to commit - everything else (toggles, pickers, PIN) persists as it is
+            // changed. It used to return here silently, so on the provider list, or on Playback
+            // or Filters or Plugins, pressing Save did nothing whatsoever and looked broken.
+            // Closing is what Save means once the work is already saved.
+            if (iptvFormSection.visibility != View.VISIBLE) {
+                activeSettingsOverlay?.dismiss()
+                return@setOnClickListener
+            }
             if (currentType == null) {
                 Toast.makeText(this, "Choose a provider type first", Toast.LENGTH_SHORT).show(); return@setOnClickListener
             }
@@ -6490,7 +6717,8 @@ class MainActivity : AppCompatActivity() {
                                 pluginId = plugin.id
                             ),
                             externalSubtitles = resolved.subtitles.map(::externalSubtitleFor),
-                            pluginStreamAlreadyResolved = true
+                            pluginStreamAlreadyResolved = true,
+                            audio = result.audio
                         )
                         // Back out of a plugin-played episode to the title it was picked from,
                         // the same as any other VOD item (see hidePlayer).
@@ -6504,7 +6732,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        fun addResultRow(result: TorrentResult) {
+        fun addResultRow(result: TorrentResult, atFront: Boolean) {
             val row = layoutInflater.inflate(R.layout.item_stream_result, resultsHost, false)
             row.findViewById<TextView>(R.id.streamTitle).text = result.title
             row.findViewById<TextView>(R.id.streamMeta).text = listOfNotNull(
@@ -6514,7 +6742,15 @@ class MainActivity : AppCompatActivity() {
                 result.source
             ).joinToString("  ·  ")
             row.setOnClickListener { playResult(result) }
-            resultsHost.addView(row)
+            if (atFront) resultsHost.addView(row, 0) else resultsHost.addView(row)
+            // The first result to arrive takes focus, so the common case - the top result is
+            // the one you want - is one press away instead of a hunt down the list. Results
+            // stream in one at a time, so this is the first one reported, not a re-focus on
+            // every addition: taking focus again mid-search would yank it back off whatever
+            // the user had already moved to.
+            if (resultsHost.childCount == 1) {
+                row.post { row.requestFocus() }
+            }
         }
 
         val searchJob = scope.launch {
@@ -6524,9 +6760,12 @@ class MainActivity : AppCompatActivity() {
                 source = source, query = query, year = year, season = season, episode = episode,
                 onProgress = { if (results.isEmpty()) status.text = it },
                 onResult = { result ->
-                    results.add(result)
+                    // With "Prefer dubbed audio" on, a known-dub source jumps the queue so the
+                    // most likely pick surfaces first instead of being buried under the subs.
+                    val atFront = prefs.getBoolean(PREF_PREFER_DUB_AUDIO, false) && result.audio == "dub"
+                    if (atFront) results.add(0, result) else results.add(result)
                     status.text = "${results.size} result(s)"
-                    addResultRow(result)
+                    addResultRow(result, atFront)
                 }
             )
             if (results.isEmpty()) {
@@ -6566,7 +6805,48 @@ class MainActivity : AppCompatActivity() {
         val listEmpty = dialogView.findViewById<View>(R.id.settingsPluginListEmpty)
         val manager = pluginScriptManager
 
+        val detailPane = dialogView.findViewById<View>(R.id.panePluginDetail)
+        val listPane = dialogView.findViewById<View>(R.id.panePlugins)
+        val detailBack = dialogView.findViewById<View>(R.id.pluginDetailBack)
+        val detailTitle = dialogView.findViewById<TextView>(R.id.pluginDetailTitle)
+        val detailDescription = dialogView.findViewById<TextView>(R.id.pluginDetailDescription)
+        val detailMeta = dialogView.findViewById<TextView>(R.id.pluginDetailMeta)
+        val detailEnabledRow = dialogView.findViewById<View>(R.id.pluginDetailEnabledRow)
+        val detailEnabledBox = dialogView.findViewById<CheckBox>(R.id.pluginDetailEnabled)
+        val detailRunButton = dialogView.findViewById<View>(R.id.pluginDetailRunButton)
+        val detailRunLabel = dialogView.findViewById<TextView>(R.id.pluginDetailRunLabel)
+        val detailUpdateButton = dialogView.findViewById<View>(R.id.pluginDetailUpdateButton)
+        val detailUpdateLabel = dialogView.findViewById<TextView>(R.id.pluginDetailUpdateLabel)
+        val detailRemoveButton = dialogView.findViewById<View>(R.id.pluginDetailRemoveButton)
+        val detailResults = dialogView.findViewById<View>(R.id.pluginDetailResults)
+        val detailProgress = dialogView.findViewById<View>(R.id.pluginDetailProgress)
+        val detailStatus = dialogView.findViewById<TextView>(R.id.pluginDetailStatus)
+        val detailCandidateList = dialogView.findViewById<LinearLayout>(R.id.pluginDetailCandidateList)
+
         lateinit var renderPluginList: () -> Unit
+        lateinit var renderPluginDetail: () -> Unit
+
+        fun openPluginPage(id: String) {
+            openPluginId = id
+            listPane.visibility = View.GONE
+            detailPane.visibility = View.VISIBLE
+            // Landing on Back rather than nowhere: the page is rebuilt asynchronously, so
+            // without this the D-pad has no starting point until the render lands.
+            detailBack.requestFocus()
+            renderPluginDetail()
+        }
+
+        fun closePluginPage() {
+            openPluginId = null
+            detailPane.visibility = View.GONE
+            listPane.visibility = View.VISIBLE
+            liveDiscoveryStatusView = null
+            liveDiscoveryCandidateList = null
+            renderPluginList()
+        }
+        // Settings always opens on the list, never on whichever plugin was last looked at.
+        openPluginId = null
+        detailPane.visibility = View.GONE
 
         fun fetchAndAddPluginScript(url: String) {
             val scheme = url.substringBefore("://", "").lowercase(Locale.US)
@@ -6591,7 +6871,11 @@ class MainActivity : AppCompatActivity() {
                 }
                 when (val result = manager.installScript(text)) {
                     is PluginScriptManager.InstallResult.Installed -> {
-                        Toast.makeText(this@MainActivity, "Added ${result.script.label}", Toast.LENGTH_SHORT).show()
+                        // Says so explicitly, because installing no longer switches it on and a
+                        // plugin that is installed but does nothing is otherwise a puzzle.
+                        val message = if (result.script.enabled) "Added ${result.script.label}"
+                            else "Added ${result.script.label} - enable it to use it"
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                         renderPluginList()
                     }
                     is PluginScriptManager.InstallResult.Rejected ->
@@ -6698,10 +6982,9 @@ class MainActivity : AppCompatActivity() {
             liveDiscoveryStatusView = null
             liveDiscoveryCandidateList = null
             liveDiscoveryPlugin = null
-            // Results render inside this plugin's own section now, so it has to be open to show
-            // them - running a collapsed plugin otherwise looked like nothing happened.
-            expandedPluginIds.add(plugin.id)
-            renderPluginList()
+            // Run is only reachable from the plugin's own page, and that page is where the
+            // results render - so it is already open. Redraw it to show the run starting.
+            renderPluginDetail()
             pluginDiscoveryJob = scope.launch {
                 val source = manager.readSource(plugin)
                 val result = jsPluginEngine.runDiscovery(
@@ -6729,8 +7012,17 @@ class MainActivity : AppCompatActivity() {
                 liveDiscoveryStatusView = null
                 liveDiscoveryCandidateList = null
                 liveDiscoveryPlugin = null
+                // The page shows the run; the list behind it shows its outcome in the summary
+                // line, so both are redrawn.
+                renderPluginDetail()
                 renderPluginList()
             }
+        }
+
+        // ── The plugin list, and one plugin's own page ──
+
+        fun openPluginDetail(id: String) {
+            openPluginPage(id)
         }
 
         renderPluginList = {
@@ -6738,70 +7030,71 @@ class MainActivity : AppCompatActivity() {
                 val plugins = manager.discoverScripts()
                 listContainer.removeAllViews()
                 listEmpty.visibility = if (plugins.isEmpty()) View.VISIBLE else View.GONE
-                val running = pluginDiscoveryJob?.isActive == true
                 for (plugin in plugins) {
                     val row = layoutInflater.inflate(R.layout.item_plugin_row, listContainer, false)
-                    val expanded = plugin.id in expandedPluginIds
-                    val header = row.findViewById<View>(R.id.pluginHeader)
-                    val body = row.findViewById<View>(R.id.pluginBody)
-                    val caret = row.findViewById<TextView>(R.id.pluginCaret)
-                    body.visibility = if (expanded) View.VISIBLE else View.GONE
-                    caret.text = if (expanded) "▾" else "▸"
-                    header.setOnClickListener {
-                        if (!expandedPluginIds.remove(plugin.id)) expandedPluginIds.add(plugin.id)
-                        pluginFocusRequestId = plugin.id
-                        pluginFocusRequestViewId = R.id.pluginHeader
-                        renderPluginList()
-                    }
-
                     row.findViewById<TextView>(R.id.pluginName).text = plugin.label
-                    row.findViewById<TextView>(R.id.pluginDetail).text = plugin.description.orEmpty()
-                    val isRunningPlugin = plugin.id == pluginDiscoveryPluginId
-                    // Collapsed, the header line is the whole story: on/off, and what this
-                    // plugin's last run came to if it was the one that ran.
                     row.findViewById<TextView>(R.id.pluginSummary).text = listOfNotNull(
                         if (plugin.enabled) "Enabled" else "Disabled",
-                        pluginDiscoveryStatus.takeIf { isRunningPlugin }
+                        pluginDiscoveryStatus.takeIf { plugin.id == pluginDiscoveryPluginId }
                     ).joinToString("  ·  ")
+                    row.setOnClickListener { openPluginDetail(plugin.id) }
+                    listContainer.addView(row)
 
-                    val enabledRow = row.findViewById<View>(R.id.pluginEnabledRow)
-                    val enabledBox = row.findViewById<CheckBox>(R.id.pluginEnabled)
-                    enabledBox.isChecked = plugin.enabled
-                    enabledRow.setOnClickListener {
-                        val checked = !plugin.enabled
-                        manager.setEnabled(plugin.id, checked)
-                        // The rebuild below destroys this very view, so say where focus should
-                        // land in the new one - otherwise ticking Enabled dropped the user out
-                        // of the section and Run below it was unreachable.
-                        pluginFocusRequestId = plugin.id
-                        pluginFocusRequestViewId = R.id.pluginEnabledRow
+                    if (plugin.id == pluginFocusRequestId) {
+                        pluginFocusRequestId = null
+                        pluginFocusRequestViewId = View.NO_ID
+                        row.post { row.requestFocus() }
+                    }
+                }
+            }
+            Unit
+        }
+
+        // Wires the dedicated plugin page against whichever plugin is currently open. Rebuilt
+        // rather than bound once: enabling, updating and running all change what it should say,
+        // and a discovery run rewrites its results as it goes.
+        renderPluginDetail = {
+            val id = openPluginId
+            if (id != null) scope.launch {
+                val plugin = manager.discoverScripts().firstOrNull { it.id == id }
+                if (plugin == null) {
+                    // Removed from under us - the list is the only sensible place to land.
+                    closePluginPage()
+                } else {
+                    val running = pluginDiscoveryJob?.isActive == true
+                    val isRunningPlugin = plugin.id == pluginDiscoveryPluginId
+
+                    detailTitle.text = plugin.label
+                    detailDescription.text = plugin.description.orEmpty()
+                    detailDescription.visibility =
+                        if (plugin.description.isNullOrBlank()) View.GONE else View.VISIBLE
+                    detailMeta.text = buildList {
+                        if (plugin.supportsDiscovery) add("Provider discovery")
+                        if (plugin.supportsStreamSearch) add("Stream search")
+                        addAll(plugin.contentTypes)
+                    }.joinToString("  ·  ").uppercase(Locale.US)
+
+                    detailEnabledBox.isChecked = plugin.enabled
+                    detailEnabledRow.setOnClickListener {
+                        manager.setEnabled(plugin.id, !plugin.enabled)
+                        pluginFocusRequestViewId = R.id.pluginDetailEnabledRow
+                        renderPluginDetail()
                         renderPluginList()
                         refreshPluginNavRows?.invoke()
-                        // Toggling a stream_search plugin affects the anime catalog —
-                        // refresh so channels appear/disappear without a manual reload.
-                        if (plugin.supportsStreamSearch) {
-                            loadAllConfiguredProviders(forceRefresh = true)
-                        }
+                        if (plugin.supportsStreamSearch) loadAllConfiguredProviders(forceRefresh = true)
                     }
 
-                    val runButton = row.findViewById<View>(R.id.pluginRunButton)
-                    val runLabel = row.findViewById<TextView>(R.id.pluginRunLabel)
-                    // The "Run" button only applies to discovery plugins, which the user kicks off
-                    // from here. Stream-search plugins are driven from a title's "Find stream" instead,
-                    // so they get enable/disable only - no Run button.
+                    // Run only applies to discovery plugins; a stream_search plugin is driven
+                    // from a title's "Find stream" instead.
                     if (plugin.supportsDiscovery) {
-                        runButton.visibility = View.VISIBLE
-                        // One run at a time: a run takes over the results area, and two plugins
-                        // reporting into it at once would be unattributable.
-                        runLabel.text = if (running && isRunningPlugin) "Running…" else "Run"
-                        // Dimmed but still focusable when it can't be used. setEnabled(false)
-                        // takes a View out of focus search entirely, so a disabled plugin's Run
-                        // button was a hole the D-pad fell straight through - and since Run is
-                        // exactly what the user is heading for after enabling it, it has to stay
-                        // on the path. The click explains itself instead.
-                        val runnable = plugin.enabled && !running
-                        runButton.alpha = if (runnable) 1f else 0.4f
-                        runButton.setOnClickListener {
+                        detailRunButton.visibility = View.VISIBLE
+                        detailRunLabel.text = if (running && isRunningPlugin) "Running…" else "Run"
+                        // Dimmed but still focusable when it can't be used: setEnabled(false)
+                        // takes a View out of focus search entirely, and Run is exactly what the
+                        // user is heading for after enabling a plugin, so it has to stay on the
+                        // path. The click explains itself instead.
+                        detailRunButton.alpha = if (plugin.enabled && !running) 1f else 0.4f
+                        detailRunButton.setOnClickListener {
                             when {
                                 running -> Toast.makeText(
                                     this@MainActivity, "A plugin is already running", Toast.LENGTH_SHORT
@@ -6813,61 +7106,64 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     } else {
-                        runButton.visibility = View.GONE
-                        runButton.setOnClickListener(null)
+                        detailRunButton.visibility = View.GONE
+                        detailRunButton.setOnClickListener(null)
                     }
 
-                    // Results belong to the plugin that produced them, so only that plugin's
-                    // section shows them - and it rebuilds them from the state above rather than
-                    // from whatever views happened to survive, since this runs again on every
-                    // enable/remove/install while a run may still be in flight.
-                    val results = row.findViewById<View>(R.id.pluginResults)
-                    val candidateList = row.findViewById<LinearLayout>(R.id.pluginCandidateList)
-                    if (isRunningPlugin && pluginDiscoveryStatus != null) {
-                        results.visibility = View.VISIBLE
-                        row.findViewById<View>(R.id.pluginProgress).visibility =
-                            if (running) View.VISIBLE else View.GONE
-                        row.findViewById<TextView>(R.id.pluginStatus).text = pluginDiscoveryStatus
-                        candidateList.removeAllViews()
-                        for (candidate in pluginDiscoveryCandidates) {
-                            addCandidateRow(candidateList, plugin, candidate)
+                    detailUpdateLabel.text = getString(R.string.update)
+                    detailUpdateButton.setOnClickListener {
+                        detailUpdateLabel.text = "Updating…"
+                        scope.launch {
+                            val message = updatePluginFromStore(plugin)
+                            Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                            pluginFocusRequestViewId = R.id.pluginDetailUpdateButton
+                            renderPluginDetail()
+                            renderPluginList()
+                            refreshPluginNavRows?.invoke()
                         }
-                        // While a run is live, hold on to the two views it writes into so each
-                        // progress line and candidate can be applied directly. Re-rendering the
-                        // whole pane per line would rebuild every row under the user's focus.
-                        if (running) {
-                            liveDiscoveryStatusView = row.findViewById(R.id.pluginStatus)
-                            liveDiscoveryCandidateList = candidateList
-                            liveDiscoveryPlugin = plugin
-                        }
-                    } else {
-                        results.visibility = View.GONE
                     }
 
-                    row.findViewById<View>(R.id.pluginRemoveButton).setOnClickListener {
+                    detailRemoveButton.setOnClickListener {
                         AlertDialog.Builder(this@MainActivity)
                             .setTitle("Remove ${plugin.label}?")
                             .setMessage("This deletes the installed script. You can reinstall it later from a plugin store or its URL.")
                             .setPositiveButton("Remove") { _, _ ->
                                 manager.setEnabled(plugin.id, false)
                                 manager.removeUserScript(plugin.fileName)
-                                expandedPluginIds.remove(plugin.id)
+                                closePluginPage()
                                 renderPluginList()
                                 refreshPluginNavRows?.invoke()
                             }
                             .setNegativeButton("Cancel", null)
                             .show()
                     }
-                    listContainer.addView(row)
 
-                    // Focus is restored after the view exists and is attached, and only for the
-                    // row that asked for it - see pluginFocusRequestId.
-                    if (plugin.id == pluginFocusRequestId) {
-                        val target = row.findViewById<View>(pluginFocusRequestViewId)
-                        pluginFocusRequestId = null
+                    // Results are this plugin's own, rebuilt from the state rather than from
+                    // whatever views survived - this runs again on every interaction, and a run
+                    // may still be in flight while it does.
+                    if (isRunningPlugin && pluginDiscoveryStatus != null) {
+                        detailResults.visibility = View.VISIBLE
+                        detailProgress.visibility = if (running) View.VISIBLE else View.GONE
+                        detailStatus.text = pluginDiscoveryStatus
+                        detailCandidateList.removeAllViews()
+                        for (candidate in pluginDiscoveryCandidates) {
+                            addCandidateRow(detailCandidateList, plugin, candidate)
+                        }
+                        // While a run is live these are what each progress line and candidate is
+                        // written into directly - re-rendering the page per line would rebuild
+                        // every focusable view under the user.
+                        if (running) {
+                            liveDiscoveryStatusView = detailStatus
+                            liveDiscoveryCandidateList = detailCandidateList
+                            liveDiscoveryPlugin = plugin
+                        }
+                    } else {
+                        detailResults.visibility = View.GONE
+                    }
+
+                    if (pluginFocusRequestViewId != View.NO_ID) {
+                        val target = dialogView.findViewById<View>(pluginFocusRequestViewId)
                         pluginFocusRequestViewId = View.NO_ID
-                        // post(): a view added this frame isn't focusable until it has been laid
-                        // out, so requesting it inline is a no-op.
                         target?.post { target.requestFocus() }
                     }
                 }
@@ -6875,14 +7171,37 @@ class MainActivity : AppCompatActivity() {
             Unit
         }
 
-        // Lets the nav rail's plugin rows drive this pane - see wirePluginNavRows.
-        revealPluginInPane = { id ->
-            expandedPluginIds.add(id)
-            pluginFocusRequestId = id
-            pluginFocusRequestViewId = R.id.pluginHeader
-            renderPluginList()
-        }
+        detailBack.setOnClickListener { closePluginPage() }
+        closeOpenPluginPage = { closePluginPage() }
+
+        // Lets the nav rail's plugin rows open a plugin's page - see wirePluginNavRows.
+        revealPluginInPane = { id -> openPluginDetail(id) }
         renderPluginList()
+    }
+
+    /**
+     * Re-installs [plugin] from whichever configured store lists its id, and reports what
+     * happened as a message for the caller to show.
+     *
+     * Matched on the manifest id rather than the file name: a store is free to rename its file,
+     * and the id is what [PluginScriptManager.installScript] overwrites on, so those two have to
+     * agree or an "update" would install a second copy alongside the old one.
+     */
+    private suspend fun updatePluginFromStore(plugin: PluginScript): String {
+        val stores = pluginStoreManager.storeUrls()
+        for (store in stores) {
+            val catalog = pluginStoreManager.fetchCatalog(store.url).getOrNull() ?: continue
+            val entry = catalog.firstOrNull { it.id == plugin.id } ?: continue
+            val text = pluginStoreManager.fetchScriptText(entry.fileUrl)
+                ?: return "Couldn't download ${plugin.label}"
+            // installScript() preserves the stored enabled state, so an update can't switch a
+            // plugin the user had turned off back on.
+            return when (val result = pluginScriptManager.installScript(text)) {
+                is PluginScriptManager.InstallResult.Installed -> "Updated ${result.script.label}"
+                is PluginScriptManager.InstallResult.Rejected -> "Update rejected: ${result.reason}"
+            }
+        }
+        return "${plugin.label} isn't in any configured plugin store"
     }
 
     /**
@@ -6952,6 +7271,8 @@ class MainActivity : AppCompatActivity() {
                     onDone(PluginScriptManager.InstallResult.Rejected("Couldn't download that script"))
                     return@launch
                 }
+                // No enabled-state juggling here: installScript() leaves it alone, so an update
+                // keeps whatever the user had chosen and a first install lands switched off.
                 onDone(manager.installScript(text))
             }
         }
@@ -7013,6 +7334,13 @@ class MainActivity : AppCompatActivity() {
                                 is PluginScriptManager.InstallResult.Installed -> {
                                     installLabel.text = if (alreadyInstalled) "Updated" else "Installed"
                                     installButton.isEnabled = true
+                                    if (!alreadyInstalled) {
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            "${storeScript.label} installed - enable it in Plugins to use it",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                     onInstalled()
                                 }
                                 is PluginScriptManager.InstallResult.Rejected -> {

@@ -6,7 +6,7 @@
     android:id="@+id/rowRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clickable="true"
     android:clipChildren="false"
@@ -15,14 +15,14 @@
     android:gravity="center_vertical"
     android:nextFocusRight="@+id/rowEditButton"
     android:orientation="horizontal"
-    android:padding="12dp"
+    android:padding="@dimen/settings_gap"
     android:stateListAnimator="@animator/focus_scale">
 
     <CheckBox
         android:id="@+id/rowEnabled"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="12dp"
+        android:layout_marginEnd="@dimen/settings_gap"
         android:clickable="false"
         android:focusable="false" />
 
@@ -39,7 +39,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_primary"
-            android:textSize="@dimen/text_body"
+            android:textSize="@dimen/settings_text_body"
             android:textStyle="bold" />
 
         <TextView
@@ -50,49 +50,49 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_caption" />
+            android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/rowEditButton"
         android:layout_width="wrap_content"
-        android:layout_height="36dp"
-        android:layout_marginStart="8dp"
+        android:layout_height="@dimen/settings_action_button_height"
+        android:layout_marginStart="@dimen/settings_gap_s"
         android:background="@drawable/card_surface_background"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
         android:nextFocusLeft="@+id/rowRoot"
         android:nextFocusRight="@+id/rowRemoveButton"
-        android:paddingHorizontal="12dp"
+        android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/edit"
             android:textColor="@color/text_primary"
-            android:textSize="@dimen/text_caption"
+            android:textSize="@dimen/settings_text_caption"
             android:textStyle="bold" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/rowRemoveButton"
         android:layout_width="wrap_content"
-        android:layout_height="36dp"
-        android:layout_marginStart="8dp"
+        android:layout_height="@dimen/settings_action_button_height"
+        android:layout_marginStart="@dimen/settings_gap_s"
         android:background="@drawable/card_surface_background"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
         android:nextFocusLeft="@+id/rowEditButton"
-        android:paddingHorizontal="12dp"
+        android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/remove"
             android:textColor="@color/live_red"
-            android:textSize="@dimen/text_caption"
+            android:textSize="@dimen/settings_text_caption"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

@@ -1190,6 +1190,223 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Pane: one plugin, in full. Reached from the Plugins list or from the nav rail's
+                 plugin children. Not one of the navRows panes - the rail has no row of its own
+                 for it, and it is dismissed by its own Back row rather than by selecting a
+                 section. Everything a plugin owns lives here, at full width, because a
+                 discovery run's candidate list is a screenful of its own and had no room
+                 inside a row in a list of rows. -->
+            <LinearLayout
+                android:id="@+id/panePluginDetail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/pluginDetailBack"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/settings_gap"
+                    android:paddingVertical="@dimen/settings_gap_xs"
+                    android:stateListAnimator="@animator/focus_scale">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/back_to_plugins"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/settings_text_caption"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/pluginDetailTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView
+                    android:id="@+id/pluginDetailDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap_s"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <TextView
+                    android:id="@+id/pluginDetailMeta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="@dimen/settings_text_caption" />
+
+                <LinearLayout
+                    android:id="@+id/pluginDetailEnabledRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/settings_gap"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:stateListAnimator="@animator/focus_scale">
+
+                    <CheckBox
+                        android:id="@+id/pluginDetailEnabled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="@dimen/settings_gap_s"
+                        android:clickable="false"
+                        android:focusable="false" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/enabled"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/settings_text_body" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/pluginDetailRunButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/settings_action_button_height"
+                        android:layout_marginEnd="@dimen/settings_gap_s"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingHorizontal="@dimen/settings_gap"
+                        android:stateListAnimator="@animator/focus_scale">
+                        <TextView
+                            android:id="@+id/pluginDetailRunLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/run"
+                            android:textColor="@color/text_primary"
+                            android:textSize="@dimen/settings_text_caption"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/pluginDetailUpdateButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/settings_action_button_height"
+                        android:layout_marginEnd="@dimen/settings_gap_s"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingHorizontal="@dimen/settings_gap"
+                        android:stateListAnimator="@animator/focus_scale">
+                        <TextView
+                            android:id="@+id/pluginDetailUpdateLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/update"
+                            android:textColor="@color/text_primary"
+                            android:textSize="@dimen/settings_text_caption"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/pluginDetailRemoveButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="@dimen/settings_action_button_height"
+                        android:background="@drawable/card_surface_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingHorizontal="@dimen/settings_gap"
+                        android:stateListAnimator="@animator/focus_scale">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/remove"
+                            android:textColor="@color/live_red"
+                            android:textSize="@dimen/settings_text_caption"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/pluginDetailResults"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap_xl"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/results"
+                        android:letterSpacing="0.08"
+                        android:textColor="@color/text_tertiary"
+                        android:textSize="@dimen/settings_text_caption"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/settings_gap_s"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ProgressBar
+                            android:id="@+id/pluginDetailProgress"
+                            style="?android:attr/progressBarStyleSmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="@dimen/settings_gap_s"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/pluginDetailStatus"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/settings_text_body" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/pluginDetailCandidateList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/settings_gap_s"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </LinearLayout>
+
         </FrameLayout>
     </ScrollView>
 

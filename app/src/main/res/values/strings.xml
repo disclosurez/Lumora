@@ -150,6 +150,8 @@
     <string name="downloads">Downloads</string>
     <string name="plugins">Plugins</string>
     <string name="enabled">Enabled</string>
+    <string name="update">Update</string>
+    <string name="back_to_plugins">‹  Plugins</string>
     <string name="about">About</string>
     <string name="providers_description">Run multiple providers together - enable or disable each independently</string>
     <string name="your_providers">YOUR PROVIDERS</string>
