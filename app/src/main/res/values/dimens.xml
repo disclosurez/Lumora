@@ -29,6 +29,27 @@
          stays the same size while the type scale around it changes. -->
     <dimen name="settings_row_padding_vertical">14dp</dimen>
 
+    <!-- Settings spacing scale. These were literal dp values repeated ~80 times across
+         activity_settings.xml, which meant the gaps between every label, field and card stayed
+         at phone size on a TV while the type around them grew - the panes ended up far taller
+         than the screen and every one of them scrolled. Routing them through tokens lets
+         values-sw540dp/ pull the whole layout in without touching the layout file.
+
+         The phone values are exactly the literals they replaced, so nothing moves on a phone. -->
+    <dimen name="settings_gap_xs">4dp</dimen>
+    <dimen name="settings_gap_s">6dp</dimen>
+    <dimen name="settings_gap_m">10dp</dimen>
+    <dimen name="settings_gap">12dp</dimen>
+    <dimen name="settings_gap_ml">14dp</dimen>
+    <dimen name="settings_gap_l">16dp</dimen>
+    <dimen name="settings_gap_xl">20dp</dimen>
+    <!-- Padding around the whole content pane, inside the ScrollView. -->
+    <dimen name="settings_pane_padding">24dp</dimen>
+    <!-- Small outline actions inside a row ("Change", "Test") - fixed height, unlike the
+         wrap_content card rows, because they sit beside a label rather than holding one. -->
+    <dimen name="settings_action_button_height">34dp</dimen>
+    <dimen name="settings_qr_size">128dp</dimen>
+
     <!-- Episode list runs the full available width everywhere except TV, where a full-width
          row is far wider than the content in it. -->
     <dimen name="detail_list_end_inset">0dp</dimen>

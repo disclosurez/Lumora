@@ -7,11 +7,11 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:orientation">horizontal</item>
         <item name="android:gravity">center_vertical</item>
-        <item name="android:padding">12dp</item>
+        <item name="android:padding">@dimen/settings_gap</item>
         <item name="android:background">@drawable/nav_rail_item_background</item>
         <item name="android:focusable">true</item>
         <item name="android:clickable">true</item>
-        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:layout_marginBottom">@dimen/settings_gap_xs</item>
     </style>
 
     <style name="Widget.Lumora.SettingsNavIcon" parent="@android:style/Widget">
@@ -28,7 +28,7 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:layout_marginStart">12dp</item>
+        <item name="android:layout_marginStart">@dimen/settings_gap</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">@dimen/settings_text_subtitle</item>
         <item name="android:maxLines">1</item>
@@ -45,7 +45,7 @@
     <style name="TextAppearance.Lumora.SettingsSubtitle" parent="@android:style/TextAppearance">
         <item name="android:textSize">@dimen/settings_text_caption</item>
         <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:paddingBottom">16dp</item>
+        <item name="android:paddingBottom">@dimen/settings_gap_l</item>
     </style>
 
 </resources>

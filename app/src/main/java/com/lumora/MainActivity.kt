@@ -276,6 +276,42 @@ class MainActivity : AppCompatActivity() {
     private var providerNamesById: Map<String, String> = emptyMap()
     /** The in-flight plugin discovery run, if any - one at a time, cancelled when Settings closes. */
     private var pluginDiscoveryJob: Job? = null
+    /** Which plugin sections in Settings > Plugins are expanded. Held here rather than on the
+     *  row views because [wirePluginsPane] rebuilds every row from scratch on any change
+     *  (enable, remove, install, each discovery progress line), which would otherwise collapse
+     *  whatever the user had open - including the section they are watching run. */
+    private val expandedPluginIds = mutableSetOf<String>()
+    /** The plugin whose run output the rows below belong to, and that output. Same reason as
+     *  above: a re-render must be able to put the results back where they were, so they live
+     *  outside the views. Cleared when a different plugin is run. */
+    private var pluginDiscoveryPluginId: String? = null
+    private var pluginDiscoveryStatus: String? = null
+    private val pluginDiscoveryCandidates = mutableListOf<DiscoveredProvider>()
+    /** Candidate URLs already added as providers, so a re-render keeps showing "Added" rather
+     *  than offering to add the same one twice. */
+    private val pluginDiscoveryAdded = mutableSetOf<String>()
+    /** The views of the currently-running plugin's results block, so a progress line or a new
+     *  candidate can be written straight into them. Re-rendering the whole pane per line would
+     *  rebuild every row - and every row is focusable, so it would also move the user's focus
+     *  mid-run. Null while nothing is running, or before the row exists. */
+    private var liveDiscoveryStatusView: TextView? = null
+    private var liveDiscoveryCandidateList: LinearLayout? = null
+    private var liveDiscoveryPlugin: PluginScript? = null
+    /** Which plugin's row, and which view inside it, should take focus once the plugin list is
+     *  next rebuilt. Every interaction in that pane re-renders the whole list, which destroys
+     *  the view the user was on - without this, ticking Enabled dropped focus out of the
+     *  section entirely and there was no way to reach Run below it. */
+    private var pluginFocusRequestId: String? = null
+    private var pluginFocusRequestViewId: Int = View.NO_ID
+    /** Opens a plugin's section in the Plugins pane and puts focus on it. Set by
+     *  [wirePluginsPane] while the settings overlay is up, so the nav rail's plugin rows can
+     *  drive the pane. Null when settings isn't open. */
+    private var revealPluginInPane: ((String) -> Unit)? = null
+    /** Whether the nav rail's Plugins row is showing its installed-plugin children. */
+    private var navPluginsExpanded = false
+    /** Rebuilds those child rows - the pane calls it after anything that changes a plugin's
+     *  enabled state or removes one, so the rail doesn't go stale behind it. */
+    private var refreshPluginNavRows: (() -> Unit)? = null
     /** Installed JS plugin scripts - see PluginScriptManager. Discovered once at startup and
      *  refreshed whenever Settings > Plugins is opened. */
     private val pluginScriptManager by lazy { PluginScriptManager(this, prefs) }
@@ -2007,7 +2043,13 @@ class MainActivity : AppCompatActivity() {
      *  buildCategoriesForActiveTab() rescans every channel in the tab (brand clustering in
      *  particular is O(channel count)), so on a large catalog that's real time saved. */
     private fun submitCategories(categories: List<CategoryFilter>) {
-        binding.categorySidebar.visibility = if (categories.size > 1) View.VISIBLE else View.GONE
+        // Home, Discover and Downloads are not categorized tabs and have no sidebar. Every
+        // caller here is asynchronous, so any of them can land after the user has left the tab
+        // the categories were built for - and the sidebar must not reappear over a pane that
+        // never had one.
+        val onCategorizedTab = !showingHome && !showingDiscover && !showingDownloads
+        binding.categorySidebar.visibility =
+            if (onCategorizedTab && categories.size > 1) View.VISIBLE else View.GONE
         // submitList uses AsyncListDiffer which commits the list asynchronously.
         // Set the selected highlight only after the list is committed, otherwise
         // the diff callback can reset the adapter's selected state.
@@ -3049,6 +3091,15 @@ class MainActivity : AppCompatActivity() {
             // scrolls down to it, regardless of what's selected at the top.
             if (index == 0) expandedGroupKeys.add("${DYNAMIC_BUCKET_ID_PREFIX}Sports")
             val categories = buildCategoriesForActiveTab()
+            // buildCategoriesForActiveTab() is seconds' work on a large catalog, and the user
+            // is free to leave the tab while it runs. Everything below puts the category
+            // sidebar and the content row back on screen unconditionally, so landing late
+            // dropped this tab's sidebar on top of whatever the user had moved to - most
+            // visibly Discover, which has no sidebar of its own to overwrite it.
+            if (activeTab != index || showingHome || showingDiscover || showingDownloads) {
+                setStatus("", visible = false)
+                return@launch
+            }
             if (index == 0) {
                 // Land on the topmost row the user actually curated: the Favourites channel
                 // row, else their highest pinned category, and only then fall back to a
@@ -6001,6 +6052,9 @@ class MainActivity : AppCompatActivity() {
         refreshDownloadsList()
 
         wirePluginsPane(dialogView)
+        // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
+        // which that call is what sets. navRows' index 7 is Plugins (see the list above).
+        wirePluginNavRows(dialogView) { selectSection(7) }
 
         // About pane
         dialogView.findViewById<TextView>(R.id.settingsAppVersion).text = try {
@@ -6056,6 +6110,13 @@ class MainActivity : AppCompatActivity() {
             pluginDiscoveryJob = null
             activeSettingsOverlay = null
             refreshIptvProviderList = null
+            // Both close over views in the dismissed dialog - holding them past this leaks the
+            // whole inflated settings tree and would touch detached views on the next call.
+            revealPluginInPane = null
+            refreshPluginNavRows = null
+            liveDiscoveryStatusView = null
+            liveDiscoveryCandidateList = null
+            liveDiscoveryPlugin = null
             // With no content (e.g. the last provider was just disabled), fall back to the
             // empty state rather than a blank Home/tab - selectHome() would show empty
             // shelves and leave the chrome half-populated.
@@ -6503,10 +6564,6 @@ class MainActivity : AppCompatActivity() {
     private fun wirePluginsPane(dialogView: View) {
         val listContainer = dialogView.findViewById<LinearLayout>(R.id.settingsPluginList)
         val listEmpty = dialogView.findViewById<View>(R.id.settingsPluginListEmpty)
-        val runSection = dialogView.findViewById<View>(R.id.settingsPluginRunSection)
-        val progress = dialogView.findViewById<View>(R.id.settingsPluginProgress)
-        val status = dialogView.findViewById<TextView>(R.id.settingsPluginStatus)
-        val candidateList = dialogView.findViewById<LinearLayout>(R.id.settingsPluginCandidateList)
         val manager = pluginScriptManager
 
         lateinit var renderPluginList: () -> Unit
@@ -6565,7 +6622,11 @@ class MainActivity : AppCompatActivity() {
         }
         wirePluginStoresSection(dialogView, manager) { renderPluginList() }
 
-        fun addCandidateRow(plugin: PluginScript, candidate: DiscoveredProvider) {
+        fun addCandidateRow(
+            candidateList: LinearLayout,
+            plugin: PluginScript,
+            candidate: DiscoveredProvider
+        ) {
             val row = layoutInflater.inflate(R.layout.item_plugin_candidate_row, candidateList, false)
             val typeLabel = when (candidate.type) {
                 "xtream" -> "Xtream"
@@ -6581,6 +6642,13 @@ class MainActivity : AppCompatActivity() {
                 if (candidate.verified) View.VISIBLE else View.GONE
             val addButton = row.findViewById<View>(R.id.candidateAddButton)
             val addLabel = row.findViewById<TextView>(R.id.candidateAddLabel)
+            // Survives the re-render that follows every discovery progress line - the button is
+            // a fresh view each time, but the fact it was already used is not.
+            if (candidate.url in pluginDiscoveryAdded) {
+                addLabel.text = "Added"
+                addButton.isEnabled = false
+                addButton.isFocusable = false
+            }
             addButton.setOnClickListener {
                 AlertDialog.Builder(this)
                     .setTitle("Add ${candidate.label}?")
@@ -6604,6 +6672,7 @@ class MainActivity : AppCompatActivity() {
                                 userAgent = candidate.userAgent
                             )
                         )
+                        pluginDiscoveryAdded.add(candidate.url)
                         addLabel.text = "Added"
                         addButton.isEnabled = false
                         addButton.isFocusable = false
@@ -6620,32 +6689,46 @@ class MainActivity : AppCompatActivity() {
 
         fun runDiscovery(plugin: PluginScript) {
             pluginDiscoveryJob?.cancel()
-            candidateList.removeAllViews()
-            runSection.visibility = View.VISIBLE
-            progress.visibility = View.VISIBLE
-            status.text = "Starting ${plugin.label}…"
-            // The Results section can be a full screen below the fold once the plugin/store
-            // lists above it grow - without this, "it's running" was only visible on the row's
-            // own button, easy to miss if the user then loses focus/scroll position.
-            runSection.post {
-                runSection.requestRectangleOnScreen(android.graphics.Rect(0, 0, runSection.width, runSection.height), false)
-            }
+            // A run owns the results area, so anything the previous plugin left there goes -
+            // two plugins' candidates in one list would be unattributable.
+            pluginDiscoveryPluginId = plugin.id
+            pluginDiscoveryCandidates.clear()
+            pluginDiscoveryAdded.clear()
+            pluginDiscoveryStatus = "Starting ${plugin.label}…"
+            liveDiscoveryStatusView = null
+            liveDiscoveryCandidateList = null
+            liveDiscoveryPlugin = null
+            // Results render inside this plugin's own section now, so it has to be open to show
+            // them - running a collapsed plugin otherwise looked like nothing happened.
+            expandedPluginIds.add(plugin.id)
             renderPluginList()
             pluginDiscoveryJob = scope.launch {
                 val source = manager.readSource(plugin)
                 val result = jsPluginEngine.runDiscovery(
                     source,
-                    onProgress = { status.text = it },
-                    onCandidate = { addCandidateRow(plugin, it) }
+                    onProgress = { line ->
+                        pluginDiscoveryStatus = line
+                        liveDiscoveryStatusView?.text = line
+                    },
+                    onCandidate = { candidate ->
+                        pluginDiscoveryCandidates.add(candidate)
+                        // Appended to the live list where one exists; otherwise it's still held
+                        // in the list above and the render at the end of the run puts it there.
+                        liveDiscoveryCandidateList?.let { list ->
+                            addCandidateRow(list, liveDiscoveryPlugin ?: plugin, candidate)
+                        }
+                    }
                 )
-                progress.visibility = View.GONE
-                val found = candidateList.childCount
-                status.text = when (result) {
+                val found = pluginDiscoveryCandidates.size
+                pluginDiscoveryStatus = when (result) {
                     is DiscoveryResult.Finished ->
                         result.message ?: if (found == 0) "Nothing found" else "Found $found"
                     is DiscoveryResult.Failed -> result.message
                 }
                 pluginDiscoveryJob = null
+                liveDiscoveryStatusView = null
+                liveDiscoveryCandidateList = null
+                liveDiscoveryPlugin = null
                 renderPluginList()
             }
         }
@@ -6658,22 +6741,49 @@ class MainActivity : AppCompatActivity() {
                 val running = pluginDiscoveryJob?.isActive == true
                 for (plugin in plugins) {
                     val row = layoutInflater.inflate(R.layout.item_plugin_row, listContainer, false)
-                    row.findViewById<CheckBox>(R.id.pluginEnabled).apply {
-                        setOnCheckedChangeListener(null)
-                        isChecked = plugin.enabled
-                        setOnCheckedChangeListener { _, checked ->
-                            val wasEnabled = plugin.enabled
-                            manager.setEnabled(plugin.id, checked)
-                            renderPluginList()
-                            // Toggling a stream_search plugin affects the anime catalog —
-                            // refresh so channels appear/disappear without a manual reload.
-                            if (plugin.supportsStreamSearch && wasEnabled != checked) {
-                                loadAllConfiguredProviders(forceRefresh = true)
-                            }
-                        }
+                    val expanded = plugin.id in expandedPluginIds
+                    val header = row.findViewById<View>(R.id.pluginHeader)
+                    val body = row.findViewById<View>(R.id.pluginBody)
+                    val caret = row.findViewById<TextView>(R.id.pluginCaret)
+                    body.visibility = if (expanded) View.VISIBLE else View.GONE
+                    caret.text = if (expanded) "▾" else "▸"
+                    header.setOnClickListener {
+                        if (!expandedPluginIds.remove(plugin.id)) expandedPluginIds.add(plugin.id)
+                        pluginFocusRequestId = plugin.id
+                        pluginFocusRequestViewId = R.id.pluginHeader
+                        renderPluginList()
                     }
+
                     row.findViewById<TextView>(R.id.pluginName).text = plugin.label
                     row.findViewById<TextView>(R.id.pluginDetail).text = plugin.description.orEmpty()
+                    val isRunningPlugin = plugin.id == pluginDiscoveryPluginId
+                    // Collapsed, the header line is the whole story: on/off, and what this
+                    // plugin's last run came to if it was the one that ran.
+                    row.findViewById<TextView>(R.id.pluginSummary).text = listOfNotNull(
+                        if (plugin.enabled) "Enabled" else "Disabled",
+                        pluginDiscoveryStatus.takeIf { isRunningPlugin }
+                    ).joinToString("  ·  ")
+
+                    val enabledRow = row.findViewById<View>(R.id.pluginEnabledRow)
+                    val enabledBox = row.findViewById<CheckBox>(R.id.pluginEnabled)
+                    enabledBox.isChecked = plugin.enabled
+                    enabledRow.setOnClickListener {
+                        val checked = !plugin.enabled
+                        manager.setEnabled(plugin.id, checked)
+                        // The rebuild below destroys this very view, so say where focus should
+                        // land in the new one - otherwise ticking Enabled dropped the user out
+                        // of the section and Run below it was unreachable.
+                        pluginFocusRequestId = plugin.id
+                        pluginFocusRequestViewId = R.id.pluginEnabledRow
+                        renderPluginList()
+                        refreshPluginNavRows?.invoke()
+                        // Toggling a stream_search plugin affects the anime catalog —
+                        // refresh so channels appear/disappear without a manual reload.
+                        if (plugin.supportsStreamSearch) {
+                            loadAllConfiguredProviders(forceRefresh = true)
+                        }
+                    }
+
                     val runButton = row.findViewById<View>(R.id.pluginRunButton)
                     val runLabel = row.findViewById<TextView>(R.id.pluginRunLabel)
                     // The "Run" button only applies to discovery plugins, which the user kicks off
@@ -6681,17 +6791,59 @@ class MainActivity : AppCompatActivity() {
                     // so they get enable/disable only - no Run button.
                     if (plugin.supportsDiscovery) {
                         runButton.visibility = View.VISIBLE
-                        // One run at a time: the results list below is shared, and two plugins
+                        // One run at a time: a run takes over the results area, and two plugins
                         // reporting into it at once would be unattributable.
-                        val busy = running
-                        runLabel.text = if (busy) "Running…" else "Run"
-                        runButton.isEnabled = plugin.enabled && !busy
-                        runButton.alpha = if (runButton.isEnabled) 1f else 0.4f
-                        runButton.setOnClickListener { runDiscovery(plugin) }
+                        runLabel.text = if (running && isRunningPlugin) "Running…" else "Run"
+                        // Dimmed but still focusable when it can't be used. setEnabled(false)
+                        // takes a View out of focus search entirely, so a disabled plugin's Run
+                        // button was a hole the D-pad fell straight through - and since Run is
+                        // exactly what the user is heading for after enabling it, it has to stay
+                        // on the path. The click explains itself instead.
+                        val runnable = plugin.enabled && !running
+                        runButton.alpha = if (runnable) 1f else 0.4f
+                        runButton.setOnClickListener {
+                            when {
+                                running -> Toast.makeText(
+                                    this@MainActivity, "A plugin is already running", Toast.LENGTH_SHORT
+                                ).show()
+                                !plugin.enabled -> Toast.makeText(
+                                    this@MainActivity, "Enable ${plugin.label} first", Toast.LENGTH_SHORT
+                                ).show()
+                                else -> runDiscovery(plugin)
+                            }
+                        }
                     } else {
                         runButton.visibility = View.GONE
                         runButton.setOnClickListener(null)
                     }
+
+                    // Results belong to the plugin that produced them, so only that plugin's
+                    // section shows them - and it rebuilds them from the state above rather than
+                    // from whatever views happened to survive, since this runs again on every
+                    // enable/remove/install while a run may still be in flight.
+                    val results = row.findViewById<View>(R.id.pluginResults)
+                    val candidateList = row.findViewById<LinearLayout>(R.id.pluginCandidateList)
+                    if (isRunningPlugin && pluginDiscoveryStatus != null) {
+                        results.visibility = View.VISIBLE
+                        row.findViewById<View>(R.id.pluginProgress).visibility =
+                            if (running) View.VISIBLE else View.GONE
+                        row.findViewById<TextView>(R.id.pluginStatus).text = pluginDiscoveryStatus
+                        candidateList.removeAllViews()
+                        for (candidate in pluginDiscoveryCandidates) {
+                            addCandidateRow(candidateList, plugin, candidate)
+                        }
+                        // While a run is live, hold on to the two views it writes into so each
+                        // progress line and candidate can be applied directly. Re-rendering the
+                        // whole pane per line would rebuild every row under the user's focus.
+                        if (running) {
+                            liveDiscoveryStatusView = row.findViewById(R.id.pluginStatus)
+                            liveDiscoveryCandidateList = candidateList
+                            liveDiscoveryPlugin = plugin
+                        }
+                    } else {
+                        results.visibility = View.GONE
+                    }
+
                     row.findViewById<View>(R.id.pluginRemoveButton).setOnClickListener {
                         AlertDialog.Builder(this@MainActivity)
                             .setTitle("Remove ${plugin.label}?")
@@ -6699,17 +6851,87 @@ class MainActivity : AppCompatActivity() {
                             .setPositiveButton("Remove") { _, _ ->
                                 manager.setEnabled(plugin.id, false)
                                 manager.removeUserScript(plugin.fileName)
+                                expandedPluginIds.remove(plugin.id)
                                 renderPluginList()
+                                refreshPluginNavRows?.invoke()
                             }
                             .setNegativeButton("Cancel", null)
                             .show()
                     }
                     listContainer.addView(row)
+
+                    // Focus is restored after the view exists and is attached, and only for the
+                    // row that asked for it - see pluginFocusRequestId.
+                    if (plugin.id == pluginFocusRequestId) {
+                        val target = row.findViewById<View>(pluginFocusRequestViewId)
+                        pluginFocusRequestId = null
+                        pluginFocusRequestViewId = View.NO_ID
+                        // post(): a view added this frame isn't focusable until it has been laid
+                        // out, so requesting it inline is a no-op.
+                        target?.post { target.requestFocus() }
+                    }
                 }
             }
             Unit
         }
+
+        // Lets the nav rail's plugin rows drive this pane - see wirePluginNavRows.
+        revealPluginInPane = { id ->
+            expandedPluginIds.add(id)
+            pluginFocusRequestId = id
+            pluginFocusRequestViewId = R.id.pluginHeader
+            renderPluginList()
+        }
         renderPluginList()
+    }
+
+    /**
+     * Makes the nav rail's Plugins row a dropdown over the installed plugins. Each child opens
+     * the Plugins pane with that plugin's section already expanded and focused, which is where
+     * it can be updated or enabled/disabled - the rail itself is navigation, so a child row only
+     * reports the enabled state rather than being another place that changes it.
+     *
+     * This is the reason a discovery plugin is reachable at all on a long list: the Reddit
+     * scanner sits near the bottom of the installed plugins, which is several screens down a
+     * pane that also holds the install-from-URL card and the store list above it.
+     */
+    private fun wirePluginNavRows(dialogView: View, openPluginsPane: () -> Unit) {
+        val parentRow = dialogView.findViewById<View>(R.id.navPlugins)
+        val caret = dialogView.findViewById<TextView>(R.id.navPluginsCaret)
+        val children = dialogView.findViewById<LinearLayout>(R.id.navPluginChildren)
+
+        fun render() {
+            scope.launch {
+                val plugins = pluginScriptManager.discoverScripts()
+                children.removeAllViews()
+                for (plugin in plugins) {
+                    val row = layoutInflater.inflate(R.layout.item_plugin_nav_row, children, false)
+                    row.findViewById<TextView>(R.id.pluginNavLabel).text = plugin.label
+                    row.findViewById<TextView>(R.id.pluginNavState).text =
+                        if (plugin.enabled) "✓" else "○"
+                    row.setOnClickListener {
+                        openPluginsPane()
+                        revealPluginInPane?.invoke(plugin.id)
+                    }
+                    children.addView(row)
+                }
+                val hasPlugins = plugins.isNotEmpty()
+                children.visibility = if (navPluginsExpanded && hasPlugins) View.VISIBLE else View.GONE
+                caret.visibility = if (hasPlugins) View.VISIBLE else View.GONE
+                caret.text = if (navPluginsExpanded) "▾" else "▸"
+            }
+            Unit
+        }
+        refreshPluginNavRows = { render() }
+
+        // Selecting the parent does both jobs: it opens the pane (what every other rail row
+        // does, so the row doesn't behave differently from its neighbours) and expands the list.
+        parentRow.setOnClickListener {
+            openPluginsPane()
+            navPluginsExpanded = !navPluginsExpanded
+            render()
+        }
+        render()
     }
 
     /**

@@ -1,90 +1,219 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One installed plugin in Settings > Plugins. Same shape as item_iptv_provider_row: an
-     enable checkbox, name/detail, and the row's one action. -->
+<!-- One installed plugin in Settings > Plugins, as a collapsible section. Everything a plugin
+     owns - its enable toggle, its actions, and the results of its last run - lives inside its
+     own body rather than spread between a one-line row here and a shared "Results" block at the
+     bottom of the pane. A discovery plugin's candidate list is long enough on its own (the
+     Reddit scanner routinely reports a screenful) that a shared block left the user scrolling
+     past every other plugin to find out which one had produced them. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clipChildren="false"
     android:clipToPadding="false"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="12dp">
+    android:orientation="vertical">
 
-    <CheckBox
-        android:id="@+id/pluginEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="12dp"
-        android:clickable="false"
-        android:focusable="false" />
-
+    <!-- Header: the whole thing is the expand/collapse target. The enable checkbox is inside
+         the body instead of here so that clicking the row has exactly one meaning. -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:id="@+id/pluginHeader"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:background="@drawable/bg_channel_row"
+        android:clickable="true"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="@dimen/settings_gap"
+        android:stateListAnimator="@animator/focus_scale">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/pluginName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/settings_text_body"
+                android:textStyle="bold" />
+
+            <!-- Collapsed, this is the only thing saying whether the plugin is on and what it
+                 last did - the enable checkbox and the run status are both inside the body. -->
+            <TextView
+                android:id="@+id/pluginSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/settings_text_caption" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/pluginName"
-            android:layout_width="match_parent"
+            android:id="@+id/pluginCaret"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/text_primary"
-            android:textSize="@dimen/text_body"
-            android:textStyle="bold" />
+            android:layout_marginStart="@dimen/settings_gap_s"
+            android:text="▾"
+            android:textColor="@color/text_tertiary"
+            android:textSize="@dimen/settings_text_body" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pluginBody"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/settings_gap"
+        android:paddingBottom="@dimen/settings_gap"
+        android:visibility="gone">
 
         <TextView
             android:id="@+id/pluginDetail"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:maxLines="2"
+            android:layout_marginBottom="@dimen/settings_gap_s"
             android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_caption" />
-    </LinearLayout>
+            android:textSize="@dimen/settings_text_caption" />
 
-    <LinearLayout
-        android:id="@+id/pluginRunButton"
-        android:layout_width="wrap_content"
-        android:layout_height="36dp"
-        android:layout_marginStart="8dp"
-        android:background="@drawable/card_surface_background"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:paddingHorizontal="12dp"
-        android:stateListAnimator="@animator/focus_scale">
-        <TextView
-            android:id="@+id/pluginRunLabel"
-            android:layout_width="wrap_content"
+        <!-- Focusable, unlike the checkbox it wraps: a D-pad has no way to reach a CheckBox that
+             isn't itself a focus target, which is what left the enable toggle unreachable when
+             it sat in the collapsed row. -->
+        <LinearLayout
+            android:id="@+id/pluginEnabledRow"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/run"
-            android:textColor="@color/text_primary"
-            android:textSize="@dimen/text_caption"
-            android:textStyle="bold" />
-    </LinearLayout>
+            android:background="@drawable/bg_channel_row"
+            android:clickable="true"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="@dimen/settings_gap_s"
+            android:paddingVertical="@dimen/settings_gap_xs"
+            android:stateListAnimator="@animator/focus_scale">
 
-    <LinearLayout
-        android:id="@+id/pluginRemoveButton"
-        android:layout_width="wrap_content"
-        android:layout_height="36dp"
-        android:layout_marginStart="8dp"
-        android:background="@drawable/card_surface_background"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:paddingHorizontal="12dp"
-        android:stateListAnimator="@animator/focus_scale">
-        <TextView
-            android:layout_width="wrap_content"
+            <CheckBox
+                android:id="@+id/pluginEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/settings_gap_s"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/enabled"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/settings_text_caption" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/remove"
-            android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_caption"
-            android:textStyle="bold" />
+            android:layout_marginTop="@dimen/settings_gap_s"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/pluginRunButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/settings_action_button_height"
+                android:layout_marginEnd="@dimen/settings_gap_s"
+                android:background="@drawable/card_surface_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="@dimen/settings_gap"
+                android:stateListAnimator="@animator/focus_scale">
+                <TextView
+                    android:id="@+id/pluginRunLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/run"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_caption"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/pluginRemoveButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/settings_action_button_height"
+                android:background="@drawable/card_surface_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="@dimen/settings_gap"
+                android:stateListAnimator="@animator/focus_scale">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/remove"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_caption"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- This plugin's own run output. Hidden until it has something to say. -->
+        <LinearLayout
+            android:id="@+id/pluginResults"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/settings_gap"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ProgressBar
+                    android:id="@+id/pluginProgress"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="@dimen/settings_gap_s"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/pluginStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_caption" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/pluginCandidateList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/settings_gap_s"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One installed plugin as a child of the Settings nav rail's Plugins row. Indented and
+     without the coloured icon chip its parent carries, so the rail still reads as one level of
+     hierarchy rather than ten equal rows. The check mark is status only - it says whether the
+     plugin is enabled; selecting the row opens the Plugins pane, which is where it is changed. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/settings_gap_xs"
+    android:layout_marginStart="@dimen/settings_gap_l"
+    android:background="@drawable/nav_rail_item_background"
+    android:clickable="true"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="@dimen/settings_gap_s"
+    android:paddingVertical="@dimen/settings_gap_xs">
+
+    <TextView
+        android:id="@+id/pluginNavState"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/settings_gap_s"
+        android:textColor="@color/text_tertiary"
+        android:textSize="@dimen/settings_text_caption" />
+
+    <TextView
+        android:id="@+id/pluginNavLabel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/settings_text_caption" />
+</LinearLayout>

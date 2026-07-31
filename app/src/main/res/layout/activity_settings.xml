@@ -31,8 +31,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="18dp"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="16dp"
+            android:layout_marginTop="@dimen/settings_gap_xl"
+            android:layout_marginBottom="@dimen/settings_gap_l"
             android:text="@string/settings"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_section"
@@ -50,8 +50,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="10dp"
-                android:paddingBottom="12dp">
+                android:paddingHorizontal="@dimen/settings_gap_m"
+                android:paddingBottom="@dimen/settings_gap">
 
                 <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="P" android:backgroundTint="@color/channel_1" />
@@ -91,7 +91,26 @@
                 <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="X" android:backgroundTint="@color/channel_2" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/plugins" />
+                    <TextView
+                        android:id="@+id/navPluginsCaret"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="▸"
+                        android:textColor="@color/text_tertiary"
+                        android:textSize="@dimen/settings_text_caption" />
                 </LinearLayout>
+
+                <!-- Installed plugins, as children of the Plugins row. Populated at runtime by
+                     wirePluginNavRows(); picking one opens the Plugins pane with that plugin's
+                     section open, which is where it can be updated or enabled/disabled. -->
+                <LinearLayout
+                    android:id="@+id/navPluginChildren"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
 
                 <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8">
                     <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
@@ -127,7 +146,7 @@
             android:layout_height="wrap_content"
             android:clipChildren="false"
             android:clipToPadding="false"
-            android:padding="24dp"
+            android:padding="@dimen/settings_pane_padding"
             android:paddingEnd="@dimen/settings_content_inset">
 
             <!-- Pane: Providers -->
@@ -142,7 +161,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
+                    android:layout_marginBottom="@dimen/settings_gap_xs"
                     android:text="@string/providers"
                     style="@style/TextAppearance.Lumora.SettingsTitle" />
 
@@ -166,7 +185,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
+                    android:layout_marginTop="@dimen/settings_gap_xl"
                     android:text="@string/your_providers"
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
@@ -179,7 +198,7 @@
                     android:id="@+id/settingsIptvProviderList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:orientation="vertical" />
@@ -188,7 +207,7 @@
                     android:id="@+id/settingsIptvProviderListEmpty"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:text="@string/no_iptv_providers_added_yet"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
@@ -201,7 +220,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/settings_gap"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -225,12 +244,12 @@
                     android:id="@+id/settingsIptvFormSection"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/settings_gap"
                     android:background="@drawable/bg_category_panel"
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:orientation="vertical"
-                    android:padding="14dp"
+                    android:padding="@dimen/settings_gap_ml"
                     android:visibility="gone">
 
                     <!-- Only shown in edit mode ("Editing MyProvider") - set/hidden in
@@ -239,7 +258,7 @@
                         android:id="@+id/settingsIptvFormTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="10dp"
+                        android:layout_marginBottom="@dimen/settings_gap_m"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_subtitle"
                         android:textStyle="bold"
@@ -269,7 +288,7 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="@dimen/settings_gap_s"
                         android:clipChildren="false"
                         android:clipToPadding="false"
                         android:orientation="horizontal">
@@ -355,8 +374,8 @@
                         android:clipToPadding="false"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingHorizontal="14dp"
-                        android:paddingVertical="10dp"
+                        android:paddingHorizontal="@dimen/settings_gap_ml"
+                        android:paddingVertical="@dimen/settings_gap_m"
                         android:visibility="gone">
 
                         <TextView
@@ -372,12 +391,12 @@
                         <TextView
                             android:id="@+id/settingsTypeSummaryChange"
                             android:layout_width="wrap_content"
-                            android:layout_height="34dp"
+                            android:layout_height="@dimen/settings_action_button_height"
                             android:background="@drawable/bg_outline_button"
                             android:clickable="true"
                             android:focusable="true"
                             android:gravity="center"
-                            android:paddingHorizontal="14dp"
+                            android:paddingHorizontal="@dimen/settings_gap_ml"
                             android:stateListAnimator="@animator/focus_scale_flat"
                             android:text="@string/change"
                             android:textColor="@color/accent"
@@ -407,7 +426,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:paddingVertical="@dimen/settings_row_padding_vertical"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="@dimen/settings_gap"
                         android:background="@drawable/bg_outline_button"
                         android:clickable="true"
                         android:focusable="true"
@@ -429,7 +448,7 @@
                         android:id="@+id/settingsQrSection"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="@dimen/settings_gap_m"
                         android:gravity="center"
                         android:orientation="vertical"
                         android:visibility="gone">
@@ -445,10 +464,10 @@
                         <FrameLayout
                             android:id="@+id/settingsQrFrame"
                             android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:layout_marginTop="8dp"
+                            android:layout_height="@dimen/settings_qr_size"
+                            android:layout_marginTop="@dimen/settings_gap_s"
                             android:background="@drawable/bg_qr_card"
-                            android:padding="7dp"
+                            android:padding="@dimen/settings_gap_s"
                             android:visibility="gone">
 
                             <ImageView
@@ -462,7 +481,7 @@
                             android:id="@+id/settingsQrTimer"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:textColor="@color/accent"
                             android:textSize="@dimen/settings_text_caption"
                             android:visibility="gone" />
@@ -474,7 +493,7 @@
                         android:id="@+id/settingsManualDivider"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
+                        android:layout_marginTop="@dimen/settings_gap_ml"
                         android:gravity="center"
                         android:orientation="horizontal">
 
@@ -482,7 +501,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:paddingHorizontal="12dp"
+                            android:paddingHorizontal="@dimen/settings_gap"
                             android:text="@string/or_enter_manually"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/settings_text_caption" />
@@ -497,18 +516,18 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/name" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/name" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                     <EditText
                         android:id="@+id/settingsProviderName"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:paddingVertical="@dimen/settings_row_padding_vertical"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="@dimen/settings_gap_xs"
                         android:background="@drawable/bg_input"
                         android:hint="e.g. My IPTV"
                         android:importantForAutofill="no"
                         android:inputType="text"
-                        android:padding="12dp"
+                        android:padding="@dimen/settings_gap"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_body" />
 
@@ -520,7 +539,7 @@
                         android:id="@+id/settingsM3uGroup"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="@dimen/settings_gap"
                         android:orientation="vertical">
 
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/m3u_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
@@ -529,27 +548,27 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="@string/m3u_url_hint"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsUserAgent"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="@string/user_agent_hint"
                             android:importantForAutofill="no"
                             android:inputType="text"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
                     </LinearLayout>
@@ -562,48 +581,48 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsXtreamUrl"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="http://example.com:8080"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/xtream_username" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/xtream_username" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsXtreamUser"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="Username"
                             android:importantForAutofill="no"
                             android:inputType="text"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/xtream_password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/xtream_password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsXtreamPass"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="Password"
                             android:importantForAutofill="no"
                             android:inputType="textPassword"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
@@ -611,7 +630,7 @@
                             android:id="@+id/settingsSubscriptionStatus"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="@dimen/settings_gap"
                             android:gravity="center"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/settings_text_caption"
@@ -627,33 +646,33 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsStalkerUrl"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="http://example.com:8080"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/stalker_mac" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/stalker_mac" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsStalkerMac"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="@string/stalker_mac_hint"
                             android:importantForAutofill="no"
                             android:inputType="text"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
                     </LinearLayout>
@@ -667,18 +686,18 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/server_url" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsJellyfinUrl"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="http://192.168.1.100:8096"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
@@ -687,7 +706,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="@dimen/settings_gap"
                             android:background="@drawable/card_surface_background"
                             android:clickable="true"
                             android:focusable="true"
@@ -703,33 +722,33 @@
                                 android:textStyle="bold" />
                         </LinearLayout>
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/username_if_quick_connect_off" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/username_if_quick_connect_off" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsJellyfinUser"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="Jellyfin username"
                             android:importantForAutofill="no"
                             android:inputType="text"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/xtream_password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/xtream_password" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsJellyfinPass"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
                             android:hint="Password"
                             android:importantForAutofill="no"
                             android:inputType="textPassword"
-                            android:padding="12dp"
+                            android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
                     </LinearLayout>
@@ -740,10 +759,10 @@
                         android:id="@+id/settingsIptvFormCancel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="@dimen/settings_gap_l"
                         android:clickable="true"
                         android:focusable="true"
-                        android:padding="6dp"
+                        android:padding="@dimen/settings_gap_s"
                         android:text="@string/cancel"
                         android:textColor="@color/text_secondary"
                         android:textSize="@dimen/settings_text_caption"
@@ -759,7 +778,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/playback" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/playback" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsRecordingStorage"
@@ -779,7 +798,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/settings_gap"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -793,7 +812,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/settings_gap"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -817,7 +836,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/filters" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/filters" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <CheckBox
                     android:id="@+id/settingsHideNonEnglish"
@@ -835,7 +854,7 @@
                     android:id="@+id/settingsHideAdult"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/settings_gap"
                     android:checked="true"
                     android:text="@string/hide_adult_categories"
                     android:textColor="@color/text_primary"
@@ -850,7 +869,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/privacy" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsParentalPin"
@@ -870,7 +889,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="@dimen/settings_gap_l"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -888,7 +907,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/backup_restore" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/backup_restore" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsExportBackup"
@@ -908,7 +927,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -926,7 +945,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/epg_sources" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/epg_sources" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:id="@+id/settingsAddEpgSource"
@@ -952,7 +971,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/downloads" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <TextView
                     android:id="@+id/settingsDownloadsEmptyText"
@@ -990,8 +1009,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginTop="@dimen/settings_gap_s"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
                     android:text="@string/plugins_description"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
 
@@ -1008,14 +1027,14 @@
                     android:id="@+id/settingsPluginInstallUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:layout_marginBottom="20dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
+                    android:layout_marginBottom="@dimen/settings_gap_xl"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp"
+                    android:padding="@dimen/settings_gap_l"
                     android:stateListAnimator="@animator/focus_scale">
 
                     <TextView
@@ -1038,7 +1057,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
+                    android:layout_marginTop="@dimen/settings_gap_xl"
                     android:text="@string/plugin_stores"
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
@@ -1049,7 +1068,7 @@
                     android:id="@+id/settingsPluginStoreList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:orientation="vertical" />
@@ -1058,7 +1077,7 @@
                     android:id="@+id/settingsPluginStoreListEmpty"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:text="@string/no_plugin_stores"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
@@ -1068,14 +1087,14 @@
                     android:id="@+id/settingsPluginAddStore"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:layout_marginBottom="20dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
+                    android:layout_marginBottom="@dimen/settings_gap_xl"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="14dp"
+                    android:padding="@dimen/settings_gap_ml"
                     android:stateListAnimator="@animator/focus_scale">
 
                     <TextView
@@ -1100,7 +1119,7 @@
                     android:id="@+id/settingsPluginList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:clipChildren="false"
                     android:clipToPadding="false"
                     android:orientation="vertical" />
@@ -1109,65 +1128,12 @@
                     android:id="@+id/settingsPluginListEmpty"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:text="@string/no_plugins_installed"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
                     android:visibility="gone" />
 
-                <!-- Results of the current/last run - hidden until a run starts. -->
-                <LinearLayout
-                    android:id="@+id/settingsPluginRunSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:clipChildren="false"
-                    android:clipToPadding="false"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/results"
-                        android:letterSpacing="0.08"
-                        android:textColor="@color/text_tertiary"
-                        android:textSize="@dimen/settings_text_caption"
-                        android:textStyle="bold" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ProgressBar
-                            android:id="@+id/settingsPluginProgress"
-                            style="?android:attr/progressBarStyleSmall"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="10dp"
-                            android:visibility="gone" />
-
-                        <TextView
-                            android:id="@+id/settingsPluginStatus"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="@dimen/settings_text_body" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/settingsPluginCandidateList"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:clipChildren="false"
-                        android:clipToPadding="false"
-                        android:orientation="vertical" />
-                </LinearLayout>
             </LinearLayout>
 
             <!-- Pane: About -->
@@ -1178,7 +1144,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" android:text="@string/about" style="@style/TextAppearance.Lumora.SettingsTitle" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/about" style="@style/TextAppearance.Lumora.SettingsTitle" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -1187,7 +1153,7 @@
                     android:background="@drawable/card_surface_background"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp">
+                    android:paddingHorizontal="@dimen/settings_gap_l">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/version" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" />
                     <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_body" />
                 </LinearLayout>
@@ -1197,13 +1163,13 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
+                    android:paddingHorizontal="@dimen/settings_gap_l"
                     android:stateListAnimator="@animator/focus_scale_flat">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/github" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/github_url" android:textColor="@color/primary_light" android:textSize="@dimen/settings_text_caption" />
@@ -1214,7 +1180,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="@dimen/settings_row_padding_vertical"
-                    android:layout_marginTop="10dp"
+                    android:layout_marginTop="@dimen/settings_gap_m"
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
@@ -1241,7 +1207,7 @@
         android:background="@color/canvas_elevated"
         android:gravity="end|center_vertical"
         android:orientation="horizontal"
-        android:padding="16dp">
+        android:padding="@dimen/settings_gap_l">
 
         <LinearLayout
             android:id="@+id/settingsCancelButton"
@@ -1253,7 +1219,7 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:paddingHorizontal="24dp"
+            android:paddingHorizontal="@dimen/settings_pane_padding"
             android:stateListAnimator="@animator/focus_scale_flat">
             <TextView
                 android:layout_width="wrap_content"
@@ -1273,7 +1239,7 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:paddingHorizontal="24dp"
+            android:paddingHorizontal="@dimen/settings_pane_padding"
             android:stateListAnimator="@animator/focus_scale_flat">
             <TextView
                 android:layout_width="wrap_content"

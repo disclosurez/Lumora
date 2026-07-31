@@ -149,6 +149,7 @@
     <string name="privacy">Privacy</string>
     <string name="downloads">Downloads</string>
     <string name="plugins">Plugins</string>
+    <string name="enabled">Enabled</string>
     <string name="about">About</string>
     <string name="providers_description">Run multiple providers together - enable or disable each independently</string>
     <string name="your_providers">YOUR PROVIDERS</string>

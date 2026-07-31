@@ -29,17 +29,39 @@
          squeezed their own text down to "ip / Xtr...". Settings is read while sitting still
          and interacting, not glanced at across a room like the browse grid, so it does not
          need the same headroom the poster/guide scales get. -->
-    <dimen name="settings_text_micro">10sp</dimen>
-    <dimen name="settings_text_caption">13sp</dimen>
-    <dimen name="settings_text_body">14sp</dimen>
-    <dimen name="settings_text_subtitle">16sp</dimen>
-    <dimen name="settings_text_section">18sp</dimen>
-    <dimen name="settings_text_title">22sp</dimen>
+    <!-- Second pass: the controls come down ~30% and the type ~18% with them. Even at the
+         restrained +30% type step above, every settings pane was taller than the screen and
+         had to be scrolled to reach the buttons at the bottom of it - the boxes were sized for
+         a phone in the hand and then filled with sofa-distance text, so they grew in every
+         direction at once. Type falls by less than the boxes do deliberately: the problem was
+         never that the labels were readable, it was that each one sat in a 58dp card with
+         12-20dp of air around it. -->
+    <dimen name="settings_text_micro">9sp</dimen>
+    <dimen name="settings_text_caption">11sp</dimen>
+    <dimen name="settings_text_body">12sp</dimen>
+    <dimen name="settings_text_subtitle">13sp</dimen>
+    <dimen name="settings_text_section">15sp</dimen>
+    <dimen name="settings_text_title">18sp</dimen>
 
-    <dimen name="settings_nav_icon_size">32dp</dimen>
-    <dimen name="settings_nav_rail_width">250dp</dimen>
-    <dimen name="settings_type_card_height">58dp</dimen>
-    <dimen name="settings_input_min_height">48dp</dimen>
+    <dimen name="settings_nav_icon_size">22dp</dimen>
+    <dimen name="settings_nav_rail_width">190dp</dimen>
+    <dimen name="settings_type_card_height">40dp</dimen>
+    <dimen name="settings_input_min_height">34dp</dimen>
+
+    <!-- ~30% off every gap in the settings layout (see values/dimens.xml for what these are
+         and why they exist). This is what actually takes the panes off the scroll. -->
+    <dimen name="settings_gap_xs">3dp</dimen>
+    <dimen name="settings_gap_s">4dp</dimen>
+    <dimen name="settings_gap_m">7dp</dimen>
+    <dimen name="settings_gap">8dp</dimen>
+    <dimen name="settings_gap_ml">10dp</dimen>
+    <dimen name="settings_gap_l">11dp</dimen>
+    <dimen name="settings_gap_xl">14dp</dimen>
+    <dimen name="settings_pane_padding">16dp</dimen>
+    <!-- Not the full 30%: this is a focusable target with a label in it, and 24dp is below
+         what a D-pad user can comfortably see highlighted. -->
+    <dimen name="settings_action_button_height">28dp</dimen>
+    <dimen name="settings_qr_size">104dp</dimen>
     <!-- Holds the options column to a readable width. The pane spans the full panel now that
          the 660dp pop-out cap is gone, which left every card and input running ~700dp wide -
          a button whose label sits in the middle of half a metre of background. This is the
