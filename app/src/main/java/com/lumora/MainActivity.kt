@@ -370,7 +370,10 @@ class MainActivity : AppCompatActivity() {
      *  geometrically nearest, which can be a different season entirely. */
     private var selectedSeasonChip: View? = null
     private var activeTab = 0
-    private var showingHome = true
+    // Live TV is the landing screen: this is a TV app first, and Home's shelves are only
+    // meaningful once there's watch history to fill them. The first render after a catalog
+    // load routes on this flag (see the tail of classifyAndShow).
+    private var showingHome = false
     private var showingDownloads = false
     private var showingDiscover = false
     private val isTv by lazy { isTvDevice(this) }
@@ -475,26 +478,33 @@ class MainActivity : AppCompatActivity() {
     )
     private val seriesShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
+        onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinnedShelf(1, shelf.title) },
         onHideClick = { shelf -> toggleHiddenShelf(1, shelf.title) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
+        onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinnedShelf(2, shelf.title) },
         onHideClick = { shelf -> toggleHiddenShelf(2, shelf.title) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val homeShelfAdapter = ShelfAdapter(
         onItemClick = { item -> onHomeItemClick(item) },
+        onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onHideClick = { shelf -> toggleHiddenHomeShelf(shelf.title) },
         showPinButton = false
     )
     // Single-category selection swaps to these - a vertical, scrollable grid instead of
     // the shelves' horizontal strip, since one category's whole catalog doesn't fit a
     // single row.
-    private val seriesGridAdapter = com.lumora.adapter.PosterGridAdapter { item -> playItem(item) }
-    private val filmsGridAdapter = com.lumora.adapter.PosterGridAdapter { item -> playItem(item) }
+    private val seriesGridAdapter = com.lumora.adapter.PosterGridAdapter(
+        onItemLongClick = { item -> toggleFavoriteVodItem(item) }
+    ) { item -> playItem(item) }
+    private val filmsGridAdapter = com.lumora.adapter.PosterGridAdapter(
+        onItemLongClick = { item -> toggleFavoriteVodItem(item) }
+    ) { item -> playItem(item) }
     private val tmdbClient = com.lumora.data.remote.tmdb.TmdbClient()
     private val discoverGridAdapter = com.lumora.adapter.PosterGridAdapter { item -> onDiscoverItemClick(item) }
     private var discoverSearchJob: Job? = null
@@ -586,13 +596,12 @@ class MainActivity : AppCompatActivity() {
             val filter = android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
             ContextCompat.registerReceiver(this, downloadCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         } else {
-            // The XML D-pad chain routes Films -> Discover -> Downloads -> Home, but Downloads
-            // stays View.GONE on TV - an explicit nextFocus target that's GONE just eats the
-            // key press instead of falling through. Re-route around the hidden Downloads tab so
-            // the ring becomes Films -> Discover -> Home -> ... on TV.
-            binding.tabFilms.nextFocusRightId = R.id.tabDiscover
-            binding.tabDiscover.nextFocusRightId = R.id.tabHome
-            binding.tabHome.nextFocusLeftId = R.id.tabDiscover
+            // The XML D-pad chain routes Discover -> Downloads -> Live, but Downloads stays
+            // View.GONE on TV - an explicit nextFocus target that's GONE just eats the key
+            // press instead of falling through. Re-route around the hidden Downloads tab so
+            // the ring closes Discover -> Live directly.
+            binding.tabDiscover.nextFocusRightId = R.id.tabLive
+            binding.tabLive.nextFocusLeftId = R.id.tabDiscover
         }
     }
 
@@ -759,7 +768,108 @@ class MainActivity : AppCompatActivity() {
         else if (activeSearchOverlay != null) activeSearchOverlay?.dismiss()
         else if (isPlayerVisible) hidePlayer()
         else if (isContentDetailVisible) hideContentDetail()
-        else super.onBackPressed()
+        // Back walks back up the way the user came in rather than dropping straight out of
+        // the app. Inside a section (Live/Series/Films/Discover/Downloads) the first press
+        // goes to the top of that section - a Films/Series category grid up to that tab's
+        // shelves, otherwise the first category with both lists scrolled back to the top -
+        // and only once already at the top does the next press go Home. Back on Home itself
+        // exits. Leaving the app was previously one press from anywhere, which on a remote
+        // is very easy to do by accident.
+        else if (showingHome) super.onBackPressed()
+        else if (!isAtSectionTop()) goToSectionTop()
+        else goHomeFromBack()
+    }
+
+    /** The list filling the content area of whatever section is on screen. */
+    private fun activeContentList(): RecyclerView = when {
+        showingDiscover -> binding.discoverGrid
+        showingDownloads -> binding.downloadsContent
+        activeTab == 1 -> binding.seriesContent
+        activeTab == 2 -> binding.filmsContent
+        else -> binding.liveContent
+    }
+
+    private fun isListAtTop(list: RecyclerView): Boolean {
+        // GridLayoutManager is a LinearLayoutManager, so this covers the poster grids too.
+        val lm = list.layoutManager as? LinearLayoutManager ?: return true
+        return lm.findFirstCompletelyVisibleItemPosition() <= 0
+    }
+
+    /** "Top of the section": nothing drilled into, both the sidebar and the content list
+     *  scrolled to their first row, and the first category selected. Anything else means
+     *  there's somewhere above the user to go before leaving for Home. */
+    private fun isAtSectionTop(): Boolean {
+        if (isTabDrilledIn()) return false
+        if (!isListAtTop(activeContentList())) return false
+        if (showingDiscover || showingDownloads) return true
+        if (!isListAtTop(binding.categorySidebar)) return false
+        val firstId = categoryAdapter.currentList.firstOrNull()?.id
+        return categoryAdapter.selectedId == firstId
+    }
+
+    private fun goToSectionTop() {
+        if (isTabDrilledIn()) {
+            resetTabToShelves()
+            return
+        }
+        val content = activeContentList()
+        content.scrollToPosition(0)
+        if (showingDiscover || showingDownloads) {
+            focusFirstItemWhenReady(content)
+            return
+        }
+        binding.categorySidebar.scrollToPosition(0)
+        val first = categoryAdapter.currentList.firstOrNull()
+        // Not a parent row: selecting one of those toggles its expansion (see
+        // onCategorySelected), and collapsing a group is not what Back should do.
+        if (first != null && !first.isParent && categoryAdapter.selectedId != first.id) {
+            onCategorySelected(first)
+        }
+        focusFirstItemWhenReady(binding.categorySidebar)
+    }
+
+    /** True when a Films/Series tab is showing one category's (or one See All row's) grid
+     *  rather than its shelves. Live TV is excluded on purpose - it always has a row
+     *  selected (see selectTab), so there's no shelf level there to go back up to. */
+    private fun isTabDrilledIn(): Boolean =
+        !showingHome && !showingDiscover && !showingDownloads && activeTab != 0 &&
+            (selectedShelfItems != null || selectedRowId != null ||
+                selectedCategoryIds != null || selectedBrandChannelIds != null)
+
+    /** Clears the current category selection, putting the tab back on its shelf list - the
+     *  same state selectTab() leaves Films/Series in. */
+    private fun resetTabToShelves() {
+        selectedShelfItems = null
+        selectedRowId = null
+        selectedCategoryIds = null
+        selectedBrandChannelIds = null
+        selectedCategoryLabel = null
+        categoryAdapter.setSelected(null)
+        scope.launch {
+            applyCategoryFilter()
+            // The grid holding focus has just been swapped for the shelf list, and a focused
+            // view disappearing leaves nothing focused at all - the D-pad would stop
+            // responding until something else claimed focus.
+            focusFirstItemWhenReady(if (activeTab == 1) binding.seriesContent else binding.filmsContent)
+        }
+    }
+
+    private fun goHomeFromBack() {
+        selectHome()
+        // Same focus-handoff reason as above: whatever was focused belonged to the tab that
+        // just went GONE. The Home tab button is always present and is where a user landing
+        // on Home by pressing the tab would be anyway.
+        binding.tabHome.post {
+            if (!binding.tabHome.requestFocus()) binding.homeContent.requestFocus()
+        }
+    }
+
+    /** Focuses a list's first row once it has been laid out - a single requestFocus() right
+     *  after submitList() lands before the new items exist and silently no-ops. */
+    private fun focusFirstItemWhenReady(list: RecyclerView) {
+        fun attempt(): Boolean =
+            list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() == true
+        list.post { if (!attempt()) list.post { attempt() } }
     }
 
     /** True while there's actually an overlay/screen for swipe-back to close - guards edge-swipe
@@ -1985,8 +2095,16 @@ class MainActivity : AppCompatActivity() {
     private fun togglePinCategory(category: CategoryFilter) {
         val id = category.id ?: return
         val pinned = getPinnedCategories()
-        if (!pinned.remove(id)) pinned.add(id)
+        val pinningNow = !pinned.remove(id)
+        if (pinningNow) pinned.add(id)
         prefs.edit().putStringSet(pinnedCategoriesPrefsKey(), pinned).apply()
+        // The rebuild that follows can take a moment on a big catalog, and the row only
+        // moves once it lands - without a word on screen a hold looked like it did nothing.
+        Toast.makeText(
+            this,
+            if (pinningNow) "Pinned \"${category.name}\" to top" else "Unpinned \"${category.name}\"",
+            Toast.LENGTH_SHORT
+        ).show()
         scope.launch { rebuildCategoriesForActiveTab() }
     }
 
@@ -2042,6 +2160,46 @@ class MainActivity : AppCompatActivity() {
             Toast.LENGTH_SHORT
         ).show()
         if (activeTab == 0) scope.launch { rebuildCategoriesForActiveTab() }
+        refreshHomeShelvesIfShowing()
+    }
+
+    /** Long-press handler for any VOD poster (Home/Series/Films shelves and the category
+     *  grids). Live entries go through [toggleFavoriteChannel] so a favourited channel lands
+     *  in the same set the Live TV Favourites category reads; films and series share the
+     *  favourite-series set, which is what both the detail screen's star and the Home
+     *  Favorites shelf use. */
+    private fun toggleFavoriteVodItem(item: Channel) {
+        if (item.id.isBlank()) return
+        if (item.mediaType == MediaType.LIVE) {
+            toggleFavoriteChannel(item)
+            return
+        }
+        val nowFavorite = FavoritesStore.toggleFavoriteSeries(this, item.id)
+        Toast.makeText(
+            this,
+            if (nowFavorite) "Added to Favourites" else "Removed from Favourites",
+            Toast.LENGTH_SHORT
+        ).show()
+        // Same server push the detail screen's star does - a Jellyfin item's favourite state
+        // belongs to the server, not to this install.
+        if (item.isJellyfin) {
+            scope.launch {
+                val client = jellyfinClientOrConnect() ?: return@launch
+                withContext(Dispatchers.IO) { runCatching { client.setFavorite(item.id, nowFavorite) } }
+            }
+        }
+        refreshHomeShelvesIfShowing()
+        // Rebuilds the Series/Films shelves so the "Favourites" shelf at their top picks the
+        // change up without a tab switch. Only worth doing on those tabs - Home is handled
+        // above, and Live TV has no VOD shelf to redraw.
+        if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
+    }
+
+    /** Home is built once, in [selectHome] - anything that changes what belongs on a shelf
+     *  while Home is on screen has to ask for it again or the change isn't visible until the
+     *  user leaves and comes back. */
+    private fun refreshHomeShelvesIfShowing() {
+        if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
     }
 
     /** Long-press a future guide block to arm/disarm a 5-min-before notification for it. */
@@ -3115,8 +3273,19 @@ class MainActivity : AppCompatActivity() {
             .filterNot(::isAdultHomeItem)
         if (recentItems.isNotEmpty()) shelves.add(ContentShelf("Recently Played", recentItems))
 
+        // Favourited live channels get their own Home row. Long-pressing a channel in the
+        // guide has always favourited it, but the result was only ever visible as the
+        // Favourites category inside Live TV - Home, the screen the app opens on, showed
+        // nothing at all, so the favourites looked like they hadn't saved.
+        val favChannelIds = FavoritesStore.getFavoriteChannelIds(this)
+        val favChannels = liveChannels.filter { it.id in favChannelIds }.filterNot(::isAdultHomeItem)
+        if (favChannels.isNotEmpty()) shelves.add(ContentShelf("Favourite Channels", favChannels))
+
+        // One shelf for both, since favourite VOD is stored in a single set (see
+        // FavoritesStore.KEY_FAVORITE_SERIES) - a favourited film used to be saved and then
+        // never shown anywhere, because only seriesList was searched for the ids.
         val favIds = FavoritesStore.getFavoriteSeriesIds(this)
-        val favItems = seriesList.filter { it.id in favIds }
+        val favItems = (seriesList + filmList).filter { it.id in favIds }.filterNot(::isAdultHomeItem)
         if (favItems.isNotEmpty()) shelves.add(ContentShelf("Favorites", favItems))
 
         return shelves.filter { it.title !in hidden }
@@ -3885,7 +4054,10 @@ class MainActivity : AppCompatActivity() {
         // width no longer describes the space it actually has.
         val dialogSpanCount = resources.getInteger(R.integer.search_results_span)
         resultsList.layoutManager = GridLayoutManager(this, dialogSpanCount)
-        val resultsAdapter = PosterGridAdapter(showTypeBadge = true) { item ->
+        val resultsAdapter = PosterGridAdapter(
+            showTypeBadge = true,
+            onItemLongClick = { item -> toggleFavoriteVodItem(item) }
+        ) { item ->
             activeSearchOverlay?.dismiss()
             if (item.mediaType == MediaType.LIVE) playItem(item) else showContentDetail(item)
         }
@@ -5679,6 +5851,16 @@ class MainActivity : AppCompatActivity() {
         val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
         val typeLabels = mapOf("m3u" to "M3U", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
 
+        // Every place this form shows/hides a section, the view that was holding d-pad focus
+        // can be the one going GONE - and a focused view disappearing leaves nothing focused,
+        // so the d-pad stops responding entirely. requestFocus() on a view that hasn't been
+        // laid out yet no-ops silently, hence the next-frame retry (same shape as
+        // showEmptyState()'s focusFirstAction).
+        fun focusWhenReady(target: View) {
+            fun attempt(): Boolean = target.isShown && target.requestFocus()
+            target.post { if (!attempt()) target.post { attempt() } }
+        }
+
         // Collapses the 4-card type picker to a one-line "Type: X · Change" summary once
         // picked - keeping all 4 cards on screen while filling in fields pushed the QR
         // code/fields below the fold, forcing a scroll right after tapping "Show QR".
@@ -5700,11 +5882,9 @@ class MainActivity : AppCompatActivity() {
             val qrEligible = type in listOf("m3u", "xtream", "stalker", "jellyfin")
             showQrButton.visibility = if (qrEligible) View.VISIBLE else View.GONE
             manualDivider.visibility = if (qrEligible) View.VISIBLE else View.GONE
-            // The tapped type card just went GONE (typePicker hidden above) - it was
-            // holding d-pad focus, and a focused view disappearing leaves nothing
-            // focused, so the d-pad stops responding entirely until something explicitly
-            // claims focus again.
-            typeSummaryChange.post { typeSummaryChange.requestFocus() }
+            // The tapped type card just went GONE (typePicker hidden above), taking focus
+            // with it - see focusWhenReady.
+            focusWhenReady(typeSummaryChange)
         }
 
         fun stopQrServer() {
@@ -5728,7 +5908,7 @@ class MainActivity : AppCompatActivity() {
             jellyfinGroup.visibility = View.GONE
             // Same reasoning as in selectType() - typeSummary (holding focus) just went
             // GONE, so explicitly hand focus to the now-visible first card.
-            typeM3u.post { typeM3u.requestFocus() }
+            focusWhenReady(typeM3u)
         }
 
         fun startQrServer(type: String) {
@@ -5879,6 +6059,8 @@ class MainActivity : AppCompatActivity() {
             addIptvProviderButton.visibility = View.VISIBLE
             iptvListSection.visibility = View.VISIBLE
             if (serverRunning) stopQrServer()
+            // Cancel (or whatever field was focused) is inside the section just hidden.
+            focusWhenReady(addIptvProviderButton)
         }
 
         // Adding new (existing == null) always starts on the type picker with every
@@ -5917,6 +6099,14 @@ class MainActivity : AppCompatActivity() {
             stalkerUrl.setText(if (type == "stalker") existing?.url ?: "" else "")
             stalkerMac.setText(if (type == "stalker") existing?.userAgent ?: "" else "")
             iptvFormSection.visibility = View.VISIBLE
+            // Whatever opened this ("+ Add Provider", or a list row's Edit button) just went
+            // GONE with the list, so focus has to be handed to the form explicitly. The edit
+            // path is already covered by selectType() above; the add path lands on the first
+            // type card. Without this, adding a second provider left nothing focused at all -
+            // the type cards couldn't be reached and the d-pad did nothing. First run never
+            // hit it because openIptvForm(null) runs before the overlay's show(), whose
+            // initialFocus falls back to typeM3u.
+            if (existing == null) focusWhenReady(typeM3u)
         }
 
         // Jellyfin isn't in IptvProviderStore (single fixed slot, stored as loose prefs -
@@ -5963,6 +6153,9 @@ class MainActivity : AppCompatActivity() {
                         .setPositiveButton("Remove") { _, _ ->
                             IptvProviderStore.remove(prefs, cfg.id)
                             renderIptvProviderList()
+                            // The removed row's own Remove button was holding focus and is
+                            // gone now - see focusWhenReady.
+                            focusWhenReady(addIptvProviderButton)
                             loadAllConfiguredProviders(forceRefresh = true)
                         }
                         .setNegativeButton("Cancel", null)
@@ -5991,6 +6184,7 @@ class MainActivity : AppCompatActivity() {
                             prefs.edit().remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
                                 .remove("jellyfin_provider_enabled").apply()
                             renderIptvProviderList()
+                            focusWhenReady(addIptvProviderButton)
                             loadAllConfiguredProviders(forceRefresh = true)
                         }
                         .setNegativeButton("Cancel", null)

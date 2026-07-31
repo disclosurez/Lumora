@@ -101,7 +101,14 @@
          the category name no bigger than a poster caption and See All the smallest text on
          the screen - the header is what tells you which row you are looking at. -->
     <dimen name="shelf_title_text">15sp</dimen>
-    <dimen name="shelf_action_text">11sp</dimen>
+    <dimen name="shelf_action_text">13sp</dimen>
+    <!-- See All is the only header control with a word in it (the pin/hide ones are single
+         glyphs), and it was the smallest hit target on the screen - hard to aim at on a
+         phone and easy to skip past with a remote. Padding and a minimum height are pulled
+         out here so the large-screen tier can grow it without touching the layout. -->
+    <dimen name="shelf_action_padding_h">18dp</dimen>
+    <dimen name="shelf_action_padding_v">11dp</dimen>
+    <dimen name="shelf_action_min_height">44dp</dimen>
 
     <!-- App-wide type scale. Every layout's text size resolves through one of these rather
          than a literal sp value, so a device-class change is one edit per step instead of a

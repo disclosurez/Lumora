@@ -15,7 +15,8 @@ import com.lumora.model.MediaType
 import com.lumora.util.PosterLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 
 /** Flat, vertically-scrolling poster grid - used for a single selected category
@@ -23,14 +24,23 @@ import kotlinx.coroutines.launch
  *  for global search results (which mix Live/Film/Series, hence [showTypeBadge]). */
 class PosterGridAdapter(
     private val showTypeBadge: Boolean = false,
+    /** Long-press on a poster - favourites the item (see MainActivity.toggleFavoriteVodItem).
+     *  Declared before [onItemClick] so the click handler stays the trailing lambda every
+     *  call site passes it as. */
+    private val onItemLongClick: ((Channel) -> Unit)? = null,
     private val onItemClick: (Channel) -> Unit
 ) : ListAdapter<Channel, PosterGridAdapter.ViewHolder>(DiffCallback()) {
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed. */
+    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed.
+     *  Children only, never the scope's own Job: these adapters are long-lived and get
+     *  re-attached (Films/Series swap between shelf and grid on the same RecyclerView, and
+     *  shelf rows are recycled), and a cancelled scope Job stays cancelled forever - every
+     *  later launch{} silently no-ops, so posters simply never loaded again after the first
+     *  detach and only already-cached ones showed. */
     fun cancelPendingWork() {
-        scope.coroutineContext[Job]?.cancel()
+        scope.coroutineContext.cancelChildren()
     }
 
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
@@ -80,6 +90,9 @@ class PosterGridAdapter(
 
         init {
             itemView.setOnClickListener { current?.let(onItemClick) }
+            onItemLongClick?.let { handler ->
+                itemView.setOnLongClickListener { current?.let(handler); true }
+            }
             itemView.setOnKeyListener { v, keyCode, event ->
                 if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.action == android.view.KeyEvent.ACTION_DOWN &&
                     topRowFocusUpTargetId != View.NO_ID && bindingAdapterPosition in 0 until spanCount

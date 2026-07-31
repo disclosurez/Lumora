@@ -129,7 +129,12 @@
     <!-- Shelf headers sit above the posters and name the row, so they carry more weight than
          the 16sp/12sp they inherited from the shared scale. -->
     <dimen name="shelf_title_text">22sp</dimen>
-    <dimen name="shelf_action_text">15sp</dimen>
+    <dimen name="shelf_action_text">18sp</dimen>
+    <!-- See All across a room, at D-pad distance - see values/dimens.xml for why these are
+         dimens rather than literals in item_shelf.xml. -->
+    <dimen name="shelf_action_padding_h">24dp</dimen>
+    <dimen name="shelf_action_padding_v">14dp</dimen>
+    <dimen name="shelf_action_min_height">56dp</dimen>
 
     <!-- App-wide type scale, large-screen tier (see values/dimens.xml for the phone values
          and the rationale). Roughly +30% at the small end, tapering off at the top - a 48sp

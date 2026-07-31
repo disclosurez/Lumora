@@ -16,7 +16,8 @@ import com.lumora.model.Channel
 import com.lumora.util.PosterLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -35,14 +36,19 @@ class EpisodeAdapter(
     private val seriesName: String? = null
 ) : ListAdapter<Channel, EpisodeAdapter.ViewHolder>(DiffCallback()) {
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val seriesPrefixRegex = seriesName?.takeIf { it.isNotBlank() }?.let {
         Regex("^" + Regex.escape(it) + """\s*-\s*S\d+E\d+\s*-\s*""", RegexOption.IGNORE_CASE)
     }
 
-    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed. */
+    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed.
+     *  Children only, never the scope's own Job: these adapters are long-lived and get
+     *  re-attached (Films/Series swap between shelf and grid on the same RecyclerView, and
+     *  shelf rows are recycled), and a cancelled scope Job stays cancelled forever - every
+     *  later launch{} silently no-ops, so posters simply never loaded again after the first
+     *  detach and only already-cached ones showed. */
     fun cancelPendingWork() {
-        scope.coroutineContext[Job]?.cancel()
+        scope.coroutineContext.cancelChildren()
     }
 
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {

@@ -15,7 +15,8 @@ import com.lumora.model.Channel
 import com.lumora.model.ContentShelf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import com.lumora.util.PosterLoader
 
@@ -26,6 +27,10 @@ import com.lumora.util.PosterLoader
  *  didn't actually exist, and was itself the source of several real navigation regressions). */
 class ShelfAdapter(
     private val onItemClick: (Channel) -> Unit,
+    /** Long-press on a poster - favourites the item (see MainActivity.toggleFavoriteVodItem).
+     *  Same gesture the live guide already uses on a channel row, so one hold means
+     *  "favourite this" everywhere in the app. */
+    private val onItemLongClick: ((Channel) -> Unit)? = null,
     private val onPinClick: (ContentShelf) -> Unit = {},
     private val onHideClick: (ContentShelf) -> Unit = {},
     private val onSeeAllClick: (ContentShelf) -> Unit = {},
@@ -54,7 +59,7 @@ class ShelfAdapter(
         private val pinButton: TextView = itemView.findViewById(R.id.shelfPinButton)
         private val hideButton: TextView = itemView.findViewById(R.id.shelfHideButton)
         val itemsList: RecyclerView = itemView.findViewById(R.id.shelfItems)
-        private val posterAdapter = ShelfPosterAdapter(onItemClick)
+        private val posterAdapter = ShelfPosterAdapter(onItemClick, onItemLongClick)
         private var current: ContentShelf? = null
 
         init {
@@ -87,14 +92,20 @@ class ShelfAdapter(
 }
 
 private class ShelfPosterAdapter(
-    private val onItemClick: (Channel) -> Unit
+    private val onItemClick: (Channel) -> Unit,
+    private val onItemLongClick: ((Channel) -> Unit)?
 ) : ListAdapter<Channel, ShelfPosterAdapter.ViewHolder>(DiffCallback()) {
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed. */
+    /** Cancel in-flight poster fetches when the adapter is detached or no longer needed.
+     *  Children only, never the scope's own Job: these adapters are long-lived and get
+     *  re-attached (Films/Series swap between shelf and grid on the same RecyclerView, and
+     *  shelf rows are recycled), and a cancelled scope Job stays cancelled forever - every
+     *  later launch{} silently no-ops, so posters simply never loaded again after the first
+     *  detach and only already-cached ones showed. */
     fun cancelPendingWork() {
-        scope.coroutineContext[Job]?.cancel()
+        scope.coroutineContext.cancelChildren()
     }
 
     override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
@@ -118,6 +129,9 @@ private class ShelfPosterAdapter(
 
         init {
             itemView.setOnClickListener { current?.let(onItemClick) }
+            onItemLongClick?.let { handler ->
+                itemView.setOnLongClickListener { current?.let(handler); true }
+            }
         }
 
         fun bind(channel: Channel) {
