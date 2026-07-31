@@ -20,6 +20,29 @@ class PluginScriptManager(
 ) {
     private var scripts: List<PluginScript> = emptyList()
 
+    /**
+     * Which plugins are on, kept in a file of its own rather than in [prefs].
+     *
+     * Android Auto Backup excludes whole files, never individual keys. This set sat in the same
+     * SharedPreferences as the provider configs, which do want backing up - so uninstalling and
+     * reinstalling the app restored the enabled set from the cloud and plugins came back
+     * switched on, having never been enabled on that install. Its own file can be excluded
+     * (see res/xml/backup_rules.xml) while everything else still travels.
+     */
+    private val pluginPrefs: SharedPreferences by lazy {
+        context.getSharedPreferences(PLUGIN_PREFS_FILE, Context.MODE_PRIVATE).also { p ->
+            // One-time move of anything an older build left in the shared file. The old key is
+            // cleared so a later restore of that file can't reintroduce it.
+            if (prefs.contains(PREF_ENABLED_SCRIPTS)) {
+                val legacy = prefs.getStringSet(PREF_ENABLED_SCRIPTS, emptySet()) ?: emptySet()
+                if (!p.contains(PREF_ENABLED_SCRIPTS)) {
+                    p.edit().putStringSet(PREF_ENABLED_SCRIPTS, legacy).apply()
+                }
+                prefs.edit().remove(PREF_ENABLED_SCRIPTS).apply()
+            }
+        }
+    }
+
     suspend fun discoverScripts(): List<PluginScript> {
         val enabledIds = enabledScriptIds()
         val result = mutableListOf<PluginScript>()
@@ -28,12 +51,35 @@ class PluginScriptManager(
             val text = runCatching { file.readText() }.getOrNull()
             if (text != null) {
                 val fallbackId = file.name.removeSuffix(".js")
-                toPluginScript(file.name, fallbackId, text, enabled = fallbackId in enabledIds)?.let { result.add(it) }
+                // Built first, then asked whether it is enabled - the answer is keyed on the
+                // script's own manifest id, which is what setEnabled() writes. It used to be
+                // keyed on the file name, and the two only agree while the id contains nothing
+                // fileNameFor() rewrites: an id with a space or a colon in it produced a file
+                // whose name never matched the stored key, so the plugin read back with the
+                // wrong enabled state in both directions.
+                toPluginScript(file.name, fallbackId, text, enabled = false)?.let {
+                    result.add(it.copy(enabled = it.id in enabledIds))
+                }
             }
         }
 
         scripts = result.sortedBy { it.label.lowercase() }
+        // Ids in the enabled set with no script behind them are dropped. They accumulate from
+        // removals and, on a device that has restored an Android Auto Backup, from a previous
+        // install entirely - and a stale entry silently switches a plugin on the moment one
+        // with that id is installed, which is not something the user asked for.
+        pruneEnabledIds(scripts.map { it.id }.toSet())
         return scripts
+    }
+
+    /** Drops enabled-ids that no installed script claims. No-op when there's nothing to drop,
+     *  so this doesn't write to prefs on every discovery. */
+    private fun pruneEnabledIds(installedIds: Set<String>) {
+        val stored = enabledScriptIds()
+        val kept = stored.filterTo(mutableSetOf()) { it in installedIds }
+        if (kept.size != stored.size) {
+            pluginPrefs.edit().putStringSet(PREF_ENABLED_SCRIPTS, kept).apply()
+        }
     }
 
     fun getDiscoveredScripts(): List<PluginScript> = scripts
@@ -45,7 +91,7 @@ class PluginScriptManager(
     fun setEnabled(scriptId: String, enabled: Boolean) {
         val current = enabledScriptIds().toMutableSet()
         if (enabled) current.add(scriptId) else current.remove(scriptId)
-        prefs.edit().putStringSet(PREF_ENABLED_SCRIPTS, current).apply()
+        pluginPrefs.edit().putStringSet(PREF_ENABLED_SCRIPTS, current).apply()
         scripts = scripts.map { if (it.id == scriptId) it.copy(enabled = enabled) else it }
     }
 
@@ -64,10 +110,15 @@ class PluginScriptManager(
     }
 
     /**
-     * Validates, saves, and enables [text] as a new script - the single path both "add from URL"
-     * and "install from a plugin store" go through. Installing a script whose id matches one
-     * already installed overwrites it in place (update semantics) - there's no separate trusted
-     * tier to protect against that anymore.
+     * Validates and saves [text] as a script - the single path both "add from URL" and "install
+     * from a plugin store" go through. Installing a script whose id matches one already
+     * installed overwrites it in place (update semantics) - there's no separate trusted tier to
+     * protect against that anymore.
+     *
+     * Installing does *not* enable. It used to, which meant browsing a store and tapping Install
+     * on something to have it available also switched it on - a stream_search plugin that is on
+     * starts answering Find Stream and, for the anime one, pulls a whole catalogue into the
+     * Series tab. Enabling is a separate, visible act on the plugin's own page.
      */
     suspend fun installScript(text: String): InstallResult {
         val fallbackId = "script-${System.currentTimeMillis()}"
@@ -82,14 +133,17 @@ class PluginScriptManager(
 
         val id = (manifest["id"] as? String)?.takeIf { it.isNotBlank() } ?: fallbackId
         val file = addUserScript(id, text)
-        setEnabled(id, true)
+        // Whatever the user had chosen for this id is left exactly as it is - untouched on a
+        // re-install (an update must not resurrect a plugin that was switched off), and absent
+        // on a first install, which is what leaves a newly installed plugin off.
+        val enabled = isEnabled(id)
         val script = PluginScript(
             fileName = file.name,
             id = id,
             label = (manifest["label"] as? String)?.takeIf { it.isNotBlank() } ?: id,
             description = manifest["description"] as? String,
             capabilities = capabilities,
-            enabled = true,
+            enabled = enabled,
             resolvesNatively = manifest["resolvesNatively"] as? Boolean ?: false,
             contentTypes = extractContentTypes(manifest),
         )
@@ -144,10 +198,12 @@ class PluginScriptManager(
     private fun userScriptsDir(): File = File(context.filesDir, "plugin_scripts").apply { mkdirs() }
 
     private fun enabledScriptIds(): Set<String> =
-        prefs.getStringSet(PREF_ENABLED_SCRIPTS, emptySet()) ?: emptySet()
+        pluginPrefs.getStringSet(PREF_ENABLED_SCRIPTS, emptySet()) ?: emptySet()
 
     companion object {
         private const val PREF_ENABLED_SCRIPTS = "plugin_enabled_scripts"
+        /** Excluded from Auto Backup - see the pluginPrefs kdoc. */
+        private const val PLUGIN_PREFS_FILE = "plugin_prefs"
         private val KNOWN_CAPABILITIES = setOf(
             JsPluginContract.CAPABILITY_PROVIDER_DISCOVERY,
             JsPluginContract.CAPABILITY_STREAM_SEARCH,

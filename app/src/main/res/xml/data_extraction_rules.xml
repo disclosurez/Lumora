@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 31+ equivalent of backup_rules.xml, which Android 12 and above ignore. Same exclusions,
+     declared twice because the two mechanisms don't read each other's file.
+
+     cloud-backup covers Google's Auto Backup; device-transfer covers a direct phone-to-phone
+     migration. Plugin scripts are excluded from both: they are executable code the user chose to
+     install, and restoring them silently is how they turned up already enabled on a fresh
+     install. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="plugin_scripts" />
+        <exclude domain="sharedpref" path="plugin_prefs.xml" />
+        <exclude domain="file" path="channels_cache.txt" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="plugin_scripts" />
+        <exclude domain="sharedpref" path="plugin_prefs.xml" />
+        <exclude domain="file" path="channels_cache.txt" />
+    </device-transfer>
+</data-extraction-rules>

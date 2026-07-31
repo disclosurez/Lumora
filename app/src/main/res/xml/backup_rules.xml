@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto Backup rules for API 30 and below (see data_extraction_rules.xml for API 31+ -
+     Android 12 ignores this file entirely, so the two must be kept in step).
+
+     With no rules at all, Auto Backup takes the whole of filesDir and every SharedPreferences
+     file, and restores the lot silently when the app is installed again on the same account.
+     That made plugin scripts reappear, already enabled, on what the user believed was a fresh
+     install - nothing had been downloaded, it had been restored. A plugin is executable code the
+     user chose to install from a store; it should not come back by itself, and a stale copy
+     restored from an old backup is worse than none.
+
+     Everything else still backs up, so provider configs, favourites and playback positions
+     survive a reinstall as before. -->
+<full-backup-content>
+    <exclude domain="file" path="plugin_scripts" />
+    <!-- Which plugins are on. Kept in its own SharedPreferences file precisely so it can be
+         excluded here: backup rules work per-file, so leaving it alongside the provider configs
+         (which do want backing up) meant a reinstall restored the enabled set and plugins came
+         back switched on. See PluginScriptManager.pluginPrefs. -->
+    <exclude domain="sharedpref" path="plugin_prefs.xml" />
+    <!-- The cached catalogue is large (tens of MB on a merged setup), rebuilt from the network
+         on first load anyway, and pins the restore to whatever the providers looked like then. -->
+    <exclude domain="file" path="channels_cache.txt" />
+</full-backup-content>
