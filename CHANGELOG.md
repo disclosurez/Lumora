@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4
+
+### Fixes
+- **Settings could freeze on a routine remove/toggle.** Providers were re-fetched one after another on any add/remove/toggle; a single dead or slow provider held up every provider after it for up to its 6-minute timeout, reading as the app hanging. They're now fetched concurrently.
+- **A large Stalker portal could crash the app.** A portal with tens of thousands of live channels plus a large VOD/series library held all three fully in memory before showing anything, spiking heap enough to get the process killed outright by the OS. Live channels now load and show first, before VOD/series.
+- **Last-played channel resumes faster.** The catalog now paints from the cached list immediately (even if due for a refresh) instead of waiting on a full re-fetch, so the last-played channel comes back right away while the fresh catalog loads behind it.
+- **Plugin pages could leave stale UI behind.** Opening a plugin's page from the Settings nav rail dropdown could leave a previous section (e.g. EPG Sources) visible underneath it, and D-pad focus could get stranded with nothing selected after adding a provider from a plugin's results.
+
 ## 2.3
 
 ### Jellyfin
