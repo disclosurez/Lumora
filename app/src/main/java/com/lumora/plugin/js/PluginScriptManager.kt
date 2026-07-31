@@ -23,24 +23,25 @@ class PluginScriptManager(
     /**
      * Which plugins are on, kept in a file of its own rather than in [prefs].
      *
-     * Android Auto Backup excludes whole files, never individual keys. This set sat in the same
-     * SharedPreferences as the provider configs, which do want backing up - so uninstalling and
-     * reinstalling the app restored the enabled set from the cloud and plugins came back
-     * switched on, having never been enabled on that install. Its own file can be excluded
-     * (see res/xml/backup_rules.xml) while everything else still travels.
+     * Android Auto Backup excludes whole files, never individual keys. This set formerly sat in
+     * the same SharedPreferences as the provider configs, which do want backing up — so on
+     * reinstall the enabled set was restored and plugins came back switched on. Its own file
+     * (excluded from backup via res/xml/backup_rules.xml) prevents that.
+     *
+     * The old key is deleted on sight. It must NOT be migrated: [prefs] is backed up by
+     * Auto Backup, and restoring a backup that still contains stale enabled IDs would re-enable
+     * a plugin the user never explicitly switched on this install. The migration already ran in
+     * an earlier build; any copy that arrives via backup is stale and unsafe to restore.
      */
     private val pluginPrefs: SharedPreferences by lazy {
-        context.getSharedPreferences(PLUGIN_PREFS_FILE, Context.MODE_PRIVATE).also { p ->
-            // One-time move of anything an older build left in the shared file. The old key is
-            // cleared so a later restore of that file can't reintroduce it.
-            if (prefs.contains(PREF_ENABLED_SCRIPTS)) {
-                val legacy = prefs.getStringSet(PREF_ENABLED_SCRIPTS, emptySet()) ?: emptySet()
-                if (!p.contains(PREF_ENABLED_SCRIPTS)) {
-                    p.edit().putStringSet(PREF_ENABLED_SCRIPTS, legacy).apply()
-                }
-                prefs.edit().remove(PREF_ENABLED_SCRIPTS).apply()
-            }
+        // Delete the old key from the backed-up shared file — do NOT migrate its contents.
+        // Migrating it would copy stale enabled state from a restored backup into the new
+        // (excluded) file, and installScript() reads isEnabled(id) to decide whether a
+        // freshly installed script lands enabled (see installScript kdoc).
+        if (prefs.contains(PREF_ENABLED_SCRIPTS)) {
+            prefs.edit().remove(PREF_ENABLED_SCRIPTS).apply()
         }
+        context.getSharedPreferences(PLUGIN_PREFS_FILE, Context.MODE_PRIVATE)
     }
 
     suspend fun discoverScripts(): List<PluginScript> {
