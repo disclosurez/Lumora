@@ -8,6 +8,8 @@ Nothing is behind a paywall — the multi-playlist support, EPG guide, recording
 
 # DOWNLOADER CODE - 6626802
 
+https://discord.gg/cNKYGhQWvq
+
 > **Lumora is a player, not a provider.** It doesn't include, sell, host, or supply any channels, streams, or subscriptions of any kind. You bring your own IPTV service (Xtream Codes / M3U / Stalker Portal) or your own Jellyfin server, and Lumora simply plays it back. See [Disclaimer](#disclaimer).
 
 ## Highlights
