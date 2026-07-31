@@ -60,5 +60,14 @@ data class Channel(
     // create_link call at play time - unlike live, whose url is resolved up front. Paired
     // with sourceProviderId (the portal's IptvProviderConfig id) so the play step can
     // re-auth against the right portal. Null for everything that already has a direct url.
-    val stalkerCmd: String? = null
+    val stalkerCmd: String? = null,
+    // A stream_search plugin's opaque resolve token, for items whose playable URL is produced by
+    // a plugin rather than stored anywhere. Those URLs are short-lived (the anime CDN signs them
+    // with an expiry in the path) and need request headers the URL alone doesn't carry, so a
+    // Continue Watching tile cannot replay the URL it was saved with - it has to re-run
+    // resolve(). Paired with pluginId so the *same* script resolves it again, and with
+    // episodeNum, which resolve() needs to pick the right episode.
+    val pluginToken: String? = null,
+    // PluginScript.id of the script that produced pluginToken. Null for everything else.
+    val pluginId: String? = null
 )

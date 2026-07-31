@@ -71,6 +71,7 @@ import com.lumora.data.IptvProviderStore
 import com.lumora.pairing.QrPairingManager
 import com.lumora.plugin.DiscoveredProvider
 import com.lumora.plugin.DiscoveryResult
+import com.lumora.plugin.PluginSubtitle
 import com.lumora.plugin.ResolveResult
 import com.lumora.plugin.SearchResult
 import com.lumora.plugin.js.JsPluginEngine
@@ -283,6 +284,15 @@ class MainActivity : AppCompatActivity() {
     /** Backs whatever's currently playing via a resolvesNatively plugin - the
      *  local HTTP server it owns must stay alive for the life of playback. See showStreamSearchDialog. */
     private var activeTorrentSession: TorrentEngine? = null
+    /** The film/series whose detail page a VOD playback was started from, so backing out of the
+     *  player returns to that poster rather than dumping the user in the grid they had to walk
+     *  to reach it. Set right before showPlayerFor by every detail-originated play path, and
+     *  consumed (and cleared) by hidePlayer. Null for live TV and for anything played straight
+     *  from a shelf, which have no detail page behind them. */
+    private var detailReturnItem: Channel? = null
+    /** The version group [detailReturnItem] was opened with, so re-opening its detail page shows
+     *  the same set of alternate versions/episodes rather than re-deriving a narrower one. */
+    private var detailReturnGroup: List<Channel>? = null
     private var animeCatalog: AnimeCatalogClient? = null
     /** Section membership from the last anime catalog fetch (Trending Now, Action, ...), used to
      *  build the Series sidebar's Anime parent and its child rows. A title belongs to several
@@ -1297,6 +1307,28 @@ class MainActivity : AppCompatActivity() {
                 isForced = stream.isForced
             )
         }
+
+    /** A plugin's sidecar subtitle URL carries no codec metadata the way a Jellyfin MediaStream
+     *  does, so the format is taken from the file extension (query string stripped - these URLs
+     *  are often signed). WebVTT is the fallback: it's what every source seen so far serves. */
+    private fun externalSubtitleFor(subtitle: PluginSubtitle): PlayerManager.ExternalSubtitle {
+        val path = subtitle.url.substringBefore('?').substringBefore('#')
+        val mime = when {
+            path.endsWith(".srt", ignoreCase = true) -> androidx.media3.common.MimeTypes.APPLICATION_SUBRIP
+            path.endsWith(".ass", ignoreCase = true) ||
+                path.endsWith(".ssa", ignoreCase = true) -> androidx.media3.common.MimeTypes.TEXT_SSA
+            path.endsWith(".ttml", ignoreCase = true) ||
+                path.endsWith(".xml", ignoreCase = true) -> androidx.media3.common.MimeTypes.APPLICATION_TTML
+            else -> androidx.media3.common.MimeTypes.TEXT_VTT
+        }
+        return PlayerManager.ExternalSubtitle(
+            uri = subtitle.url,
+            mimeType = mime,
+            language = subtitle.language,
+            label = subtitle.label ?: subtitle.language,
+            isDefault = subtitle.isDefault
+        )
+    }
 
     /** Reports a Jellyfin play as started, so the server opens a session for it (and knows
      *  not to reap the transcode it just set up). */
@@ -2882,7 +2914,14 @@ class MainActivity : AppCompatActivity() {
     private fun onHomeItemClick(channel: Channel) {
         when (channel.mediaType) {
             MediaType.LIVE -> playItem(channel)
-            MediaType.MOVIE -> { currentIndex = filmList.indexOf(channel); showPlayerFor(channel) }
+            MediaType.MOVIE -> {
+                currentIndex = filmList.indexOf(channel)
+                showPlayerFor(channel)
+                // Back out to the film's own poster, same as playing it from its detail page.
+                // Not for a plugin-resolved entry: its id is a resolve token, not a catalog
+                // item, so there is no detail page to return it to.
+                if (channel.pluginToken == null) detailReturnItem = channel
+            }
             MediaType.SERIES -> {
                 // A Continue Watching tile reconstructs one specific episode, complete
                 // with a real stream url - resume it directly instead of opening the
@@ -3334,6 +3373,8 @@ class MainActivity : AppCompatActivity() {
                     currentIndex = if (isSeries) -1 else filmList.indexOf(item)
                     val queue = if (isSeries) itemAdapter.currentList else emptyList()
                     showPlayerFor(chosen)
+                    detailReturnItem = item
+                    detailReturnGroup = seriesGroup
                     if (isSeries) {
                         currentEpisodeQueue = queue
                         currentEpisodeQueueIndex = queue.indexOf(chosen)
@@ -3427,6 +3468,8 @@ class MainActivity : AppCompatActivity() {
                     currentIndex = -1
                     val queue = seasonPair?.second ?: allEpisodes
                     showPlayerFor(target)
+                    detailReturnItem = item
+                    detailReturnGroup = seriesGroup
                     currentEpisodeQueue = queue
                     currentEpisodeQueueIndex = queue.indexOf(target)
                     currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
@@ -3509,6 +3552,8 @@ class MainActivity : AppCompatActivity() {
                         hideContentDetail()
                         currentIndex = filmList.indexOf(item)
                         showPlayerFor(versions.first())
+                        detailReturnItem = item
+                        detailReturnGroup = versionGroup
                     }
                     if (!isTv) {
                         downloadButton.visibility = View.VISIBLE
@@ -3526,6 +3571,8 @@ class MainActivity : AppCompatActivity() {
                                 hideContentDetail()
                                 currentIndex = filmList.indexOf(item)
                                 showPlayerFor(version)
+                                detailReturnItem = item
+                                detailReturnGroup = versionGroup
                             }
                             versionsRow.addView(chip)
                         }
@@ -4070,8 +4117,18 @@ class MainActivity : AppCompatActivity() {
     /** [resumeFromMs] carries the position across a version switch (see showVersionPicker):
      *  the replacement stream is a different item with its own saved-position key, so without
      *  it switching version on a half-watched film restarts it from zero. Also suppresses the
-     *  resume prompt - the user just answered that question by switching mid-playback. */
-    private fun showPlayerFor(channel: Channel, resumeFromMs: Long? = null, preferredVersionId: String? = null) {
+     *  resume prompt - the user just answered that question by switching mid-playback.
+     *
+     *  [externalSubtitles] are sidecar tracks a caller already resolved (the Find Stream
+     *  dialog); [pluginStreamAlreadyResolved] marks that same caller's URL as freshly resolved,
+     *  so the plugin branch below doesn't resolve it a second time. */
+    private fun showPlayerFor(
+        channel: Channel,
+        resumeFromMs: Long? = null,
+        preferredVersionId: String? = null,
+        externalSubtitles: List<PlayerManager.ExternalSubtitle> = emptyList(),
+        pluginStreamAlreadyResolved: Boolean = false
+    ) {
         // Reset Up Next state on any new playback
         cancelUpNext()
         // Never run the preview decode and the fullscreen decode at once.
@@ -4087,6 +4144,14 @@ class MainActivity : AppCompatActivity() {
         // context only applies to playback started from a series detail screen, which re-sets
         // it right after this call.
         currentSeriesVersionContext = null
+        // Live TV has no detail page behind it, so a return target left over from a VOD session
+        // must not survive into it. Everything else keeps whatever the caller set: a version
+        // switch or an auto-advance to the next episode is still the same title's playback, and
+        // backing out of it belongs on the same poster the first episode was started from.
+        if (channel.mediaType == MediaType.LIVE) {
+            detailReturnItem = null
+            detailReturnGroup = null
+        }
         resumePromptShown = resumeFromMs != null
         progressTickCount = 0
         binding.mainContent.visibility = View.GONE
@@ -4230,10 +4295,62 @@ class MainActivity : AppCompatActivity() {
                 reportJellyfinStart(startVersion.id, resolved, startAt)
                 loadJellyfinPlaybackExtras(startVersion.id)
             }
+            // A plugin-resolved stream cannot be replayed from the URL it was saved with: the
+            // CDN signs it with an expiry in the path and gates it behind request headers the
+            // URL alone doesn't carry, so a Continue Watching tile replaying yesterday's URL
+            // 403s twice over. Re-run the plugin's resolve() for a fresh URL, headers and
+            // subtitle tracks instead - that's also what makes resuming an anime episode land
+            // on the same episode rather than the series' first one.
+            !pluginStreamAlreadyResolved && !startVersion.pluginToken.isNullOrBlank() -> scope.launch {
+                val startAt = resumeFromMs ?: 0L
+                val plugin = pluginScriptManager.getDiscoveredScripts()
+                    .firstOrNull { it.enabled && it.id == startVersion.pluginId }
+                val resolved = when {
+                    plugin == null -> ResolveResult.Failed("The plugin that played this is no longer enabled")
+                    // Same split as the Find Stream dialog: a natively-resolving plugin's token
+                    // is a magnet for the built-in torrent engine, not something the JS runtime
+                    // can turn into a URL.
+                    // Torrent metadata + initial buffering can take minutes with nothing on
+                    // screen but a spinner, so the progress lines land on the player's subtitle
+                    // row (free for VOD - only live TV puts EPG text there). TorrentEngine
+                    // reports from its own IO thread, hence the hop.
+                    plugin.resolvesNatively -> resolveTorrentStream(
+                        startVersion.pluginToken, null, startVersion.episodeNum
+                    ) { line ->
+                        runOnUiThread {
+                            if (nowPlayingChannel?.id != channel.id) return@runOnUiThread
+                            binding.playerSubtitle.text = line
+                            binding.playerSubtitle.visibility = View.VISIBLE
+                        }
+                    }
+                    else -> jsPluginEngine.resolve(
+                        pluginScriptManager.readSource(plugin),
+                        startVersion.pluginToken,
+                        null,
+                        startVersion.episodeNum
+                    )
+                }
+                if (nowPlayingChannel?.id != channel.id) return@launch
+                binding.playerSubtitle.visibility = View.GONE
+                when (resolved) {
+                    is ResolveResult.Ready -> playerManager.playUrl(
+                        resolved.url,
+                        startVersion.streamUserAgent,
+                        subtitles = resolved.subtitles.map(::externalSubtitleFor),
+                        startPositionMs = startAt,
+                        headers = resolved.headers.ifEmpty { null }
+                    )
+                    is ResolveResult.Failed -> {
+                        binding.bufferingSpinner.visibility = View.GONE
+                        Toast.makeText(this@MainActivity, resolved.message, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
             else -> {
                 playerManager.playUrl(
                     startVersion.url,
                     startVersion.streamUserAgent,
+                    subtitles = externalSubtitles,
                     headers = startVersion.streamHeaders
                 )
                 resumeFromMs?.let { playerManager.seekTo(it) }
@@ -4720,6 +4837,17 @@ class MainActivity : AppCompatActivity() {
         // Whatever just finished playing may have changed Continue Watching - refresh
         // Home so it's not stale until the next unrelated rebuild happens to touch it.
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        // Backing out of a film or an episode lands on that title's poster - the screen it was
+        // started from - instead of the grid behind it, which is several D-pad moves and a
+        // scroll position away from where the user actually was.
+        val returnTo = detailReturnItem
+        val returnGroup = detailReturnGroup
+        detailReturnItem = null
+        detailReturnGroup = null
+        if (returnTo != null) {
+            showContentDetail(returnTo, returnGroup)
+            return
+        }
         restoreTabFocus()
     }
 
@@ -6199,6 +6327,13 @@ class MainActivity : AppCompatActivity() {
      * [fetchAnimeChannels] - the only signal Lumora itself has for "this title is anime",
      * entirely independent of which plugin (if any) declares itself able to handle that.
      */
+    /** Stable identity for a plugin-resolved stream. Everything that keys off a channel id -
+     *  the saved playback position above all - needs this to come out the same for the same
+     *  episode on a later launch, so it's derived from the plugin + token + episode rather than
+     *  anything about the particular resolve that produced the URL. */
+    private fun pluginChannelId(plugin: PluginScript, token: String, episode: Int?): String =
+        "plugin:${plugin.id}:$token" + (episode?.let { ":e$it" } ?: "")
+
     private fun enabledStreamSearchPlugin(item: Channel? = null): PluginScript? {
         val candidates = pluginScriptManager.getDiscoveredScripts().filter { it.enabled && it.supportsStreamSearch }
         if (item == null) return candidates.firstOrNull()
@@ -6272,14 +6407,33 @@ class MainActivity : AppCompatActivity() {
                         hideContentDetail()
                         showPlayerFor(
                             Channel(
-                                id = "plugin:${result.token.hashCode()}",
-                                name = item.name,
+                                // Derived from the token and episode rather than a hash of the
+                                // moment: the saved-position key has to be the same string the
+                                // next time this episode is played, or nothing ever resumes.
+                                id = pluginChannelId(plugin, result.token, episode),
+                                name = item.name + epTag,
                                 url = resolved.url,
+                                // Carried so the Continue Watching tile isn't a blank card, and
+                                // so isAdultHomeItem has the same signals every other entry has.
+                                posterUrl = item.posterUrl,
+                                logoUrl = item.logoUrl,
+                                group = item.group,
+                                categoryName = item.categoryName,
                                 mediaType = MediaType.MOVIE,
+                                episodeNum = episode,
                                 // Headers the CDN needs (e.g. a Referer) so the player doesn't 403.
-                                streamHeaders = resolved.headers.ifEmpty { null }
-                            )
+                                streamHeaders = resolved.headers.ifEmpty { null },
+                                // What lets a resume re-resolve this instead of replaying a URL
+                                // that has since expired (see showPlayerFor's plugin branch).
+                                pluginToken = result.token,
+                                pluginId = plugin.id
+                            ),
+                            externalSubtitles = resolved.subtitles.map(::externalSubtitleFor),
+                            pluginStreamAlreadyResolved = true
                         )
+                        // Back out of a plugin-played episode to the title it was picked from,
+                        // the same as any other VOD item (see hidePlayer).
+                        detailReturnItem = item
                     }
                     is ResolveResult.Failed -> {
                         Toast.makeText(this@MainActivity, resolved.message, Toast.LENGTH_LONG).show()

@@ -108,7 +108,17 @@ object PlaybackPositionStore {
                                 // never in it at all. Absent on entries written before this
                                 // was stored; callers fall back to the catalog then.
                                 group = c.optString("group", null),
-                                categoryName = c.optString("categoryName", null)
+                                categoryName = c.optString("categoryName", null),
+                                // A plugin-resolved stream can't be replayed from `url` alone:
+                                // the CDN signs it with an expiry and gates it behind the
+                                // headers below. These three are what lets the resume path
+                                // re-run the plugin's resolve() for a fresh URL instead.
+                                episodeNum = c.optInt("episodeNum", -1).takeIf { it >= 0 },
+                                pluginToken = c.optString("pluginToken", null),
+                                pluginId = c.optString("pluginId", null),
+                                streamHeaders = c.optJSONObject("streamHeaders")?.let { h ->
+                                    h.keys().asSequence().associateWith { k -> h.getString(k) }
+                                }
                             )
                         }.getOrNull()
                     }
@@ -147,6 +157,12 @@ object PlaybackPositionStore {
                             put("mediaType", ch.mediaType.name)
                             ch.group?.let { put("group", it) }
                             ch.categoryName?.let { put("categoryName", it) }
+                            ch.episodeNum?.let { put("episodeNum", it) }
+                            ch.pluginToken?.let { put("pluginToken", it) }
+                            ch.pluginId?.let { put("pluginId", it) }
+                            ch.streamHeaders?.takeIf { it.isNotEmpty() }?.let { headers ->
+                                put("streamHeaders", JSONObject(headers as Map<*, *>))
+                            }
                         })
                     }
                 })

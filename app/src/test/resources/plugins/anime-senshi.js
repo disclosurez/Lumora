@@ -113,6 +113,63 @@ function isDub(source) {
     return (source.status || "").toLowerCase() === "dub";
 }
 
+// Senshi labels these sources "HardSub", but the video it serves is clean - the subtitles are
+// published as separate WebVTT files listed in a sidecar JSON. Nothing in the HLS playlist
+// advertises them (single media playlist, no #EXT-X-MEDIA SUBTITLES rendition), so unless they
+// are handed to the host explicitly the episode plays with no subtitles at all.
+//
+// Two ways to find that JSON, in order: the `sub.info` query parameter on the serverFM embed
+// URL (authoritative - it's what the source's own web player reads), then the conventional
+// filename next to the stream, for embeds that carry no serverFM.
+function subInfoUrl(source) {
+    var fm = source.serverFM || "";
+    var marker = "sub.info=";
+    var at = fm.indexOf(marker);
+    if (at !== -1) {
+        var raw = fm.substring(at + marker.length).split("&")[0];
+        if (raw) {
+            try {
+                return decodeURIComponent(raw);
+            } catch (e) {
+                return raw;
+            }
+        }
+    }
+    var base = source.masked_base_url || "";
+    return base ? base + "/sub_filemoon.json" : null;
+}
+
+function fetchSubtitles(source) {
+    var url = subInfoUrl(source);
+    if (!url) return [];
+    var resp = host.httpGet(url, {
+        "User-Agent": SENSHI_UA,
+        "Referer": SENSHI_BASE + "/",
+        "Accept": "application/json, */*",
+    });
+    if (resp.status < 200 || resp.status >= 300) return [];
+    var arr;
+    try {
+        arr = JSON.parse(resp.body);
+    } catch (e) {
+        return [];
+    }
+    if (!Array.isArray(arr)) return [];
+
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+        var t = arr[i];
+        var src = t && t.src ? String(t.src) : "";
+        if (src.indexOf("http://") !== 0 && src.indexOf("https://") !== 0) continue;
+        var label = t.label ? String(t.label) : null;
+        // The label is all the source gives ("CR (ENG)", "English", ...) - enough to pick
+        // English out of it for the track picker, and null rather than a wrong guess otherwise.
+        var language = label && /eng/i.test(label) ? "en" : null;
+        out.push({ url: src, label: label, language: language, default: !!t["default"] });
+    }
+    return out;
+}
+
 // Dub coverage isn't in the catalog list; probe the first episode's embeds, same as the
 // original Kotlin SenshiProvider.checkAvailability.
 function checkAvailability(malId) {
@@ -235,6 +292,25 @@ function resolve(host, token, season, episode) {
     var streamUrl = hlsUrl || fallbackUrl;
     if (!streamUrl) throw new Error("Senshi episode " + ep + " has no playable sources");
 
-    host.reportProgress("Stream ready");
-    return streamUrl;
+    var subtitles = fetchSubtitles(match);
+    if (subtitles.length > 0) {
+        host.reportProgress("Stream ready (" + subtitles.length + " subtitle track(s))");
+    } else {
+        host.reportProgress("Stream ready");
+    }
+    // The CDN (ninstream etc.) hotlink-protects its playlist behind a Referer of the embed host -
+    // without it the player's fetch 403s. Return headers alongside the URL so the host applies
+    // them (verified: Referer https://senshi.live/ flips the playlist 403 -> 200).
+    // Headers and subtitles as JSON strings, not nested objects/arrays: the host reads the
+    // resolve return via a shallow toMap that can drop a nested value, so a string round-trips
+    // reliably.
+    return {
+        url: streamUrl,
+        headers: JSON.stringify({
+            "Referer": SENSHI_BASE + "/",
+            "Origin": SENSHI_BASE,
+            "User-Agent": SENSHI_UA,
+        }),
+        subtitles: JSON.stringify(subtitles),
+    };
 }

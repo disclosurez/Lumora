@@ -23,6 +23,23 @@ package com.lumora.plugin.js
  *    `host.reportProgress`/`host.reportResult`, returns an optional summary string or throws;
  *    `function resolve(host, token, season, episode)` returns a playable http(s) URL or throws.
  *
+ * `resolve()` may return either a bare URL string or an object carrying what the stream needs
+ * beyond its URL:
+ * ```js
+ * return {
+ *   url: "https://cdn.example/playlist.m3u8",
+ *   headers: JSON.stringify({ "Referer": "https://example/" }),   // hotlink-protected CDNs
+ *   subtitles: JSON.stringify([{ url: "https://cdn.example/eng.vtt",
+ *                                label: "English", language: "en", default: true }]),
+ * };
+ * ```
+ * `headers`/`subtitles` are JSON *strings*, not nested objects/arrays - a nested value can be
+ * dropped or come back as an already-freed handle depending on the bridge, where a string
+ * round-trips deterministically (a raw object is still accepted for `headers` as a fallback).
+ * Sideloading is the only way a sidecar subtitle track ever reaches the player: sources that
+ * call themselves hardsubbed don't always burn them in, and nothing in the stream advertises
+ * them. Entries without an http(s) `url` are dropped by the host.
+ *
  * `host` is the object bound by [com.lumora.plugin.js.JsHostImpl] - see that file for the full
  * function list. A candidate/result is a proposal, never trusted as-is: the host validates every
  * field the same way [com.lumora.plugin.PluginClient] used to.

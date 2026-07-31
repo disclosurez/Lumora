@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import com.lumora.plugin.DiscoveredProvider
 import com.lumora.plugin.DiscoveryResult
+import com.lumora.plugin.PluginSubtitle
 import com.lumora.plugin.ResolveResult
 import com.lumora.plugin.SearchResult
 import com.lumora.plugin.TorrentResult
@@ -141,13 +142,14 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
             episode = episode,
             onLog = { PluginLog.d(TAG, "script: $it") },
         )
-        // resolve() may return either a bare URL string, or an object { url, headers: {...} } when
-        // the stream needs extra request headers (e.g. a Referer for a hotlink-protected CDN). The
+        // resolve() may return either a bare URL string, or an object
+        // { url, headers: {...}, subtitles: [...] } when the stream needs extra request headers
+        // (e.g. a Referer for a hotlink-protected CDN) or carries sidecar subtitle tracks. The
         // JSObject must be flattened here, on the context's own thread, before runScript destroys
         // the context - reading a live JS reference after destroy() throws (see probeManifest).
         val result = when (val outcome = runScript(JsPluginContract.RESOLVE_TIMEOUT_MS, host) { context ->
             when (val r = context.evaluate("$source\nresolve(host, host.token, host.season, host.episode);")) {
-                is String -> ResolvedStream(r, emptyMap())
+                is String -> ResolvedStream(r, emptyMap(), emptyList())
                 is JSObject -> {
                     val m = r.toMap()
                     val url = m["url"] as? String ?: return@runScript null
@@ -164,7 +166,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
                         is Map<*, *> -> h.entries.associate { it.key.toString() to it.value.toString() }
                         else -> emptyMap()
                     }
-                    ResolvedStream(url, headers)
+                    ResolvedStream(url, headers, parseSubtitles(m["subtitles"]))
                 }
                 else -> null
             }
@@ -173,7 +175,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
                 val resolved = outcome.result as? ResolvedStream
                 val url = resolved?.url
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    ResolveResult.Ready(url, resolved.headers)
+                    ResolveResult.Ready(url, resolved.headers, resolved.subtitles)
                 } else {
                     ResolveResult.Failed("Plugin returned an invalid stream URL")
                 }
@@ -271,11 +273,44 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         data object TimedOut : ScriptOutcome()
     }
 
-    /** A resolve() result flattened off the JS heap: the stream URL plus any request headers. */
-    private data class ResolvedStream(val url: String, val headers: Map<String, String>)
+    /** A resolve() result flattened off the JS heap: the stream URL, any request headers, and
+     *  any sidecar subtitle tracks. */
+    private data class ResolvedStream(
+        val url: String,
+        val headers: Map<String, String>,
+        val subtitles: List<PluginSubtitle>
+    )
+
+    /**
+     * Flattens a resolve()'s `subtitles` property. Like `headers`, the reliable wire form is a
+     * JSON string (`subtitles: JSON.stringify([...])`) - a nested JS array survives `toMap` even
+     * less predictably than a nested object does. Entries missing an http(s) `url` are dropped
+     * rather than handed to the player as an unopenable MediaItem.
+     */
+    private fun parseSubtitles(raw: Any?): List<PluginSubtitle> {
+        val json = raw as? String ?: return emptyList()
+        return runCatching {
+            val arr = org.json.JSONArray(json)
+            (0 until minOf(arr.length(), MAX_SUBTITLES)).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val url = o.optString("url").takeIf {
+                    it.startsWith("http://") || it.startsWith("https://")
+                } ?: return@mapNotNull null
+                PluginSubtitle(
+                    url = url,
+                    label = o.optString("label").takeIf { it.isNotBlank() }
+                        ?.take(JsPluginContract.MAX_TEXT_LENGTH),
+                    language = o.optString("language").takeIf { it.isNotBlank() }?.take(16),
+                    isDefault = o.optBoolean("default")
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
 
     companion object {
         private const val TAG = "PluginEngine"
         private const val MANIFEST_PROBE_TIMEOUT_MS = 5_000L
+        /** Cap on sideloaded tracks, same idea as the report caps in [JsPluginContract]. */
+        private const val MAX_SUBTITLES = 20
     }
 }

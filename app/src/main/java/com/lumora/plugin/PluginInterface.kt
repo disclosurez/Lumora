@@ -29,11 +29,30 @@ sealed class SearchResult {
     data class Failed(val message: String) : SearchResult()
 }
 
+/**
+ * A sidecar subtitle track a plugin found alongside the stream. Sources that advertise
+ * themselves as hardsubbed don't always burn the subtitles in - some serve the video clean and
+ * publish the tracks as separate files, which nothing in the stream itself advertises, so the
+ * only way they reach the player is the plugin handing them over explicitly.
+ */
+data class PluginSubtitle(
+    val url: String,
+    val label: String? = null,
+    /** ISO language code if the plugin knows one - only used to label the track picker. */
+    val language: String? = null,
+    val isDefault: Boolean = false
+)
+
 /** Outcome of resolving one [TorrentResult] to something playable. */
 sealed class ResolveResult {
     /** [url] is a validated http/https URL for the host's player. [headers] are extra request
-     *  headers the stream needs (e.g. a Referer for a hotlink-protected CDN), empty if none. */
-    data class Ready(val url: String, val headers: Map<String, String> = emptyMap()) : ResolveResult()
+     *  headers the stream needs (e.g. a Referer for a hotlink-protected CDN), empty if none.
+     *  [subtitles] are sidecar tracks to sideload, empty if the plugin found none. */
+    data class Ready(
+        val url: String,
+        val headers: Map<String, String> = emptyMap(),
+        val subtitles: List<PluginSubtitle> = emptyList()
+    ) : ResolveResult()
     data class Failed(val message: String) : ResolveResult()
 }
 
