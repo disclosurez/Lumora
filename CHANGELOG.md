@@ -1,6 +1,28 @@
 # Changelog
 
-## 2.5
+## 2.6
+
+### Design
+- **Complete visual redesign.** Obsidian dark palette, Inter typeface, glass-style surfaces with hairline borders, and a refined indigo/blue accent. Everything from the toolbar to the settings panels was rebuilt to the same modern look.
+- **Real icons everywhere.** Emoji tab labels, rainbow letter-chips and stock system icons are gone, replaced with a monochrome vector icon set - including new tab icons, a broadcast-cone Live TV mark, a clapperboard Movies mark, and a brand icon replacing the toolbar wordmark.
+- **Films is now Movies**, with a matching clapperboard icon.
+- **See All buttons tightened** so the label fits the pill instead of floating in padding.
+- **About section expanded** with App/Platform rows and a Discord link.
+
+### Playback
+- **Touch gestures on the phone player.** Single tap pauses, double-tap the right half fast-forwards 10s, double-tap the left half rewinds 10s, and pinch zooms the picture 1-3x (zoomed state resets on the next video).
+- **Fixed a launch crash on TV** introduced by the gesture work - the gesture detectors are now built after the activity is attached, so the app no longer dies on start.
+
+### Speed
+- **Catalog data is cached for 24 hours** and served instantly on launch - plugin discovery and network reconnects no longer gate the fast path, and nothing reconnects to providers in the background between sessions.
+- **Category grouping is faster** (a quadratic scan replaced with a hash lookup) so large catalogs rebuild shelves quicker.
+
+### Categories
+- **Poster shelves and the sidebar category list now share one pipeline.** Series and Movies shelves show exactly the same categories in exactly the same order as the sidebar (Newest and Favourites stay pinned on top), so the two views can never drift apart again.
+- **"Prefer dubbed audio" rows match the other settings rows**, with proper card styling, padding and D-pad focus.
+- **Newly installed plugins are enabled by default**, instead of silently sitting off until you find the toggle.
+- **Providers added from a discovery plugin appear in Settings instantly**, and the app jumps to the Providers pane instead of leaving you on a stale "Added" button.
+
 
 ### Navigation
 - **Live TV is now the screen the app opens on**, and the tabs run Live TV / Series / Films / Home / Discover.
