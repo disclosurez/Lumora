@@ -36,7 +36,7 @@
             android:text="@string/settings"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_section"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_bold" />
 
         <!-- Scrollable so the rail never clips the last row under the Cancel/Save footer
              on shorter TV panels - this rail has no fixed height budget of its own. -->
@@ -53,48 +53,49 @@
                 android:paddingHorizontal="@dimen/settings_gap_m"
                 android:paddingBottom="@dimen/settings_gap">
 
-                <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="P" android:backgroundTint="@color/channel_1" />
+                <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_providers" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/providers" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_6" />
+                <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_playback" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/playback" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="F" android:backgroundTint="@color/channel_4" />
+                <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_filters" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/filters" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="V" android:backgroundTint="@color/channel_5" />
+                <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_privacy" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/privacy" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="B" android:backgroundTint="@color/channel_3" />
+                <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_backup" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/backup_restore" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="E" android:backgroundTint="@color/channel_2" />
+                <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_epg" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/epg_sources" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="D" android:backgroundTint="@color/channel_5" />
+                <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_downloads" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/downloads" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="X" android:backgroundTint="@color/channel_2" />
+                <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_plugins" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/plugins" />
                     <TextView
                         android:id="@+id/navPluginsCaret"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/settings_gap_s"
                         android:text="▸"
                         android:textColor="@color/text_tertiary"
                         android:textSize="@dimen/settings_text_caption" />
@@ -109,11 +110,13 @@
                     android:layout_height="wrap_content"
                     android:clipChildren="false"
                     android:clipToPadding="false"
+                    android:divider="@drawable/divider_settings_line"
                     android:orientation="vertical"
+                    android:showDividers="middle"
                     android:visibility="gone" />
 
-                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8">
-                    <TextView style="@style/Widget.Lumora.SettingsNavIcon" android:text="i" android:backgroundTint="@color/text_tertiary" />
+                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_about" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/about" />
                 </LinearLayout>
 
@@ -190,7 +193,7 @@
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
-                    android:textStyle="bold" />
+                    android:fontFamily="@font/inter_bold" />
 
                 <!-- Populated at runtime from IptvProviderStore - see renderIptvProviderList()
                      in showProviderSettings(). -->
@@ -201,7 +204,9 @@
                     android:layout_marginTop="@dimen/settings_gap_m"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:orientation="vertical" />
+                    android:divider="@drawable/divider_settings_line"
+                    android:orientation="vertical"
+                    android:showDividers="middle" />
 
                 <TextView
                     android:id="@+id/settingsIptvProviderListEmpty"
@@ -233,7 +238,7 @@
                         android:text="@string/add_provider"
                         android:textColor="@color/accent"
                         android:textSize="@dimen/settings_text_body"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
 
                 <!-- Add/Edit form - hidden until "+ Add" or a row's Edit button is tapped;
@@ -261,7 +266,7 @@
                         android:layout_marginBottom="@dimen/settings_gap_m"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_subtitle"
-                        android:textStyle="bold"
+                        android:fontFamily="@font/inter_semibold"
                         android:visibility="gone" />
 
                     <!-- Step 1: pick a provider type up front - the fields below only
@@ -305,8 +310,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_m3u" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playlist_link" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_m3u" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playlist_link" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -321,8 +326,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_xtream" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/login_codes" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_xtream" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/login_codes" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -337,8 +342,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_stalker" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/mac_address" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_stalker" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/mac_address" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -353,8 +358,8 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_jellyfin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:textStyle="bold" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/media_server" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_jellyfin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/media_server" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -386,13 +391,13 @@
                             android:text="Type: M3U"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body"
-                            android:textStyle="bold" />
+                            android:fontFamily="@font/inter_medium" />
 
                         <TextView
                             android:id="@+id/settingsTypeSummaryChange"
+                            style="@style/Widget.Lumora.SecondaryButton"
                             android:layout_width="wrap_content"
                             android:layout_height="@dimen/settings_action_button_height"
-                            android:background="@drawable/bg_outline_button"
                             android:clickable="true"
                             android:focusable="true"
                             android:gravity="center"
@@ -400,8 +405,7 @@
                             android:stateListAnimator="@animator/focus_scale_flat"
                             android:text="@string/change"
                             android:textColor="@color/accent"
-                            android:textSize="@dimen/settings_text_caption"
-                            android:textStyle="bold" />
+                            android:textSize="@dimen/settings_text_body" />
                     </LinearLayout>
 
                     <!-- Steps 2-4 stay hidden until a type is picked above (see
@@ -423,11 +427,11 @@
                          action, not just another row of equal weight. -->
                     <LinearLayout
                         android:id="@+id/settingsShowQrButton"
+                        style="@style/Widget.Lumora.SecondaryButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:paddingVertical="@dimen/settings_row_padding_vertical"
                         android:layout_marginTop="@dimen/settings_gap"
-                        android:background="@drawable/bg_outline_button"
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
@@ -439,7 +443,7 @@
                             android:text="@string/show_phone_qr_pairing_code"
                             android:textColor="@color/accent"
                             android:textSize="@dimen/settings_text_body"
-                            android:textStyle="bold" />
+                            android:fontFamily="@font/inter_medium" />
                     </LinearLayout>
 
                     <!-- QR Code Section - kept compact (small frame, tight margins) so
@@ -459,7 +463,8 @@
                             android:layout_height="wrap_content"
                             android:gravity="center"
                             android:textColor="@color/text_secondary"
-                            android:textSize="@dimen/settings_text_caption" />
+                            android:textSize="@dimen/settings_text_caption"
+                            android:fontFamily="@font/inter_regular" />
 
                         <FrameLayout
                             android:id="@+id/settingsQrFrame"
@@ -484,6 +489,7 @@
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:textColor="@color/accent"
                             android:textSize="@dimen/settings_text_caption"
+                            android:fontFamily="@font/inter_medium"
                             android:visibility="gone" />
                     </LinearLayout>
 
@@ -504,7 +510,8 @@
                             android:paddingHorizontal="@dimen/settings_gap"
                             android:text="@string/or_enter_manually"
                             android:textColor="@color/text_secondary"
-                            android:textSize="@dimen/settings_text_caption" />
+                            android:textSize="@dimen/settings_text_caption"
+                            android:fontFamily="@font/inter_regular" />
                         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/divider" />
                     </LinearLayout>
 
@@ -524,6 +531,7 @@
                         android:paddingVertical="@dimen/settings_row_padding_vertical"
                         android:layout_marginTop="@dimen/settings_gap_xs"
                         android:background="@drawable/bg_input"
+                        android:textColorHint="@color/text_tertiary"
                         android:hint="e.g. My IPTV"
                         android:importantForAutofill="no"
                         android:inputType="text"
@@ -550,6 +558,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="@string/m3u_url_hint"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
@@ -565,6 +574,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="@string/user_agent_hint"
                             android:importantForAutofill="no"
                             android:inputType="text"
@@ -589,6 +599,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="http://example.com:8080"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
@@ -604,6 +615,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="Username"
                             android:importantForAutofill="no"
                             android:inputType="text"
@@ -634,7 +646,7 @@
                             android:gravity="center"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/settings_text_caption"
-                            android:textStyle="bold"
+                            android:fontFamily="@font/inter_semibold"
                             android:visibility="gone" />
                     </LinearLayout>
 
@@ -654,6 +666,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="http://example.com:8080"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
@@ -669,6 +682,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="@string/stalker_mac_hint"
                             android:importantForAutofill="no"
                             android:inputType="text"
@@ -694,6 +708,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="http://192.168.1.100:8096"
                             android:importantForAutofill="no"
                             android:inputType="textUri"
@@ -719,7 +734,7 @@
                                 android:text="@string/sign_in_with_quick_connect"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/settings_text_body"
-                                android:textStyle="bold" />
+                                android:fontFamily="@font/inter_medium" />
                         </LinearLayout>
 
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/username_if_quick_connect_off" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
@@ -730,6 +745,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="Jellyfin username"
                             android:importantForAutofill="no"
                             android:inputType="text"
@@ -745,6 +761,7 @@
                             android:paddingVertical="@dimen/settings_row_padding_vertical"
                             android:layout_marginTop="@dimen/settings_gap_xs"
                             android:background="@drawable/bg_input"
+                            android:textColorHint="@color/text_tertiary"
                             android:hint="Password"
                             android:importantForAutofill="no"
                             android:inputType="textPassword"
@@ -766,7 +783,7 @@
                         android:text="@string/cancel"
                         android:textColor="@color/text_secondary"
                         android:textSize="@dimen/settings_text_caption"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -790,8 +807,10 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/recording_storage" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/recording_storage" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap" android:background="@color/divider" />
 
                 <LinearLayout
                     android:id="@+id/settingsDecoderMode"
@@ -804,8 +823,10 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playback_settings" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playback_settings" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap" android:background="@color/divider" />
 
                 <LinearLayout
                     android:id="@+id/settingsAvOffset"
@@ -824,7 +845,7 @@
                         android:text="@string/av_offset"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_body"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -833,6 +854,8 @@
                 android:id="@+id/paneFilters"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:orientation="vertical"
                 android:visibility="gone">
 
@@ -842,10 +865,16 @@
                     android:id="@+id/settingsHideNonEnglish"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
                     android:checked="true"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
                     android:text="@string/hide_non_english"
                     android:textColor="@color/text_primary"
-                    android:textSize="@dimen/settings_text_body" />
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
 
                 <!-- Lives here, not under Privacy: it filters the catalogue exactly like the
                      non-English toggle above it. The parental PIN that gates unchecking it
@@ -855,10 +884,16 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/settings_gap"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
                     android:checked="true"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
                     android:text="@string/hide_adult_categories"
                     android:textColor="@color/text_primary"
-                    android:textSize="@dimen/settings_text_body" />
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
             </LinearLayout>
 
             <!-- Pane: Privacy -->
@@ -881,7 +916,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/set_parental_pin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:id="@+id/settingsParentalPinLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/set_parental_pin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -895,7 +930,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/clear_watch_history" android:textColor="@color/live_red" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/clear_watch_history" android:textColor="@color/live_red" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -919,7 +954,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/export_backup" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/export_backup" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -933,7 +968,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/import_backup" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/import_backup" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -957,7 +992,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/add_epg_source" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/add_epg_source" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -980,6 +1015,7 @@
                     android:text="@string/no_downloads_yet"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_regular"
                     android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
@@ -1021,7 +1057,7 @@
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
-                    android:textStyle="bold" />
+                    android:fontFamily="@font/inter_bold" />
 
                 <LinearLayout
                     android:id="@+id/settingsPluginInstallUrl"
@@ -1043,7 +1079,7 @@
                         android:text="@string/install_from_url"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_body"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -1062,7 +1098,7 @@
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
-                    android:textStyle="bold" />
+                    android:fontFamily="@font/inter_bold" />
 
                 <LinearLayout
                     android:id="@+id/settingsPluginStoreList"
@@ -1071,7 +1107,9 @@
                     android:layout_marginTop="@dimen/settings_gap_m"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:orientation="vertical" />
+                    android:divider="@drawable/divider_settings_line"
+                    android:orientation="vertical"
+                    android:showDividers="middle" />
 
                 <TextView
                     android:id="@+id/settingsPluginStoreListEmpty"
@@ -1103,7 +1141,7 @@
                         android:text="@string/add_plugin_store"
                         android:textColor="@color/text_primary"
                         android:textSize="@dimen/settings_text_body"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
 
                 <TextView
@@ -1113,7 +1151,7 @@
                     android:letterSpacing="0.08"
                     android:textColor="@color/text_tertiary"
                     android:textSize="@dimen/settings_text_caption"
-                    android:textStyle="bold" />
+                    android:fontFamily="@font/inter_bold" />
 
                 <LinearLayout
                     android:id="@+id/settingsPluginList"
@@ -1122,7 +1160,9 @@
                     android:layout_marginTop="@dimen/settings_gap_m"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:orientation="vertical" />
+                    android:divider="@drawable/divider_settings_line"
+                    android:orientation="vertical"
+                    android:showDividers="middle" />
 
                 <TextView
                     android:id="@+id/settingsPluginListEmpty"
@@ -1154,9 +1194,43 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="@dimen/settings_gap_l">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/version" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" />
-                    <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_body" />
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/version" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                    <TextView android:id="@+id/settingsAppVersion" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_regular" />
                 </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap_m" android:background="@color/divider" />
+
+                <LinearLayout
+                    android:id="@+id/settingsAppNameRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:layout_marginTop="@dimen/settings_gap_m"
+                    android:background="@drawable/card_surface_background"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/settings_gap_l">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/about_app_label" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/app_name" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_regular" />
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap_m" android:background="@color/divider" />
+
+                <LinearLayout
+                    android:id="@+id/settingsPlatformRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:layout_marginTop="@dimen/settings_gap_m"
+                    android:background="@drawable/card_surface_background"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/settings_gap_l">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/about_platform_label" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/about_platform_value" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_regular" />
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap_m" android:background="@color/divider" />
 
                 <LinearLayout
                     android:id="@+id/settingsGithubLink"
@@ -1171,9 +1245,30 @@
                     android:orientation="horizontal"
                     android:paddingHorizontal="@dimen/settings_gap_l"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/github" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/github_url" android:textColor="@color/primary_light" android:textSize="@dimen/settings_text_caption" />
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/github" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/github_url" android:textColor="@color/primary_light" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_regular" />
                 </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap_m" android:background="@color/divider" />
+
+                <LinearLayout
+                    android:id="@+id/settingsDiscordLink"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:layout_marginTop="@dimen/settings_gap_m"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/settings_gap_l"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/discord" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/discord_url" android:textColor="@color/primary_light" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_regular" />
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="@dimen/settings_gap_m" android:background="@color/divider" />
 
                 <LinearLayout
                     android:id="@+id/settingsCheckUpdate"
@@ -1186,7 +1281,7 @@
                     android:focusable="true"
                     android:gravity="center"
                     android:stateListAnimator="@animator/focus_scale_flat">
-                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/check_for_updates" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:textStyle="bold" />
+                    <TextView android:id="@+id/settingsCheckUpdateLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/check_for_updates" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -1226,7 +1321,7 @@
                         android:text="@string/back_to_plugins"
                         android:textColor="@color/text_secondary"
                         android:textSize="@dimen/settings_text_caption"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
 
                 <TextView
@@ -1249,7 +1344,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="@dimen/settings_gap"
                     android:textColor="@color/text_tertiary"
-                    android:textSize="@dimen/settings_text_caption" />
+                    android:textSize="@dimen/settings_text_caption"
+                    android:fontFamily="@font/inter_regular" />
 
                 <LinearLayout
                     android:id="@+id/pluginDetailEnabledRow"
@@ -1280,7 +1376,8 @@
                         android:layout_weight="1"
                         android:text="@string/enabled"
                         android:textColor="@color/text_primary"
-                        android:textSize="@dimen/settings_text_body" />
+                        android:textSize="@dimen/settings_text_body"
+                        android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -1308,8 +1405,8 @@
                             android:layout_height="wrap_content"
                             android:text="@string/run"
                             android:textColor="@color/text_primary"
-                            android:textSize="@dimen/settings_text_caption"
-                            android:textStyle="bold" />
+                            android:textSize="@dimen/settings_text_body"
+                            android:fontFamily="@font/inter_medium" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -1329,8 +1426,8 @@
                             android:layout_height="wrap_content"
                             android:text="@string/update"
                             android:textColor="@color/text_primary"
-                            android:textSize="@dimen/settings_text_caption"
-                            android:textStyle="bold" />
+                            android:textSize="@dimen/settings_text_body"
+                            android:fontFamily="@font/inter_medium" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -1348,8 +1445,8 @@
                             android:layout_height="wrap_content"
                             android:text="@string/remove"
                             android:textColor="@color/live_red"
-                            android:textSize="@dimen/settings_text_caption"
-                            android:textStyle="bold" />
+                            android:textSize="@dimen/settings_text_body"
+                            android:fontFamily="@font/inter_medium" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -1370,7 +1467,7 @@
                         android:letterSpacing="0.08"
                         android:textColor="@color/text_tertiary"
                         android:textSize="@dimen/settings_text_caption"
-                        android:textStyle="bold" />
+                        android:fontFamily="@font/inter_bold" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -1393,7 +1490,8 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:textColor="@color/text_secondary"
-                            android:textSize="@dimen/settings_text_body" />
+                            android:textSize="@dimen/settings_text_body"
+                            android:fontFamily="@font/inter_regular" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -1403,7 +1501,9 @@
                         android:layout_marginTop="@dimen/settings_gap_s"
                         android:clipChildren="false"
                         android:clipToPadding="false"
-                        android:orientation="vertical" />
+                        android:divider="@drawable/divider_settings_line"
+                        android:orientation="vertical"
+                        android:showDividers="middle" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -1428,11 +1528,11 @@
 
         <LinearLayout
             android:id="@+id/settingsCancelButton"
+            style="@style/Widget.Lumora.SecondaryButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingVertical="@dimen/settings_row_padding_vertical"
             android:layout_marginEnd="12dp"
-            android:background="@drawable/card_surface_background"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
@@ -1444,15 +1544,15 @@
                 android:text="@string/cancel"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/settings_text_subtitle"
-                android:textStyle="bold" />
+                android:fontFamily="@font/inter_medium" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/settingsSaveButton"
+            style="@style/Widget.Lumora.PrimaryButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingVertical="@dimen/settings_row_padding_vertical"
-            android:background="@drawable/bg_play_button"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
@@ -1464,7 +1564,7 @@
                 android:text="@string/save"
                 android:textColor="@color/text_primary"
                 android:textSize="@dimen/settings_text_subtitle"
-                android:textStyle="bold" />
+                android:fontFamily="@font/inter_semibold" />
         </LinearLayout>
     </LinearLayout>
 

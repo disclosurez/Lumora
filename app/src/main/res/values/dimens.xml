@@ -105,10 +105,14 @@
     <!-- See All is the only header control with a word in it (the pin/hide ones are single
          glyphs), and it was the smallest hit target on the screen - hard to aim at on a
          phone and easy to skip past with a remote. Padding and a minimum height are pulled
-         out here so the large-screen tier can grow it without touching the layout. -->
-    <dimen name="shelf_action_padding_h">18dp</dimen>
-    <dimen name="shelf_action_padding_v">11dp</dimen>
-    <dimen name="shelf_action_min_height">44dp</dimen>
+         out here so the large-screen tier can grow it without touching the layout.
+
+         Tightened from 18/11dp padding and a 44dp floor: the button read oversized with the
+         ALL-CAPS label floating in it. The label is ~16dp tall at 13sp, so 6dp vertical
+         padding + a 32dp floor keeps a usable touch target while the pill hugs the text. -->
+    <dimen name="shelf_action_padding_h">12dp</dimen>
+    <dimen name="shelf_action_padding_v">6dp</dimen>
+    <dimen name="shelf_action_min_height">32dp</dimen>
 
     <!-- App-wide type scale. Every layout's text size resolves through one of these rather
          than a literal sp value, so a device-class change is one edit per step instead of a
@@ -134,6 +138,15 @@
          minimum comfortable touch target on a phone. -->
     <dimen name="toolbar_button_size">48dp</dimen>
     <dimen name="toolbar_padding_horizontal">20dp</dimen>
+    <!-- Gap between the three toolbar cluster buttons (search/settings/refresh) and the air
+         after the last one. Was a 4dp literal on settings/refresh with nothing on the right;
+         the search pill's own 14dp padding made the cluster read as one wide gap then two
+         pinched ones. The search pill now carries toolbar_search_padding_horizontal instead,
+         so the spaces between and after the buttons share one rhythm. -->
+    <dimen name="toolbar_button_gap">6dp</dimen>
+    <!-- The search pill's own horizontal padding, shrunk from the 14dp literal so its content
+         sits as close to the settings button as the settings button sits to refresh. -->
+    <dimen name="toolbar_search_padding_horizontal">10dp</dimen>
 
     <!-- Minimum width one poster column may occupy; the grid fits as many as will go (then
          clamps to poster_grid_max_span). Portrait phones use a smaller value so a narrow
@@ -151,6 +164,11 @@
     <dimen name="keyboard_key_gap">3dp</dimen>
     <dimen name="keyboard_key_text">15sp</dimen>
     <dimen name="keyboard_action_text">11sp</dimen>
+    <!-- Vertical gap between the search header (icon + query field + close) and the
+         keyboard/results row below it. Was a 14dp literal in the layout. -->
+    <dimen name="search_section_gap">14dp</dimen>
+    <!-- Gutter between the keyboard column and the results column. Was a 12dp literal. -->
+    <dimen name="search_column_gap">12dp</dimen>
     <!-- Shorter than poster_image_height: a search column is much narrower than a Films/Series
          grid column, and the card's height doesn't follow its width, so the full-size value
          stretched the artwork well past the 2:3 it's cropped to. -->

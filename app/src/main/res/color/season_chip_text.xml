@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Selected season chip sits on a solid @color/primary fill, so its label has to flip to
-     the dark on-primary ink to stay legible. Driven by state here rather than by a
-     setTextColor() call per chip, which had to be reapplied to every chip on every season
-     change and left stale colours behind whenever one was missed. -->
+<!-- Selected chip gets the solid primary (indigo) fill, so its label flips to
+     the dark on-primary tone; default/focused keep the light surface text. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="@color/text_on_primary" android:state_selected="true" />
-    <item android:color="@color/text_primary" android:state_focused="true" />
-    <item android:color="@color/text_secondary" />
+    <item android:state_selected="true" android:color="@color/text_on_primary" />
+    <item android:color="@color/text_primary" />
 </selector>

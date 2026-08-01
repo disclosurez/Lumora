@@ -31,22 +31,15 @@ https://discord.gg/cNKYGhQWvq
 
 | Films library | Discover |
 |---|---|
-| ![Films library with Newest and category shelves](docs/screenshots/films.png) | ![Discover search with poster results](docs/screenshots/discover.png) |
+| ![Movies library with Newest and category shelves](docs/screenshots/films.png) | ![Discover search with poster results](docs/screenshots/discover.png) |
 
 | Provider setup | Multiple providers at once |
 |---|---|
 | ![Settings screen showing QR phone-pairing flow](docs/screenshots/settings-qr.png) | ![Providers settings listing an Xtream provider and a Jellyfin server together, both enabled, with server addresses redacted](docs/screenshots/settings-providers.png) |
 
-## Highlights
-
-- **Similar to TiVimate or Sparkle TV, without paying for the features.** Multiple playlists, the EPG guide, DVR recording, catch-up, favourites and multi-provider support are the things those players put behind a premium subscription or one-off unlock. In Lumora they're all just included, free.
-- **Optional Jellyfin support, properly done.** Point it at your own Jellyfin server and its films and series merge into the same shelves as your IPTV catalogue (same title from both = one card). Resume points, watched marks and favourites sync both ways with the server, and files your stick can't decode are converted by the server on the fly rather than opening to a black screen.
-- **Run every subscription at once.** Any number of Xtream Codes, M3U and Stalker Portal providers active together, merged into one catalogue instead of switching between playlists.
-- **Live TV that tidies itself up.** Duplicate feeds of the same channel collapse into one entry at the best available quality (4K → FHD → HD → SD), with instant fallback to any other copy mid-playback; Sports, News, Music and Cinema surface at the top automatically whatever your provider filed them under.
-- **A proper EPG guide.** Scrollable program grid with per-channel schedules, now/next info, program reminders, timeshift/catch-up and DVR recording.
-- **Full VOD browsing.** Movies and Series with category shelves, poster grids, season/episode browsing, episode-level Continue Watching and auto-advance to the next episode.
-- **Offline downloads.** Save movies and episodes to the phone and watch them with no connection at all (phone only).
-- **Built for the remote and for cheap hardware.** Native XML/Views, no Jetpack Compose — it stays smooth on the low-powered sticks these apps usually stutter on, and everything is reachable with a D-pad.
+| Plugin store |
+|---|
+| ![Plugins settings with plugin store discovery](docs/screenshots/plugins.png) |
 
 ## Features
 

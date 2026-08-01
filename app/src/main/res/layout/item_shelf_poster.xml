@@ -29,9 +29,9 @@
         android:layout_gravity="bottom"
         android:padding="8dp"
         android:ellipsize="end"
-        android:maxLines="3"
+        android:fontFamily="@font/inter_medium"
         android:lineSpacingExtra="1dp"
+        android:maxLines="2"
         android:textColor="@color/text_primary"
-        android:textSize="@dimen/poster_title_text"
-        android:textStyle="bold" />
+        android:textSize="@dimen/poster_title_text" />
 </FrameLayout>

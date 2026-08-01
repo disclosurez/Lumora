@@ -3,7 +3,6 @@ package com.lumora
 import android.app.Application
 import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.remote.jellyfin.JellyfinAuthInterceptor
-import com.lumora.data.sync.EpgSyncWorker
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -45,9 +44,6 @@ class BaseApplication : Application() {
             .build()
 
         database = LumoraDatabase.getInstance(this)
-
-        // Schedule periodic EPG sync
-        EpgSyncWorker.schedulePeriodic(this)
     }
 
     companion object {

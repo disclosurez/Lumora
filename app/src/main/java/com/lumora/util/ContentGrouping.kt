@@ -569,12 +569,15 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
 
     // Build result: clustered entries first (marked isCluster), then the rest as-is
     val clusteredIds = prefixGroups.values.flatten().map { it.id }.toSet()
+    // O(1) lookup instead of a linear leaves.firstOrNull per entry - this runs on every
+    // category/shelf rebuild and the quadratic scan dominated once catalogs grew.
+    val leavesById = leaves.associateBy { it.id }
     val result = mutableListOf<CategoryGroup>()
 
     for ((_, groupEntries) in prefixGroups) {
         val label = groupEntries.first().prefix
         val members = groupEntries.mapNotNull { entry ->
-            leaves.firstOrNull { it.id == entry.id }
+            leavesById[entry.id]
         }
         if (members.isNotEmpty()) {
             result.add(CategoryGroup(label, members, isCluster = true))

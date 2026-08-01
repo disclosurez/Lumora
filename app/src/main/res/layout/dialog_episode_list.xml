@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:maxHeight="500dp"
-    android:background="@color/surface"
+    android:background="@drawable/bg_dialog_rounded"
     android:orientation="vertical"
     android:padding="20dp">
 
@@ -12,16 +12,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
+        android:fontFamily="@font/inter_semibold"
         android:maxLines="1"
         android:textColor="@color/text_primary"
-        android:textSize="@dimen/text_subhead"
-        android:textStyle="bold" />
+        android:textSize="@dimen/text_subhead" />
 
     <TextView
         android:id="@+id/episodeListStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:fontFamily="@font/inter_medium"
         android:gravity="center"
         android:text="@string/loading"
         android:textColor="@color/text_secondary"

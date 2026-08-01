@@ -6,7 +6,6 @@
     android:id="@+id/rowRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clickable="true"
     android:clipChildren="false"
@@ -40,7 +39,7 @@
             android:maxLines="1"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_body"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_medium" />
 
         <TextView
             android:id="@+id/rowDetail"
@@ -50,6 +49,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
+            android:fontFamily="@font/inter_regular"
             android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 
@@ -72,7 +72,7 @@
             android:text="@string/edit"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_caption"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_medium" />
     </LinearLayout>
 
     <LinearLayout
@@ -93,6 +93,6 @@
             android:text="@string/remove"
             android:textColor="@color/live_red"
             android:textSize="@dimen/settings_text_caption"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_medium" />
     </LinearLayout>
 </LinearLayout>

@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
 import com.lumora.R
 
 /**
@@ -91,7 +92,14 @@ class OnScreenKeyboard @JvmOverloads constructor(
                     if (label.length > 1) R.dimen.keyboard_action_text else R.dimen.keyboard_key_text
                 )
             )
-            setTypeface(null, android.graphics.Typeface.BOLD)
+            // Inter instead of fake-bold (setTypeface(null, BOLD) synthesizes a bold from the
+            // system font; Inter semibold is the app's own face and matches every other label
+            // on screen). Letter keys get semibold, the wider action keys medium so SPACE/DEL/
+            // CLEAR don't out-weight the letters at their smaller size.
+            typeface = ResourcesCompat.getFont(
+                context,
+                if (label.length > 1) R.font.inter_medium else R.font.inter_semibold
+            )
             setBackgroundResource(R.drawable.bg_keyboard_key)
             stateListAnimator = android.animation.AnimatorInflater
                 .loadStateListAnimator(context, R.animator.focus_scale_flat)

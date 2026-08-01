@@ -11,5 +11,6 @@
         <item name="android:windowFullscreen">false</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">@font/inter_regular</item>
     </style>
 </resources>

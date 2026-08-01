@@ -1,6 +1,7 @@
 package com.lumora
 
 import android.Manifest
+import android.animation.AnimatorInflater
 import android.app.AlertDialog
 import android.app.Dialog
 import android.app.DownloadManager
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager
 import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import android.net.Uri
@@ -19,12 +21,15 @@ import android.util.TypedValue
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Typeface
 import android.view.PixelCopy
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
@@ -36,10 +41,11 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.text.Spanned
-import android.text.SpannableString
 import android.text.SpannableStringBuilder
+import android.text.TextPaint
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.ForegroundColorSpan
+import android.text.style.MetricAffectingSpan
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.PlaybackException
@@ -139,7 +145,7 @@ private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
 // When the catalog was last fetched from the network; the cache serves every launch until
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
-private const val CATALOG_TTL_MS = 12 * 60 * 60 * 1000L
+private const val CATALOG_TTL_MS = 24 * 60 * 60 * 1000L
 /** Per-provider ceiling on a catalogue fetch. Deliberately far above what a healthy provider
  *  needs: this exists to stop a *dead* entry starving the providers queued behind it, not to
  *  discipline a slow one. A real portal measured here streams 67MB of live channels in 4s and
@@ -218,6 +224,11 @@ private const val PREF_DEAD_STREAMS = "dead_streams_until"
 // so the best version stays skipped for hours afterwards.
 private const val FAILOVER_GRACE_MS = 12_000L
 
+// Phone touch gestures on the player: double-tap seek step and pinch-zoom range.
+private const val GESTURE_SEEK_MS = 10_000L
+private const val ZOOM_MIN = 1.0f
+private const val ZOOM_MAX = 3.0f
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -234,7 +245,7 @@ class MainActivity : AppCompatActivity() {
     /** Set by showProviderSettings to its local renderIptvProviderList, so the plugin-discovery
      *  pane (a sibling scope in the same settings screen) can refresh the provider list after it
      *  adds a discovered provider - otherwise the new provider is saved but the list stays stale. */
-    private var refreshIptvProviderList: (() -> Unit)? = null
+    private var refreshIptvProviderList: () -> Unit = {}
     private var activeSearchOverlay: FullScreenOverlay? = null
 
     // Live TV inline preview: a separate, muted player instance so browsing the
@@ -480,15 +491,15 @@ class MainActivity : AppCompatActivity() {
     private val seriesShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
-        onPinClick = { shelf -> togglePinnedShelf(1, shelf.title) },
-        onHideClick = { shelf -> toggleHiddenShelf(1, shelf.title) },
+        onPinClick = { shelf -> togglePinShelfCategory(1, shelf) },
+        onHideClick = { shelf -> toggleHiddenShelfCategory(1, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
-        onPinClick = { shelf -> togglePinnedShelf(2, shelf.title) },
-        onHideClick = { shelf -> toggleHiddenShelf(2, shelf.title) },
+        onPinClick = { shelf -> togglePinShelfCategory(2, shelf) },
+        onHideClick = { shelf -> toggleHiddenShelfCategory(2, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val homeShelfAdapter = ShelfAdapter(
@@ -533,6 +544,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+    // Phone touch gestures on the player. TV sends no touch events, so these are inert there -
+    // D-pad/remote KEYCODE handling is untouched. Single tap toggles play/pause and flips the
+    // controls overlay; double-tap seeks ±10s by screen half; pinch zooms the surface 1-3x.
+    //
+    // Built in setupPlayerControls(), NOT as field initializers: GestureDetector's constructor
+    // calls context.getResources(), and an Activity's base Context is still null during <init> -
+    // constructing one as a field initializer crashed every launch with a NullPointerException.
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var scaleDetector: ScaleGestureDetector
     private val downloadsProgressRunnable = object : Runnable {
         override fun run() {
             if (!showingDownloads) return
@@ -586,7 +606,19 @@ class MainActivity : AppCompatActivity() {
         // all until something else explicitly hides it first.
         binding.contentRow.visibility = View.GONE
         setStatus("Loading...", visible = true)
-        scope.launch { pluginDiscoveryOnStart.join(); loadSavedProvider() }
+        // Serve the cached catalog without waiting for plugin discovery: the JS-engine
+        // scan of every installed script's manifest (discoverScripts) is real async work
+        // that used to gate loadSavedProvider() entirely, so a warm cache still spent
+        // seconds on "Loading..." before it could render. Discovery only matters for the
+        // plugin-only gate at the top of loadAllConfiguredProviders and the anime-cache
+        // re-check - both handled by the follow-up below.
+        scope.launch {
+            // A configured provider means the gate passes regardless of discovery, so the
+            // cache can render immediately. Plugin-only setups must wait for discovery's
+            // result or the gate would wrongly bounce them to "Add a Provider".
+            if (hasProviderConfigured()) loadSavedProvider()
+            else { pluginDiscoveryOnStart.join(); loadSavedProvider() }
+        }
         requestNotificationPermissionIfNeeded()
         checkAndPromptUpdate()
 
@@ -1219,18 +1251,15 @@ class MainActivity : AppCompatActivity() {
             if (!forceRefresh) {
                 val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
                 if (!cached.isNullOrEmpty() && !isCatalogStale()) {
-                    // If an anime stream-search plugin is enabled but cache predates it
-                    // (no "anime:"-prefixed channels), skip cache so the catalog is fetched.
-                    val hasAnimePlugin = pluginScriptManager.getDiscoveredScripts().any {
-                        it.enabled && it.supportsStreamSearch && "anime" in it.contentTypes
-                    }
-                    val cachedHasAnime = cached.any { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
-                    if (!hasAnimePlugin || cachedHasAnime) {
-                        allChannels = cached
-                        classifyAndShow()
-                        setStatus("", visible = false)
-                        return@launch
-                    }
+                    // No anime-plugin gate here: an anime stream-search plugin with a cache
+                    // that predates it used to force a full network refetch on EVERY launch,
+                    // which made a warm cache useless for plugin users (the whole point of
+                    // the cache is that providers change rarely). The Anime row degrades
+                    // gracefully to a plain category until the next refresh instead.
+                    allChannels = cached
+                    classifyAndShow()
+                    setStatus("", visible = false)
+                    return@launch
                 }
             }
 
@@ -1907,11 +1936,24 @@ class MainActivity : AppCompatActivity() {
         // "Newest" pools the most recent releases (by date, not rating) into one shelf
         // pinned at the top, sorted by release date descending regardless of category.
         val newestFilms = newestByDate(films)
-        val filmShelvesLocal = buildShelves(films, tab = 2).let { shelves ->
-            jellyfinShelf(films, versions, tab = 2)?.let { listOf(it) + shelves } ?: shelves
-        }.let { shelves ->
-            if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms)) + shelves
-        }
+        // Poster shelves derive from the SAME category rows as the sidebar - same categories,
+        // same order, guaranteed by construction. Snapshot the per-tab pinned/hidden sets
+        // once here (they're per-tab prefs keys and both tabs' shelves are built in this one
+        // pass). Never write categoryChildrenCache from here - that stays sidebar-owned.
+        val filmPinned = getPinnedCategories(2)
+        val filmHidden = getHiddenCategories(2)
+        val seriesPinned = getPinnedCategories(1)
+        val seriesHidden = getHiddenCategories(1)
+        val animeSectionsSnapshot = animeSections
+        val filmCategoryRows = buildCategoryRows(
+            list = films, versionsById = versions, tab = 2,
+            pinned = filmPinned, hiddenIds = filmHidden, expanded = emptySet(),
+            animeSections = emptyList(), useClassicLayout = false, favoriteChannelIds = emptySet()
+        )
+        // The old buildShelves() count-sorting is gone - shelf order IS the sidebar's row
+        // order. Films keeps its single "Newest" prepend, exactly as before.
+        val filmShelvesLocal = shelvesFromCategoryRows(filmCategoryRows.rows, films)
+            .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms)) + shelves }
 
         val rawSeries = allChannels.filter { it.mediaType == MediaType.SERIES }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
@@ -1927,86 +1969,51 @@ class MainActivity : AppCompatActivity() {
         val favoriteSeriesIds = FavoritesStore.getFavoriteSeriesIds(this)
         val favoriteSeries = series.filter { it.id in favoriteSeriesIds }
         val newestSeries = newestByDate(series)
-        val seriesShelvesLocal = buildShelves(series, tab = 1).let { shelves ->
-            jellyfinShelf(series, seriesVers, tab = 1)?.let { listOf(it) + shelves } ?: shelves
-        }.let { shelves ->
-            (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries)) + shelves)
-        }.let { shelves ->
-            if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
-        }
+        val seriesCategoryRows = buildCategoryRows(
+            list = series, versionsById = seriesVers, tab = 1,
+            pinned = seriesPinned, hiddenIds = seriesHidden, expanded = emptySet(),
+            animeSections = animeSectionsSnapshot, useClassicLayout = false, favoriteChannelIds = emptySet()
+        )
+        // Newest and Favourites stay pinned at the very top of the poster, above the
+        // sidebar-derived category shelves.
+        val seriesShelvesLocal = shelvesFromCategoryRows(seriesCategoryRows.rows, series)
+            .let { shelves ->
+                (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries)) + shelves)
+            }
+            .let { shelves ->
+                if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
+            }
 
         return DerivedContent(groupedLive, liveVers, films, versions, filmShelvesLocal, series, seriesVers, seriesShelvesLocal)
     }
 
-    /** The "Jellyfin" shelf for a Series/Films tab - the personal library browsed as a
-     *  library, sitting directly under "Newest" while its titles stay merged into the
-     *  genre/provider shelves below like any other item.
+    /** Maps sidebar category rows (the output of [buildCategoryRows], already in sidebar
+     *  order) to poster shelves, in that same order - the poster renders exactly the
+     *  categories the sidebar shows, guaranteed by construction. Rows that don't resolve
+     *  to items (empty after pin/hide) are dropped, mirroring a sidebar click on them.
      *
-     *  Matches on any version in a deduped group, not just the representative's own
-     *  isJellyfin flag: a title both the library and an IPTV provider carry is one card,
-     *  and the copy that wins it is whichever had a poster - often the IPTV one - so flag-
-     *  only matching drops library titles out of the shelf. Same reasoning as the sidebar's
-     *  Jellyfin row (see JELLYFIN_CATEGORY_ID), and it honours the same hidden-shelf pref. */
-    private fun jellyfinShelf(
-        list: List<Channel>,
-        versionsById: Map<String, List<Channel>>,
-        tab: Int
-    ): ContentShelf? {
-        if ("Jellyfin" in getHiddenCategories(tab)) return null
-        val items = list.filter { ch ->
-            ch.isJellyfin || versionsById[ch.id]?.any { it.isJellyfin } == true
-        }
-        return if (items.isEmpty()) null else ContentShelf("Jellyfin", items)
-    }
-
-    /**
-     * Groups already-sorted content into category-based shelves for Series/Films, in the
-     * same blocks the sidebar uses: genre buckets, then the provider's own categories
-     * biggest-first. Pinned categories stay above all of it.
-     *
-     * A raw category joins exactly one shelf, so nothing is double-listed: pinned wins,
-     * then genre, then it stays as itself.
-     */
-    private fun buildShelves(list: List<Channel>, tab: Int): List<ContentShelf> {
-        val pinned = getPinnedCategories(tab)
-        val hidden = getHiddenCategories(tab)
-        val groups = LinkedHashMap<String, MutableList<Channel>>()
-        for (ch in list) {
-            val key = ch.categoryName?.takeIf { it.isNotBlank() } ?: ch.group?.takeIf { it.isNotBlank() } ?: "Other"
-            if (key in hidden) continue
-            groups.getOrPut(key) { mutableListOf() }.add(ch)
-        }
-
-        fun genreFor(name: String): String? {
-            val lower = name.lowercase()
-            return VOD_DYNAMIC_BUCKETS.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
-        }
-
-        val pinnedShelves = mutableListOf<ContentShelf>()
-        val brandGroups = LinkedHashMap<String, MutableList<Channel>>()
-        val genreGroups = LinkedHashMap<String, MutableList<Channel>>()
-        val plainShelves = mutableListOf<ContentShelf>()
-        for ((title, items) in groups) {
-            val genre = genreFor(title)
-            when {
-                title in pinned -> pinnedShelves.add(ContentShelf(title, items, pinned = true))
-                genre != null -> genreGroups.getOrPut(genre) { mutableListOf() }.addAll(items)
-                else -> plainShelves.add(ContentShelf(title, items))
+     *  Item resolution mirrors applyCategoryFilter()'s two branches: an explicit
+     *  channelIds set (Jellyfin, anime, genre buckets, brand rows) filters by channel id;
+     *  everything else (leaves, group: parents, clustered service categories) filters by
+     *  filterKey() against matchIds. */
+    private fun shelvesFromCategoryRows(rows: List<CategoryFilter>, list: List<Channel>): List<ContentShelf> {
+        // key: categoryId ?: title, merge same-name rows
+        val merged = LinkedHashMap<String, ContentShelf>()
+        for (row in rows) {
+            if (row.id == null) continue          // All row - the poster IS the All view
+            if (row.isChild) continue             // content already in the parent's union
+            if (row.count <= 0) continue          // toggle/utility rows (classic-layout toggle, etc.)
+            val items = when {
+                row.channelIds.isNotEmpty() -> list.filter { it.id in row.channelIds }
+                else -> list.filter { it.filterKey() in row.matchIds }
             }
+            if (items.isEmpty()) continue
+            val shelf = ContentShelf(title = row.name, items = items, pinned = row.pinned, categoryId = row.id)
+            val key = row.id ?: row.name
+            val existing = merged[key]
+            merged[key] = if (existing == null) shelf else existing.copy(items = existing.items + items)
         }
-
-        val brandShelves = brandGroups.entries.sortedBy { it.key.lowercase() }
-            .map { ContentShelf(it.key.uppercase(), it.value, pinned = it.key.uppercase() in pinned) }
-        // Bucket declaration order, not size - it's a fixed, familiar list of genres.
-        val genreShelves = VOD_DYNAMIC_BUCKETS.mapNotNull { (label, _) ->
-            genreGroups[label]?.let { ContentShelf(label.uppercase(), it, pinned = label.uppercase() in pinned) }
-        }
-        // The hidden check above is keyed on raw category names, so it can't catch a
-        // brand/genre shelf being hidden by its own (synthesised) title - filter those here.
-        return (pinnedShelves.sortedByDescending { it.items.size } +
-            brandShelves + genreShelves +
-            plainShelves.sortedByDescending { it.items.size })
-            .filterNot { it.title in hidden }
+        return merged.values.toList()
     }
 
     // ── Downloads (mobile only) ────────────────────
@@ -2099,8 +2106,9 @@ class MainActivity : AppCompatActivity() {
     private fun getHiddenCategories(tab: Int = activeTab): MutableSet<String> =
         prefs.getStringSet(hiddenCategoriesPrefsKey(tab), emptySet())?.toMutableSet() ?: mutableSetOf()
 
-    // Films/Series shelves aren't sidebar rows, so pinning/hiding a shelf works directly off
-    // its title - same "★ pin = surfaces first" idea as the Live TV sidebar's category pin.
+    // Newest/Favourites are synthetic shelves with no sidebar row id - pinning/hiding them
+    // falls back to the legacy title-based prefs (inert, as it always was: nothing matches
+    // those titles in the row pipeline).
     private fun togglePinnedShelf(tab: Int, title: String) {
         val pinned = getPinnedCategories(tab)
         if (!pinned.remove(title)) pinned.add(title)
@@ -2117,12 +2125,33 @@ class MainActivity : AppCompatActivity() {
         scope.launch { classifyAndShow() }
     }
 
-    private fun togglePinCategory(category: CategoryFilter) {
+    /** Pin a Series/Films poster shelf. Shelves ARE sidebar rows now, so the pin routes
+     *  through the shelf's row id into the same per-tab prefs the sidebar uses. Shelves
+     *  without a row id (Newest/Favourites) fall back to the legacy title-based pin. */
+    private fun togglePinShelfCategory(tab: Int, shelf: ContentShelf) {
+        val id = shelf.categoryId
+        if (id == null) {
+            togglePinnedShelf(tab, shelf.title)
+            return
+        }
+        togglePinCategory(CategoryFilter(id = id, name = shelf.title, count = shelf.items.size), tab)
+    }
+
+    private fun toggleHiddenShelfCategory(tab: Int, shelf: ContentShelf) {
+        val id = shelf.categoryId
+        if (id == null) {
+            toggleHiddenShelf(tab, shelf.title)
+            return
+        }
+        toggleHiddenSidebarCategory(CategoryFilter(id = id, name = shelf.title, count = shelf.items.size), tab)
+    }
+
+    private fun togglePinCategory(category: CategoryFilter, tab: Int = activeTab) {
         val id = category.id ?: return
-        val pinned = getPinnedCategories()
+        val pinned = getPinnedCategories(tab)
         val pinningNow = !pinned.remove(id)
         if (pinningNow) pinned.add(id)
-        prefs.edit().putStringSet(pinnedCategoriesPrefsKey(), pinned).apply()
+        prefs.edit().putStringSet(pinnedCategoriesPrefsKey(tab), pinned).apply()
         // The rebuild that follows can take a moment on a big catalog, and the row only
         // moves once it lands - without a word on screen a hold looked like it did nothing.
         Toast.makeText(
@@ -2135,12 +2164,12 @@ class MainActivity : AppCompatActivity() {
 
     /** Hides a sidebar category row - a merged "group:" parent hides every raw category
      *  folded into it (matchIds), a plain leaf just hides itself. */
-    private fun toggleHiddenSidebarCategory(category: CategoryFilter) {
+    private fun toggleHiddenSidebarCategory(category: CategoryFilter, tab: Int = activeTab) {
         val ids = category.matchIds.ifEmpty { category.id?.let { setOf(it) } ?: return }
-        val hidden = getHiddenCategories()
+        val hidden = getHiddenCategories(tab)
         val hidingNow = ids.none { it in hidden }
         if (hidingNow) hidden.addAll(ids) else hidden.removeAll(ids)
-        prefs.edit().putStringSet(hiddenCategoriesPrefsKey(), hidden).apply()
+        prefs.edit().putStringSet(hiddenCategoriesPrefsKey(tab), hidden).apply()
         Toast.makeText(this, if (hidingNow) "Hidden \"${category.name}\"" else "Unhidden \"${category.name}\"", Toast.LENGTH_SHORT).show()
         scope.launch { rebuildCategoriesForActiveTab() }
     }
@@ -2284,6 +2313,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private data class CategoryBuildResult(
+        val rows: List<CategoryFilter>,
+        val childrenByParent: Map<String, List<CategoryFilter>>
+    )
+
     private suspend fun buildCategoriesForActiveTab(): List<CategoryFilter> {
         val list = activeFullList()
         val pinned = getPinnedCategories()
@@ -2292,14 +2326,44 @@ class MainActivity : AppCompatActivity() {
         val expandedSnapshot = expandedGroupKeys.toSet()
         val favoriteChannelIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this) else emptySet()
         val animeSectionsSnapshot = animeSections
-        // Snapshot on the caller's thread - the block below runs on Dispatchers.Default.
+        // Snapshot on the caller's thread - the pipeline below runs on Dispatchers.Default.
         val versionsById = when (tab) {
             1 -> seriesVersions
             2 -> filmVersions
             else -> emptyMap()
         }
-        val categories = withContext(Dispatchers.Default) {
-            val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
+        val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
+        val result = withContext(Dispatchers.Default) {
+            buildCategoryRows(
+                list = list,
+                versionsById = versionsById,
+                tab = tab,
+                pinned = pinned,
+                hiddenIds = hiddenIds,
+                expanded = expandedSnapshot,
+                animeSections = animeSectionsSnapshot,
+                useClassicLayout = useClassicLayout,
+                favoriteChannelIds = favoriteChannelIds
+            )
+        }
+        categoryChildrenCache = result.childrenByParent
+        return result.rows
+    }
+
+    /** Pure ordering pipeline behind the sidebar - shared with the Series/Films poster
+     *  shelves (see computeDerivedContent) so both render the same categories in the same
+     *  order, by construction. No prefs/state reads: every caller passes its own snapshots. */
+    private fun buildCategoryRows(
+        list: List<Channel>,
+        versionsById: Map<String, List<Channel>>,
+        tab: Int,
+        pinned: Set<String>,
+        hiddenIds: Set<String>,
+        expanded: Set<String>,
+        animeSections: List<AnimeCatalogClient.Section>,
+        useClassicLayout: Boolean,
+        favoriteChannelIds: Set<String>   // tab 0 only
+    ): CategoryBuildResult {
             val names = LinkedHashMap<String, String>()
             val counts = LinkedHashMap<String, Int>()
             for (ch in list) {
@@ -2336,7 +2400,7 @@ class MainActivity : AppCompatActivity() {
                     pinned = pinned.contains(groupId),
                     matchIds = group.members.flatMap { it.matchIds }.toSet(),
                     isParent = true,
-                    expanded = expandedSnapshot.contains(groupId),
+                    expanded = expanded.contains(groupId),
                     // Clustered groups use a merged label; a plain merged group is still
                     // the provider's own category name, just deduplicated.
                     isDynamic = group.isCluster
@@ -2426,7 +2490,7 @@ class MainActivity : AppCompatActivity() {
                 val rows = dynamicBuckets.mapNotNull { (label, _) ->
                     val members = bucketed[label] ?: return@mapNotNull null
                     val bucketId = "$DYNAMIC_BUCKET_ID_PREFIX$label"
-                    val expanded = expandedSnapshot.contains(bucketId)
+                    val expanded = expanded.contains(bucketId)
                     val channelIds = members.flatMap { (row, _) ->
                         if (row.channelIds.isNotEmpty()) {
                             row.channelIds
@@ -2505,6 +2569,10 @@ class MainActivity : AppCompatActivity() {
                         compareBy(
                             { if (isAdultCategory(it.first.name)) 1 else 0 },
                             { if (it.first.isParent) 0 else 1 },
+                            // Categories by size, biggest first - the rows right after the
+                            // Jellyfin/anime blocks are the ones people actually browse, so
+                            // the fullest category leads instead of an arbitrary alphabetical one.
+                            { -it.first.count },
                             { it.first.name.lowercase() }
                         )
                     )
@@ -2573,7 +2641,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 val animeIds = animeRepById.values.toSet()
                 if (animeIds.isNotEmpty()) {
-                    val children = animeSectionsSnapshot.mapNotNull { section ->
+                    val children = animeSections.mapNotNull { section ->
                         val ids = section.channelIds.mapNotNullTo(mutableSetOf()) { animeRepById[it] }
                         if (ids.isEmpty()) return@mapNotNull null
                         CategoryFilter(
@@ -2585,7 +2653,7 @@ class MainActivity : AppCompatActivity() {
                             channelIds = ids
                         )
                     }
-                    val expanded = expandedSnapshot.contains(ANIME_CATEGORY_ID)
+                    val expanded = expanded.contains(ANIME_CATEGORY_ID)
                     val parent = CategoryFilter(
                         id = ANIME_CATEGORY_ID,
                         name = "Anime",
@@ -2641,10 +2709,28 @@ class MainActivity : AppCompatActivity() {
                 // alphabetical within each) - re-sorting here would undo that.
                 unpinnedRows
             }
-            result to childrenByParent.toMap()
-        }
-        categoryChildrenCache = categories.second
-        return categories.first
+            // Legacy shelf pin/hide prefs stored shelf titles ("KIDS & FAMILY"); rows are
+            // now keyed by id. Fold any stored value that names a real row (case-
+            // insensitively) into that row's id so pre-migration pins/hides keep working.
+            // Only title folds are applied here - id-keyed entries already did their job
+            // during construction (leaves, Jellyfin, Anime), so re-filtering them post-hoc
+            // would change the sidebar's existing hide semantics for bucket/brand/group rows.
+            val knownRowIds = result.mapNotNullTo(mutableSetOf()) { it.id }
+            val idForName = mutableMapOf<String, String>()
+            for (row in result) {
+                val id = row.id ?: continue
+                idForName.putIfAbsent(row.name.lowercase(), id)
+            }
+            val legacyPinnedIds = pinned.mapNotNullTo(linkedSetOf()) { value ->
+                if (value in knownRowIds) null else idForName[value.lowercase()]
+            }
+            val legacyHiddenIds = hiddenIds.mapNotNullTo(linkedSetOf()) { value ->
+                if (value in knownRowIds) null else idForName[value.lowercase()]
+            }
+            val finalRows = result
+                .filterNot { it.id in legacyHiddenIds }
+                .map { row -> if (row.id in legacyPinnedIds && !row.pinned) row.copy(pinned = true) else row }
+            return CategoryBuildResult(finalRows, childrenByParent.toMap())
     }
 
     /** Column count for the single-category poster grid, sized off the RecyclerView's actual
@@ -2942,12 +3028,28 @@ class MainActivity : AppCompatActivity() {
         for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
             val isSelected = tv === selected
             tv.isSelected = isSelected
-            tv.setTextColor(getColor(if (isSelected) R.color.text_primary else R.color.text_secondary))
-            tv.setTypeface(null, if (isSelected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            val (labelId, iconId, indicatorId) = when (tv.id) {
+                R.id.tabLive -> Triple(R.id.tabLiveLabel, R.id.tabLiveIcon, R.id.tabLiveIndicator)
+                R.id.tabSeries -> Triple(R.id.tabSeriesLabel, R.id.tabSeriesIcon, R.id.tabSeriesIndicator)
+                R.id.tabFilms -> Triple(R.id.tabFilmsLabel, R.id.tabFilmsIcon, R.id.tabFilmsIndicator)
+                R.id.tabHome -> Triple(R.id.tabHomeLabel, R.id.tabHomeIcon, R.id.tabHomeIndicator)
+                R.id.tabDiscover -> Triple(R.id.tabDiscoverLabel, R.id.tabDiscoverIcon, R.id.tabDiscoverIndicator)
+                R.id.tabDownloads -> Triple(R.id.tabDownloadsLabel, R.id.tabDownloadsIcon, R.id.tabDownloadsIndicator)
+                else -> continue
+            }
+            val label = tv.findViewById<TextView>(labelId)
+            val icon = tv.findViewById<ImageView>(iconId)
+            val indicator = tv.findViewById<View>(indicatorId)
+            label?.let {
+                it.setTextColor(getColor(if (isSelected) R.color.text_primary else R.color.text_secondary))
+                it.typeface = ResourcesCompat.getFont(this, if (isSelected) R.font.inter_semibold else R.font.inter_medium)
+            }
+            icon?.setColorFilter(
+                getColor(if (isSelected) R.color.text_primary else R.color.text_tertiary),
+                android.graphics.PorterDuff.Mode.SRC_IN
+            )
+            indicator?.visibility = if (isSelected) View.VISIBLE else View.GONE
         }
-        // The "selected" pill styling looks identical to real focus, which masked this:
-        // nothing ever actually requested Android focus onto a tab, so D-pad had no
-        // valid starting point to navigate from once content loaded.
         selected.requestFocus()
     }
 
@@ -4390,8 +4492,56 @@ class MainActivity : AppCompatActivity() {
         // preview has to be dismissed on focus loss too or it stays up over the video.
         binding.seekBar.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) hideTrickplayPreview() }
 
+        // Safe to build here (not as field initializers): the Activity context is fully
+        // attached by setupPlayerControls time, so GestureDetector's getResources() call
+        // in its constructor cannot NPE.
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                val width = binding.playerLayout.width
+                val target = if (e.x < width / 2) {
+                    (playerManager.currentPosition - GESTURE_SEEK_MS).coerceAtLeast(0L)
+                } else {
+                    (playerManager.currentPosition + GESTURE_SEEK_MS).coerceAtMost(maxOf(playerManager.duration, 0L))
+                }
+                playerManager.seekTo(target)
+                // Visible feedback for the seek - the time label updates via progressRunnable.
+                showControls()
+                updatePlayPauseIcon()
+                return true
+            }
+
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                playerManager.togglePlayPause()
+                updatePlayPauseIcon()
+                toggleControls()
+                return true
+            }
+        })
+        scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                // Pinch around the focal point, clamped inside the surface bounds.
+                val surface = binding.playerSurface
+                surface.pivotX = detector.focusX.coerceIn(0f, surface.width.toFloat())
+                surface.pivotY = detector.focusY.coerceIn(0f, surface.height.toFloat())
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val surface = binding.playerSurface
+                val newScale = (surface.scaleX * detector.scaleFactor).coerceIn(ZOOM_MIN, ZOOM_MAX)
+                surface.scaleX = newScale
+                surface.scaleY = newScale
+                return true
+            }
+        })
+
         binding.playerLayout.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_UP) toggleControls(); true
+            // Both detectors observe every event; the listener always returns true so touches
+            // on the player are fully consumed (single/double-tap, pinch). The controls overlay
+            // is a child that keeps its own clickable buttons - those consume their own events.
+            gestureDetector.onTouchEvent(event)
+            scaleDetector.onTouchEvent(event)
+            true
         }
 
         playerManager.addListener(object : Player.Listener {
@@ -4514,6 +4664,12 @@ class MainActivity : AppCompatActivity() {
         binding.mainContent.visibility = View.GONE
         binding.playerLayout.visibility = View.VISIBLE
         binding.playerLayout.keepScreenOn = true
+        // Every new video starts unzoomed - a pinch-zoom from a previous session must not
+        // carry over into the next title.
+        binding.playerSurface.scaleX = 1f
+        binding.playerSurface.scaleY = 1f
+        binding.playerSurface.pivotX = 0f
+        binding.playerSurface.pivotY = 0f
         applyStatus()
         binding.playerChannelName.text = channel.name
         binding.playerSubtitle.visibility = View.GONE
@@ -5728,21 +5884,32 @@ class MainActivity : AppCompatActivity() {
     /** A Filters-pane checkbox with a dimmed caption line under its title - the other filter
      *  toggles carry a single line, but these need the caption to say what the toggle changes
      *  about playback. Wired straight to [key] in the shared "iptv_prefs" file, so PlayerManager
-     *  sees the same value (subtitles_with_dub) without any extra plumbing. */
+     *  sees the same value (subtitles_with_dub) without any extra plumbing. Styled to match the
+     *  static pane rows (hide-adult row's card surface, focus scale, and text hierarchy) so
+     *  runtime-added rows don't read as cheaper than their XML siblings. */
     private fun dubCheckBoxRow(title: String, subtitle: String, key: String): CheckBox {
         val checkBox = CheckBox(this)
-        val caption = SpannableString(subtitle)
-        caption.setSpan(
-            ForegroundColorSpan(getColor(R.color.text_secondary)),
-            0, caption.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        caption.setSpan(
-            AbsoluteSizeSpan(resources.getDimensionPixelSize(R.dimen.settings_text_caption)),
-            0, caption.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        checkBox.text = SpannableStringBuilder(title).append("\n").append(caption)
+        val titleEnd = title.length
+        val captionStart = titleEnd + 1 // skip the "\n"
+        val text = SpannableStringBuilder(title).append("\n").append(subtitle)
+        val bodySize = resources.getDimensionPixelSize(R.dimen.settings_text_body)
+        val captionSize = resources.getDimensionPixelSize(R.dimen.settings_text_caption)
+        val titleFont = ResourcesCompat.getFont(this, R.font.inter_medium) ?: Typeface.DEFAULT
+        val captionFont = ResourcesCompat.getFont(this, R.font.inter_regular) ?: Typeface.DEFAULT
+        text.setSpan(FontSpan(titleFont), 0, titleEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(AbsoluteSizeSpan(bodySize), 0, titleEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(FontSpan(captionFont), captionStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(AbsoluteSizeSpan(captionSize), captionStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(ForegroundColorSpan(getColor(R.color.text_secondary)), captionStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        checkBox.text = text
         checkBox.setTextColor(getColor(R.color.text_primary))
-        checkBox.textSize = resources.getDimension(R.dimen.settings_text_body)
+        checkBox.setBackgroundResource(R.drawable.card_surface_background)
+        val hPad = resources.getDimensionPixelSize(R.dimen.settings_gap_l)
+        val vPad = resources.getDimensionPixelSize(R.dimen.settings_row_padding_vertical)
+        checkBox.setPadding(hPad, vPad, hPad, vPad)
+        checkBox.stateListAnimator = AnimatorInflater.loadStateListAnimator(this, R.animator.focus_scale_flat)
+        checkBox.isClickable = true
+        checkBox.isFocusable = true
         checkBox.isChecked = prefs.getBoolean(key, false)
         checkBox.setOnCheckedChangeListener { _, checked ->
             prefs.edit().putBoolean(key, checked).apply()
@@ -5751,9 +5918,17 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = resources.getDimensionPixelSize(R.dimen.settings_gap)
+            topMargin = resources.getDimensionPixelSize(R.dimen.settings_gap_m)
         }
         return checkBox
+    }
+
+    /** Applies a Typeface to a span range independent of the TextView's own typeface - lets a
+     *  single two-line TextView carry a medium title over a regular caption. (TypefaceSpan's
+     *  Typeface constructor is API 28+, so this hand-rolled span keeps minSdk 25 happy.) */
+    private class FontSpan(private val typeface: Typeface) : MetricAffectingSpan() {
+        override fun updateMeasureState(textPaint: TextPaint) { textPaint.typeface = typeface }
+        override fun updateDrawState(textPaint: TextPaint) { textPaint.typeface = typeface }
     }
 
     @Suppress("DEPRECATION")
@@ -6469,6 +6644,13 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
             }
         }
+        dialogView.findViewById<View>(R.id.settingsDiscordLink).setOnClickListener {
+            try {
+                startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://discord.gg/lumora")))
+            } catch (e: android.content.ActivityNotFoundException) {
+                Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
+            }
+        }
         val checkUpdateLabel = dialogView.findViewById<TextView>(R.id.settingsCheckUpdateLabel)
         dialogView.findViewById<View>(R.id.settingsCheckUpdate).setOnClickListener {
             checkUpdateLabel.text = "Checking…"
@@ -6511,7 +6693,7 @@ class MainActivity : AppCompatActivity() {
             pluginDiscoveryJob = null
             activeSettingsOverlay = null
             applyStatus()
-            refreshIptvProviderList = null
+            refreshIptvProviderList = {}
             // Both close over views in the dismissed dialog - holding them past this leaks the
             // whole inflated settings tree and would touch detached views on the next call.
             revealPluginInPane = null
@@ -7179,8 +7361,14 @@ class MainActivity : AppCompatActivity() {
                         addButton.isFocusable = false
                         // Rebuild the provider list in the same settings screen so the newly
                         // added provider shows up immediately instead of only after reopening.
-                        refreshIptvProviderList?.invoke()
-                        loadAllConfiguredProviders(forceRefresh = true)
+                        refreshIptvProviderList.invoke()
+                        try {
+                            loadAllConfiguredProviders(forceRefresh = true)
+                        } catch (_: Exception) {
+                            // A malformed candidate (blank URL, missing credentials) can crash
+                            // the provider load. The upsert already succeeded; don't let the
+                            // crash abort the UI navigation that shows the user where it landed.
+                        }
                         // The user was on this plugin's page when they tapped Add; the providers
                         // list they actually want to see is in the Providers pane, so jump there
                         // rather than leaving them staring at the now-empty "Added" button.
@@ -7556,9 +7744,10 @@ class MainActivity : AppCompatActivity() {
                                     installLabel.text = if (alreadyInstalled) "Updated" else "Installed"
                                     installButton.isEnabled = true
                                     if (!alreadyInstalled) {
+                                        manager.setEnabled(outcome.script.id, true)
                                         Toast.makeText(
                                             this@MainActivity,
-                                            "${storeScript.label} installed - enable it in Plugins to use it",
+                                            "${storeScript.label} installed and enabled",
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }

@@ -22,19 +22,20 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:ellipsize="end"
+            android:fontFamily="@font/inter_semibold"
             android:maxLines="1"
             android:textColor="@color/text_primary"
-            android:textSize="@dimen/shelf_title_text"
-            android:textStyle="bold" />
+            android:textSize="@dimen/shelf_title_text" />
 
         <TextView
             android:id="@+id/shelfSeeAllButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:background="@drawable/bg_select_item"
+            android:background="@drawable/bg_outline_button"
             android:clickable="true"
             android:focusable="true"
+            android:fontFamily="@font/inter_medium"
             android:gravity="center"
             android:minHeight="@dimen/shelf_action_min_height"
             android:paddingHorizontal="@dimen/shelf_action_padding_h"
@@ -42,9 +43,8 @@
             android:stateListAnimator="@animator/focus_scale"
             android:text="@string/see_all"
             android:textAllCaps="true"
-            android:textColor="@color/primary_light"
-            android:textSize="@dimen/shelf_action_text"
-            android:textStyle="bold" />
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/shelf_action_text" />
 
         <TextView
             android:id="@+id/shelfPinButton"

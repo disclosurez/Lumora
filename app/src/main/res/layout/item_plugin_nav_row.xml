@@ -6,7 +6,6 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/settings_gap_xs"
     android:layout_marginStart="@dimen/settings_gap_l"
     android:background="@drawable/nav_rail_item_background"
     android:clickable="true"
@@ -34,5 +33,6 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/text_secondary"
+        android:fontFamily="@font/inter_regular"
         android:textSize="@dimen/settings_text_caption" />
 </LinearLayout>

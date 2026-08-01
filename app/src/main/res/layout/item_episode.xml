@@ -97,13 +97,13 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="10dp"
                 android:minWidth="34dp"
+                android:fontFamily="@font/inter_semibold"
                 android:gravity="center"
                 android:background="@drawable/bg_episode_number_badge"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
                 android:textColor="@color/primary_light"
-                android:textSize="@dimen/text_body"
-                android:textStyle="bold" />
+                android:textSize="@dimen/text_body" />
 
             <TextView
                 android:id="@+id/episodeTitle"
@@ -111,10 +111,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:ellipsize="end"
+                android:fontFamily="@font/inter_medium"
                 android:maxLines="1"
                 android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_subhead_l"
-                android:textStyle="bold" />
+                android:textSize="@dimen/text_subhead_l" />
         </LinearLayout>
 
         <TextView
@@ -123,10 +123,10 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
             android:maxLines="1"
             android:textColor="@color/primary_light"
             android:textSize="@dimen/text_body"
-            android:textStyle="bold"
             android:visibility="gone" />
 
         <TextView
@@ -135,6 +135,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:ellipsize="end"
+            android:fontFamily="@font/inter_regular"
             android:lineSpacingExtra="2dp"
             android:maxLines="2"
             android:textColor="@color/text_tertiary"

@@ -4,7 +4,6 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clipChildren="false"
     android:clipToPadding="false"
@@ -33,7 +32,7 @@
                 android:maxLines="1"
                 android:textColor="@color/text_primary"
                 android:textSize="@dimen/settings_text_body"
-                android:textStyle="bold" />
+                android:fontFamily="@font/inter_medium" />
 
             <TextView
                 android:id="@+id/candidateVerified"
@@ -45,7 +44,7 @@
                 android:text="@string/tested"
                 android:textColor="@color/success_green"
                 android:textSize="@dimen/settings_text_micro"
-                android:textStyle="bold"
+                android:fontFamily="@font/inter_semibold"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -57,18 +56,18 @@
             android:ellipsize="end"
             android:maxLines="2"
             android:textColor="@color/text_secondary"
+            android:fontFamily="@font/inter_regular"
             android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/candidateAddButton"
+        style="@style/Widget.Lumora.PrimaryButton"
         android:layout_width="wrap_content"
         android:layout_height="@dimen/settings_action_button_height"
         android:layout_marginStart="@dimen/settings_gap_s"
-        android:background="@drawable/card_surface_background"
         android:clickable="true"
         android:focusable="true"
-        android:gravity="center"
         android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
@@ -76,8 +75,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/add"
-            android:textColor="@color/accent"
-            android:textSize="@dimen/settings_text_caption"
-            android:textStyle="bold" />
+            android:textColor="@color/text_on_primary"
+            android:textSize="@dimen/settings_text_body"
+            android:fontFamily="@font/inter_semibold" />
     </LinearLayout>
 </LinearLayout>

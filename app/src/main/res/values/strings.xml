@@ -22,9 +22,7 @@
     <string name="enter_url_first">Enter a playlist URL in Settings</string>
     <string name="channels">Channels</string>
     <string name="now_playing">Now Playing</string>
-    <string name="tab_live">Live</string>
-    <string name="tab_series">Series</string>
-    <string name="tab_films">Films</string>
+
     <string name="qr_pairing">QR Pairing</string>
     <string name="scan_qr_phone">Scan with phone camera</string>
     <string name="stop_pairing">Stop Pairing</string>
@@ -115,16 +113,16 @@
 
     <!-- activity_main.xml -->
     <string name="search">Search</string>
-    <string name="tab_home">🏠 Home</string>
-    <string name="tab_live_tv">📡 Live TV</string>
-    <string name="series_tab">📺 Series</string>
-    <string name="films_tab">🎬 Films</string>
-    <string name="discover_tab">🧭 Discover</string>
-    <string name="downloads_tab">⬇️ Downloads</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_live_tv">Live TV</string>
+    <string name="series_tab">Series</string>
+    <string name="films_tab">Movies</string>
+    <string name="discover_tab">Discover</string>
+    <string name="downloads_tab">Downloads</string>
     <string name="no_provider_configured">No provider configured</string>
     <string name="press_settings_to_add_playlist">Press Settings to add a playlist URL</string>
     <string name="add_a_provider">Add a Provider</string>
-    <string name="search_main_hint">Search live TV, films &amp; series…</string>
+    <string name="search_main_hint">Search live TV, movies &amp; series…</string>
     <string name="no_downloads_yet">No downloads yet</string>
     <string name="overview">Overview</string>
     <string name="cast">Cast</string>
@@ -192,6 +190,11 @@
     <string name="version">Version</string>
     <string name="github">GitHub</string>
     <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">App</string>
+    <string name="about_platform_label">Platform</string>
+    <string name="about_platform_value">Android · TV + phone</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
     <string name="check_for_updates">Check for Updates</string>
 
     <!-- dialog_search.xml -->

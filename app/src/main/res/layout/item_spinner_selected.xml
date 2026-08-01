@@ -5,4 +5,4 @@
     android:paddingVertical="14dp"
     android:textColor="@color/text_primary"
     android:textSize="@dimen/text_body_s"
-    android:textStyle="bold" />
+    android:fontFamily="@font/inter_semibold" />

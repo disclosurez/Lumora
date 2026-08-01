@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clapperboard "movie" mark: a slanted top board with two diagonal stripes riding on a
+     wide base board with rounded bottom corners. Replaces the old film-strip rectangle,
+     whose divider lines and two sprocket dots read cluttered at tab size. Same stroke
+     language as the other tab icons (1.8dp, round caps/joins); the colour is tinted at
+     usage sites. All geometry inset >=3dp from the viewport edges so the stroke never
+     clips. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF1F5F9"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M4.5,5 L17,8 L15.5,12 L3,8 Z M6,5.9 L10.38,6.95 M9.5,6.8 L13.88,7.85 M3,12 L21,12 L21,18.5 A2.5,2.5 0 0 1 18.5,21 L5.5,21 A2.5,2.5 0 0 1 3,18.5 Z" />
+</vector>

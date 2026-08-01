@@ -5,5 +5,5 @@
         android:type="linear"
         android:angle="270"
         android:startColor="#00000000"
-        android:endColor="#F207111B" />
+        android:endColor="@color/scrim_bottom" />
 </shape>

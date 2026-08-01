@@ -34,7 +34,7 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginEnd="10dp"
-                android:src="@android:drawable/ic_menu_search"
+                android:src="@drawable/ic_search"
                 android:tint="@color/text_secondary" />
 
             <!-- Not focusable. With the system IME suppressed, a focused query field is a
@@ -77,18 +77,23 @@
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:contentDescription="@string/close"
-                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:src="@drawable/ic_x"
                     android:tint="@color/text_primary" />
             </LinearLayout>
         </LinearLayout>
 
         <!-- Keyboard on the left, matches on the right, both on screen at once - the whole
-             point of not using the system IME. -->
+             point of not using the system IME. The gap below the header is search_section_gap
+             and the gutter to the results is search_column_gap, so the three zones (query /
+             keyboard / results) keep a clean separation on both phone and TV. The keyboard
+             is vertically centred in its column: on a TV the panel is far taller than the
+             keys, and centring keeps the block composed instead of stranding it at the top
+             over an empty half-panel. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="@dimen/search_section_gap"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:orientation="horizontal">
@@ -97,7 +102,7 @@
                 android:id="@+id/searchKeyboard"
                 android:layout_width="@dimen/search_keyboard_width"
                 android:layout_height="wrap_content"
-                android:layout_gravity="top" />
+                android:layout_gravity="center_vertical" />
 
             <!-- Status above the grid as its own row, not stacked in a frame with it: the
                  results view is opaque and full-bleed, so anything behind it (the "N/M
@@ -106,7 +111,7 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="@dimen/search_column_gap"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:orientation="vertical">

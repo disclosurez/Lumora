@@ -7,7 +7,6 @@
     android:id="@+id/pluginRow"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clickable="true"
     android:clipChildren="false"
@@ -32,7 +31,7 @@
             android:maxLines="1"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_body"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_medium" />
 
         <!-- On/off, and what this plugin's last run came to if it was the one that ran. -->
         <TextView
@@ -43,6 +42,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
+            android:fontFamily="@font/inter_regular"
             android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 

@@ -32,21 +32,27 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp">
 
-            <!-- ellipsize/maxLines: the title takes the leftover weight, which on a portrait
-                 phone is whatever the search + settings + refresh buttons don't use. Without
-                 these it wrapped to a second line and pushed the toolbar's contents out of
-                 vertical centre. -->
-            <TextView
-                android:id="@+id/toolbarTitle"
+            <!-- App mark in place of the title text: the launcher's TV + antenna + play
+                 glyph redrawn monochrome in the toolbar's icon stroke language, so the
+                 brand reads crisp at 40dp with no colour blob against the dark toolbar.
+                 The 0dp + weight wrapper is what still pushes the search/settings/refresh
+                 cluster to the right edge (same job the weighted title did); the icon
+                 itself stays pinned to the start and centred vertically. Decorative - not
+                 focusable, so the D-pad never lands on it. -->
+            <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="@string/app_name"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/toolbar_title_text"
-                android:textStyle="bold" />
+                android:gravity="start|center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@string/app_name"
+                    android:src="@drawable/ic_toolbar_brand"
+                    android:tint="@color/text_primary" />
+            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -55,7 +61,10 @@
                 android:orientation="horizontal">
 
                 <!-- Search button: icon + label box so it reads as "there's a search here"
-                     rather than a bare, easy-to-miss icon. -->
+                     rather than a bare, easy-to-miss icon. Icon is the same size as the
+                     settings/refresh glyphs so the cluster reads as one set; its own padding
+                     is the small toolbar_search_padding_horizontal so the pill's content sits
+                     an even step away from the settings button. -->
                 <LinearLayout
                     android:id="@+id/btnSearch"
                     android:layout_width="wrap_content"
@@ -64,24 +73,24 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:paddingHorizontal="14dp"
+                    android:paddingHorizontal="@dimen/toolbar_search_padding_horizontal"
                     android:nextFocusLeft="@id/tabFilms"
                     android:nextFocusRight="@id/btnSettings">
 
                     <ImageView
-                        android:layout_width="@dimen/toolbar_search_icon_size"
-                        android:layout_height="@dimen/toolbar_search_icon_size"
-                        android:src="@android:drawable/ic_menu_search"
+                        android:layout_width="@dimen/toolbar_icon_size"
+                        android:layout_height="@dimen/toolbar_icon_size"
+                        android:src="@drawable/ic_search"
                         android:tint="@color/text_primary" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
+                        android:fontFamily="@font/inter_medium"
                         android:text="@string/search"
                         android:textColor="@color/text_primary"
-                        android:textSize="@dimen/toolbar_search_text"
-                        android:textStyle="bold" />
+                        android:textSize="@dimen/toolbar_search_text" />
                 </LinearLayout>
 
                 <!-- Settings button -->
@@ -89,7 +98,7 @@
                     android:id="@+id/btnSettings"
                     android:layout_width="@dimen/toolbar_button_size"
                     android:layout_height="@dimen/toolbar_button_size"
-                    android:layout_marginStart="4dp"
+                    android:layout_marginStart="@dimen/toolbar_button_gap"
                     android:background="@drawable/bg_toolbar_button"
                     android:clickable="true"
                     android:focusable="true"
@@ -100,15 +109,20 @@
                     <ImageView
                         android:layout_width="@dimen/toolbar_icon_size"
                         android:layout_height="@dimen/toolbar_icon_size"
-                        android:src="@drawable/ic_settings" />
+                        android:src="@drawable/ic_settings"
+                        android:tint="@color/text_primary" />
                 </LinearLayout>
 
-                <!-- Refresh button -->
+                <!-- Refresh button. marginEnd mirrors toolbar_button_gap so the cluster gets
+                     the same air after the last button that it has between buttons - with the
+                     toolbar's own end padding on top, the refresh glyph no longer hugs the
+                     screen edge. -->
                 <LinearLayout
                     android:id="@+id/btnRefresh"
                     android:layout_width="@dimen/toolbar_button_size"
                     android:layout_height="@dimen/toolbar_button_size"
-                    android:layout_marginStart="4dp"
+                    android:layout_marginStart="@dimen/toolbar_button_gap"
+                    android:layout_marginEnd="@dimen/toolbar_button_gap"
                     android:background="@drawable/bg_toolbar_button"
                     android:clickable="true"
                     android:focusable="true"
@@ -118,7 +132,8 @@
                     <ImageView
                         android:layout_width="@dimen/toolbar_icon_size"
                         android:layout_height="@dimen/toolbar_icon_size"
-                        android:src="@drawable/ic_refresh" />
+                        android:src="@drawable/ic_refresh"
+                        android:tint="@color/text_primary" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
@@ -156,138 +171,324 @@
             android:paddingHorizontal="10dp"
             android:paddingBottom="6dp">
 
-            <TextView
+            <LinearLayout
                 android:id="@+id/tabLive"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="3dp"
-                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
-                android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:orientation="vertical"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:maxLines="1"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabDownloads"
                 android:nextFocusRight="@id/tabSeries"
                 android:stateListAnimator="@animator/focus_scale_flat"
-                android:layerType="none"
-                android:text="@string/tab_live_tv"
-                android:textAllCaps="true"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/tab_text" />
+                android:layerType="none">
 
-            <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabLiveIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_live_tv"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabLiveLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/tab_live_tv"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabLiveIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/tabSeries"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
-                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
-                android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:orientation="vertical"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:maxLines="1"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabLive"
                 android:nextFocusRight="@id/tabFilms"
                 android:stateListAnimator="@animator/focus_scale_flat"
-                android:layerType="none"
-                android:text="@string/series_tab"
-                android:textAllCaps="true"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/tab_text" />
+                android:layerType="none">
 
-            <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabSeriesIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_series"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabSeriesLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/series_tab"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabSeriesIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/tabFilms"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
-                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
-                android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:orientation="vertical"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:maxLines="1"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabSeries"
                 android:nextFocusRight="@id/tabHome"
                 android:stateListAnimator="@animator/focus_scale_flat"
-                android:layerType="none"
-                android:text="@string/films_tab"
-                android:textAllCaps="true"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/tab_text" />
+                android:layerType="none">
 
-            <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabFilmsIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_films"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabFilmsLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/films_tab"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabFilmsIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/tabHome"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
-                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
-                android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:orientation="vertical"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:maxLines="1"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabFilms"
                 android:nextFocusRight="@id/tabDiscover"
                 android:stateListAnimator="@animator/focus_scale_flat"
-                android:layerType="none"
-                android:text="@string/tab_home"
-                android:textAllCaps="true"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/tab_text" />
+                android:layerType="none">
 
-            <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabHomeIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_home"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabHomeLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/tab_home"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabHomeIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/tabDiscover"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
-                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
-                android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:orientation="vertical"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:maxLines="1"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/tabDownloads"
                 android:stateListAnimator="@animator/focus_scale_flat"
-                android:layerType="none"
-                android:text="@string/discover_tab"
-                android:textAllCaps="true"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/tab_text" />
+                android:layerType="none">
 
-            <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabDiscoverIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_discover"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabDiscoverLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/discover_tab"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabDiscoverIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/tabDownloads"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="3dp"
-                android:paddingVertical="@dimen/tab_padding_vertical"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
-                android:ellipsize="end"
                 android:focusable="true"
                 android:gravity="center"
+                android:orientation="vertical"
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:maxLines="1"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabDiscover"
                 android:nextFocusRight="@id/tabLive"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
-                android:text="@string/downloads_tab"
-                android:textAllCaps="true"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/tab_text"
-                android:visibility="gone" />
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabDownloadsIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_downloads"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabDownloadsLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/downloads_tab"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabDownloadsIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
         </HorizontalScrollView>
 
@@ -406,7 +607,7 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginEnd="12dp"
-                android:src="@android:drawable/ic_menu_search"
+                android:src="@drawable/ic_search"
                 android:tint="@color/text_secondary" />
 
             <TextView
@@ -480,12 +681,12 @@
                     android:background="@drawable/card_surface_background"
                     android:clickable="true"
                     android:focusable="true"
+                    android:fontFamily="@font/inter_medium"
                     android:paddingHorizontal="20dp"
                     android:paddingVertical="12dp"
                     android:stateListAnimator="@animator/focus_scale"
                     android:text="@string/search"
-                    android:textColor="@color/text_primary"
-                    android:textStyle="bold" />
+                    android:textColor="@color/text_primary" />
             </LinearLayout>
 
             <TextView
@@ -800,10 +1001,10 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:ellipsize="end"
+                            android:fontFamily="@font/inter_semibold"
                             android:maxLines="2"
                             android:textColor="@color/text_primary"
-                            android:textSize="@dimen/text_title"
-                            android:textStyle="bold" />
+                            android:textSize="@dimen/text_title" />
 
                         <TextView
                             android:id="@+id/detailMeta"
@@ -812,12 +1013,12 @@
                             android:layout_marginTop="10dp"
                             android:background="@drawable/pill_number"
                             android:ellipsize="end"
+                            android:fontFamily="@font/inter_semibold"
                             android:maxLines="1"
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="5dp"
-                            android:textColor="@color/primary_light"
-                            android:textSize="@dimen/text_caption"
-                            android:textStyle="bold" />
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_caption" />
 
                         <TextView
                             android:id="@+id/detailReleaseDate"
@@ -825,6 +1026,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
                             android:ellipsize="end"
+                            android:fontFamily="@font/inter_regular"
                             android:maxLines="1"
                             android:textColor="@color/text_tertiary"
                             android:textSize="@dimen/text_caption"
@@ -835,11 +1037,11 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="14dp"
+                            android:fontFamily="@font/inter_semibold"
                             android:text="@string/overview"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/text_tiny"
-                            android:textStyle="bold"
                             android:visibility="gone" />
 
                         <TextView
@@ -848,8 +1050,9 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
                             android:ellipsize="end"
-                            android:maxLines="5"
+                            android:fontFamily="@font/inter_regular"
                             android:lineSpacingExtra="3dp"
+                            android:maxLines="5"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/text_caption"
                             android:visibility="gone" />
@@ -859,11 +1062,11 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
+                            android:fontFamily="@font/inter_semibold"
                             android:text="@string/cast"
                             android:textAllCaps="true"
                             android:textColor="@color/text_secondary"
                             android:textSize="@dimen/text_tiny"
-                            android:textStyle="bold"
                             android:visibility="gone" />
 
                         <TextView
@@ -872,6 +1075,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
                             android:ellipsize="end"
+                            android:fontFamily="@font/inter_regular"
                             android:maxLines="3"
                             android:textColor="@color/text_tertiary"
                             android:textSize="@dimen/text_caption"
@@ -923,11 +1127,11 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="8dp"
+                                android:fontFamily="@font/inter_semibold"
                                 android:text="@string/play"
                                 android:textAllCaps="true"
                                 android:textColor="@android:color/white"
-                                android:textSize="@dimen/text_body"
-                                android:textStyle="bold" />
+                                android:textSize="@dimen/text_body" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -991,11 +1195,11 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:fontFamily="@font/inter_medium"
                                 android:text="@string/find_stream"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="@dimen/text_body"
-                                android:textStyle="bold" />
+                                android:textSize="@dimen/text_body" />
                         </LinearLayout>
 
                         <!-- Shown only when TMDB has a trailer for this title (see
@@ -1017,11 +1221,11 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:fontFamily="@font/inter_medium"
                                 android:text="@string/trailer"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="@dimen/text_body"
-                                android:textStyle="bold" />
+                                android:textSize="@dimen/text_body" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -1058,10 +1262,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
+                        android:fontFamily="@font/inter_semibold"
                         android:textAllCaps="true"
                         android:textColor="@color/text_secondary"
-                        android:textSize="@dimen/text_caption"
-                        android:textStyle="bold" />
+                        android:textSize="@dimen/text_caption" />
 
                     <HorizontalScrollView
                         android:id="@+id/detailSeasonScroll"
@@ -1124,7 +1328,7 @@
             android:focusable="true"
             android:padding="12dp"
             android:stateListAnimator="@animator/focus_scale"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_x"
             android:tint="@color/text_primary" />
     </FrameLayout>
 
@@ -1227,7 +1431,7 @@
                     android:focusable="true"
                     android:padding="12dp"
                     android:stateListAnimator="@animator/focus_scale"
-                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:src="@drawable/ic_x"
                     android:tint="@color/text_primary" />
             </RelativeLayout>
 

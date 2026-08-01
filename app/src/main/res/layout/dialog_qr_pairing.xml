@@ -12,7 +12,7 @@
         android:text="@string/pair_with_phone"
         android:textColor="@color/text_primary"
         android:textSize="@dimen/text_title"
-        android:textStyle="bold" />
+        android:fontFamily="@font/inter_bold" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -21,7 +21,8 @@
         android:gravity="center"
         android:text="@string/select_provider_then_scan_qr"
         android:textColor="@color/text_secondary"
-        android:textSize="@dimen/text_body_s" />
+        android:textSize="@dimen/text_body_s"
+        android:fontFamily="@font/inter_regular" />
 
     <!-- Provider type selector (TV side) -->
     <LinearLayout
@@ -47,7 +48,7 @@
             android:textAllCaps="true"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_body_s"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_bold" />
 
         <TextView
             android:id="@+id/selectXtream"
@@ -64,7 +65,8 @@
             android:text="@string/provider_type_xtream"
             android:textAllCaps="true"
             android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_body_s" />
+            android:textSize="@dimen/text_body_s"
+            android:fontFamily="@font/inter_medium" />
     </LinearLayout>
 
     <!-- Status text -->
@@ -75,7 +77,8 @@
         android:layout_marginTop="12dp"
         android:gravity="center"
         android:textColor="@color/text_secondary"
-        android:textSize="@dimen/text_body_s" />
+        android:textSize="@dimen/text_body_s"
+        android:fontFamily="@font/inter_regular" />
 
     <!-- QR Code -->
     <FrameLayout
@@ -103,6 +106,7 @@
         android:gravity="center"
         android:textColor="@color/primary_light"
         android:textSize="@dimen/text_tiny"
+        android:fontFamily="@font/inter_regular"
         android:maxLines="2"
         android:ellipsize="none"
         android:visibility="gone" />
@@ -114,6 +118,7 @@
         android:layout_marginTop="4dp"
         android:textColor="@color/accent"
         android:textSize="@dimen/text_caption"
+        android:fontFamily="@font/inter_medium"
         android:visibility="gone" />
 
     <!-- Action buttons -->
@@ -126,7 +131,7 @@
 
         <Button
             android:id="@+id/btnStopPairing"
-            style="@style/Widget.AppCompat.Button.Colored"
+            style="@style/Widget.Lumora.PrimaryButton"
             android:layout_width="0dp"
             android:layout_height="44dp"
             android:layout_weight="1"
@@ -135,7 +140,7 @@
 
         <Button
             android:id="@+id/btnClosePairing"
-            style="@style/Widget.AppCompat.Button"
+            style="@style/Widget.Lumora.SecondaryButton"
             android:layout_width="0dp"
             android:layout_height="44dp"
             android:layout_marginStart="12dp"

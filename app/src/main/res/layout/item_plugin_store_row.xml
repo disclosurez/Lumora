@@ -3,7 +3,6 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/settings_gap_s"
     android:background="@drawable/bg_category_panel"
     android:clipChildren="false"
     android:clipToPadding="false"
@@ -25,7 +24,7 @@
             android:maxLines="1"
             android:textColor="@color/text_primary"
             android:textSize="@dimen/settings_text_body"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_medium" />
 
         <TextView
             android:id="@+id/storeUrl"
@@ -35,18 +34,18 @@
             android:ellipsize="middle"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
+            android:fontFamily="@font/inter_regular"
             android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/storeBrowseButton"
+        style="@style/Widget.Lumora.SecondaryButton"
         android:layout_width="wrap_content"
         android:layout_height="@dimen/settings_action_button_height"
         android:layout_marginStart="@dimen/settings_gap_s"
-        android:background="@drawable/card_surface_background"
         android:clickable="true"
         android:focusable="true"
-        android:gravity="center"
         android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">
         <TextView
@@ -54,8 +53,8 @@
             android:layout_height="wrap_content"
             android:text="@string/browse"
             android:textColor="@color/text_primary"
-            android:textSize="@dimen/settings_text_caption"
-            android:textStyle="bold" />
+            android:textSize="@dimen/settings_text_body"
+            android:fontFamily="@font/inter_medium" />
     </LinearLayout>
 
     <LinearLayout
@@ -75,6 +74,6 @@
             android:text="@string/remove"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/settings_text_caption"
-            android:textStyle="bold" />
+            android:fontFamily="@font/inter_medium" />
     </LinearLayout>
 </LinearLayout>

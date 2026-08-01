@@ -1,8 +1,11 @@
 package com.lumora.adapter
 
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -24,8 +27,6 @@ class CategoryAdapter(
         val oldId = selectedId
         if (oldId == id) return
         selectedId = id
-        // Only update the old and new items instead of a full redraw - avoids
-        // flashing every visible row when the user taps a category.
         val oldIdx = currentList.indexOfFirst { it.id == oldId }
         if (oldIdx >= 0) notifyItemChanged(oldIdx)
         val newIdx = currentList.indexOfFirst { it.id == id }
@@ -49,12 +50,13 @@ class CategoryAdapter(
         private val basePaddingBottom = textView.paddingBottom
         private val basePaddingEnd = textView.paddingEnd
         private val childIndentPx = (24 * textView.resources.displayMetrics.density).toInt()
+        private val chevronDown = ContextCompat.getDrawable(textView.context, R.drawable.ic_chevron_down)
+        private val chevronRight = ContextCompat.getDrawable(textView.context, R.drawable.ic_chevron_right)
 
         init {
             textView.setOnClickListener { current?.let(onCategoryClick) }
             textView.setOnLongClickListener {
                 current?.let {
-                    // "All" (id == null) can't be pinned/unpinned.
                     if (it.id != null) onCategoryLongClick(it)
                 }
                 true
@@ -63,21 +65,31 @@ class CategoryAdapter(
 
         fun bind(category: CategoryFilter, selected: Boolean) {
             current = category
-            val pinPrefix = if (category.pinned) "★ " else ""
-            val chevron = if (category.isParent) (if (category.expanded) "▾ " else "▸ ") else ""
-            // A negative count is a sentinel for non-filtering utility rows (e.g. the
-            // classic-layout toggle) that have nothing meaningful to count.
             val countSuffix = if (category.count >= 0) " (${category.count})" else ""
-            // Synthesised rows (Live TV's dynamic buckets, brand rows on every tab) are
-            // uppercased here rather than in their label: the label is part of the id that
-            // expansion state and pins are keyed on, so renaming would orphan both.
             val rawName = if (category.isDynamic) category.name.uppercase() else category.name
-            // Only a sanity bound against a pathological provider label, not the thing that
-            // decides what fits - the row wraps to two lines and ellipsises on width, which is
-            // the real limit. The old 40 sat close enough to that limit to clip names the row
-            // had room for.
             val name = rawName.let { if (it.length > 80) it.take(79) + "…" else it }
-            textView.text = "$chevron$pinPrefix$name$countSuffix"
+
+            val drawable = when {
+                category.isParent && category.expanded -> chevronDown
+                category.isParent && !category.expanded -> chevronRight
+                else -> null
+            }
+            textView.setCompoundDrawablesRelativeWithIntrinsicBounds(drawable, null, null, null)
+            textView.compoundDrawablePadding = (6 * textView.resources.displayMetrics.density).toInt()
+
+            val builder = SpannableStringBuilder(name)
+            if (countSuffix.isNotEmpty()) {
+                val start = builder.length
+                builder.append(countSuffix)
+                builder.setSpan(
+                    ForegroundColorSpan(ContextCompat.getColor(textView.context, R.color.text_tertiary)),
+                    start,
+                    builder.length,
+                    0
+                )
+            }
+            textView.text = builder
+
             textView.isSelected = selected
             textView.setTextColor(
                 textView.context.getColor(if (selected) R.color.text_primary else R.color.text_secondary)

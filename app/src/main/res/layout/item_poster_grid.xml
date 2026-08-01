@@ -29,12 +29,12 @@
         android:layout_gravity="top|start"
         android:layout_margin="6dp"
         android:background="@drawable/pill_live"
+        android:fontFamily="@font/inter_semibold"
         android:paddingHorizontal="6dp"
         android:paddingVertical="2dp"
         android:textAllCaps="true"
         android:textColor="@android:color/white"
         android:textSize="@dimen/poster_badge_text"
-        android:textStyle="bold"
         android:visibility="gone" />
 
     <TextView
@@ -44,9 +44,9 @@
         android:layout_gravity="bottom"
         android:padding="8dp"
         android:ellipsize="end"
-        android:maxLines="3"
+        android:fontFamily="@font/inter_medium"
         android:lineSpacingExtra="1dp"
+        android:maxLines="2"
         android:textColor="@color/text_primary"
-        android:textSize="@dimen/poster_title_text"
-        android:textStyle="bold" />
+        android:textSize="@dimen/poster_title_text" />
 </FrameLayout>

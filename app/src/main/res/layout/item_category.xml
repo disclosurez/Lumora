@@ -14,6 +14,7 @@
      which is what widening the rail would cost instead. The row is wrap_content, so it only
      grows for the names that actually need the second line. -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/categoryLabel"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="8dp"
@@ -22,10 +23,10 @@
     android:clickable="true"
     android:ellipsize="end"
     android:focusable="true"
+    android:fontFamily="@font/inter_medium"
     android:maxLines="2"
     android:paddingHorizontal="@dimen/category_row_padding_horizontal"
     android:paddingVertical="@dimen/category_row_padding_vertical"
     android:stateListAnimator="@animator/focus_scale"
     android:textColor="@color/text_secondary"
-    android:textSize="@dimen/category_row_text"
-    android:textStyle="bold" />
+    android:textSize="@dimen/category_row_text" />

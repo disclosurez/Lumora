@@ -1,55 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Canvas / background gradient stops (StreamVault look) -->
-    <color name="canvas">#FF07111B</color>
-    <color name="canvas_elevated">#FF0B1622</color>
-    <color name="dark_background">#FF07111B</color>
+    <!-- Canvas / background -->
+    <color name="canvas">#FF0B0F17</color>
+    <color name="canvas_elevated">#FF111827</color>
+    <color name="dark_background">#FF0B0F17</color>
 
     <!-- Surfaces -->
-    <color name="surface">#FF0F1B29</color>
-    <color name="surface_elevated">#FF162338</color>
-    <color name="surface_emphasis">#FF1D2E46</color>
-    <color name="surface_accent">#FF223754</color>
-    <color name="dark_surface">#FF0F1B29</color>
-    <color name="dark_surface_2">#FF162338</color>
-    <color name="dark_card">#FF162338</color>
-    <color name="dark_card_selected">#FF1D2E46</color>
+    <color name="surface">#FF161B26</color>
+    <color name="surface_elevated">#FF1C2230</color>
+    <color name="surface_emphasis">#FF232A3B</color>
+    <color name="surface_accent">#FF2A3347</color>
+    <color name="dark_surface">#FF161B26</color>
+    <color name="dark_surface_2">#FF1C2230</color>
+    <color name="dark_card">#FF1C2230</color>
+    <color name="dark_card_selected">#FF232A3B</color>
 
-    <!-- Brand (blue accent) -->
-    <color name="primary">#FF69A8FF</color>
-    <color name="primary_dark">#FF3F7FD9</color>
-    <color name="primary_light">#FF8BBCFF</color>
-    <color name="primary_surface">#FF223754</color>
-    <color name="accent">#FF69A8FF</color>
-    <color name="brand_muted">#33335FA4</color>
+    <!-- Brand / accent (indigo family) -->
+    <color name="primary">#FF6366F1</color>
+    <color name="primary_dark">#FF4F46E5</color>
+    <color name="primary_light">#FF818CF8</color>
+    <color name="primary_surface">#FF1E1B4B</color>
+    <color name="accent">#FF6366F1</color>
+    <color name="brand_muted">#1A6366F1</color>
 
-    <!-- Focus (near-white D-pad focus ring) -->
-    <color name="focus">#FFF4F8FF</color>
+    <!-- Focus (D-pad ring) -->
+    <color name="focus">#FFF1F5F9</color>
 
     <!-- Text -->
-    <color name="text_primary">#FFF5F7FB</color>
-    <color name="text_secondary">#FFBBC6D8</color>
-    <color name="text_tertiary">#FF7F8DA5</color>
-    <color name="text_disabled">#FF566173</color>
-    <color name="text_on_primary">#FF07111B</color>
+    <color name="text_primary">#FFF1F5F9</color>
+    <color name="text_secondary">#FF9CA3AF</color>
+    <color name="text_tertiary">#FF6B7280</color>
+    <color name="text_disabled">#FF4B5563</color>
+    <color name="text_on_primary">#FF0B0F17</color>
+    <color name="text_muted">#FF9CA3AF</color>
 
-    <!-- Accent semantics -->
-    <color name="live_red">#FFFF5C61</color>
-    <color name="success_green">#FF4FD39A</color>
-    <color name="warning_amber">#FFFFC766</color>
-    <color name="info_cyan">#FF57C9FF</color>
+    <!-- Semantic accents -->
+    <color name="live_red">#FFEF4444</color>
+    <color name="success_green">#FF22C55E</color>
+    <color name="warning_amber">#FFF59E0B</color>
+    <color name="info_cyan">#FF06B6D4</color>
 
     <!-- States -->
-    <color name="divider">#1AF4F8FF</color>
-    <color name="outline">#26264C6D</color>
-    <color name="overlay">#80000000</color>
-    <color name="ripple">#3369A8FF</color>
+    <color name="divider">#14F1F5F9</color>
+    <color name="outline">#1AF1F5F9</color>
+    <color name="overlay">#B30B0F17</color>
+    <color name="ripple">#336366F1</color>
+
+    <!-- Borders -->
+    <color name="color_border">#14FFFFFF</color>
+    <color name="color_border_focus">#24FFFFFF</color>
+    <color name="color_border_faint">#0AFFFFFF</color>
+
+    <!-- Glass surfaces -->
+    <color name="glass_surface">#D9161B26</color>
+    <color name="glass_surface_strong">#E5161B26</color>
+
+    <!-- Scrim / gradient stops -->
+    <color name="scrim_bottom">#F20B0F17</color>
+
+    <!-- Accent gradient -->
+    <color name="accent_gradient_start">#FF6366F1</color>
+    <color name="accent_gradient_end">#FF3B82F6</color>
 
     <!-- Channel initial fallback colors -->
-    <color name="channel_1">#FF69A8FF</color>
-    <color name="channel_2">#FFFF5C61</color>
-    <color name="channel_3">#FF4FD39A</color>
-    <color name="channel_4">#FFFFC766</color>
-    <color name="channel_5">#FF9C7BFF</color>
-    <color name="channel_6">#FF57C9FF</color>
+    <color name="channel_1">#FF6366F1</color>
+    <color name="channel_2">#FFEF4444</color>
+    <color name="channel_3">#FF22C55E</color>
+    <color name="channel_4">#FFF59E0B</color>
+    <color name="channel_5">#FFA855F7</color>
+    <color name="channel_6">#FF06B6D4</color>
 </resources>

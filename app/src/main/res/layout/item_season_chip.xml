@@ -6,10 +6,10 @@
     android:clickable="true"
     android:ellipsize="end"
     android:focusable="true"
+    android:fontFamily="@font/inter_medium"
     android:maxLines="1"
     android:paddingHorizontal="18dp"
     android:paddingVertical="10dp"
     android:stateListAnimator="@animator/focus_scale"
     android:textColor="@color/season_chip_text"
-    android:textSize="@dimen/text_body_l"
-    android:textStyle="bold" />
+    android:textSize="@dimen/text_body_l" />

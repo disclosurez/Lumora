@@ -60,7 +60,7 @@
     <dimen name="settings_pane_padding">16dp</dimen>
     <!-- Not the full 30%: this is a focusable target with a label in it, and 24dp is below
          what a D-pad user can comfortably see highlighted. -->
-    <dimen name="settings_action_button_height">28dp</dimen>
+    <dimen name="settings_action_button_height">38dp</dimen>
     <dimen name="settings_qr_size">104dp</dimen>
     <!-- Holds the options column to a readable width. The pane spans the full panel now that
          the 660dp pop-out cap is gone, which left every card and input running ~700dp wide -
@@ -131,10 +131,12 @@
     <dimen name="shelf_title_text">22sp</dimen>
     <dimen name="shelf_action_text">18sp</dimen>
     <!-- See All across a room, at D-pad distance - see values/dimens.xml for why these are
-         dimens rather than literals in item_shelf.xml. -->
-    <dimen name="shelf_action_padding_h">24dp</dimen>
-    <dimen name="shelf_action_padding_v">14dp</dimen>
-    <dimen name="shelf_action_min_height">56dp</dimen>
+         dimens rather than literals in item_shelf.xml. Tightened with the phone tier: 18sp
+         label is ~22dp tall, so 8dp vertical padding + a 40dp floor hugs it without losing
+         the remote target. -->
+    <dimen name="shelf_action_padding_h">16dp</dimen>
+    <dimen name="shelf_action_padding_v">8dp</dimen>
+    <dimen name="shelf_action_min_height">40dp</dimen>
 
     <!-- App-wide type scale, large-screen tier (see values/dimens.xml for the phone values
          and the rationale). Roughly +30% at the small end, tapering off at the top - a 48sp
@@ -156,6 +158,14 @@
          are what makes it tall. A 56dp box around a 24dp glyph just padded the whole bar. -->
     <dimen name="toolbar_button_size">44dp</dimen>
     <dimen name="toolbar_padding_horizontal">28dp</dimen>
+    <!-- TV tier of the toolbar cluster spacing - see values/dimens.xml. Slightly wider than
+         phone: the buttons are aimed at a remote across a room, and the panel has room to
+         spare at 960dp wide. -->
+    <dimen name="toolbar_button_gap">8dp</dimen>
+    <!-- Same 10dp as phone: the search pill's content is centred in its own box and the
+         surrounding gaps are what carry the extra TV air, so growing this too would push the
+         pill's label away from its icon rather than the cluster apart. -->
+    <dimen name="toolbar_search_padding_horizontal">10dp</dimen>
 
     <!-- Search doesn't need the whole panel: a centred 820dp column holds the keyboard and a
          two-up results grid without either running to the bezels. -->
@@ -166,6 +176,10 @@
     <dimen name="keyboard_key_gap">4dp</dimen>
     <dimen name="keyboard_key_text">18sp</dimen>
     <dimen name="keyboard_action_text">13sp</dimen>
+    <!-- TV tier of the search zone spacing - see values/dimens.xml. Roomier than phone so the
+         three zones (header / keyboard / results) read as separate blocks at sofa distance. -->
+    <dimen name="search_section_gap">16dp</dimen>
+    <dimen name="search_column_gap">16dp</dimen>
     <!-- Sized so search shows two rows of four without scrolling. The grid gets roughly
          305dp of height (the slot, less the toolbar, tab bar, panel padding, query row and
          status line), and a card costs its artwork plus 16dp of card padding and 16dp of
