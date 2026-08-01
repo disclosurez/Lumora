@@ -76,6 +76,13 @@ android {
     }
 
     packaging {
+        jniLibs {
+            // Extract .so files to disk instead of loading them directly from the APK. libtorrent4j's
+            // native libs are not PAGE-aligned, so direct-from-apk loading throws "not PAGE-aligned -
+            // cannot open directly from apk" on older devices (old Fire TV sticks); legacy extraction
+            // avoids the crash at the cost of a little install-time unpacking.
+            useLegacyPackaging = true
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             // Multiple jlibtorrent per-ABI artifacts carry the same license/notice files.

@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.lumora.R
 
@@ -30,7 +31,11 @@ class TorrentForegroundService : Service() {
                 NotificationChannel(CHANNEL_ID, "Streaming", NotificationManager.IMPORTANCE_LOW)
             )
         }
-        val notification: Notification = Notification.Builder(this, CHANNEL_ID)
+        // NotificationCompat's (context, channelId) constructor is the API-26 channel-aware
+        // form but degrades to the plain no-channel builder on older releases - the platform
+        // two-arg Notification.Builder(context, channelId) doesn't exist below O and crashed
+        // with NoSuchMethodError on API 25 (MEmu) the moment a torrent stream started.
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText("Streaming torrent")
             .setSmallIcon(android.R.drawable.stat_sys_download)

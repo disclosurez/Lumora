@@ -7743,14 +7743,18 @@ class MainActivity : AppCompatActivity() {
                                 is PluginScriptManager.InstallResult.Installed -> {
                                     installLabel.text = if (alreadyInstalled) "Updated" else "Installed"
                                     installButton.isEnabled = true
-                                    if (!alreadyInstalled) {
-                                        manager.setEnabled(outcome.script.id, true)
-                                        Toast.makeText(
-                                            this@MainActivity,
-                                            "${storeScript.label} installed and enabled",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
+                                    // Same rule as the add-from-URL path: installing puts the
+                                    // script on the device but does not switch it on. Enabling
+                                    // is a separate, visible act on the plugin's own page - a
+                                    // stream_search plugin that is on starts answering Find
+                                    // Stream and pulls its catalogue into the Series tab, so a
+                                    // store Install tap must not silently do that.
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        if (outcome.script.enabled) "${storeScript.label} installed"
+                                        else "${storeScript.label} installed - enable it to use it",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                     onInstalled()
                                 }
                                 is PluginScriptManager.InstallResult.Rejected -> {
