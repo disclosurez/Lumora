@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.9
+
+### Simple mode
+- **New "Simple mode"** hides the tab bar so the Live TV guide fills the screen, forces VOD off, and makes Back exit straight from the top of Live TV — for setups that only ever watch live channels.
+- **General settings tab** at the top of the settings rail holds Simple mode plus a standalone **Disable VOD content** switch; the VOD checkbox mirrors simple mode and re-enables when it's turned off.
+- **Disable VOD skips the work, not just the UI** — providers stop fetching movies and series entirely (Xtream, Stalker, Jellyfin, M3U filter) and cached cold starts load live-only.
+
+### Live TV & guide
+- **Star icons on sidebar categories and guide rows** (white = pinned/favourited, grey = not), moved left of the name with their own focus box and key handling so a remote can actually reach them. Child-row indent tightened.
+- **EPG timezone fix** — panels that store local wall-clock time as a UTC epoch are now auto-detected and shifted, so the guide lines up with the device clock instead of sitting hours off.
+
+### Posters
+- **Titles are outlined instead of shadowed.** The old blur shadow washed out against bright or busy artwork and left white text unreadable; titles now draw a hard black stroke under the text, with a light shadow kept for depth.
+- **Titles cleaned of source and quality tags** (4K-AMZ, D+, PRIME:, region tags, mid-title chains), wrapping to 4 lines with auto-shrink and no mid-word breaks.
+- **20% smaller posters**, plus a large-screen (4K) bucket that fits more of them on screen.
+
+### Fixes
+- **Fixed a crash opening a series from Continue Watching** (version-chip layout cast).
+
 ## 2.8
 
 ### Continue Watching
