@@ -69,4 +69,7 @@
     <color name="channel_4">#FFF59E0B</color>
     <color name="channel_5">#FFA855F7</color>
     <color name="channel_6">#FF06B6D4</color>
+
+    <!-- Hard outline behind poster titles so light text stays legible on bright artwork -->
+    <color name="poster_title_outline">#D9000000</color>
 </resources>

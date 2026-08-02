@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
@@ -37,7 +38,7 @@
         android:textSize="@dimen/poster_badge_text"
         android:visibility="gone" />
 
-    <TextView
+    <com.lumora.ui.OutlineTextView
         android:id="@+id/itemTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -52,10 +53,12 @@
         android:fontFamily="@font/inter_medium"
         android:lineSpacingExtra="1dp"
         android:maxLines="4"
-        android:shadowColor="#FF000000"
+        android:shadowColor="#B3000000"
         android:shadowDx="0"
-        android:shadowDy="0"
-        android:shadowRadius="12"
+        android:shadowDy="1"
+        android:shadowRadius="4"
         android:textColor="@color/text_primary"
-        android:textSize="@dimen/poster_title_text" />
+        android:textSize="@dimen/poster_title_text"
+        app:outlineColor="@color/poster_title_outline"
+        app:outlineWidth="@dimen/poster_title_outline_width" />
 </FrameLayout>

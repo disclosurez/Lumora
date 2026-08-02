@@ -85,6 +85,7 @@
          tab_text, not a fixed bar the labels happen to sit inside. -->
     <dimen name="tab_padding_vertical">12dp</dimen>
     <dimen name="poster_title_text">10sp</dimen>
+    <dimen name="poster_title_outline_width">0.7dp</dimen>
     <dimen name="poster_badge_text">8sp</dimen>
     <dimen name="poster_image_height">110dp</dimen>
     <!-- Horizontal shelf rows (Home/Series/Films). These were hardcoded in
