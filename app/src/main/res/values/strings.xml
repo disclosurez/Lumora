@@ -143,6 +143,7 @@
     <!-- activity_settings.xml -->
     <string name="providers">Providers</string>
     <string name="playback">Playback</string>
+    <string name="general">General</string>
     <string name="filters">Filters</string>
     <string name="privacy">Privacy</string>
     <string name="downloads">Downloads</string>

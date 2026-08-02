@@ -13,6 +13,7 @@ import com.lumora.R
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.util.PosterLoader
+import com.lumora.util.cleanVodTitle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -105,7 +106,11 @@ class PosterGridAdapter(
 
         fun bind(channel: Channel) {
             current = channel
-            titleText.text = channel.name
+            // VOD titles carry source/quality decoration ("4K-AMZ - ", "(US)") that reads
+            // as noise on a poster - strip it for display; live names keep their country tag.
+            titleText.text = if (channel.mediaType == MediaType.MOVIE || channel.mediaType == MediaType.SERIES) {
+                cleanVodTitle(channel.name)
+            } else channel.name
 
             if (showTypeBadge) {
                 typeBadge.visibility = View.VISIBLE

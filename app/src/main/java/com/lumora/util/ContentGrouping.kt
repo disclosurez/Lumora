@@ -304,6 +304,39 @@ fun normalizeLiveChannelKey(name: String): String =
         .filter { it.isNotBlank() }
         .joinToString(" ") { lightStem(it) }
 
+/**
+ * Display-clean a VOD/series item title: expands superscripts, peels "PRIME:"/"UK|" prefixes
+ * and leading source/quality tags ("4K-AMZ - ", "D+ - ", "EN - "), drops bracketed and
+ * parenthesised region/quality tags ("(US)", "[RAW]"), and strips tag chains that appear
+ * mid-title (episode rows carry them after the "S01E01 · " prefix). The real title, its year
+ * and episode numbers stay. Never applied to Live channel names, whose leading country tags
+ * are the identity the user browses by (see cleanVodCategoryLabel for the same distinction
+ * on category labels).
+ */
+fun cleanVodTitle(name: String): String {
+    var s = deSuperscript(name).trim()
+    // "PRIME:", "UK|" - live-style prefixes that leak onto VOD names too.
+    s = LIVE_LEADING_TAG_REGEX.replace(s, "")
+    // "4K-AMZ - ", "D+ - ", "EN - " - every hyphen-joined token must look like a tag
+    // (short / digit / "+" / known word) or the prefix is a real title word, kept.
+    leadingTagMatch(s)?.let { s = s.removePrefix(it) }
+    // Mid-title chains ("... - 4K-AMZ - ...", "- S01E01 - ..."). A single all-digit token
+    // is never a tag - "Blade Runner 2049 - The Final Cut" keeps its numeral.
+    s = TAG_CHAIN_REGEX.replace(s) { m ->
+        val tokens = m.groupValues[1].split('-').filter { it.isNotBlank() }
+        val strip = tokens.isNotEmpty() &&
+            tokens.none { it.all(Char::isDigit) && it.length > 2 } &&
+            tokens.all(::isSourceTagToken)
+        if (strip) " " else m.value
+    }
+    s = BRACKET_REGEX.replace(s, " ")
+    s = PAREN_TAG_REGEX.replace(s, " ")
+    return WHITESPACE_REGEX.replace(s, " ").trim().ifBlank { name.trim() }
+}
+
+/** A hyphen-joined all-caps token chain followed by " - ", anywhere in a title. */
+private val TAG_CHAIN_REGEX = Regex("""\s((?:[A-Z0-9+]{1,6}-)*[A-Z0-9+]{1,6})\s+-\s+""")
+
 // Raw pixel resolution tags map onto the same tiers as their named equivalent
 // (3840x2160 = 4K/UHD, 1920x1080 = FHD, 1280x720 = HD). Both shapes appear: a scanline
 // count ("2160p", "1080i", "3840 P") and a full dimension pair ("3840x2160"), the latter

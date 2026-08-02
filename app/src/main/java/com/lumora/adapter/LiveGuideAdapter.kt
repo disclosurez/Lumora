@@ -47,8 +47,10 @@ class LiveGuideAdapter(
     private val onChannelClick: (Channel) -> Unit,
     private val onChannelFocused: ((Channel) -> Unit)? = null,
     private val onChannelLongPress: ((Channel) -> Unit)? = null,
+    private val onChannelFavClick: ((Channel) -> Unit)? = null,
     private val onProgramLongPress: ((Channel, XtreamClient.EpgProgram) -> Unit)? = null,
     private val isReminderSet: (String) -> Boolean = { false },
+    private val isChannelFavourite: (String) -> Boolean = { false },
     private val fetchPrograms: suspend (String) -> List<XtreamClient.EpgProgram>?
 ) : ListAdapter<Channel, LiveGuideAdapter.RowViewHolder>(DiffCallback()) {
 
@@ -127,6 +129,7 @@ class LiveGuideAdapter(
         private val logoImage: ImageView = itemView.findViewById(R.id.guideChannelLogo)
         private val nameText: TextView = itemView.findViewById(R.id.guideChannelName)
         private val nowText: TextView = itemView.findViewById(R.id.guideChannelNow)
+        private val favStar: TextView = itemView.findViewById(R.id.guideChannelFav)
         val scrollView: HorizontalScrollView = itemView.findViewById(R.id.guideProgramScroll)
         private val programRow: LinearLayout = itemView.findViewById(R.id.guideProgramRow)
         private val density = itemView.resources.displayMetrics.density
@@ -147,6 +150,30 @@ class LiveGuideAdapter(
                 // Focused rows fold the next program into the now line; losing focus
                 // (including to a program block) drops back to current-only.
                 updateNowLine()
+            }
+            favStar.setOnClickListener { current?.let { onChannelFavClick?.invoke(it) } }
+            // The star is a second D-pad target inside the row: focusing it must behave like
+            // focusing the channel column (preview pane follows, now/next line stays) rather
+            // than reading as "left the channel".
+            favStar.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) current?.let { onChannelFocused?.invoke(it) }
+                updateNowLine()
+            }
+            // LEFT from the channel column must land on this row's star, not fall through to
+            // the nearest focusable on the whole screen (the sidebar's stars). nextFocusLeftId
+            // silently failed to resolve across the guide RecyclerView's focus-search scope,
+            // so this is handled by key explicitly, per the repo's D-pad pattern.
+            channelInfo.setOnKeyListener { _, keyCode, event ->
+                if (event.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                    favStar.requestFocus()
+                    true
+                } else false
+            }
+            favStar.setOnKeyListener { _, keyCode, event ->
+                if (event.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    channelInfo.requestFocus()
+                    true
+                } else false
             }
             scrollView.setOnScrollChangeListener { v, scrollX, _, _, _ -> broadcastScroll(scrollX, v as HorizontalScrollView) }
         }
@@ -202,6 +229,14 @@ class LiveGuideAdapter(
             // the logo right on every row of a catalog that carries no channel numbers.
             numberText.visibility = if (number == null) View.GONE else View.VISIBLE
             nameText.text = channel.name.let { if (it.length > 50) it.take(49) + "…" else it }
+
+            // Star: white when favourited, grey when not. Reads the favourite store through
+            // the callback so a notifyDataSetChanged after toggling repaints the whole list.
+            val fav = isChannelFavourite(channel.id)
+            favStar.text = if (fav) "★" else "☆"
+            favStar.setTextColor(
+                favStar.context.getColor(if (fav) R.color.text_primary else R.color.text_secondary)
+            )
 
             val initial = channel.name.firstOrNull()?.uppercase() ?: "?"
             initialText.text = initial

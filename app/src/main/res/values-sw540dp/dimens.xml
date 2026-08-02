@@ -117,13 +117,13 @@
     <dimen name="poster_badge_text">10sp</dimen>
     <!-- Five columns instead of six makes each card wider, so the fixed-height poster has to
          grow with it or the artwork ends up letterboxed. -->
-    <dimen name="poster_image_height">180dp</dimen>
+    <dimen name="poster_image_height">144dp</dimen>
     <!-- Five per shelf row, not six. On a 1080p panel the row has ~724dp to work with
          (960 minus the 200dp sidebar and its margin, minus the list's own padding), and each
          card carries a 14dp end margin: 5 x (130 + 14) = 720dp. Image height keeps the 2:3
          artwork ratio against the 114dp of card left inside the 8dp padding. -->
-    <dimen name="shelf_poster_width">130dp</dimen>
-    <dimen name="shelf_poster_image_height">171dp</dimen>
+    <dimen name="shelf_poster_width">104dp</dimen>
+    <dimen name="shelf_poster_image_height">137dp</dimen>
     <dimen name="content_body_text">17sp</dimen>
 
     <!-- Shelf headers sit above the posters and name the row, so they carry more weight than
@@ -186,7 +186,7 @@
          margin - so 118dp of poster is the most that fits twice over. Four columns across
          the ~470dp beside the keyboard gives each card ~85dp of artwork width, which makes
          these slightly squatter than 2:3; centerCrop absorbs that. -->
-    <dimen name="search_poster_image_height">118dp</dimen>
+    <dimen name="search_poster_image_height">94dp</dimen>
 
     <dimen name="home_search_bar_width">560dp</dimen>
 </resources>

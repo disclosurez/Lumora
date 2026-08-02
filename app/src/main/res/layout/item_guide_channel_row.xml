@@ -22,10 +22,33 @@
         android:gravity="center_vertical"
         android:minHeight="@dimen/guide_row_min_height"
         android:orientation="horizontal"
-        android:paddingStart="5dp"
+        android:paddingStart="2dp"
         android:paddingEnd="6dp"
         android:paddingVertical="4dp"
-        android:stateListAnimator="@animator/focus_scale">
+        android:stateListAnimator="@animator/focus_scale"
+        android:nextFocusLeft="@id/guideChannelFav">
+
+        <!-- ★ white when the channel is favourited, ☆ grey when not. Its own D-pad target
+             at the left edge of the row: LEFT from the channel column lands on it, focusing
+             keeps the preview + now-line alive (the adapter mirrors guideChannelInfo's focus
+             listener), clicking toggles the favourite. -->
+        <TextView
+            android:id="@+id/guideChannelFav"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="2dp"
+            android:background="@drawable/bg_toolbar_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="@font/inter_medium"
+            android:gravity="center"
+            android:nextFocusRight="@id/guideChannelInfo"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="1dp"
+            android:stateListAnimator="@animator/focus_scale_flat"
+            android:text="☆"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/guide_channel_number_text" />
 
         <!-- Hidden (not just blank) by the adapter when the channel has no number: at
              wrap_content with a minWidth it still reserved its column on every row, so a
@@ -75,7 +98,7 @@
             android:id="@+id/guideChannelTextCol"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="4dp"
             android:layout_weight="1"
             android:orientation="vertical">
 

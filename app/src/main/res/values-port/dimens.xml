@@ -26,6 +26,6 @@
 
     <!-- With the sidebar taking 140dp of a 360dp screen, the 128dp default column width
          yields a single poster per row. A narrower minimum gets two. -->
-    <dimen name="poster_grid_min_column_width">104dp</dimen>
-    <dimen name="poster_image_height">124dp</dimen>
+    <dimen name="poster_grid_min_column_width">83dp</dimen>
+    <dimen name="poster_image_height">99dp</dimen>
 </resources>

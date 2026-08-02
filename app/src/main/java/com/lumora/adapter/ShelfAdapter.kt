@@ -13,12 +13,14 @@ import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
 import com.lumora.R
 import com.lumora.model.Channel
 import com.lumora.model.ContentShelf
+import com.lumora.model.MediaType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import com.lumora.util.PosterLoader
+import com.lumora.util.cleanVodTitle
 
 /** Vertical stack of horizontally-scrolling category shelves. D-pad UP/DOWN
  *  between shelf rows and OUT to the tab bar above is handled entirely by Android's default
@@ -136,7 +138,11 @@ private class ShelfPosterAdapter(
 
         fun bind(channel: Channel) {
             current = channel
-            titleText.text = channel.name
+            // VOD titles carry source/quality decoration ("4K-AMZ - ", "(US)") that reads
+            // as noise on a poster - strip it for display; live names keep their country tag.
+            titleText.text = if (channel.mediaType == MediaType.MOVIE || channel.mediaType == MediaType.SERIES) {
+                cleanVodTitle(channel.name)
+            } else channel.name
 
             val url = channel.posterUrl ?: channel.logoUrl
             posterImage.setImageDrawable(null)

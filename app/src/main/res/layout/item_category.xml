@@ -12,21 +12,58 @@
      routinely run past that, leaving rows that ellipsise down to near-identical prefixes.
      Wrapping roughly doubles what is readable without taking a single dp off the poster grid,
      which is what widening the rail would cost instead. The row is wrap_content, so it only
-     grows for the names that actually need the second line. -->
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/categoryLabel"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="8dp"
-    android:layout_marginVertical="3dp"
-    android:background="@drawable/bg_select_item"
-    android:clickable="true"
-    android:ellipsize="end"
-    android:focusable="true"
-    android:fontFamily="@font/inter_medium"
-    android:maxLines="2"
-    android:paddingHorizontal="@dimen/category_row_padding_horizontal"
-    android:paddingVertical="@dimen/category_row_padding_vertical"
-    android:stateListAnimator="@animator/focus_scale"
-    android:textColor="@color/text_secondary"
-    android:textSize="@dimen/category_row_text" />
+     grows for the names that actually need the second line.
+
+     The row root is now a container: the star (white when the category is pinned, grey when
+     not) is its own D-pad target next to the label, so pinning is one press away instead of
+     a long-press context menu. The container keeps the selectable/focusable chrome - the
+     star is a sibling, not a child of the label. -->
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/categoryRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="8dp"
+        android:layout_marginVertical="3dp"
+        android:background="@drawable/bg_select_item"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="@dimen/category_row_padding_horizontal"
+        android:paddingVertical="@dimen/category_row_padding_vertical"
+        android:stateListAnimator="@animator/focus_scale"
+        android:nextFocusLeft="@id/categoryStar">
+
+        <!-- ★ white when the category is pinned, ☆ grey when not. Sits before the name, as
+             its own D-pad target: LEFT from the row lands on it, OK toggles the pin. The
+             adapter hides it for rows that can't be pinned (the "All" row, toggle rows) -
+             a dead star reads as a broken one. -->
+        <TextView
+            android:id="@+id/categoryStar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/bg_toolbar_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="@font/inter_medium"
+            android:gravity="center"
+            android:nextFocusRight="@id/categoryRow"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="1dp"
+            android:stateListAnimator="@animator/focus_scale_flat"
+            android:text="☆"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/category_row_text" />
+
+        <TextView
+            android:id="@+id/categoryLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:maxLines="2"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/category_row_text" />
+    </LinearLayout>

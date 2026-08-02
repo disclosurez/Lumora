@@ -145,6 +145,8 @@ private const val PREF_SUBTITLES_ENABLED = "subtitles_enabled"
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
+private const val PREF_SIMPLE_MODE = "simple_mode"
+private const val PREF_DISABLE_VOD = "disable_vod"
 // When the catalog was last fetched from the network; the cache serves every launch until
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
@@ -474,7 +476,7 @@ class MainActivity : AppCompatActivity() {
 
     // ── Up Next / Auto-Advance ──────────────────
     private var upNextEpisode: Channel? = null
-    private var upNextCountdown = 10
+    private var upNextCountdown = UP_NEXT_COUNTDOWN_SECONDS
     private var upNextActive = false
     private val upNextTickRunnable = object : Runnable {
         override fun run() {
@@ -512,12 +514,15 @@ class MainActivity : AppCompatActivity() {
         private const val REQUEST_IMPORT_BACKUP = 2002
         private const val EDGE_SWIPE_ZONE_DP = 24f
         private const val EDGE_SWIPE_THRESHOLD_DP = 64f
+        private const val UP_NEXT_COUNTDOWN_SECONDS = 30
     }
 
     private val liveAdapter = LiveGuideAdapter(
         onChannelClick = { channel -> onChannelOkPress(channel) },
         onChannelFocused = { channel -> lastFocusedLiveChannel = channel },
         onChannelLongPress = { channel -> toggleFavoriteChannel(channel) },
+        onChannelFavClick = { channel -> toggleFavoriteChannel(channel) },
+        isChannelFavourite = { id -> FavoritesStore.getFavoriteChannelIds(this).contains(id) },
         onProgramLongPress = { channel, program -> toggleProgramReminder(channel, program) },
         isReminderSet = { key -> ReminderStore.get(this, key) != null },
         fetchPrograms = { channelId -> resolveEpgPrograms(channelId) }
@@ -560,6 +565,7 @@ class MainActivity : AppCompatActivity() {
     private var providerLoadJob: Job? = null
     private val categoryAdapter = CategoryAdapter(
         onCategoryClick = { category -> onCategorySelected(category) },
+        onCategoryStarClick = { category -> togglePinCategory(category) },
         onCategoryLongClick = { category ->
             // Live TV's sidebar has other long-press-worthy stuff going on (brand/bucket
             // rows) - keep it a plain pin toggle there. Films/Series get a small menu so
@@ -868,6 +874,9 @@ class MainActivity : AppCompatActivity() {
         // is very easy to do by accident.
         else if (showingHome) return false
         else if (!isAtSectionTop()) goToSectionTop()
+        // Simple mode has no Home level above the section - Live TV at its top IS the
+        // top, so Back leaves the app from there instead of bouncing into a hidden Home.
+        else if (isSimpleMode()) return false
         else goHomeFromBack()
         return true
     }
@@ -1187,6 +1196,44 @@ class MainActivity : AppCompatActivity() {
         binding.tabBar.visibility = if (enabled) View.VISIBLE else View.GONE
         binding.btnSearch.visibility = if (enabled) View.VISIBLE else View.GONE
         if (!enabled) binding.homeSearchBar.visibility = View.GONE
+        applySimpleModeUi()
+    }
+
+    /** Simple mode hides the whole tab bar - the only tab it would hold is Live TV, whose
+     *  row the bar exists to keep, so the EPG/live content shifts up into the freed space.
+     *  The toolbar above it stays, so Settings remains reachable. */
+    private fun isSimpleMode(): Boolean = prefs.getBoolean(PREF_SIMPLE_MODE, false)
+
+    /** VOD is dropped at fetch time; the manual toggle and simple mode both turn it off,
+     *  and simple mode never writes the manual pref so turning it off re-enables VOD. */
+    private fun isVodDisabled(): Boolean = isSimpleMode() || prefs.getBoolean(PREF_DISABLE_VOD, false)
+
+    private fun applySimpleModeUi() {
+        val simple = isSimpleMode()
+        // Chrome up = something to browse, so the tab bar would be showing in normal mode.
+        // Simple mode hides it regardless; the flag still gates the forced tab switch below
+        // (with no providers the empty state owns the screen and selectTab would fight it).
+        val chromeUp = hasProviderEnabled() || enabledStreamSearchPlugin() != null
+        if (simple) {
+            binding.tabBar.visibility = View.GONE
+            // The toolbar's Search chain points left into the hidden bar - a LEFT press
+            // there would target a GONE tab and eat the key. Re-route onto itself.
+            binding.btnSearch.nextFocusLeftId = R.id.btnSearch
+            // Home/Discover/Downloads (and any Series/Movies drill) aren't reachable in
+            // simple mode - land back on Live TV instead of leaving a hidden pane on screen.
+            if (chromeUp && (showingHome || showingDiscover || showingDownloads || activeTab != 0)) {
+                selectTab(0)
+            }
+        } else {
+            binding.tabBar.visibility = if (chromeUp) View.VISIBLE else View.GONE
+            binding.btnSearch.nextFocusLeftId = R.id.tabFilms
+        }
+    }
+
+    /** Re-runs the provider load so the VOD gate takes effect - VOD is skipped at fetch
+     *  time (and filtered out of a cached cold start), so either toggle needs a reload. */
+    private fun vodStateChanged() {
+        if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
     }
 
     /** Shows the "no provider" empty state and, crucially, moves focus onto one of its
@@ -1289,6 +1336,9 @@ class MainActivity : AppCompatActivity() {
             if (!forceRefresh) {
                 cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
                 if (!cached.isNullOrEmpty()) {
+                    // The VOD gate applies to a cached cold start too - the cache is saved
+                    // unfiltered, so a cache written with VOD on would resurrect it here.
+                    if (isVodDisabled()) cached = cached.filter { it.mediaType == MediaType.LIVE }
                     // Paint the cached catalog immediately (Live first, films/series in background),
                     // then only hit the network when the cache is stale - a non-stale cache returns
                     // here; a stale one falls through and refreshes silently under the content.
@@ -1441,6 +1491,9 @@ class MainActivity : AppCompatActivity() {
             val live = tag(liveResult.getOrThrow())
             onLive(live)
 
+            // VOD gate: a live-only portal never touches the (slow) VOD/series fetch.
+            if (isVodDisabled()) return FetchResult.Success(live)
+
             val vodSeriesResult = withContext(Dispatchers.IO) { stalker.loadVodAndSeries(stalkerProvider) }
             if (vodSeriesResult.isFailure) return FetchResult.Failure(vodSeriesResult.exceptionOrNull()?.message?.take(60) ?: "error")
             val (films, series) = vodSeriesResult.getOrThrow()
@@ -1505,12 +1558,18 @@ class MainActivity : AppCompatActivity() {
             val stub = jellyfinProviderStub(url)
             val items: List<Channel> = withContext(Dispatchers.IO) {
                 val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
-                val movies = jellyfin.getMovies()
-                val series = jellyfin.getSeries()
-                importJellyfinUserState(movies + series)
-                liveItems +
-                    movies.map { JellyfinProvider.toChannel(it, stub) } +
-                    series.map { JellyfinProvider.toChannel(it, stub) }
+                // VOD gate: only live TV is fetched - no movies/series crawl, no user-state
+                // import to seed their resume rows.
+                if (isVodDisabled()) {
+                    liveItems
+                } else {
+                    val movies = jellyfin.getMovies()
+                    val series = jellyfin.getSeries()
+                    importJellyfinUserState(movies + series)
+                    liveItems +
+                        movies.map { JellyfinProvider.toChannel(it, stub) } +
+                        series.map { JellyfinProvider.toChannel(it, stub) }
+                }
             }
             jellyfinClient = jellyfin
             refreshJellyfinRows(jellyfin, stub)
@@ -1828,10 +1887,13 @@ class MainActivity : AppCompatActivity() {
         val url = config.url ?: return FetchResult.Failure("no URL")
         return try {
             val result = withContext(Dispatchers.IO) { M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient) }
+            // VOD gate: an M3U file lists live and VOD in one parse - drop the VOD entries.
+            val channels = result.channels
+                .let { list -> if (isVodDisabled()) list.filter { it.mediaType == MediaType.LIVE } else list }
             // sourceProviderId isn't needed for playback here (an M3U item's url is already
             // final), but it's what names the provider a duplicate came from on the detail
             // screen's version chips - without it every M3U copy is an anonymous "Version N".
-            FetchResult.Success(result.channels.map { it.copy(streamUserAgent = config.userAgent, sourceProviderId = config.id) })
+            FetchResult.Success(channels.map { it.copy(streamUserAgent = config.userAgent, sourceProviderId = config.id) })
         } catch (e: Exception) {
             FetchResult.Failure(e.message?.take(60) ?: "error")
         }
@@ -1857,16 +1919,18 @@ class MainActivity : AppCompatActivity() {
             val films: List<Channel>
             val series: List<Channel>
             withContext(Dispatchers.IO) {
+                // VOD gate: the (slow) VOD/series category+stream fetches are skipped entirely.
+                val vodDisabled = isVodDisabled()
                 val liveCatsDeferred = async { runCatching { client.getLiveCategories(xtreamProvider) }.getOrDefault(emptyList()) }
-                val vodCatsDeferred = async { runCatching { client.getVodCategories(xtreamProvider) }.getOrDefault(emptyList()) }
-                val seriesCatsDeferred = async { runCatching { client.getSeriesCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val vodCatsDeferred: Deferred<List<Pair<String, String>>>? = if (vodDisabled) null else async { runCatching { client.getVodCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val seriesCatsDeferred: Deferred<List<Pair<String, String>>>? = if (vodDisabled) null else async { runCatching { client.getSeriesCategories(xtreamProvider) }.getOrDefault(emptyList()) }
                 val liveDeferred = async { client.getLiveStreams(xtreamProvider) }
-                val filmsDeferred = async { client.getVodStreams(xtreamProvider) }
-                val seriesDeferred = async { client.getSeries(xtreamProvider) }
+                val filmsDeferred: Deferred<List<Channel>>? = if (vodDisabled) null else async { client.getVodStreams(xtreamProvider) }
+                val seriesDeferred: Deferred<List<Channel>>? = if (vodDisabled) null else async { client.getSeries(xtreamProvider) }
 
                 val liveCatNames = liveCatsDeferred.await().toMap()
-                val vodCatNames = vodCatsDeferred.await().toMap()
-                val seriesCatNames = seriesCatsDeferred.await().toMap()
+                val vodCatNames = vodCatsDeferred?.await()?.toMap() ?: emptyMap()
+                val seriesCatNames = seriesCatsDeferred?.await()?.toMap() ?: emptyMap()
 
                 // Resolve each stream's category name from the authoritative category list.
                 // get_vod_streams (and often get_live_streams) carries only a numeric category_id
@@ -1885,8 +1949,8 @@ class MainActivity : AppCompatActivity() {
                     return mapped.copy(sourceProviderId = config.id)
                 }
                 live = liveDeferred.await().map { withCategory(it, liveCatNames, "uncat_live") }
-                films = filmsDeferred.await().map { withCategory(it, vodCatNames, "uncat_vod") }
-                series = seriesDeferred.await().map { withCategory(it, seriesCatNames, "uncat_series") }
+                films = filmsDeferred?.await()?.map { withCategory(it, vodCatNames, "uncat_vod") } ?: emptyList()
+                series = seriesDeferred?.await()?.map { withCategory(it, seriesCatNames, "uncat_series") } ?: emptyList()
             }
 
             onExpiry(formatSubscriptionStatus(auth.expDateSeconds, auth.isTrial))
@@ -2521,6 +2585,9 @@ class MainActivity : AppCompatActivity() {
         ).show()
         if (activeTab == 0) scope.launch { rebuildCategoriesForActiveTab() }
         refreshHomeShelvesIfShowing()
+        // The guide's per-row star reads the favourite store at bind time - repaint the
+        // list so the toggle lands immediately (submitList diff on the same list is a no-op).
+        if (activeTab == 0) liveAdapter.notifyDataSetChanged()
     }
 
     /** Long-press handler for any VOD poster (Home/Series/Films shelves and the category
@@ -4157,14 +4224,21 @@ class MainActivity : AppCompatActivity() {
 
     /** One version-picker chip, styled to sit inline next to Play. item_category's own text
      *  size is the sidebar's, so it's stepped down to the general caption dimen (still scales
-     *  up on a large screen). */
+     *  up on a large screen). item_category's root is now a container (star + label), so the
+     *  label is detached and its chip chrome re-applied - the container is just a scaffold. */
     private fun inflateVersionChip(parent: ViewGroup, label: String): TextView {
-        val chip = layoutInflater.inflate(R.layout.item_category, parent, false) as TextView
+        val root = layoutInflater.inflate(R.layout.item_category, parent, false)
+        val chip = root.findViewById<TextView>(R.id.categoryLabel)
+        (root as ViewGroup).removeView(chip)
         chip.text = label
         chip.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_caption))
         val padH = (12 * resources.displayMetrics.density).toInt()
         val padV = (8 * resources.displayMetrics.density).toInt()
         chip.setPadding(padH, padV, padH, padV)
+        chip.background = ContextCompat.getDrawable(this, R.drawable.bg_select_item)
+        chip.stateListAnimator = AnimatorInflater.loadStateListAnimator(this, R.animator.focus_scale)
+        chip.isClickable = true
+        chip.isFocusable = true
         chip.layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
@@ -5006,7 +5080,17 @@ class MainActivity : AppCompatActivity() {
                 if (!u) return
                 val duration = playerManager.duration
                 if (duration <= 0) return
-                showTrickplayPreview(duration * p / 100)
+                val target = duration * p / 100
+                showTrickplayPreview(target)
+                // A touch drag commits its seek in onStopTrackingTouch, but D-pad presses
+                // never fire that callback - the bar is focused, not touched, so the thumb
+                // just slid with no effect. A touched bar is `pressed`; a key-driven one
+                // isn't, so seek here for the key case (and clear stall state, like the
+                // drag-commit does) and the video actually follows the thumb on a remote.
+                if (s?.isPressed != true) {
+                    playerManager.seekTo(target)
+                    resetStallTracking()
+                }
             }
             override fun onStartTrackingTouch(s: SeekBar?) { tracking = true }
             override fun onStopTrackingTouch(s: SeekBar?) {
@@ -5111,7 +5195,7 @@ class MainActivity : AppCompatActivity() {
                     // If Up Next countdown is already running, it will handle the advance.
                     if (upNextActive) return@onPlaybackStateChanged
                     // Silent fallback auto-advance when Up Next wasn't triggered
-                    // (e.g. user seeks to end, skipping the 10s countdown window).
+                    // (e.g. user seeks to end, skipping the 30s countdown window).
                     val queue = currentEpisodeQueue
                     val nextIdx = currentEpisodeQueueIndex + 1
                     if (nextIdx in queue.indices) {
@@ -6176,14 +6260,14 @@ class MainActivity : AppCompatActivity() {
         if (nextIdx !in currentEpisodeQueue.indices) return // no next episode
         val duration = playerManager.duration
         val position = playerManager.currentPosition
-        if (duration <= 0 || duration - position > 10000) return // more than 10s left
+        if (duration <= 0 || duration - position > UP_NEXT_COUNTDOWN_SECONDS * 1000L) return // more than the countdown window left
         upNextEpisode = currentEpisodeQueue[nextIdx]
         showUpNextOverlay()
     }
 
     private fun showUpNextOverlay() {
         upNextActive = true
-        upNextCountdown = 10
+        upNextCountdown = UP_NEXT_COUNTDOWN_SECONDS
         binding.upNextTitle.text = upNextEpisode?.name ?: ""
         binding.upNextCountdown.text = upNextCountdown.toString()
         binding.upNextOverlay.visibility = View.VISIBLE
@@ -6516,7 +6600,7 @@ class MainActivity : AppCompatActivity() {
      *  sees the same value (subtitles_with_dub, subtitles_enabled) without any extra plumbing. Styled to match the
      *  static pane rows (hide-adult row's card surface, focus scale, and text hierarchy) so
      *  runtime-added rows don't read as cheaper than their XML siblings. */
-    private fun dubCheckBoxRow(title: String, subtitle: String, key: String): CheckBox {
+    private fun dubCheckBoxRow(title: String, subtitle: String, key: String, onToggle: ((Boolean) -> Unit)? = null): CheckBox {
         val checkBox = CheckBox(this)
         val titleEnd = title.length
         val captionStart = titleEnd + 1 // skip the "\n"
@@ -6542,6 +6626,7 @@ class MainActivity : AppCompatActivity() {
         checkBox.isChecked = prefs.getBoolean(key, false)
         checkBox.setOnCheckedChangeListener { _, checked ->
             prefs.edit().putBoolean(key, checked).apply()
+            onToggle?.invoke(checked)
         }
         checkBox.layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -7211,6 +7296,30 @@ class MainActivity : AppCompatActivity() {
             PREF_SUBTITLES_ENABLED
         ))
 
+        // General pane: Simple mode + Disable VOD live here, not under Filters - they shape
+        // the whole app (which tabs exist, what gets fetched), not the catalogue filters.
+        val generalPane = dialogView.findViewById<LinearLayout>(R.id.paneGeneral)
+        lateinit var vodCheckBox: CheckBox
+        generalPane.addView(dubCheckBoxRow(
+            "Simple mode",
+            "Show only Live TV - hides the tab bar so the EPG fills the screen",
+            PREF_SIMPLE_MODE
+        ) { checked ->
+            // Simple mode drives the VOD toggle so the two checkboxes never disagree:
+            // on -> VOD disabled (box checked), off -> VOD re-enabled (box unchecked).
+            prefs.edit().putBoolean(PREF_DISABLE_VOD, checked).apply()
+            vodCheckBox.isChecked = checked
+            applySimpleModeUi()
+            // Simple mode forces VOD off, so its effective state changed with the toggle.
+            vodStateChanged()
+        })
+        vodCheckBox = dubCheckBoxRow(
+            "Disable VOD content",
+            "Fetch only live TV from providers - movies and series are hidden everywhere",
+            PREF_DISABLE_VOD
+        ) { vodStateChanged() }
+        generalPane.addView(vodCheckBox)
+
         // StreamVault-style nav rail: one section visible at a time.
         val navRows = listOf(
             R.id.navProviders to R.id.paneProviders,
@@ -7221,6 +7330,7 @@ class MainActivity : AppCompatActivity() {
             R.id.navEpg to R.id.paneEpg,
             R.id.navDownloads to R.id.paneDownloads,
             R.id.navPlugins to R.id.panePlugins,
+            R.id.navGeneral to R.id.paneGeneral,
             R.id.navAbout to R.id.paneAbout
         ).map { (navId, paneId) -> dialogView.findViewById<View>(navId) to dialogView.findViewById<View>(paneId) }
         fun selectSection(index: Int) {
@@ -7261,10 +7371,10 @@ class MainActivity : AppCompatActivity() {
         }
         refreshDownloadsList()
 
-        wirePluginsPane(dialogView) { selectSection(0) }
+        wirePluginsPane(dialogView) { selectSection(1) }
         // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
-        // which that call is what sets. navRows' index 7 is Plugins (see the list above).
-        wirePluginNavRows(dialogView) { selectSection(7) }
+        // with the plugin list itself left at its previous section.
+        wirePluginNavRows(dialogView) { selectSection(8) }
 
         // About pane
         dialogView.findViewById<TextView>(R.id.settingsAppVersion).text = try {
@@ -7859,7 +7969,7 @@ class MainActivity : AppCompatActivity() {
             // or it stays visible underneath this page.
             listOf(
                 R.id.paneProviders, R.id.panePlayback, R.id.paneFilters, R.id.panePrivacy,
-                R.id.paneBackup, R.id.paneEpg, R.id.paneDownloads, R.id.paneAbout
+                R.id.paneBackup, R.id.paneEpg, R.id.paneDownloads, R.id.paneGeneral, R.id.paneAbout
             ).forEach { dialogView.findViewById<View>(it)?.visibility = View.GONE }
             listPane.visibility = View.GONE
             detailPane.visibility = View.VISIBLE

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Large screens (4K TVs, ~1280dp+ wide): more columns of smaller posters. The sw540dp
+     TV bucket caps 720p/1080p sets at 5; a 4K grid has room for well over double. -->
+<resources>
+    <integer name="poster_grid_max_span">14</integer>
+</resources>

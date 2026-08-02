@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Large screens (4K TVs, ~1280dp+ wide) get smaller, denser posters: narrower grid
+     columns so more fit per row, shorter poster cards, and a higher column cap. The
+     sw540dp TV bucket keeps the big-poster look on smaller sets (720p/1080p), so a small
+     TV shows fewer, larger posters and a big TV shows more, smaller ones. -->
+<resources>
+    <dimen name="poster_grid_min_column_width">80dp</dimen>
+    <dimen name="poster_image_height">88dp</dimen>
+    <dimen name="shelf_poster_width">67dp</dimen>
+    <dimen name="shelf_poster_image_height">106dp</dimen>
+    <dimen name="search_poster_image_height">77dp</dimen>
+</resources>

@@ -20,6 +20,10 @@ private const val TAG = "XtreamClient"
  * Minimal Xtream Codes API client using OkHttp.
  * Fetches live TV, VOD, and series from an Xtream server.
  */
+/** Per-provider EPG clock-shift estimate (seconds), keyed by server URL - survives the
+ *  per-call XtreamClient instances so the guide stays consistent across channels. */
+private val epgShiftSecondsCache = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
 class XtreamClient(private val client: OkHttpClient) {
 
     // fetchJson() swallows exceptions into a null return so most callers can just treat
@@ -124,14 +128,38 @@ class XtreamClient(private val client: OkHttpClient) {
             val url = buildApiUrl(provider, "action=get_short_epg&stream_id=$streamId&limit=$limit")
             val json = fetchJson(url) ?: return@withContext emptyList()
             val arr = json.optJSONArray("epg_listings") ?: return@withContext emptyList()
-            (0 until arr.length()).mapNotNull { i ->
+            val listings = (0 until arr.length()).mapNotNull { i ->
                 val obj = arr.optJSONObject(i) ?: return@mapNotNull null
                 val title = decodeEpgText(obj.optString("title", "")) ?: return@mapNotNull null
                 val start = obj.optString("start_timestamp", "0").toLongOrNull() ?: return@mapNotNull null
                 val stop = obj.optString("stop_timestamp", "0").toLongOrNull() ?: return@mapNotNull null
                 EpgProgram(title, start, stop)
             }
+            // Some panels store their local wall-clock as the UTC epoch, so their listings
+            // read hours in the future on a UTC-reckoning device. Shift them so the guide
+            // lines up with the device clock. Computed once per provider and cached.
+            val shift = epgEpochShiftSeconds(provider.serverUrl, listings)
+            if (shift == 0L) listings
+            else listings.map { it.copy(startTimestamp = it.startTimestamp - shift, stopTimestamp = it.stopTimestamp - shift) }
         }
+
+    /** Estimated per-provider EPG timezone shift, seconds. 0 = panel is spec-compliant. */
+    private fun epgEpochShiftSeconds(serverUrl: String?, listings: List<EpgProgram>): Long {
+        if (serverUrl == null) return 0L
+        epgShiftSecondsCache[serverUrl]?.let { return it }
+        val firstStart = listings.minOfOrNull { it.startTimestamp } ?: return 0L
+        val now = System.currentTimeMillis() / 1000
+        val gap = firstStart - now
+        // A spec-compliant panel lists the current programme first (it starts at or before
+        // now); at worst the first entry is the next one, still within the hour. A gap over
+        // an hour means the panel is clock-shifted - estimate the shift to the nearest
+        // half-hour and cache it, so every channel's guide agrees with the device clock.
+        val shift = if (gap > 3600L) {
+            (Math.round(gap / 1800.0).toLong() * 1800L).coerceIn(3600L, 14 * 3600L)
+        } else 0L
+        epgShiftSecondsCache[serverUrl] = shift
+        return shift
+    }
 
     private fun decodeEpgText(value: String): String? {
         if (value.isBlank()) return null

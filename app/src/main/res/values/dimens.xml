@@ -86,13 +86,13 @@
     <dimen name="tab_padding_vertical">12dp</dimen>
     <dimen name="poster_title_text">10sp</dimen>
     <dimen name="poster_badge_text">8sp</dimen>
-    <dimen name="poster_image_height">138dp</dimen>
+    <dimen name="poster_image_height">110dp</dimen>
     <!-- Horizontal shelf rows (Home/Series/Films). These were hardcoded in
          item_shelf_poster.xml, so unlike the grid they never scaled by device class - a TV
          got the same 108dp card as a phone and fitted six of them across the row. Artwork
          is 2:3, so the image height is (width - 16dp of card padding) x 1.5. -->
-    <dimen name="shelf_poster_width">108dp</dimen>
-    <dimen name="shelf_poster_image_height">138dp</dimen>
+    <dimen name="shelf_poster_width">86dp</dimen>
+    <dimen name="shelf_poster_image_height">110dp</dimen>
     <!-- General on-screen body copy outside the settings scale (empty states, Up Next). -->
     <dimen name="content_body_text">13sp</dimen>
 
@@ -151,7 +151,7 @@
     <!-- Minimum width one poster column may occupy; the grid fits as many as will go (then
          clamps to poster_grid_max_span). Portrait phones use a smaller value so a narrow
          screen still gets two columns rather than one. -->
-    <dimen name="poster_grid_min_column_width">128dp</dimen>
+    <dimen name="poster_grid_min_column_width">102dp</dimen>
 
     <!-- Search overlay. A width of 0dp is the sentinel for "fill the slot" - a dimen can't
          hold match_parent, so showSearchDialog() applies any non-zero value as an explicit
@@ -172,7 +172,7 @@
     <!-- Shorter than poster_image_height: a search column is much narrower than a Films/Series
          grid column, and the card's height doesn't follow its width, so the full-size value
          stretched the artwork well past the 2:3 it's cropped to. -->
-    <dimen name="search_poster_image_height">120dp</dimen>
+    <dimen name="search_poster_image_height">96dp</dimen>
 
     <!-- Search bar at the top of Home. Same 0dp = fill sentinel. -->
     <dimen name="home_search_bar_width">0dp</dimen>

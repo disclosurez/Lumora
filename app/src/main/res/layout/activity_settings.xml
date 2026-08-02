@@ -53,42 +53,47 @@
                 android:paddingHorizontal="@dimen/settings_gap_m"
                 android:paddingBottom="@dimen/settings_gap">
 
-                <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navGeneral" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_settings" android:tint="@color/nav_icon_tint" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/general" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/navProviders" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_providers" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/providers" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="1" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navPlayback" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_playback" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/playback" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="2" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navFilters" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_filters" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/filters" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="3" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navPrivacy" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_privacy" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/privacy" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="4" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navBackup" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_backup" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/backup_restore" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="5" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navEpg" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_epg" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/epg_sources" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="6" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navDownloads" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_downloads" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/downloads" />
                 </LinearLayout>
 
-                <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="7" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navPlugins" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_plugins" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/plugins" />
                     <TextView
@@ -115,7 +120,7 @@
                     android:showDividers="middle"
                     android:visibility="gone" />
 
-                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="8" android:background="@drawable/nav_rail_item_glass">
+                <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="9" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_about" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/about" />
                 </LinearLayout>
@@ -151,6 +156,20 @@
             android:clipToPadding="false"
             android:padding="@dimen/settings_pane_padding"
             android:paddingEnd="@dimen/settings_content_inset">
+
+            <!-- Pane: General - Simple mode / Disable VOD toggles are added from
+                 showProviderSettings (same dubCheckBoxRow pattern as the Filters pane). -->
+            <LinearLayout
+                android:id="@+id/paneGeneral"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/general" style="@style/TextAppearance.Lumora.SettingsTitle" />
+            </LinearLayout>
 
             <!-- Pane: Providers -->
             <LinearLayout
