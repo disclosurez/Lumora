@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.8
+
+### Continue Watching
+- **The ✕ on a Continue Watching shelf now clears it everywhere** - Home, Series and Movies at once, not just the tab the button was pressed on. Local resume data is wiped and Jellyfin's server-side resume list is cleared too, and a stale "hidden shelf" flag can't keep the row suppressed afterwards.
+- **A Continue Watching tile opens the series page, not a replay of the episode.** Clicking an in-progress episode lands on its series' detail screen with the full episode list; the Play button targets the next-unwatched episode. Jellyfin episodes now carry their parent series id so they resolve even from the server's resume list.
+
+### Back navigation
+- **Back no longer gets stuck at the top of a category.** The old walk-up selected the sidebar's first row - which on Live TV is the classic-layout control, not a category - so every press flipped the layout and Back never reached Home. Back now scrolls to the top of the section, then goes Home, then exits the app, from any tab.
+
+### Player
+- **Jellyfin direct-play retries with a fresh URL on a stale-stream error** instead of dropping to "Playback error" - transient server timeouts and expired direct-play URLs recover on their own.
+- **60s read timeout for slow remote Jellyfin/transcode servers** so a cold server start doesn't read as a failure.
+- **Subtitles are opt-in.** Sidecar subtitle tracks no longer auto-select; a "Subtitles" toggle in the playback filters pane turns them on for all playback, while the existing "dubbed episodes" option stays.
+
+### Live TV
+- **Guide rows show a now/next line** under the channel name, filled from the already-fetched EPG; the focused row adds the next program ("Now: X · Next: Y").
+- **Live preview black-frame detection is smarter** - it never samples mid-buffer (slow stalls can't falsely kill a healthy version) and resets its streak on each load or version switch.
+
+### Misc
+- **Touchscreen declared not required**, so TV sticks aren't filtered out of the supported device set.
+- Baseline profile module removed.
+
 ## 2.7
 
 ### Torrent playback on old devices
