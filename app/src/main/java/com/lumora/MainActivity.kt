@@ -888,19 +888,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** "Top of the section": nothing drilled into, both the sidebar and the content list
-     *  scrolled to their first row, and the first category selected. Anything else means
-     *  there's somewhere above the user to go before leaving for Home. */
+     *  scrolled to their first row. Anything else means there's somewhere above the user to
+     *  go before leaving for Home. */
     private fun isAtSectionTop(): Boolean {
         if (isTabDrilledIn()) return false
         if (!isListAtTop(activeContentList())) return false
         if (showingDiscover || showingDownloads) return true
         if (!isListAtTop(binding.categorySidebar)) return false
-        // Live TV always has a row auto-selected (Favourites/pinned/bucket) that can sit
-        // below the first sidebar row, so "at the top" means that selection has been walked
-        // up to the first row. Films/Series at their shelves have nothing selected
-        // (resetTabToShelves clears it) - and selecting the first category here would drill
-        // straight back into its grid, so a cleared selection already counts as the top.
-        if (activeTab == 0) return categoryAdapter.selectedId == categoryAdapter.currentList.firstOrNull()?.id
+        // No "first row selected" requirement on purpose: on Live TV the first sidebar row
+        // is the classic-layout control, not a category - walking the selection up to it
+        // flipped the layout on every Back and never satisfied the check, so Back got stuck
+        // at the top of a category. The auto-selected row already IS this section's top, and
+        // Films/Series at their shelves have nothing selected at all.
         return true
     }
 
@@ -916,16 +915,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
         binding.categorySidebar.scrollToPosition(0)
-        val first = categoryAdapter.currentList.firstOrNull()
-        // Only Live TV needs the selection walked up to the first row - it auto-selects a
-        // curated row below the top. On Films/Series, selecting the first category here
-        // would drill straight back into its grid, trapping Back in a shelf/category loop;
-        // the shelves are already that section's top, so just scroll.
-        // Not a parent row either way: selecting one of those toggles its expansion (see
-        // onCategorySelected), and collapsing a group is not what Back should do.
-        if (activeTab == 0 && first != null && !first.isParent && categoryAdapter.selectedId != first.id) {
-            onCategorySelected(first)
-        }
         focusFirstItemWhenReady(binding.categorySidebar)
     }
 
