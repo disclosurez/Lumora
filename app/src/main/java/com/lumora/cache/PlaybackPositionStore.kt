@@ -63,10 +63,16 @@ object PlaybackPositionStore {
 
     /** In-progress (not near-complete) items with a resumable channel snapshot, most
      *  recently watched first - for "Continue Watching". Entries saved before the
-     *  channel snapshot existed are skipped, not crash-worthy garbage. */
+     *  channel snapshot existed are skipped, not crash-worthy garbage. A snapshot with
+     *  neither an id nor a url is structurally broken - it can't render a tile or
+     *  resume, so it's dropped too. */
     fun getAllInProgress(context: Context): List<Channel> =
         ensureLoaded(context).entries
             .filter { !it.value.isNearComplete && it.value.positionMs > 0 }
+            .filter { entry ->
+                val ch = entry.value.channel
+                ch != null && (ch.id.isNotBlank() || ch.url.isNotBlank())
+            }
             .sortedByDescending { it.value.updatedAt }
             .mapNotNull { it.value.channel }
 
@@ -114,6 +120,9 @@ object PlaybackPositionStore {
                                 // headers below. These three are what lets the resume path
                                 // re-run the plugin's resolve() for a fresh URL instead.
                                 episodeNum = c.optInt("episodeNum", -1).takeIf { it >= 0 },
+                                categoryId = c.optString("categoryId", null),
+                                isJellyfin = c.optBoolean("isJellyfin", false),
+                                sourceProviderId = c.optString("sourceProviderId", null),
                                 pluginToken = c.optString("pluginToken", null),
                                 pluginId = c.optString("pluginId", null),
                                 streamHeaders = c.optJSONObject("streamHeaders")?.let { h ->
@@ -158,6 +167,13 @@ object PlaybackPositionStore {
                             ch.group?.let { put("group", it) }
                             ch.categoryName?.let { put("categoryName", it) }
                             ch.episodeNum?.let { put("episodeNum", it) }
+                            // Provider provenance, so Continue Watching can rebuild the
+                            // auto-advance episode queue after a cold restart (a series
+                            // episode is never in the catalog). Absent on entries written
+                            // before this was stored; the queue rebuild no-ops then.
+                            ch.categoryId?.let { put("categoryId", it) }
+                            put("isJellyfin", ch.isJellyfin)
+                            ch.sourceProviderId?.let { put("sourceProviderId", it) }
                             ch.pluginToken?.let { put("pluginToken", it) }
                             ch.pluginId?.let { put("pluginId", it) }
                             ch.streamHeaders?.takeIf { it.isNotEmpty() }?.let { headers ->

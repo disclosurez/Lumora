@@ -57,7 +57,9 @@ class PlayerManager(
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(20_000)
+            // 60s read: slow remote Jellyfin/transcode servers can take a while to start
+            // sending the stream - 20s made a cold server start read as "Playback error".
+            .setReadTimeoutMs(60_000)
 
         if (!userAgent.isNullOrBlank()) {
             httpFactory.setUserAgent(userAgent)
@@ -113,6 +115,11 @@ class PlayerManager(
                     .build()
             )
 
+        // Sidecar subtitles are opt-in: subs are OFF by default, and only the DEFAULT-flagged
+        // track is stamped SELECTION_FLAG_DEFAULT when the user has turned them on. Media3
+        // leaves non-default text tracks unselected, so off means nothing auto-selects.
+        val subtitlesEnabled = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+            .getBoolean("subtitles_enabled", false)
         if (subtitles.isNotEmpty()) {
             mediaItemBuilder.setSubtitleConfigurations(
                 subtitles.map { subtitle ->
@@ -123,7 +130,7 @@ class PlayerManager(
                         // FORCED carries the "only show this for foreign dialogue" meaning the
                         // track was authored with; DEFAULT is what makes the renderer pick it
                         // without the user going into the picker.
-                        .setSelectionFlags(if (subtitle.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
+                        .setSelectionFlags(if (subtitlesEnabled && subtitle.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
                         .setRoleFlags(if (subtitle.isForced) C.ROLE_FLAG_SUBTITLE or C.ROLE_FLAG_TRANSCRIBES_DIALOG else C.ROLE_FLAG_SUBTITLE)
                         .build()
                 }
@@ -147,7 +154,11 @@ class PlayerManager(
         // sidecar subtitles only come on when the user opted in (subtitles_with_dub).
         val subtitlesWithDub = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
             .getBoolean("subtitles_with_dub", false)
-        if (subtitles.isNotEmpty() && (audio?.equals("dub", ignoreCase = true) != true || subtitlesWithDub)) {
+        // Whole force-enable block is gated on the opt-in pref: when subtitles are OFF this
+        // keeps Media3's defaults (with no DEFAULT-flagged sidecar track above, no text track
+        // auto-selects). When ON, force text tracks on and point the selector at the sidecar's
+        // language (including the subtitles.first() fallback) so opt-in users get their subs.
+        if (subtitlesEnabled && subtitles.isNotEmpty() && (audio?.equals("dub", ignoreCase = true) != true || subtitlesWithDub)) {
             val preferred = subtitles.firstOrNull { it.isDefault } ?: subtitles.first()
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)

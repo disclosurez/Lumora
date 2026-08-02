@@ -139,6 +139,9 @@ private const val PREF_HIDE_ADULT = "hide_adult_categories"
 // stream plays back with its dubbed audio track (both default off).
 private const val PREF_PREFER_DUB_AUDIO = "prefer_dub_audio"
 private const val PREF_SUBTITLES_WITH_DUB = "subtitles_with_dub"
+// Sidecar subtitles are opt-in: off by default, and PlayerManager reads this to decide
+// whether DEFAULT-flagged subtitle tracks auto-select on playback.
+private const val PREF_SUBTITLES_ENABLED = "subtitles_enabled"
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
@@ -163,6 +166,13 @@ private const val SEARCH_BATCH_SIZE = 50
 // Generic User-Agent for stream HTTP requests.
 private const val STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 private const val FAVOURITES_CATEGORY_ID = "__favourites__"
+/** Films/Series sidebar row pooling the tab's most recent releases by date - mirrors the
+ *  "Newest" content shelf that already led the Films/Series poster. */
+private const val NEWEST_CATEGORY_ID = "__newest__"
+/** Series sidebar row listing in-progress series - mirrors the Home "Continue Watching"
+ *  shelf, filtered to series entries. Renders its own grid because the episodes it carries
+ *  are not seriesList members (a grid-filter on seriesList would come up empty). */
+private const val CONTINUE_WATCHING_CATEGORY_ID = "__continue_watching__"
 private const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
 /** Films/Series sidebar row that filters the tab down to Jellyfin-sourced items only.
  *  Only built when the tab actually contains Jellyfin content. */
@@ -252,6 +262,9 @@ class MainActivity : AppCompatActivity() {
     // channel list doesn't touch the main PlayerManager used for fullscreen playback.
     private var previewPlayerManager: PlayerManager? = null
     private var previewChannelId: String? = null
+    // The channel the user last committed to the preview pane (first OK press, or any
+    // auto-load). A second OK on the same channel opens it fullscreen.
+    private var previewTargetChannel: Channel? = null
     private var previewLoadRunnable: Runnable? = null
     private var previewVersionGroup: List<Channel> = emptyList()
     private var previewVersionIndex = 0
@@ -271,6 +284,10 @@ class MainActivity : AppCompatActivity() {
     private var liveVersions: Map<String, List<Channel>> = emptyMap()
     private var filmShelves: List<ContentShelf> = emptyList()
     private var seriesShelves: List<ContentShelf> = emptyList()
+    /** The Series sidebar's category rows, cached at derive time so refreshSeriesShelvesIfShowing()
+     *  can rebuild the Series shelf list (favourites/newest/continue move after playback) without
+     *  re-running the expensive buildCategoryRows() pass. */
+    private var cachedSeriesCategoryRows: List<CategoryFilter> = emptyList()
     private var currentVersionGroup: List<Channel> = emptyList()
     private var currentVersionIndex = 0
     /** The series a currently-playing episode came from, paired with every provider's copy of
@@ -415,6 +432,11 @@ class MainActivity : AppCompatActivity() {
     private var categoryChildrenCache: Map<String, List<CategoryFilter>> = emptyMap()
     private var nowPlayingChannel: Channel? = null
     private var resumePromptShown = false
+    /** Set right before an auto-advanced episode starts so its STATE_READY does not throw a
+     *  "Resume playback?" dialog at the top of a brand-new episode; consumed and cleared in
+     *  maybeShowResumePrompt, and cleared again by every user-initiated play entry point so a
+     *  stale value (playback errored before STATE_READY) never suppresses a real prompt. */
+    private var skipResumePrompt = false
     private var progressTickCount = 0
 
     // ── Jellyfin server-side state ──────────────
@@ -427,6 +449,9 @@ class MainActivity : AppCompatActivity() {
      *  JellyfinProvider.resolveStream). Its PlaySessionId is what ties every progress report
      *  to this play, and what lets the server tear a transcode down when it ends. */
     private var jellyfinPlaySession: JellyfinProvider.ResolvedStream? = null
+    // One-shot fresh-URL retry guard for Jellyfin direct-play: a transient server timeout or
+    // expired direct-play URL gets one re-resolve before the generic "Playback error".
+    private var jellyfinRetryAttempted = false
     private var jellyfinPlayingItemId: String? = null
     private var jellyfinChapters: List<JellyfinProvider.Chapter> = emptyList()
     private var jellyfinTrickplay: JellyfinProvider.TrickplayInfo? = null
@@ -472,6 +497,15 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var pendingBackupManager: BackupManager? = null
+    /** First-paint flag for the progressive render path (paint Live ASAP once, then surgical
+     *  partial re-renders) - see renderLivePartial(). */
+    private var uiPainted: Boolean = false
+    /** The in-flight films/series derive launched by deriveFilmsSeries(), if any - cancelled
+     *  on a new provider load and joined before tab switches that need it. */
+    private var filmsSeriesDeriveJob: Job? = null
+    /** The in-flight surgical live re-render launched by renderLivePartial(), if any -
+     *  coalesces the near-simultaneous provider-completion re-renders into one pass. */
+    private var liveRenderJob: Job? = null
 
     companion object {
         private const val REQUEST_EXPORT_BACKUP = 2001
@@ -481,31 +515,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val liveAdapter = LiveGuideAdapter(
-        onChannelClick = { channel -> playItem(channel) },
-        onChannelFocused = { channel -> requestPreviewLoad(channel) },
+        onChannelClick = { channel -> onChannelOkPress(channel) },
+        onChannelFocused = { channel -> lastFocusedLiveChannel = channel },
         onChannelLongPress = { channel -> toggleFavoriteChannel(channel) },
         onProgramLongPress = { channel, program -> toggleProgramReminder(channel, program) },
         isReminderSet = { key -> ReminderStore.get(this, key) != null },
         fetchPrograms = { channelId -> resolveEpgPrograms(channelId) }
     )
     private val seriesShelfAdapter = ShelfAdapter(
-        onItemClick = { item -> playItem(item) },
+        // onHomeItemClick, not playItem: the Continue Watching shelf row holds EPISODES,
+        // and playItem's SERIES branch would open the episode itself as a dead detail page.
+        // onHomeItemClick resolves an episode to its series (with direct-play fallback).
+        onItemClick = { item -> onHomeItemClick(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinShelfCategory(1, shelf) },
-        onHideClick = { shelf -> toggleHiddenShelfCategory(1, shelf) },
+        onHideClick = { shelf -> if (shelf.title == "Continue Watching") clearContinueWatching() else toggleHiddenShelfCategory(1, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinShelfCategory(2, shelf) },
-        onHideClick = { shelf -> toggleHiddenShelfCategory(2, shelf) },
+        onHideClick = { shelf -> if (shelf.title == "Continue Watching") clearContinueWatching() else toggleHiddenShelfCategory(2, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     private val homeShelfAdapter = ShelfAdapter(
         onItemClick = { item -> onHomeItemClick(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
-        onHideClick = { shelf -> toggleHiddenHomeShelf(shelf.title) },
+        onHideClick = { shelf -> if (shelf.title == "Continue Watching") clearContinueWatching() else toggleHiddenHomeShelf(shelf.title) },
         showPinButton = false
     )
     // Single-category selection swaps to these - a vertical, scrollable grid instead of
@@ -513,7 +550,7 @@ class MainActivity : AppCompatActivity() {
     // single row.
     private val seriesGridAdapter = com.lumora.adapter.PosterGridAdapter(
         onItemLongClick = { item -> toggleFavoriteVodItem(item) }
-    ) { item -> playItem(item) }
+    ) { item -> onHomeItemClick(item) }
     private val filmsGridAdapter = com.lumora.adapter.PosterGridAdapter(
         onItemLongClick = { item -> toggleFavoriteVodItem(item) }
     ) { item -> playItem(item) }
@@ -858,8 +895,13 @@ class MainActivity : AppCompatActivity() {
         if (!isListAtTop(activeContentList())) return false
         if (showingDiscover || showingDownloads) return true
         if (!isListAtTop(binding.categorySidebar)) return false
-        val firstId = categoryAdapter.currentList.firstOrNull()?.id
-        return categoryAdapter.selectedId == firstId
+        // Live TV always has a row auto-selected (Favourites/pinned/bucket) that can sit
+        // below the first sidebar row, so "at the top" means that selection has been walked
+        // up to the first row. Films/Series at their shelves have nothing selected
+        // (resetTabToShelves clears it) - and selecting the first category here would drill
+        // straight back into its grid, so a cleared selection already counts as the top.
+        if (activeTab == 0) return categoryAdapter.selectedId == categoryAdapter.currentList.firstOrNull()?.id
+        return true
     }
 
     private fun goToSectionTop() {
@@ -875,9 +917,13 @@ class MainActivity : AppCompatActivity() {
         }
         binding.categorySidebar.scrollToPosition(0)
         val first = categoryAdapter.currentList.firstOrNull()
-        // Not a parent row: selecting one of those toggles its expansion (see
+        // Only Live TV needs the selection walked up to the first row - it auto-selects a
+        // curated row below the top. On Films/Series, selecting the first category here
+        // would drill straight back into its grid, trapping Back in a shelf/category loop;
+        // the shelves are already that section's top, so just scroll.
+        // Not a parent row either way: selecting one of those toggles its expansion (see
         // onCategorySelected), and collapsing a group is not what Back should do.
-        if (first != null && !first.isParent && categoryAdapter.selectedId != first.id) {
+        if (activeTab == 0 && first != null && !first.isParent && categoryAdapter.selectedId != first.id) {
             onCategorySelected(first)
         }
         focusFirstItemWhenReady(binding.categorySidebar)
@@ -1243,23 +1289,27 @@ class MainActivity : AppCompatActivity() {
         val previousLoad = providerLoadJob
         providerLoadJob = scope.launch {
             previousLoad?.cancelAndJoin()
+            filmsSeriesDeriveJob?.cancel()
             // The cached catalog is authoritative until it goes stale: re-fetching every
             // launch means several seconds of "Loading..." and, on a large catalog, real
             // work for a result that is almost always identical. Providers change rarely,
             // so the network is only worth hitting once every CATALOG_TTL_MS - or right
             // away when the user changes a provider, which force-refreshes.
+            var renderedStaleCache = false
+            var cached: List<Channel>? = null
             if (!forceRefresh) {
-                val cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
-                if (!cached.isNullOrEmpty() && !isCatalogStale()) {
-                    // No anime-plugin gate here: an anime stream-search plugin with a cache
-                    // that predates it used to force a full network refetch on EVERY launch,
-                    // which made a warm cache useless for plugin users (the whole point of
-                    // the cache is that providers change rarely). The Anime row degrades
-                    // gracefully to a plain category until the next refresh instead.
+                cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
+                if (!cached.isNullOrEmpty()) {
+                    // Paint the cached catalog immediately (Live first, films/series in background),
+                    // then only hit the network when the cache is stale - a non-stale cache returns
+                    // here; a stale one falls through and refreshes silently under the content.
                     allChannels = cached
-                    classifyAndShow()
+                    classifyAndShowLiveFirst()
+                    uiPainted = true
+                    deriveFilmsSeries()
                     setStatus("", visible = false)
-                    return@launch
+                    if (!isCatalogStale()) return@launch
+                    renderedStaleCache = true
                 }
             }
 
@@ -1268,13 +1318,18 @@ class MainActivity : AppCompatActivity() {
             var expiryText: String? = null
 
             val enabledConfigs = IptvProviderStore.load(prefs).filter { it.enabled }
-            if (enabledConfigs.isNotEmpty()) {
+            if (!uiPainted && enabledConfigs.isNotEmpty()) {
                 setStatus(
                     if (enabledConfigs.size == 1) "Connecting to ${enabledConfigs.first().name}..."
                     else "Connecting to ${enabledConfigs.size} providers...",
                     visible = true
                 )
             }
+            val animeDeferred = if (enabledStreamSearchPlugin() != null) {
+                // fetchAnimeChannels does synchronous OkHttp calls, and this loader coroutine
+                // runs on Main - the Dispatchers.IO hop mirrors the sequential version below.
+                async { withContext(Dispatchers.IO) { fetchAnimeChannels() } }
+            } else null
             // Fetched concurrently, not one after another - they used to run sequentially, so
             // a single dead/slow provider (up to PROVIDER_FETCH_TIMEOUT_MS - a Stalker portal
             // alone walks up to 200 live pages plus 50 each of VOD and series, each with its own
@@ -1284,23 +1339,32 @@ class MainActivity : AppCompatActivity() {
             // reported as failed on its own if it can't answer in time.
             val fetchResults = enabledConfigs.map { config ->
                 async {
-                    config to (withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
+                    val result = withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
                         when (config.type) {
                             "xtream" -> fetchXtreamChannels(config) { expiryText = it }
                             "stalker" -> fetchStalkerChannels(config) { live ->
-                                // Live TV on screen the moment it's in, rather than waiting on
-                                // this provider's VOD/series too - see fetchStalkerChannels' kdoc.
-                                allChannels = allChannels.filterNot { it.sourceProviderId == config.id } + live
-                                classifyAndShow()
+                                mergeProviderPartial(config.id, live)
+                                renderLivePartial()
                             }
                             else -> fetchM3uChannels(config)
                         }
-                    } ?: FetchResult.Failure("timed out"))
+                    } ?: FetchResult.Failure("timed out")
+                    if (result is FetchResult.Success) {
+                        mergeProviderPartial(config.id, result.channels)
+                        renderLivePartial()
+                    }
+                    config to result
                 }
             }.awaitAll()
+            // Enabled ids are re-read here rather than reusing the pre-loop snapshot: toggling
+            // a provider off mid-refresh drops its id from this set, so the channels it just
+            // fetched can't slip back into the catalog. Items with no sourceProviderId
+            // (Jellyfin/anime) always pass.
+            val enabledProviderIds = IptvProviderStore.load(prefs).filter { it.enabled }.map { it.id }.toSet()
             for ((config, result) in fetchResults) {
                 when (result) {
-                    is FetchResult.Success -> combined += result.channels
+                    is FetchResult.Success ->
+                        combined += result.channels.filter { it.sourceProviderId == null || it.sourceProviderId in enabledProviderIds }
                     is FetchResult.Failure -> errors += "${config.name}: ${result.message}"
                 }
             }
@@ -1311,21 +1375,28 @@ class MainActivity : AppCompatActivity() {
                     is FetchResult.Failure -> errors += result.message
                 }
             }
+            val animeChannels = animeDeferred?.await()
+            if (!animeChannels.isNullOrEmpty()) {
+                combined += animeChannels
+            }
 
-            // Anime catalog: only fetched when a stream_search plugin is installed & enabled.
-            // The plugin handles stream resolution; this provides the browse-layer catalog.
-            if (enabledStreamSearchPlugin() != null) {
-                // On Dispatchers.IO: fetchAnimeChannels does synchronous OkHttp calls, and this
-                // loader coroutine runs on Main - calling it directly threw NetworkOnMainThreadException
-                // (caught, so anime silently came back empty every time).
-                val animeChannels = withContext(Dispatchers.IO) { fetchAnimeChannels() }
-                if (animeChannels.isNotEmpty()) {
-                    combined += animeChannels
+            // A stale-cache refresh that failed completely must not wipe the cached catalog off
+            // the screen: keep the cached allChannels, surface the errors, and don't stamp the
+            // TTL (a stamp here would leave the app on stale data for the whole TTL window).
+            if (combined.isEmpty() && renderedStaleCache) {
+                // The progressive partial merges above already mutated allChannels to a
+                // partial-only catalog - revert to the full cached list before bailing out.
+                if (cached != null) allChannels = cached
+                setStatus("", visible = false)
+                if (errors.isNotEmpty()) {
+                    Toast.makeText(this@MainActivity, errors.joinToString(" · "), Toast.LENGTH_LONG).show()
                 }
+                return@launch
             }
 
             allChannels = combined
-            classifyAndShow()
+            filmsSeriesDeriveJob?.cancel()
+            classifyAndShow(preserveUi = uiPainted)
             withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
             // Only a load that actually produced a catalog resets the TTL - stamping it on a
             // total failure would leave the app sitting on an empty catalog for 12 hours.
@@ -1857,12 +1928,25 @@ class MainActivity : AppCompatActivity() {
         val seriesShelves: List<ContentShelf>
     )
 
+    /** The films/series half of a derive pass, returned whole so callers can assign the
+     *  fields on the thread of their choosing (side-effect assignment on a cancellable
+     *  Default-thread job could land after a newer load's fresh write). */
+    private data class FilmsSeriesContent(
+        val filmList: List<Channel>,
+        val filmVersions: Map<String, List<Channel>>,
+        val filmShelves: List<ContentShelf>,
+        val seriesList: List<Channel>,
+        val seriesVersions: Map<String, List<Channel>>,
+        val seriesShelves: List<ContentShelf>,
+        val seriesCategoryRows: List<CategoryFilter>
+    )
+
     /**
      * Filtering, dedup-grouping, sorting, and shelf-building over the whole catalog
      * (tens of thousands of items on a big provider) is real CPU work - it must run
      * off the main thread or the UI stalls/looks hung on every load and refresh.
      */
-    private suspend fun classifyAndShow() {
+    private suspend fun classifyAndShow(preserveUi: Boolean = false) {
         val snapshot = allChannels
         val hideNonEnglish = prefs.getBoolean(PREF_HIDE_NON_ENGLISH, true)
         val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
@@ -1907,27 +1991,244 @@ class MainActivity : AppCompatActivity() {
             binding.emptyState.visibility = View.GONE
             binding.contentRow.visibility = View.VISIBLE
             updateTopChromeVisibility()
-            if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else selectTab(activeTab)
+            if (preserveUi) {
+                // Surgical refresh of the current tab: the fresh data above already landed in
+                // every adapter, but instead of the selectTab/selectHome/selectDiscover dispatch
+                // (which resets scroll, position and focus) only the pane actually on screen is
+                // re-fed in place. The hasContent branch set contentRow visible for the
+                // categorized layout, so the panes that own the slot outright (Home, Discover)
+                // put it back before their own refresh.
+                if (showingHome) {
+                    binding.contentRow.visibility = View.GONE
+                    homeShelfAdapter.submitList(buildHomeShelves())
+                } else if (showingDiscover) {
+                    // Discover owns the slot and has no catalog chrome to refresh - the
+                    // refreshed catalog is picked up when the user switches back.
+                    binding.contentRow.visibility = View.GONE
+                } else if (!showingDownloads) {
+                    scope.launch {
+                        // Guard mirrors selectTab's: the category build is seconds' work on a
+                        // large catalog, and the user can leave this tab while it runs - never
+                        // land the sidebar over a pane that moved in.
+                        if (showingHome || showingDiscover || showingDownloads) {
+                            setStatus("", visible = false)
+                            return@launch
+                        }
+                        if (activeTab != 0) filmsSeriesDeriveJob?.join()
+                        val categories = buildCategoriesForActiveTab()
+                        // Validate the preserved row against the freshly rebuilt categories -
+                        // a row whose id no longer exists (provider dropped the group, the
+                        // filter hid it) must not keep pointing at nothing. Falls back to the
+                        // same default target selectTab would have picked on a fresh entry.
+                        if (selectedRowId != null && categories.none { it.id == selectedRowId }) {
+                            selectedRowId = null
+                            selectedCategoryLabel = null
+                            selectedBrandChannelIds = null
+                            selectedCategoryIds = null
+                            if (activeTab == 0) {
+                                val hasFavourites = com.lumora.cache.FavoritesStore.getFavoriteChannelIds(this@MainActivity).isNotEmpty()
+                                val target = categories.firstOrNull { it.id == FAVOURITES_CATEGORY_ID }?.takeIf { hasFavourites }
+                                    ?: categories.firstOrNull { it.pinned }
+                                    ?: categories.firstOrNull { it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true }
+                                if (target != null) {
+                                    selectedRowId = target.id
+                                    selectedCategoryLabel = target.name
+                                    selectedBrandChannelIds = target.channelIds.ifEmpty { null }
+                                    selectedCategoryIds = if (target.channelIds.isNotEmpty()) null else target.matchIds
+                                }
+                            }
+                        }
+                        // A category-grid filter whose matchIds now match no item would leave an
+                        // empty pane - fall back to the All view instead of showing nothing.
+                        val matchIds = selectedCategoryIds
+                        if (matchIds != null) {
+                            val source = when (activeTab) { 0 -> liveChannels; 1 -> seriesList; else -> filmList }
+                            val empty = withContext(Dispatchers.Default) { source.none { it.filterKey() in matchIds } }
+                            if (empty) selectedCategoryIds = null
+                        }
+                        submitCategories(categories)
+                        applyCategoryFilter(focusFirstLiveChannel = false)
+                        binding.contentRow.visibility = View.VISIBLE
+                        setStatus("", visible = false)
+                        applyStatus()
+                    }
+                }
+                // Keep the preview pointed at the current channel's fresh incarnation (null
+                // when the refresh removed it). No requestPreviewLoad - the running preview
+                // keeps playing, and the next focus pick-up resolves liveVersions[channel.id]
+                // against the new map.
+                lastFocusedLiveChannel = liveChannels.firstOrNull { it.id == lastFocusedLiveChannel?.id }
+            } else {
+                if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else selectTab(activeTab)
+            }
         } else {
             showEmptyState()
         }
     }
 
-    private fun computeDerivedContent(allChannels: List<Channel>, hideNonEnglish: Boolean, hideAdult: Boolean): DerivedContent {
-        fun isAdult(ch: Channel) = hideAdult && isAdultCategory(ch.categoryName, ch.group)
+    /** Paint-the-Live-ASAP path: derive only the live half off the main thread, then run the
+     *  same first-paint sequence classifyAndShow() uses for the Live tab. If the user has
+     *  already left for another tab, only the live side is filled in - selectTab and other
+     *  tabs' state are left to their own render path, never touched from here. */
+    private fun classifyAndShowLiveFirst() {
+        scope.launch {
+            withContext(Dispatchers.Default) { deriveLiveHalf(allChannels) }
+            // Mirror of classifyAndShow()'s first-paint bind block, live side only - the
+            // other tabs' adapters and shelves belong to their own render path.
+            val hasContent = allChannels.isNotEmpty() || enabledStreamSearchPlugin() != null
+            if (hasContent) {
+                // Mirror of classifyAndShow()'s adapter-bind block (all five, not just the
+                // live side): on warm/stale-cache starts this is the only bind that runs, so
+                // the sidebar and Home/shelf panes would otherwise stay blank.
+                binding.liveContent.adapter = liveAdapter
+                binding.seriesContent.adapter = seriesShelfAdapter
+                binding.filmsContent.adapter = filmsShelfAdapter
+                binding.categorySidebar.adapter = categoryAdapter
+                binding.homeContent.adapter = homeShelfAdapter
+            }
+            // Settings/search overlays own the whole content slot while up - defer chrome
+            // swaps to their dismiss handlers, same as classifyAndShow().
+            if (activeSettingsOverlay != null || activeSearchOverlay != null) return@launch
+            if (hasContent) {
+                binding.emptyState.visibility = View.GONE
+                binding.contentRow.visibility = View.VISIBLE
+                updateTopChromeVisibility()
+                when {
+                    showingHome -> selectHome()
+                    showingDiscover -> selectDiscover()
+                    activeTab == 0 -> selectTab(activeTab)
+                    // Guard: user already moved to another tab - live side only, no selectTab.
+                    else -> Unit
+                }
+            } else {
+                showEmptyState()
+            }
+        }
+    }
 
-        val rawLive = allChannels.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
-            .filterNot { isAdult(it) }
+    /** The expensive films/series pass (dedup/sort/category-row/shelf build), off the main
+     *  thread, with a late-write guard: if allChannels was swapped while the snapshot was
+     *  being derived, the result is dropped - a newer load owns the render. Never calls
+     *  selectTab and never raises status; the caller decides when the result shows. */
+    private fun deriveFilmsSeries() {
+        val snapshot = allChannels
+        filmsSeriesDeriveJob = scope.launch(Dispatchers.Default) {
+            if (allChannels !== snapshot) return@launch
+            val result = deriveFilmsSeriesHalf(snapshot)
+            withContext(Dispatchers.Main) {
+                // Guard again before touching the UI: the shelf build is seconds of work on
+                // a big catalog, and a newer load may have swapped allChannels mid-derive.
+                // isActive too - a cancelled job must never land its fields on the UI.
+                if (allChannels !== snapshot || !isActive) return@withContext
+                filmList = result.filmList
+                filmVersions = result.filmVersions
+                filmShelves = result.filmShelves
+                seriesList = result.seriesList
+                seriesVersions = result.seriesVersions
+                seriesShelves = result.seriesShelves
+                cachedSeriesCategoryRows = result.seriesCategoryRows
+                // Mirror of classifyAndShow()'s shelf submits for the films/series shelves.
+                seriesShelfAdapter.submitList(seriesShelves)
+                filmsShelfAdapter.submitList(filmShelves)
+                if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+            }
+        }
+    }
+
+    /** Merges one provider's freshly-fetched channels into allChannels, replacing anything
+     *  previously loaded from that same provider (matched by config id). */
+    private fun mergeProviderPartial(configId: String?, channels: List<Channel>) {
+        allChannels = allChannels.filterNot { it.sourceProviderId == configId } + channels
+    }
+
+    /** Live-only re-render, coalesced: the first call paints the Live tab ASAP (live half +
+     *  first paint); later calls while on the Live tab surgically re-filter the live data in
+     *  place - no position reset, no selectTab, nothing outside the live side touched. */
+    private fun renderLivePartial() {
+        if (!uiPainted) {
+            uiPainted = true
+            classifyAndShowLiveFirst()
+        } else if (activeTab == 0) {
+            // Coalesce: N near-simultaneous provider completions each land here - if one
+            // surgical re-render is already in flight, drop this one (the in-flight pass
+            // reads allChannels fresh and sees the merged result).
+            if (liveRenderJob?.isActive == true) return
+            liveRenderJob = scope.launch {
+                withContext(Dispatchers.Default) { deriveLiveHalf(allChannels) }
+                // Mirror applyCategoryFilter()'s live branch (source filter) minus the
+                // scroll-to-top - keep the user's position, just re-submit fresh data.
+                val source = liveChannels
+                val isFavourites = selectedRowId == FAVOURITES_CATEGORY_ID
+                val favoriteIds = if (isFavourites) FavoritesStore.getFavoriteChannelIds(this@MainActivity) else emptySet()
+                val brandIds = selectedBrandChannelIds
+                val matchIds = selectedCategoryIds
+                val filtered = withContext(Dispatchers.Default) {
+                    when {
+                        isFavourites -> source.filter { it.id in favoriteIds }
+                        brandIds != null && matchIds != null -> source.filter { it.id in brandIds || it.filterKey() in matchIds }
+                        brandIds != null -> source.filter { it.id in brandIds }
+                        matchIds == null -> source
+                        else -> source.filter { it.filterKey() in matchIds }
+                    }
+                }
+                // A category-grid filter whose matchIds now match no item (a partial merge
+                // that hasn't covered the selected category yet) would leave an empty pane -
+                // fall back to the All view instead of showing nothing.
+                val empty = if (matchIds != null) {
+                    withContext(Dispatchers.Default) { source.none { it.filterKey() in matchIds } }
+                } else false
+                if (matchIds != null && empty) {
+                    selectedCategoryIds = null
+                    liveAdapter.submitList(source)
+                } else {
+                    liveAdapter.submitList(filtered)
+                }
+            }
+        }
+    }
+
+    private fun computeDerivedContent(allChannels: List<Channel>, hideNonEnglish: Boolean, hideAdult: Boolean): DerivedContent {
+        deriveLiveHalf(allChannels)
+        val result = deriveFilmsSeriesHalf(allChannels)
+        filmList = result.filmList
+        filmVersions = result.filmVersions
+        filmShelves = result.filmShelves
+        seriesList = result.seriesList
+        seriesVersions = result.seriesVersions
+        seriesShelves = result.seriesShelves
+        cachedSeriesCategoryRows = result.seriesCategoryRows
+        return DerivedContent(liveChannels, liveVersions, filmList, filmVersions, filmShelves, seriesList, seriesVersions, seriesShelves)
+    }
+
+    /** Live half of the derive pass: filter + adult-drop + quality-version grouping into
+     *  liveChannels/liveVersions. Cheap relative to the films/series half (no shelves), so
+     *  it's extracted first and reused by the paint-Live-ASAP path. */
+    private fun deriveLiveHalf(list: List<Channel>) {
+        val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
+        val rawLive = list.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
+            .filterNot { hideAdult && isAdultCategory(it.categoryName, it.group) }
         val useClassic = prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
-        val (groupedLive, liveVers) = if (useClassic) {
+        if (useClassic) {
             // Classic: no quality version merging — show every channel as-is from the provider.
             // Version map is empty since every variant appears as its own channel entry.
-            rawLive to emptyMap()
+            liveChannels = rawLive
+            liveVersions = emptyMap()
         } else {
-            groupLiveQualityVersions(rawLive)
+            val (grouped, vers) = groupLiveQualityVersions(rawLive)
+            liveChannels = grouped
+            liveVersions = vers
         }
+    }
 
-        val rawFilms = allChannels.filter { it.mediaType == MediaType.MOVIE }
+    /** Films/series half of the derive pass: dedup/sort, category rows, and shelf build into
+     *  a [FilmsSeriesContent] result (no field side effects - the caller assigns them on its
+     *  own thread). The expensive half - run off the main thread. */
+    private fun deriveFilmsSeriesHalf(list: List<Channel>): FilmsSeriesContent {
+        val hideNonEnglish = prefs.getBoolean(PREF_HIDE_NON_ENGLISH, true)
+        val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
+        fun isAdult(ch: Channel) = hideAdult && isAdultCategory(ch.categoryName, ch.group)
+
+        val rawFilms = list.filter { it.mediaType == MediaType.MOVIE }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
             .filterNot { isAdult(it) }
             .map { it.withResolvedYear() }
@@ -1955,7 +2256,7 @@ class MainActivity : AppCompatActivity() {
         val filmShelvesLocal = shelvesFromCategoryRows(filmCategoryRows.rows, films)
             .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms)) + shelves }
 
-        val rawSeries = allChannels.filter { it.mediaType == MediaType.SERIES }
+        val rawSeries = list.filter { it.mediaType == MediaType.SERIES }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
             .filterNot { isAdult(it) }
             .map { it.withResolvedYear() }
@@ -1975,16 +2276,29 @@ class MainActivity : AppCompatActivity() {
             animeSections = animeSectionsSnapshot, useClassicLayout = false, favoriteChannelIds = emptySet()
         )
         // Newest and Favourites stay pinned at the very top of the poster, above the
-        // sidebar-derived category shelves.
+        // sidebar-derived category shelves. Continue Watching slots between them, matching
+        // the sidebar order (Favourites > Continue Watching > Newest > categories).
         val seriesShelvesLocal = shelvesFromCategoryRows(seriesCategoryRows.rows, series)
             .let { shelves ->
                 (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries)) + shelves)
             }
             .let { shelves ->
+                val cw = seriesContinueItems()
+                if (cw.isEmpty()) shelves else listOf(ContentShelf("Continue Watching", cw)) + shelves
+            }
+            .let { shelves ->
                 if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
             }
 
-        return DerivedContent(groupedLive, liveVers, films, versions, filmShelvesLocal, series, seriesVers, seriesShelvesLocal)
+        return FilmsSeriesContent(
+            filmList = films,
+            filmVersions = versions,
+            filmShelves = filmShelvesLocal,
+            seriesList = series,
+            seriesVersions = seriesVers,
+            seriesShelves = seriesShelvesLocal,
+            seriesCategoryRows = seriesCategoryRows.rows
+        )
     }
 
     /** Maps sidebar category rows (the output of [buildCategoryRows], already in sidebar
@@ -2179,8 +2493,11 @@ class MainActivity : AppCompatActivity() {
     private fun showCategoryContextMenu(category: CategoryFilter) {
         val id = category.id ?: return
         // The Jellyfin row is always first by construction, so "Pin to top" would be a
-        // no-op - hiding it is the only meaningful action.
-        if (id == JELLYFIN_CATEGORY_ID) {
+        // no-op - hiding it is the only meaningful action. Same for the synthetic Newest and
+        // Continue Watching rows: they're prepended above the pinned block, so pinning them
+        // moves them nowhere, and pin is inert for them anyway (guards in
+        // buildCategoriesForActiveTab skip rows whose id is pinned).
+        if (id == JELLYFIN_CATEGORY_ID || id == NEWEST_CATEGORY_ID || id == CONTINUE_WATCHING_CATEGORY_ID) {
             AlertDialog.Builder(this)
                 .setTitle(category.name)
                 .setItems(arrayOf("Hide")) { _, _ -> toggleHiddenSidebarCategory(category) }
@@ -2254,6 +2571,26 @@ class MainActivity : AppCompatActivity() {
      *  user leaves and comes back. */
     private fun refreshHomeShelvesIfShowing() {
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+    }
+
+    /** Series-shelf counterpart of [refreshHomeShelvesIfShowing]: Continue Watching (and
+     *  favourites/newest) move when playback ends, so the Series poster needs the same
+     *  lightweight refresh. Rebuilds the shelf list from cachedSeriesCategoryRows - never
+     *  re-runs the expensive buildCategoryRows() pass. */
+    private fun refreshSeriesShelvesIfShowing() {
+        if (showingHome || activeTab != 1) return
+        if (binding.seriesContent.visibility != View.VISIBLE) return
+        val favoriteSeries = seriesList.filter { it.id in FavoritesStore.getFavoriteSeriesIds(this) }
+        val newestSeries = newestByDate(seriesList)
+        val shelves = shelvesFromCategoryRows(cachedSeriesCategoryRows, seriesList)
+            .let { s -> (if (newestSeries.isEmpty()) s else listOf(ContentShelf("Newest", newestSeries)) + s) }
+            .let { s ->
+                val cw = seriesContinueItems()
+                if (cw.isEmpty()) s else listOf(ContentShelf("Continue Watching", cw)) + s
+            }
+            .let { s -> if (favoriteSeries.isEmpty()) s else listOf(ContentShelf("Favourites", favoriteSeries)) + s }
+        seriesShelves = shelves
+        seriesShelfAdapter.submitList(shelves)
     }
 
     /** Long-press a future guide block to arm/disarm a 5-min-before notification for it. */
@@ -2333,8 +2670,12 @@ class MainActivity : AppCompatActivity() {
             else -> emptyMap()
         }
         val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
-        val result = withContext(Dispatchers.Default) {
-            buildCategoryRows(
+        // Synthetic Films/Series sidebar rows are computed on the same Default thread as the
+        // category pipeline: newestByDate sorts the whole tab list, and seriesContinueItems()
+        // reads the position store. Both prepend ABOVE Jellyfin, so the sidebar leads
+        // Continue Watching > Newest > Jellyfin > the real categories.
+        val (result, newestByTab, seriesContinue) = withContext(Dispatchers.Default) {
+            val rows = buildCategoryRows(
                 list = list,
                 versionsById = versionsById,
                 tab = tab,
@@ -2345,9 +2686,46 @@ class MainActivity : AppCompatActivity() {
                 useClassicLayout = useClassicLayout,
                 favoriteChannelIds = favoriteChannelIds
             )
+            Triple(
+                rows,
+                if (tab != 0) newestByDate(list) else emptyList(),
+                if (tab == 1) seriesContinueItems() else emptyList()
+            )
         }
         categoryChildrenCache = result.childrenByParent
-        return result.rows
+        // Guarded on pinned too: the legacy title-folding (buildCategoryRows) maps a pinned
+        // "Newest"/"Continue Watching" shelf title onto a real row id, and a folded row would
+        // collide with the synthetic one below - skip ours when the id is already pinned.
+        val rows = result.rows.toMutableList()
+        if (tab != 0 && NEWEST_CATEGORY_ID !in hiddenIds && NEWEST_CATEGORY_ID !in pinned) {
+            rows.add(
+                0,
+                CategoryFilter(
+                    id = NEWEST_CATEGORY_ID,
+                    name = "Newest",
+                    count = newestByTab.size,
+                    channelIds = newestByTab.map { it.id }.toSet(),
+                    isDynamic = true
+                )
+            )
+        }
+        // Continue Watching has no channelIds/matchIds - selecting it is a special case in
+        // applyCategoryFilter (its episodes are not seriesList members). Only added while it
+        // has items, like the Jellyfin row is only added while the tab has Jellyfin content.
+        if (tab == 1 && CONTINUE_WATCHING_CATEGORY_ID !in hiddenIds && CONTINUE_WATCHING_CATEGORY_ID !in pinned) {
+            if (seriesContinue.isNotEmpty()) {
+                rows.add(
+                    0,
+                    CategoryFilter(
+                        id = CONTINUE_WATCHING_CATEGORY_ID,
+                        name = "Continue Watching",
+                        count = seriesContinue.size,
+                        isDynamic = true
+                    )
+                )
+            }
+        }
+        return rows
     }
 
     /** Pure ordering pipeline behind the sidebar - shared with the Series/Films poster
@@ -2815,6 +3193,16 @@ class MainActivity : AppCompatActivity() {
             1 -> {
                 val source = seriesList
                 val shelfItems = selectedShelfItems
+                // Continue Watching's items are in-progress episodes, not seriesList members -
+                // a filterKey() match against seriesList would render an empty grid. Serve the
+                // continue list directly.
+                if (selectedRowId == CONTINUE_WATCHING_CATEGORY_ID) {
+                    setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
+                    binding.seriesContent.adapter = seriesGridAdapter
+                    seriesGridAdapter.submitList(seriesContinueItems())
+                    binding.seriesContent.scrollToPosition(0)
+                    return
+                }
                 // A dynamic row (genre bucket or streaming service) carries an explicit set
                 // of channel ids rather than provider category ids, because it deliberately
                 // spans several of them. Only Live TV honoured that, so on Series/Films
@@ -3327,6 +3715,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onHomeItemClick(channel: Channel) {
+        // User-initiated play - see playItem for why the suppression flag is cleared here.
+        skipResumePrompt = false
         when (channel.mediaType) {
             MediaType.LIVE -> playItem(channel)
             MediaType.MOVIE -> {
@@ -3338,14 +3728,87 @@ class MainActivity : AppCompatActivity() {
                 if (channel.pluginToken == null) detailReturnItem = channel
             }
             MediaType.SERIES -> {
-                // A Continue Watching tile reconstructs one specific episode, complete
-                // with a real stream url - resume it directly instead of opening the
-                // series' detail page. A top-level series entry (e.g. from Favorites)
-                // never has a url of its own (see XtreamClient.parseSeriesItem), so that
-                // case still falls through to the detail page as normal.
-                if (channel.url.isNotBlank()) showPlayerFor(channel) else showContentDetail(channel)
+                // An episode tile (Continue Watching) carries an episode number; clicking it
+                // should land on the series' detail page - the season chip lands on the
+                // episode's season and the Play button already points at the next-unwatched
+                // episode - rather than resuming the episode directly. A top-level series
+                // entry (Favorites, category grids) has no episode number and goes to the
+                // detail page as normal. url is NOT a reliable discriminator - catalog
+                // series items can carry one. If the episode's series can't be resolved,
+                // fall back to resuming the episode directly.
+                if (channel.episodeNum != null) {
+                    val series = resolveHomeTileSeries(channel)
+                    if (series != null) {
+                        showContentDetail(series)
+                    } else {
+                        showPlayerFor(channel)
+                        // A Continue Watching / Next Up tile is a lone episode with no queue
+                        // behind it - nothing would auto-advance when it ends. Back-fill the
+                        // same cross-season episode chain the detail page plays from.
+                        populateHomeTileEpisodeQueue(channel)
+                    }
+                } else {
+                    showContentDetail(channel)
+                }
             }
             else -> {}
+        }
+    }
+
+    /** Resolves the series a Home-tile episode belongs to: exact categoryId (the series id
+     *  Xtream parseEpisode and Jellyfin toChannel both stamp on episodes) match through the
+     *  catalog first, then the "{series} · {episode}" name-prefix fallback for snapshots that
+     *  predate categoryId. Null if unresolvable - callers fall back to direct play. */
+    private fun resolveHomeTileSeries(channel: Channel): Channel? {
+        // Exact series-id match. Ids are provider-scoped (Xtream series id, Jellyfin item
+        // id), so cross-matching is impossible - isJellyfin is the only guard needed, with
+        // sourceProviderId compared only when the snapshot carries one (older saves don't).
+        channel.categoryId?.takeIf { it.isNotBlank() }?.let { id ->
+            allChannels.firstOrNull {
+                it.mediaType == MediaType.SERIES && it.id == id && it.isJellyfin == channel.isJellyfin &&
+                    (channel.sourceProviderId == null || it.sourceProviderId == channel.sourceProviderId)
+            }?.let { return it }
+        }
+        // Name-prefix fallback for old snapshots: "Series Name · S01E02 · Title", longest
+        // name wins. Same-provider guard only when the snapshot knows its provider.
+        return allChannels
+            .filter {
+                it.mediaType == MediaType.SERIES && it.isJellyfin == channel.isJellyfin &&
+                    (channel.sourceProviderId == null || it.sourceProviderId == channel.sourceProviderId)
+            }
+            .filter { it.name.isNotBlank() && channel.name.startsWith(it.name + " · ") }
+            .maxByOrNull { it.name.length }
+    }
+
+    /** A Home tile can be one episode standing alone (Continue Watching, Jellyfin Next Up),
+     *  played with no queue - so when it ends nothing auto-advances. Back-fill the series'
+     *  full episode chain (all seasons, season-major then episode-major, the order the detail
+     *  page plays) and index it from the played episode. Any failure leaves the queue empty,
+     *  which is exactly what happened before this existed. */
+    private fun populateHomeTileEpisodeQueue(channel: Channel) {
+        val playedId = channel.id
+        if (playedId.isBlank()) return
+        // Jellyfin's chain comes from the server (getEpisodes/getSeasons), not Xtream
+        // getSeriesFull - and its tiles now resolve to the series detail page anyway, so
+        // this fallback never needs to build a Jellyfin queue.
+        if (channel.isJellyfin) return
+        scope.launch {
+            val ordered = withContext(Dispatchers.IO) {
+                val seriesId = channel.categoryId ?: return@withContext emptyList<Channel>()
+                val client = XtreamClient(BaseApplication.instance.okHttpClient)
+                // Seasons arrive season-major already; sort each season's episodes by
+                // episode number, then flatten into the cross-season chain.
+                client.getSeriesFull(xtreamProviderFor(channel) ?: provider, seriesId).seasons
+                    .flatMap { (_, eps) -> eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
+            }
+            // Don't clobber a queue belonging to whatever is playing now if the user moved on
+            // while the fetch was in flight.
+            if (nowPlayingChannel?.id != playedId) return@launch
+            val index = ordered.indexOfFirst { it.id == playedId }
+            if (index >= 0) {
+                currentEpisodeQueue = ordered
+                currentEpisodeQueueIndex = index
+            }
         }
     }
 
@@ -3357,6 +3820,28 @@ class MainActivity : AppCompatActivity() {
         if (!hidden.remove(title)) hidden.add(title)
         prefs.edit().putStringSet("hidden_home_shelves", hidden).apply()
         homeShelfAdapter.submitList(buildHomeShelves())
+    }
+
+    /** X on the "Continue Watching" shelf clears the resume data itself, not just hides the
+     *  shelf on the tab it was pressed on. Home, Series and Films all read the same store, so
+     *  one clear empties the row everywhere. Jellyfin resume lives on the server, so those
+     *  entries are dropped there too (best effort) and removed from memory immediately. Also
+     *  un-hides the CW shelf so future watching isn't stuck behind a stale hide flag. */
+    private fun clearContinueWatching() {
+        PlaybackPositionStore.clearAll(this)
+        val serverIds = jellyfinResumeItems.map { it.id }.toList()
+        jellyfinResumeItems = emptyList()
+        val client = jellyfinClient
+        if (client != null && serverIds.isNotEmpty()) {
+            scope.launch(Dispatchers.IO) {
+                serverIds.forEach { id -> runCatching { client.clearUserData(id) } }
+            }
+        }
+        getHiddenHomeShelves().let { if (it.remove("Continue Watching")) prefs.edit().putStringSet("hidden_home_shelves", it).apply() }
+        getHiddenCategories(1).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(1), it).apply() }
+        getHiddenCategories(2).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(2), it).apply() }
+        homeShelfAdapter.submitList(buildHomeShelves())
+        if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
     }
 
     /** Adult content never reaches a Home shelf, regardless of the "Hide adult categories"
@@ -3418,6 +3903,17 @@ class MainActivity : AppCompatActivity() {
         return shelves.filter { it.title !in hidden }
     }
 
+    /** Series-only Continue Watching for the Series tab - same merge as the Home shelf
+     *  (server resume list first, then local in-progress entries minus anything the server
+     *  already covered), filtered down to series and adult-dropped. Shared by the Series
+     *  sidebar row, its content grid, and the Series poster shelf. */
+    private fun seriesContinueItems(): List<Channel> {
+        val local = PlaybackPositionStore.getAllInProgress(this).filter { it.mediaType == MediaType.SERIES }
+        val server = jellyfinResumeItems.filter { it.mediaType == MediaType.SERIES }
+        val serverIds = server.map { it.id }.toSet()
+        return (server + local.filterNot { it.id in serverIds }).filterNot(::isAdultHomeItem)
+    }
+
     private fun selectTab(index: Int) {
         activeSettingsOverlay?.dismiss()
         activeSearchOverlay?.dismiss()
@@ -3467,6 +3963,10 @@ class MainActivity : AppCompatActivity() {
         binding.categorySidebar.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
         scope.launch {
+            // A tab switch away from Live must not race the films/series derive: categories
+            // for the Films/Series tabs read filmList/seriesList, so wait for any in-flight
+            // derive to land before building them against possibly-stale lists.
+            if (index != 0) filmsSeriesDeriveJob?.join()
             // Building categories/filtering thousands of channels can take a couple of
             // seconds on a large catalog - show the same loading indicator as app startup
             // instead of leaving the tab looking empty/frozen while it works.
@@ -3529,7 +4029,7 @@ class MainActivity : AppCompatActivity() {
         val calendar = java.util.Calendar.getInstance()
 
         binding.guideHeaderRow.removeAllViews()
-        repeat(10) { index ->
+        repeat(24) { index ->
             val label = TextView(this).apply {
                 text = if (index == 0) "Now" else timeFmt.format(calendar.time)
                 setTextColor(getColor(R.color.text_tertiary))
@@ -3564,6 +4064,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playItem(channel: Channel) {
+        // User-initiated play: never inherit a resume-prompt suppression left over from
+        // an auto-advance that never reached STATE_READY.
+        skipResumePrompt = false
         when (channel.mediaType) {
             MediaType.SERIES -> { showContentDetail(channel); return }
             MediaType.MOVIE -> { showContentDetail(channel); return }
@@ -3799,6 +4302,8 @@ class MainActivity : AppCompatActivity() {
         lateinit var itemAdapter: EpisodeAdapter
         itemAdapter = EpisodeAdapter(
             onEpisodeClick = { chosen ->
+                // User-initiated play - see playItem for why the suppression flag is cleared here.
+                skipResumePrompt = false
                 hideContentDetail()
                 // Anime items have no direct stream URL — route through plugin.
                 if (item.id.startsWith(AnimeCatalogClient.ID_PREFIX)) {
@@ -3875,25 +4380,50 @@ class MainActivity : AppCompatActivity() {
         // whichever episode was left in progress most recently (across every season, not
         // just the one currently shown), or falls back to the very first episode if
         // nothing's been started yet.
-        fun wirePlayButton(seasons: List<Pair<String, List<Channel>>>) {
-            val allEpisodes = seasons.flatMap { it.second }
-            val inProgress = allEpisodes.mapNotNull { ep ->
+        data class SeriesTargetSelection(val target: Channel, val ordered: List<Channel>, val isResume: Boolean)
+
+        fun findSeriesTargetEpisode(seasons: List<Pair<String, List<Channel>>>): SeriesTargetSelection? {
+            // Cross-season episode chain - the same ordering the Home-tile auto-advance
+            // queue uses: seasons in the order they were loaded, episodes within each
+            // season sorted by number.
+            val ordered = seasons.flatMap { (_, eps) ->
+                eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE }
+            }
+            // The "next episode to watch" is whatever was left part-watched most recently
+            // (across every season, not just the one currently shown): the in-progress
+            // episode with the newest saved position.
+            val inProgress = ordered.mapNotNull { ep ->
                 val key = ep.id.ifBlank { ep.url }
                 if (key.isBlank()) return@mapNotNull null
                 PlaybackPositionStore.get(this, key)
                     ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
                     ?.let { ep to it }
             }.maxByOrNull { it.second.updatedAt }
-            val target = inProgress?.first ?: allEpisodes.firstOrNull() ?: return
+            // Nothing part-watched: scan the chain in order, skipping finished
+            // (near-complete) episodes, and land on the first episode that still needs
+            // watching. Every episode finished falls back to episode 1.
+            val target = inProgress?.first ?: ordered.firstOrNull { ep ->
+                val key = ep.id.ifBlank { ep.url }
+                key.isNotBlank() && PlaybackPositionStore.get(this, key)?.isNearComplete != true
+            } ?: ordered.firstOrNull() ?: return null
+            return SeriesTargetSelection(target, ordered, inProgress != null)
+        }
+
+        fun wirePlayButton(seasons: List<Pair<String, List<Channel>>>) {
+            val selection = findSeriesTargetEpisode(seasons) ?: return
+            val target = selection.target
+            val ordered = selection.ordered
             val seasonPair = seasons.firstOrNull { (_, eps) -> eps.any { it.id == target.id } }
             val seasonNum = seasonPair?.first?.let { Regex("""\d+""").find(it)?.value }
             // "Play"/"Resume" alone didn't say *which* episode - with several seasons in
             // play this was a guessing game before committing to it.
             val tag = if (seasonNum != null && target.episodeNum != null) "S${seasonNum}E${target.episodeNum}" else null
-            playButtonLabel.text = listOfNotNull(if (inProgress != null) "Resume" else "Play", tag).joinToString(" ")
+            playButtonLabel.text = listOfNotNull(if (selection.isResume) "Resume" else "Play", tag).joinToString(" ")
             playButton.visibility = View.VISIBLE
             playButton.requestFocus()
             playButton.setOnClickListener {
+                // User-initiated play - see playItem for why the suppression flag is cleared here.
+                skipResumePrompt = false
                 hideContentDetail()
                 // Anime items route through the plugin instead of direct playback.
                 if (item.id.startsWith(AnimeCatalogClient.ID_PREFIX)) {
@@ -3903,12 +4433,13 @@ class MainActivity : AppCompatActivity() {
                     }
                 } else {
                     currentIndex = -1
-                    val queue = seasonPair?.second ?: allEpisodes
+                    // Full cross-season chain behind the chosen episode, so it keeps
+                    // auto-advancing through the whole show, not just the current season.
                     showPlayerFor(target)
                     detailReturnItem = item
                     detailReturnGroup = seriesGroup
-                    currentEpisodeQueue = queue
-                    currentEpisodeQueueIndex = queue.indexOf(target)
+                    currentEpisodeQueue = ordered
+                    currentEpisodeQueueIndex = ordered.indexOf(target)
                     currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
                 }
             }
@@ -3941,7 +4472,15 @@ class MainActivity : AppCompatActivity() {
                                 seasonRow.addView(chip)
                             }
                         }
-                        showSeason(seasons, 0)
+                        // Default the season selector to the season of the episode the user
+                        // is actually on (the same "next episode to watch" the Play button
+                        // targets), not season 1 - a resume from Continue Watching shouldn't
+                        // land on the wrong season's episode list. Re-runs on return from
+                        // playback (hidePlayer re-opens the detail), so the chip follows the
+                        // episode the user just finished too.
+                        val targetEp = findSeriesTargetEpisode(seasons)?.target
+                        val targetSeasonIndex = seasons.indexOfFirst { (_, eps) -> eps.any { it.id == targetEp?.id } }.coerceAtLeast(0)
+                        showSeason(seasons, targetSeasonIndex)
                         wirePlayButton(seasons)
                     }
                 } else {
@@ -3986,6 +4525,8 @@ class MainActivity : AppCompatActivity() {
                     playButton.visibility = View.VISIBLE
                     playButton.requestFocus()
                     playButton.setOnClickListener {
+                        // User-initiated play - see playItem for why the suppression flag is cleared here.
+                        skipResumePrompt = false
                         hideContentDetail()
                         currentIndex = filmList.indexOf(item)
                         showPlayerFor(versions.first())
@@ -4553,6 +5094,31 @@ class MainActivity : AppCompatActivity() {
                     if (state == Player.STATE_READY) { currentStreamPlayed = true; maybeShowResumePrompt() }
                 if (state == Player.STATE_ENDED) {
                     saveCurrentPlaybackPosition()
+                    // The plain save above leaves a just-finished episode near-complete
+                    // (filtered off Continue Watching), but the season isn't over - keep
+                    // the series on the "last watching" shelf by advancing the stored entry
+                    // to the next episode. Real duration (not the 0L the old branch wrote,
+                    // which the store dropped); the 1ms position is a placeholder that the
+                    // next episode's own progress ticks overwrite. Exhausted queue = series
+                    // finished, so drop the entry and let the series leave Home.
+                    val finished = nowPlayingChannel
+                    if (finished?.mediaType == MediaType.SERIES) {
+                        val finishedDur = playerManager.duration
+                        val finishedKey = finished.id.ifBlank { finished.url }
+                        val nextIdx = currentEpisodeQueueIndex + 1
+                        if (currentEpisodeQueueIndex >= 0 && nextIdx in currentEpisodeQueue.indices) {
+                            val next = currentEpisodeQueue[nextIdx]
+                            PlaybackPositionStore.save(
+                                this@MainActivity,
+                                next.id.ifBlank { next.url },
+                                1L,
+                                finishedDur,
+                                next
+                            )
+                        } else if (currentEpisodeQueueIndex >= 0 && currentEpisodeQueue.isNotEmpty()) {
+                            PlaybackPositionStore.clear(this@MainActivity, finishedKey)
+                        }
+                    }
                     // If Up Next countdown is already running, it will handle the advance.
                     if (upNextActive) return@onPlaybackStateChanged
                     // Silent fallback auto-advance when Up Next wasn't triggered
@@ -4560,6 +5126,7 @@ class MainActivity : AppCompatActivity() {
                     val queue = currentEpisodeQueue
                     val nextIdx = currentEpisodeQueueIndex + 1
                     if (nextIdx in queue.indices) {
+                        skipResumePrompt = true
                         showPlayerFor(queue[nextIdx])
                         currentEpisodeQueue = queue
                         currentEpisodeQueueIndex = nextIdx
@@ -4572,7 +5139,13 @@ class MainActivity : AppCompatActivity() {
                 resetStallTracking()
                 blackFrameStreak = 0
                 if (!tryNextQualityVersion()) {
-                    Toast.makeText(this@MainActivity, "Playback error", Toast.LENGTH_SHORT).show()
+                    // Jellyfin direct-play: one fresh-URL re-resolve before giving up - a
+                    // transient server timeout or an expired direct-play URL often recovers.
+                    if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
+                        retryJellyfinPlayback()
+                    } else {
+                        Toast.makeText(this@MainActivity, "Playback error", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -4761,6 +5334,7 @@ class MainActivity : AppCompatActivity() {
         // button left over from the last title would otherwise seek into the wrong film.
         jellyfinPlaySession = null
         jellyfinPlayingItemId = null
+        jellyfinRetryAttempted = false
         jellyfinChapters = emptyList()
         jellyfinTrickplay = null
         trickplayTileCache = null
@@ -4970,6 +5544,31 @@ class MainActivity : AppCompatActivity() {
     /** Retries playback with the next-best quality version of the current live channel, if
      *  any - the one being left behind failed (that's why this got called), so it's marked
      *  dead for a cooldown window instead of being tried again a few seconds later. */
+    /** One-shot Jellyfin direct-play recovery: a source error (server read timeout, expired
+     *  direct-play URL) re-resolves the item for a fresh URL rather than erroring out - the
+     *  failed URL is short-lived and per-session, so a fresh resolveStream is the right fix. */
+    private fun retryJellyfinPlayback() {
+        val channel = nowPlayingChannel ?: return
+        if (!channel.isJellyfin || channel.id.isBlank()) return
+        jellyfinRetryAttempted = true
+        scope.launch {
+            val startAt = playerManager.currentPosition
+            val jellyfin = jellyfinClientOrConnect()
+            val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
+                runCatching { jellyfin.resolveStream(channel.id, startAt) }.getOrNull()
+            }
+            if (nowPlayingChannel?.id != channel.id) return@launch
+            playerManager.playUrl(
+                resolved?.url ?: channel.url,
+                channel.streamUserAgent,
+                subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
+                startPositionMs = startAt
+            )
+            jellyfinPlaySession = resolved
+            jellyfinPlayingItemId = channel.id
+        }
+    }
+
     private fun tryNextQualityVersion(message: String = "Switching to alternate quality…"): Boolean {
         if (nowPlayingChannel?.mediaType != MediaType.LIVE) return false
         currentVersionGroup.getOrNull(currentVersionIndex)?.let { markStreamDead(it) }
@@ -5227,6 +5826,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkForPreviewBlackFrame() {
         if (activeTab != 0 || isPlayerVisible || binding.livePreviewPane.visibility != View.VISIBLE) return
+        // Never sample while the preview player is buffering - mid-buffer frames are
+        // usually black, and a slow stall could streak past the threshold and falsely
+        // kill a healthy version. Re-arm and try again once it reaches READY.
+        val previewState = previewPlayerManager?.playbackState
+        if (previewState == null || previewState == Player.STATE_BUFFERING) {
+            mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+            return
+        }
         val textureView = binding.previewSurface
         if (!textureView.isAvailable) {
             mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
@@ -5253,6 +5860,13 @@ class MainActivity : AppCompatActivity() {
 
     /** Live channels are never resumable; movies/episodes are, once far enough in. */
     private fun maybeShowResumePrompt() {
+        // An auto-advanced episode should just start from its beginning - no resume
+        // question. Consume the suppression either way so it never leaks into a later,
+        // user-initiated play.
+        if (skipResumePrompt) {
+            skipResumePrompt = false
+            return
+        }
         if (resumePromptShown) return
         val channel = nowPlayingChannel ?: return
         if (channel.mediaType == MediaType.LIVE) return
@@ -5280,7 +5894,14 @@ class MainActivity : AppCompatActivity() {
         if (pos == androidx.media3.common.C.TIME_UNSET || pos < 0) return
         if (dur <= 0) return
         val key = channel.id.ifBlank { channel.url }
-        PlaybackPositionStore.save(this, key, pos, dur, channel)
+        // Jellyfin episodes carry no series id of their own (toChannel drops it), so stamp
+        // the parent series id here - the detail page sets currentSeriesVersionContext for
+        // its plays - letting a later Continue Watching click resolve the series page.
+        // Movies and live channels are untouched.
+        val saveChannel = if (channel.mediaType == MediaType.SERIES) {
+            channel.copy(categoryId = channel.categoryId ?: currentSeriesVersionContext?.first?.id)
+        } else channel
+        PlaybackPositionStore.save(this, key, pos, dur, saveChannel)
     }
 
     private fun hidePlayer() {
@@ -5352,6 +5973,8 @@ class MainActivity : AppCompatActivity() {
         // Whatever just finished playing may have changed Continue Watching - refresh
         // Home so it's not stale until the next unrelated rebuild happens to touch it.
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        // Same for the Series poster shelf and its Continue Watching row.
+        refreshSeriesShelvesIfShowing()
         // Backing out of a film or an episode lands on that title's poster - the screen it was
         // started from - instead of the grid behind it, which is several D-pad moves and a
         // scroll position away from where the user actually was.
@@ -5417,7 +6040,7 @@ class MainActivity : AppCompatActivity() {
         val client = XtreamClient(BaseApplication.instance.okHttpClient)
         for (ch in epgCandidateChannels(channelId)) {
             val chProvider = xtreamProviderFor(ch) ?: continue
-            val programs = runCatching { client.getShortEpg(chProvider, ch.id, 6) }.getOrDefault(emptyList())
+            val programs = runCatching { client.getShortEpg(chProvider, ch.id, 16) }.getOrDefault(emptyList())
             if (programs.isNotEmpty()) return programs
         }
         return null
@@ -5491,6 +6114,7 @@ class MainActivity : AppCompatActivity() {
         previewLoadRunnable?.let { mainHandler.removeCallbacks(it) }
         previewLoadRunnable = null
         previewChannelId = null
+        previewTargetChannel = null
         mainHandler.removeCallbacks(previewBlackFrameCheckRunnable)
         binding.livePreviewGutter.visibility = View.GONE
         binding.livePreviewPane.visibility = View.GONE
@@ -5594,6 +6218,7 @@ class MainActivity : AppCompatActivity() {
         val idx = currentEpisodeQueueIndex
         currentEpisodeQueue = emptyList()
         currentEpisodeQueueIndex = -1
+        skipResumePrompt = true
         showPlayerFor(nextEp)
         // Restore the queue so Next/Prev work for subsequent episodes
         currentEpisodeQueue = queue
@@ -5611,9 +6236,21 @@ class MainActivity : AppCompatActivity() {
         mainHandler.removeCallbacks(upNextTickRunnable)
     }
 
+    /** Two-press channel open: first OK opens the channel in the preview pane; a second
+     *  OK on the same channel opens it fullscreen. */
+    private fun onChannelOkPress(channel: Channel) {
+        if (previewTargetChannel?.id == channel.id) {
+            playItem(channel)
+        } else {
+            previewTargetChannel = channel
+            requestPreviewLoad(channel)
+        }
+    }
+
     /** Debounced so fast D-pad scrolling through the list doesn't spawn a load per row. */
     private fun requestPreviewLoad(channel: Channel) {
         lastFocusedLiveChannel = channel
+        previewTargetChannel = channel
         if (activeTab != 0 || isPlayerVisible) return
         if (channel.id.isNotBlank() && channel.id == previewChannelId) return
         previewLoadRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -5624,6 +6261,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadPreview(channel: Channel) {
         if (activeTab != 0 || isPlayerVisible) return
+        // A streak must never carry across a new load (or a version switch): start it
+        // clean so only this load's own frames can trip the detector.
+        previewBlackFrameStreak = 0
         previewChannelId = channel.id
         binding.previewChannelName.text = channel.name
         binding.previewBuffering.visibility = View.VISIBLE
@@ -5884,7 +6524,7 @@ class MainActivity : AppCompatActivity() {
     /** A Filters-pane checkbox with a dimmed caption line under its title - the other filter
      *  toggles carry a single line, but these need the caption to say what the toggle changes
      *  about playback. Wired straight to [key] in the shared "iptv_prefs" file, so PlayerManager
-     *  sees the same value (subtitles_with_dub) without any extra plumbing. Styled to match the
+     *  sees the same value (subtitles_with_dub, subtitles_enabled) without any extra plumbing. Styled to match the
      *  static pane rows (hide-adult row's card surface, focus scale, and text hierarchy) so
      *  runtime-added rows don't read as cheaper than their XML siblings. */
     private fun dubCheckBoxRow(title: String, subtitle: String, key: String): CheckBox {
@@ -6575,6 +7215,11 @@ class MainActivity : AppCompatActivity() {
             "Subtitles with dubbed audio",
             "Show subtitles on dubbed episodes too",
             PREF_SUBTITLES_WITH_DUB
+        ))
+        filtersPane.addView(dubCheckBoxRow(
+            "Subtitles",
+            "Show subtitles on all playback",
+            PREF_SUBTITLES_ENABLED
         ))
 
         // StreamVault-style nav rail: one section visible at a time.

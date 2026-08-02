@@ -64,17 +64,41 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <TextView
-            android:id="@+id/guideChannelName"
+        <!-- Name + one "now playing" line, stacked, so the channel column reads the same
+             TiviMate way: number/logo, channel name, then what's airing. The now line is
+             filled from the already-fetched EPG by LiveGuideAdapter (rows without EPG keep
+             it empty/gone). It must stay non-focusable/non-clickable - guideChannelInfo
+             remains the D-pad target. Sized to guide_channel_number_text (the guide's small
+             secondary token) so name+now+padding still fit inside guide_row_min_height:
+             the row never grows taller than it was with just the name. -->
+        <LinearLayout
+            android:id="@+id/guideChannelTextCol"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:fontFamily="@font/inter_medium"
-            android:maxLines="1"
-            android:textColor="@color/text_primary"
-            android:textSize="@dimen/guide_channel_name_text" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/guideChannelName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="@font/inter_medium"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/guide_channel_name_text" />
+
+            <TextView
+                android:id="@+id/guideChannelNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/guide_channel_number_text" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- This wrapper must keep clipChildren at its default (true): a scrolled

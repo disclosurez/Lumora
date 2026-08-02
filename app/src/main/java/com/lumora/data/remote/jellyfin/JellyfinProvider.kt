@@ -498,6 +498,23 @@ class JellyfinProvider(private val client: OkHttpClient) {
         }.getOrDefault(false)
     }
 
+    /** Clears the server's resume/watched state for [itemId] - removes a title from the
+     *  server-side Continue Watching and Next Up lists. Mirrors setFavorite's request style. */
+    suspend fun clearUserData(itemId: String): Boolean {
+        val base = serverBase ?: return false
+        val token = accessToken ?: return false
+        val uid = userId ?: return false
+        val url = "$base/Users/$uid/Items/$itemId/UserData"
+        return runCatching {
+            val request = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("User-Agent", "Lumora/1.0")
+                .delete()
+                .build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
+
     private val mediaItemFields =
         "Overview,Genres,ProductionYear,PremiereDate,CommunityRating,BackdropImageTags,ImageTags,UserData,RunTimeTicks"
 
@@ -874,6 +891,11 @@ class JellyfinProvider(private val client: OkHttpClient) {
                 description = item.overview,
                 year = item.year?.toString(),
                 categoryName = item.genres.firstOrNull(),
+                // Stamp the parent series id on an episode so Continue Watching / Next Up
+                // tiles resolve back to the show (resolveHomeTileSeries matches categoryId
+                // against the catalog). The JellyfinItem carries it, but it was dropped
+                // here - which is why those rows direct-played instead of opening the series.
+                categoryId = if (item.mediaType == "Episode") item.seriesId else null,
                 episodeNum = item.episodeNumber,
                 mediaType = mediaType,
                 rating = item.rating?.toString(),

@@ -27,6 +27,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val FILLER_MINUTES = 30
+private const val NOW_PREFIX = "Now: "
+private const val NEXT_PREFIX = "Next: "
+private const val NOW_NEXT_SEPARATOR = " · "
 // Fast D-pad/fling scrolling flies a row past in well under this time; waiting this
 // long before firing its network fetch means rows that never settle never cost a
 // request at all - this is what keeps scrolling through thousands of channels smooth.
@@ -123,6 +126,7 @@ class LiveGuideAdapter(
         private val initialText: TextView = itemView.findViewById(R.id.guideChannelInitial)
         private val logoImage: ImageView = itemView.findViewById(R.id.guideChannelLogo)
         private val nameText: TextView = itemView.findViewById(R.id.guideChannelName)
+        private val nowText: TextView = itemView.findViewById(R.id.guideChannelNow)
         val scrollView: HorizontalScrollView = itemView.findViewById(R.id.guideProgramScroll)
         private val programRow: LinearLayout = itemView.findViewById(R.id.guideProgramRow)
         private val density = itemView.resources.displayMetrics.density
@@ -130,11 +134,20 @@ class LiveGuideAdapter(
         private var current: Channel? = null
         private var loadJob: Job? = null
         private var logoJob: Job? = null
+        // The EPG last rendered into this row, reused to fill the now/next line under the
+        // channel name - never re-fetched. Cleared on every bind so a recycled row can't
+        // carry a previous channel's schedule into its now line.
+        private var lastPrograms: List<XtreamClient.EpgProgram>? = null
 
         init {
             channelInfo.setOnClickListener { current?.let(onChannelClick) }
             channelInfo.setOnLongClickListener { current?.let { onChannelLongPress?.invoke(it) }; true }
-            channelInfo.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) current?.let { onChannelFocused?.invoke(it) } }
+            channelInfo.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) current?.let { onChannelFocused?.invoke(it) }
+                // Focused rows fold the next program into the now line; losing focus
+                // (including to a program block) drops back to current-only.
+                updateNowLine()
+            }
             scrollView.setOnScrollChangeListener { v, scrollX, _, _, _ -> broadcastScroll(scrollX, v as HorizontalScrollView) }
         }
 
@@ -165,6 +178,12 @@ class LiveGuideAdapter(
 
         fun bind(channel: Channel) {
             current = channel
+            // Recycled-row hygiene: a row sliding from an EPG channel to a no-EPG one must
+            // not keep the previous channel's now line up through the debounce window, and
+            // a bound-but-unfocused row must not show the focused "Now:/Next:" format.
+            lastPrograms = null
+            nowText.text = ""
+            nowText.visibility = View.GONE
             // guideChannelInfo's focus_scale stateListAnimator (scaleX/scaleY/translationZ)
             // can be interrupted mid-transition by fast RecyclerView recycling (this view
             // getting rebound to a different channel before its unfocus animation finishes),
@@ -331,6 +350,44 @@ class LiveGuideAdapter(
             while (programRow.childCount > blocks.size) {
                 programRow.removeViewAt(programRow.childCount - 1)
             }
+            // Store and render the now/next line from the same data that built the blocks,
+            // so it tracks the timeline highlight. Runs on both the synchronous bind path
+            // and the async loadJob path (callers guard with `current === channel`), which
+            // is exactly what keeps a recycled row's line from going stale.
+            lastPrograms = programs
+            updateNowLine()
+        }
+
+        /** Fills guideChannelNow from the row's already-fetched EPG. Unfocused rows show
+         *  just the current program title; the focused row appends the next one
+         *  ("Now: X · Next: Y") so a D-pad user browsing vertically sees what's on now and
+         *  what's coming. No EPG (or no program spanning now) leaves the line empty/gone. */
+        private fun updateNowLine() {
+            val programs = lastPrograms
+            if (programs.isNullOrEmpty()) {
+                nowText.text = ""
+                nowText.visibility = View.GONE
+                return
+            }
+            val nowSeconds = System.currentTimeMillis() / 1000
+            // Mirror renderPrograms' isCurrent predicate exactly (now in [start, stop)), so
+            // the highlighted timeline block and this line always name the same program.
+            val currentIndex = programs.indexOfFirst { nowSeconds in it.startTimestamp until it.stopTimestamp }
+            val current = if (currentIndex >= 0) programs[currentIndex] else null
+            // Next = the program right after the current one; if nothing airs right now
+            // (EPG gap), the first upcoming program.
+            val next = if (currentIndex >= 0) programs.getOrNull(currentIndex + 1)
+            else programs.firstOrNull { it.startTimestamp > nowSeconds }
+            val focused = channelInfo.isFocused
+            nowText.text = when {
+                focused && current != null && next != null ->
+                    NOW_PREFIX + current.title + NOW_NEXT_SEPARATOR + NEXT_PREFIX + next.title
+                focused && current != null -> NOW_PREFIX + current.title
+                focused && next != null -> NEXT_PREFIX + next.title
+                current != null -> current.title
+                else -> ""
+            }
+            nowText.visibility = if (nowText.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
 
         private fun makeBlock(): TextView {

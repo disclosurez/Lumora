@@ -851,8 +851,7 @@
 
                                 <FrameLayout
                                     android:layout_width="match_parent"
-                                    android:layout_height="@dimen/live_preview_height"
-                                    android:background="@color/canvas">
+                                    android:layout_height="@dimen/live_preview_height">
 
                                     <TextureView
                                         android:id="@+id/previewSurface"
