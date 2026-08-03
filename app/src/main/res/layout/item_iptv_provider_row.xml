@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The row itself is the enable/disable control: the checkbox is display-only (a bare
+<!-- The row itself is the enable/disable control: rowEnabled is display-only (a bare
      CheckBox is a poor D-pad target, and a focusable one competes with Edit/Remove), so
-     the root carries the focus and the click that flips it. -->
+     the root carries the focus and the click that flips it. rowVodBox is different: a real
+     per-provider VOD toggle, so it gets its own D-pad target with focus chrome. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rowRoot"
     android:layout_width="match_parent"
@@ -12,7 +13,7 @@
     android:clipToPadding="false"
     android:focusable="true"
     android:gravity="center_vertical"
-    android:nextFocusRight="@+id/rowEditButton"
+    android:nextFocusRight="@+id/rowVodBox"
     android:orientation="horizontal"
     android:padding="@dimen/settings_gap"
     android:stateListAnimator="@animator/focus_scale">
@@ -53,6 +54,24 @@
             android:textSize="@dimen/settings_text_caption" />
     </LinearLayout>
 
+    <CheckBox
+        android:id="@+id/rowVodBox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/settings_gap_s"
+        android:background="@drawable/bg_toolbar_button"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/inter_medium"
+        android:nextFocusLeft="@+id/rowRoot"
+        android:nextFocusRight="@+id/rowEditButton"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="1dp"
+        android:stateListAnimator="@animator/focus_scale_flat"
+        android:text="VOD"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/settings_text_caption" />
+
     <LinearLayout
         android:id="@+id/rowEditButton"
         android:layout_width="wrap_content"
@@ -62,7 +81,7 @@
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
-        android:nextFocusLeft="@+id/rowRoot"
+        android:nextFocusLeft="@+id/rowVodBox"
         android:nextFocusRight="@+id/rowRemoveButton"
         android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">

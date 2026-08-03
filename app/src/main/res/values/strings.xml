@@ -175,6 +175,9 @@
     <string name="playback_settings">Playback settings</string>
     <string name="hide_non_english">Hide non-English movies/series</string>
     <string name="hide_adult_categories">Hide adult categories</string>
+    <string name="categorize_live">Categorize live TV</string>
+    <string name="categorize_vod">Categorize movies &amp; series</string>
+    <string name="group_channels">Group duplicate channels</string>
     <string name="set_parental_pin">Set parental PIN</string>
     <string name="clear_watch_history">Clear watch history</string>
     <string name="plugins_description">Small scripts that add features - finding providers, or searching for streams. Nothing installs as a separate app; a script runs inside Lumora, and anything it proposes is only used if you confirm it.</string>

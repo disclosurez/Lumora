@@ -913,6 +913,54 @@
                     android:textColor="@color/text_primary"
                     android:textSize="@dimen/settings_text_body"
                     android:fontFamily="@font/inter_medium" />
+
+                <CheckBox
+                    android:id="@+id/settingsCategorizeLive"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:checked="true"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/categorize_live"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
+
+                <CheckBox
+                    android:id="@+id/settingsCategorizeVod"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:checked="true"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/categorize_vod"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
+
+                <CheckBox
+                    android:id="@+id/settingsGroupChannels"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:checked="true"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/group_channels"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
             </LinearLayout>
 
             <!-- Pane: Privacy -->

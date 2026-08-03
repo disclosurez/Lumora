@@ -50,6 +50,14 @@ object IptvProviderStore {
         return current
     }
 
+    /** Flips the per-provider VOD gate (movies/series off) for one provider, mirroring
+     *  setEnabled - loads, updates the matching entry, saves, returns the new list. */
+    fun setVodDisabled(prefs: SharedPreferences, id: String, disabled: Boolean): List<IptvProviderConfig> {
+        val current = load(prefs).map { if (it.id == id) it.copy(disableVod = disabled) else it }
+        save(prefs, current)
+        return current
+    }
+
     fun newId(): String = UUID.randomUUID().toString()
 
     /** One-time upgrade from the old single-provider pref scheme (provider_type, plus
@@ -101,6 +109,7 @@ object IptvProviderStore {
         put("type", c.type)
         put("name", c.name)
         put("enabled", c.enabled)
+        put("disableVod", c.disableVod)
         c.url?.let { put("url", it) }
         c.username?.let { put("username", it) }
         c.password?.let { put("password", it) }
@@ -112,6 +121,7 @@ object IptvProviderStore {
         type = o.optString("type", "m3u"),
         name = o.optString("name", "Provider"),
         enabled = o.optBoolean("enabled", true),
+        disableVod = o.optBoolean("disableVod", false),
         url = o.optString("url").takeIf { it.isNotBlank() },
         username = o.optString("username").takeIf { it.isNotBlank() },
         password = o.optString("password").takeIf { it.isNotBlank() },

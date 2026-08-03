@@ -83,8 +83,8 @@
     <dimen name="category_row_text">14sp</dimen>
     <!-- Tighter than the phone's 12dp/14dp: the category pill should hug its (now bold,
          larger) label rather than sit in a box sized for 10sp text. -->
-    <dimen name="category_row_padding_vertical">9dp</dimen>
-    <dimen name="category_row_padding_horizontal">12dp</dimen>
+    <dimen name="category_row_padding_vertical">6dp</dimen>
+    <dimen name="category_row_padding_horizontal">9dp</dimen>
     <dimen name="guide_channel_name_text">13sp</dimen>
     <dimen name="guide_channel_number_text">11sp</dimen>
     <dimen name="guide_channel_initial_text">13sp</dimen>

@@ -147,6 +147,12 @@ private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
 private const val PREF_SIMPLE_MODE = "simple_mode"
 private const val PREF_DISABLE_VOD = "disable_vod"
+// Catalogue presentation toggles (all default ON = enabled behavior): dynamic sidebar
+// categories on Live (genres/brand clusters) vs Films/Series (genres/service clusters),
+// and quality/duplicate merging across all three tabs.
+private const val PREF_CATEGORIZE_LIVE = "categorize_live"
+private const val PREF_CATEGORIZE_VOD = "categorize_vod"
+private const val PREF_GROUP_CHANNELS = "group_channels"
 // When the catalog was last fetched from the network; the cache serves every launch until
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
@@ -1338,7 +1344,17 @@ class MainActivity : AppCompatActivity() {
                 if (!cached.isNullOrEmpty()) {
                     // The VOD gate applies to a cached cold start too - the cache is saved
                     // unfiltered, so a cache written with VOD on would resurrect it here.
-                    if (isVodDisabled()) cached = cached.filter { it.mediaType == MediaType.LIVE }
+                    val vodDisabledProviderIds = IptvProviderStore.load(prefs).filter { it.disableVod }.map { it.id }.toSet()
+                    val jellyfinVodDisabled = prefs.getBoolean("jellyfin_disable_vod", false)
+                    if (isVodDisabled()) {
+                        cached = cached.filter { it.mediaType == MediaType.LIVE }
+                    } else if (vodDisabledProviderIds.isNotEmpty() || jellyfinVodDisabled) {
+                        cached = cached.filter { ch ->
+                            ch.mediaType == MediaType.LIVE ||
+                                !((ch.sourceProviderId != null && ch.sourceProviderId in vodDisabledProviderIds) ||
+                                    (ch.isJellyfin && jellyfinVodDisabled))
+                        }
+                    }
                     // Paint the cached catalog immediately (Live first, films/series in background),
                     // then only hit the network when the cache is stale - a non-stale cache returns
                     // here; a stale one falls through and refreshes silently under the content.
@@ -1492,7 +1508,7 @@ class MainActivity : AppCompatActivity() {
             onLive(live)
 
             // VOD gate: a live-only portal never touches the (slow) VOD/series fetch.
-            if (isVodDisabled()) return FetchResult.Success(live)
+            if (isVodDisabled() || config.disableVod) return FetchResult.Success(live)
 
             val vodSeriesResult = withContext(Dispatchers.IO) { stalker.loadVodAndSeries(stalkerProvider) }
             if (vodSeriesResult.isFailure) return FetchResult.Failure(vodSeriesResult.exceptionOrNull()?.message?.take(60) ?: "error")
@@ -1560,7 +1576,7 @@ class MainActivity : AppCompatActivity() {
                 val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
                 // VOD gate: only live TV is fetched - no movies/series crawl, no user-state
                 // import to seed their resume rows.
-                if (isVodDisabled()) {
+                if (isVodDisabled() || prefs.getBoolean("jellyfin_disable_vod", false)) {
                     liveItems
                 } else {
                     val movies = jellyfin.getMovies()
@@ -1889,7 +1905,7 @@ class MainActivity : AppCompatActivity() {
             val result = withContext(Dispatchers.IO) { M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient) }
             // VOD gate: an M3U file lists live and VOD in one parse - drop the VOD entries.
             val channels = result.channels
-                .let { list -> if (isVodDisabled()) list.filter { it.mediaType == MediaType.LIVE } else list }
+                .let { list -> if (isVodDisabled() || config.disableVod) list.filter { it.mediaType == MediaType.LIVE } else list }
             // sourceProviderId isn't needed for playback here (an M3U item's url is already
             // final), but it's what names the provider a duplicate came from on the detail
             // screen's version chips - without it every M3U copy is an anonymous "Version N".
@@ -1920,7 +1936,7 @@ class MainActivity : AppCompatActivity() {
             val series: List<Channel>
             withContext(Dispatchers.IO) {
                 // VOD gate: the (slow) VOD/series category+stream fetches are skipped entirely.
-                val vodDisabled = isVodDisabled()
+                val vodDisabled = isVodDisabled() || config.disableVod
                 val liveCatsDeferred = async { runCatching { client.getLiveCategories(xtreamProvider) }.getOrDefault(emptyList()) }
                 val vodCatsDeferred: Deferred<List<Pair<String, String>>>? = if (vodDisabled) null else async { runCatching { client.getVodCategories(xtreamProvider) }.getOrDefault(emptyList()) }
                 val seriesCatsDeferred: Deferred<List<Pair<String, String>>>? = if (vodDisabled) null else async { runCatching { client.getSeriesCategories(xtreamProvider) }.getOrDefault(emptyList()) }
@@ -2261,7 +2277,8 @@ class MainActivity : AppCompatActivity() {
         val rawLive = list.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
             .filterNot { hideAdult && isAdultCategory(it.categoryName, it.group) }
         val useClassic = prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
-        if (useClassic) {
+        val groupChannels = prefs.getBoolean(PREF_GROUP_CHANNELS, true)
+        if (useClassic || !groupChannels) {
             // Classic: no quality version merging — show every channel as-is from the provider.
             // Version map is empty since every variant appears as its own channel entry.
             liveChannels = rawLive
@@ -2279,13 +2296,15 @@ class MainActivity : AppCompatActivity() {
     private fun deriveFilmsSeriesHalf(list: List<Channel>): FilmsSeriesContent {
         val hideNonEnglish = prefs.getBoolean(PREF_HIDE_NON_ENGLISH, true)
         val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
+        val groupChannels = prefs.getBoolean(PREF_GROUP_CHANNELS, true)
+        val categorizeVod = prefs.getBoolean(PREF_CATEGORIZE_VOD, true)
         fun isAdult(ch: Channel) = hideAdult && isAdultCategory(ch.categoryName, ch.group)
 
         val rawFilms = list.filter { it.mediaType == MediaType.MOVIE }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
             .filterNot { isAdult(it) }
             .map { it.withResolvedYear() }
-        val (groupedFilms, versions) = groupDuplicateMovies(rawFilms)
+        val (groupedFilms, versions) = if (groupChannels) groupDuplicateMovies(rawFilms) else rawFilms to emptyMap()
         val films = groupedFilms.sortedByDescending { it.year?.toIntOrNull() ?: -1 }
         // "Newest" pools the most recent releases (by date, not rating) into one shelf
         // pinned at the top, sorted by release date descending regardless of category.
@@ -2302,7 +2321,8 @@ class MainActivity : AppCompatActivity() {
         val filmCategoryRows = buildCategoryRows(
             list = films, versionsById = versions, tab = 2,
             pinned = filmPinned, hiddenIds = filmHidden, expanded = emptySet(),
-            animeSections = emptyList(), useClassicLayout = false, favoriteChannelIds = emptySet()
+            animeSections = emptyList(), useClassicLayout = false, favoriteChannelIds = emptySet(),
+            categorize = categorizeVod
         )
         // The old buildShelves() count-sorting is gone - shelf order IS the sidebar's row
         // order. Films keeps its single "Newest" prepend, exactly as before.
@@ -2315,7 +2335,7 @@ class MainActivity : AppCompatActivity() {
             .map { it.withResolvedYear() }
         // Real release date (from the provider's bulk series list) sorts more precisely
         // than year alone; falls back to year for anything that came back without one.
-        val (groupedSeries, seriesVers) = groupDuplicateSeries(rawSeries)
+        val (groupedSeries, seriesVers) = if (groupChannels) groupDuplicateSeries(rawSeries) else rawSeries to emptyMap()
         val series = groupedSeries
             .sortedWith(compareByDescending<Channel> { it.releaseDate ?: "" }.thenByDescending { it.year?.toIntOrNull() ?: -1 })
         // Favourited series get their own shelf pinned above everything else in the
@@ -2326,7 +2346,8 @@ class MainActivity : AppCompatActivity() {
         val seriesCategoryRows = buildCategoryRows(
             list = series, versionsById = seriesVers, tab = 1,
             pinned = seriesPinned, hiddenIds = seriesHidden, expanded = emptySet(),
-            animeSections = animeSectionsSnapshot, useClassicLayout = false, favoriteChannelIds = emptySet()
+            animeSections = animeSectionsSnapshot, useClassicLayout = false, favoriteChannelIds = emptySet(),
+            categorize = categorizeVod
         )
         // Newest and Favourites stay pinned at the very top of the poster, above the
         // sidebar-derived category shelves. Continue Watching slots between them, matching
@@ -2726,6 +2747,7 @@ class MainActivity : AppCompatActivity() {
             else -> emptyMap()
         }
         val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
+        val categorize = if (tab == 0) prefs.getBoolean(PREF_CATEGORIZE_LIVE, true) else prefs.getBoolean(PREF_CATEGORIZE_VOD, true)
         // Synthetic Films/Series sidebar rows are computed on the same Default thread as the
         // category pipeline: newestByDate sorts the whole tab list, and seriesContinueItems()
         // reads the position store. Both prepend ABOVE Jellyfin, so the sidebar leads
@@ -2740,7 +2762,8 @@ class MainActivity : AppCompatActivity() {
                 expanded = expandedSnapshot,
                 animeSections = animeSectionsSnapshot,
                 useClassicLayout = useClassicLayout,
-                favoriteChannelIds = favoriteChannelIds
+                favoriteChannelIds = favoriteChannelIds,
+                categorize = categorize
             )
             Triple(
                 rows,
@@ -2796,7 +2819,8 @@ class MainActivity : AppCompatActivity() {
         expanded: Set<String>,
         animeSections: List<AnimeCatalogClient.Section>,
         useClassicLayout: Boolean,
-        favoriteChannelIds: Set<String>   // tab 0 only
+        favoriteChannelIds: Set<String>,   // tab 0 only
+        categorize: Boolean   // render dynamic categories (buckets/brands/service clusters) for this tab
     ): CategoryBuildResult {
             val names = LinkedHashMap<String, String>()
             val counts = LinkedHashMap<String, Int>()
@@ -2877,10 +2901,10 @@ class MainActivity : AppCompatActivity() {
                 // is what a pin means - and they then land in pinnedRows, directly beneath
                 // the dynamic buckets.
                 val (pinnedLeaves, groupableLeaves) = leaves.partition { it.id in pinned }
-                val grouped = if (tab != 0) groupSeriesFilmCategories(groupableLeaves) else groupCategories(groupableLeaves)
+                val grouped = if (tab == 0 || !categorize) groupCategories(groupableLeaves) else groupSeriesFilmCategories(groupableLeaves)
                 grouped.map(::groupUnit) + pinnedLeaves.map { it to emptyList<CategoryFilter>() }
             }
-            val brandUnits = if (tab == 0 && !useClassicLayout) {
+            val brandUnits = if (tab == 0 && !useClassicLayout && categorize) {
                 deriveBrandCategories(list).map { (label, members) ->
                     val brandId = "brand:$label"
                     CategoryFilter(
@@ -2903,7 +2927,7 @@ class MainActivity : AppCompatActivity() {
             // left over cascades below, same priority order as before this existed. The
             // classic pref (Live TV only) bypasses this and shows the old flat/grouped list.
             val dynamicBuckets = if (tab == 0) LIVE_DYNAMIC_BUCKETS else VOD_DYNAMIC_BUCKETS
-            val (bucketRows, allUnitsEnhanced) = if (!useClassicLayout) {
+            val (bucketRows, allUnitsEnhanced) = if (!useClassicLayout && categorize) {
                 fun bucketFor(name: String): String? {
                     val lower = name.lowercase()
                     return dynamicBuckets.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
@@ -2996,7 +3020,7 @@ class MainActivity : AppCompatActivity() {
             // categories below both. Splitting them out here rather than
             // sorting them to the front keeps the three blocks separable at assembly time.
             val (serviceUnits, plainUnits) =
-                if (tab != 0) leftoverUnits.partition { it.first.isDynamic } else emptyList<Pair<CategoryFilter, List<CategoryFilter>>>() to leftoverUnits
+                if (tab != 0 && categorize) leftoverUnits.partition { it.first.isDynamic } else emptyList<Pair<CategoryFilter, List<CategoryFilter>>>() to leftoverUnits
             val remainderUnits = plainUnits
                 .let { units ->
                     if (tab != 0) units.sortedWith(
@@ -3329,7 +3353,7 @@ class MainActivity : AppCompatActivity() {
                 val snapshot = allChannels
                 val rawLive = snapshot.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
                     .filterNot { hideAdult && isAdultCategory(it.categoryName, it.group) }
-                if (newClassic) {
+                if (newClassic || !prefs.getBoolean(PREF_GROUP_CHANNELS, true)) {
                     liveChannels = rawLive
                     liveVersions = emptyMap()
                 } else {
@@ -6762,6 +6786,7 @@ class MainActivity : AppCompatActivity() {
         // name, type-specific fields) stays hidden until then.
         var currentType: String? = null
         var editingProviderId: String? = null
+        var editingVodDisabled = false
         val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
         val typeLabels = mapOf("m3u" to "M3U", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
 
@@ -6985,6 +7010,7 @@ class MainActivity : AppCompatActivity() {
         // is what keeps the QR code/fields on screen without a scroll.
         fun openIptvForm(existing: IptvProviderConfig?) {
             editingProviderId = existing?.id
+            editingVodDisabled = existing?.disableVod ?: false
             addIptvProviderButton.visibility = View.GONE
             iptvListSection.visibility = View.GONE
             providerNameInput.setText(existing?.name ?: "")
@@ -7028,6 +7054,7 @@ class MainActivity : AppCompatActivity() {
         // but pre-fills from those prefs instead of an IptvProviderConfig.
         fun openJellyfinEditForm() {
             editingProviderId = null
+            editingVodDisabled = prefs.getBoolean("jellyfin_disable_vod", false)
             addIptvProviderButton.visibility = View.GONE
             iptvListSection.visibility = View.GONE
             iptvFormTitle.text = "Editing Jellyfin"
@@ -7055,6 +7082,14 @@ class MainActivity : AppCompatActivity() {
                     enabledBox.isChecked = checked
                     IptvProviderStore.setEnabled(prefs, cfg.id, checked)
                     applyProviderToggle(checked) { it.sourceProviderId == cfg.id }
+                }
+                val vodBox = row.findViewById<CheckBox>(R.id.rowVodBox)
+                vodBox.isChecked = cfg.disableVod
+                // Persist before reloading - the reload must see the new flag, and a stale
+                // cache would resurrect the VOD items otherwise (see the cold-start filter).
+                vodBox.setOnClickListener {
+                    IptvProviderStore.setVodDisabled(prefs, cfg.id, vodBox.isChecked)
+                    if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
                 }
                 row.findViewById<TextView>(R.id.rowName).text = cfg.name
                 val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U" }
@@ -7087,6 +7122,12 @@ class MainActivity : AppCompatActivity() {
                     prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
                     applyProviderToggle(checked) { it.isJellyfin }
                 }
+                val vodBox = row.findViewById<CheckBox>(R.id.rowVodBox)
+                vodBox.isChecked = prefs.getBoolean("jellyfin_disable_vod", false)
+                vodBox.setOnClickListener {
+                    prefs.edit().putBoolean("jellyfin_disable_vod", vodBox.isChecked).apply()
+                    if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
+                }
                 row.findViewById<TextView>(R.id.rowName).text = "Jellyfin"
                 row.findViewById<TextView>(R.id.rowDetail).text = "Jellyfin · ${prefs.getString("jellyfin_url", "") ?: ""}"
                 row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openJellyfinEditForm() }
@@ -7096,7 +7137,7 @@ class MainActivity : AppCompatActivity() {
                         .setMessage("Its channels will no longer appear.")
                         .setPositiveButton("Remove") { _, _ ->
                             prefs.edit().remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
-                                .remove("jellyfin_provider_enabled").apply()
+                                .remove("jellyfin_provider_enabled").remove("jellyfin_disable_vod").apply()
                             renderIptvProviderList()
                             focusWhenReady(addIptvProviderButton)
                             loadAllConfiguredProviders(forceRefresh = true)
@@ -7276,6 +7317,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val categorizeLive = dialogView.findViewById<CheckBox>(R.id.settingsCategorizeLive)
+        categorizeLive.isChecked = prefs.getBoolean(PREF_CATEGORIZE_LIVE, true)
+        categorizeLive.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(PREF_CATEGORIZE_LIVE, checked).apply()
+            if (allChannels.isNotEmpty()) scope.launch { classifyAndShow() }
+        }
+        val categorizeVod = dialogView.findViewById<CheckBox>(R.id.settingsCategorizeVod)
+        categorizeVod.isChecked = prefs.getBoolean(PREF_CATEGORIZE_VOD, true)
+        categorizeVod.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(PREF_CATEGORIZE_VOD, checked).apply()
+            if (allChannels.isNotEmpty()) scope.launch { classifyAndShow() }
+        }
+        val groupChannelsBox = dialogView.findViewById<CheckBox>(R.id.settingsGroupChannels)
+        groupChannelsBox.isChecked = prefs.getBoolean(PREF_GROUP_CHANNELS, true)
+        groupChannelsBox.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(PREF_GROUP_CHANNELS, checked).apply()
+            if (allChannels.isNotEmpty()) scope.launch { classifyAndShow() }
+        }
+
         // Dub playback preferences: prefer dub-flagged search results, and keep the
         // sideloaded subtitles on when a stream plays back with its dubbed audio track.
         // Both default off; the subtitles one is read by PlayerManager from the same prefs.
@@ -7374,7 +7434,7 @@ class MainActivity : AppCompatActivity() {
         wirePluginsPane(dialogView) { selectSection(1) }
         // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
         // with the plugin list itself left at its previous section.
-        wirePluginNavRows(dialogView) { selectSection(8) }
+        wirePluginNavRows(dialogView) { selectSection(7) }
 
         // About pane
         dialogView.findViewById<TextView>(R.id.settingsAppVersion).text = try {
@@ -7509,6 +7569,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = id, type = "m3u", name = name.ifBlank { "M3U Playlist" }, enabled = true,
+                        disableVod = editingVodDisabled,
                         url = url, userAgent = uaInput.text.toString().trim().ifBlank { null }
                     ))
                 }
@@ -7517,6 +7578,7 @@ class MainActivity : AppCompatActivity() {
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = id, type = "xtream", name = name.ifBlank { "Xtream" }, enabled = true,
+                        disableVod = editingVodDisabled,
                         url = url, username = xtreamUser.text.toString().trim(), password = xtreamPass.text.toString().trim()
                     ))
                 }
@@ -7525,6 +7587,7 @@ class MainActivity : AppCompatActivity() {
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = id, type = "stalker", name = name.ifBlank { "Stalker Portal" }, enabled = true,
+                        disableVod = editingVodDisabled,
                         url = url, userAgent = stalkerMac.text.toString().trim()
                     ))
                 }
@@ -7538,6 +7601,7 @@ class MainActivity : AppCompatActivity() {
                         .putString("jellyfin_user", jellyfinUser.text.toString().trim())
                         .putString("jellyfin_pass", jellyfinPass.text.toString().trim())
                         .putBoolean("jellyfin_provider_enabled", true)
+                        .putBoolean("jellyfin_disable_vod", editingVodDisabled)
                         .apply()
                 }
             }
