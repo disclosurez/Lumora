@@ -76,7 +76,9 @@ class ShelfAdapter(
         fun bind(shelf: ContentShelf) {
             current = shelf
             titleText.text = "${shelf.title} (${shelf.items.size})"
-            if (showPinButton) {
+            // Pin star hidden for shelves whose category is inert (Newest / Jellyfin /
+            // classic toggle) - pinning them does nothing, so a star would read as broken.
+            if (showPinButton && shelf.categoryId !in NON_PINNABLE_CATEGORY_IDS) {
                 pinButton.visibility = View.VISIBLE
                 pinButton.text = if (shelf.pinned) "★" else "☆"
                 pinButton.setTextColor(pinButton.context.getColor(if (shelf.pinned) R.color.primary else R.color.text_secondary))

@@ -1282,8 +1282,46 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             allChannels = allChannels.filterNot(belongsToProvider)
             classifyAndShow()
-            withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
+            persistCatalog(allChannels)
         }
+    }
+
+    /** Saves [channels] to the disk catalog cache, first merging back the previously-cached
+     *  movies/series of any provider whose VOD gate is currently active. Fetch-time gates skip
+     *  the slow VOD/series crawl, which would otherwise strip that provider's VOD from the
+     *  cache and leave it unrecoverable until a network fetch runs with the gate lifted. The
+     *  cold-start filter (loadAllConfiguredProviders) is what hides gated VOD at display time,
+     *  so the cache itself stays display-unfiltered. */
+    private suspend fun persistCatalog(channels: List<Channel>) = withContext(Dispatchers.IO) {
+        val configs = IptvProviderStore.load(prefs)
+        val disableVodById = configs.filter { it.disableVod }.map { it.id }.toSet()
+        val configuredIds = configs.map { it.id }.toSet()
+        val jellyfinVodOff = prefs.getBoolean("jellyfin_disable_vod", false)
+        val globalVodOff = isVodDisabled()
+        if (!globalVodOff && disableVodById.isEmpty() && !jellyfinVodOff) {
+            ChannelCache.save(this@MainActivity, channels)
+            return@withContext
+        }
+        val old = ChannelCache.load(this@MainActivity)
+        if (old.isNullOrEmpty()) {
+            ChannelCache.save(this@MainActivity, channels)
+            return@withContext
+        }
+        val known = channels.map { it.id }.toSet()
+        val resurrect = old.filter { ch ->
+            if (ch.mediaType == MediaType.LIVE || ch.id in known) return@filter false
+            when {
+                // Per-provider gate (Xtream/M3U/Stalker): the provider is configured and flagged.
+                ch.sourceProviderId != null && ch.sourceProviderId in disableVodById -> true
+                // Jellyfin gate.
+                ch.isJellyfin && jellyfinVodOff -> true
+                // Global gate (simple mode / Disable VOD): keep VOD of still-configured owners so
+                // re-enabling restores it; dropped/removed providers' stale VOD does not resurrect.
+                globalVodOff && (ch.sourceProviderId in configuredIds || (ch.isJellyfin && hasJellyfinConfigured())) -> true
+                else -> false
+            }
+        }
+        ChannelCache.save(this@MainActivity, channels + resurrect)
     }
 
     /** True when the cached catalog is old enough to be worth re-fetching. A missing stamp
@@ -1337,7 +1375,6 @@ class MainActivity : AppCompatActivity() {
             // work for a result that is almost always identical. Providers change rarely,
             // so the network is only worth hitting once every CATALOG_TTL_MS - or right
             // away when the user changes a provider, which force-refreshes.
-            var renderedStaleCache = false
             var cached: List<Channel>? = null
             if (!forceRefresh) {
                 cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
@@ -1364,7 +1401,6 @@ class MainActivity : AppCompatActivity() {
                     deriveFilmsSeries()
                     setStatus("", visible = false)
                     if (!isCatalogStale()) return@launch
-                    renderedStaleCache = true
                 }
             }
 
@@ -1435,13 +1471,19 @@ class MainActivity : AppCompatActivity() {
                 combined += animeChannels
             }
 
-            // A stale-cache refresh that failed completely must not wipe the cached catalog off
-            // the screen: keep the cached allChannels, surface the errors, and don't stamp the
-            // TTL (a stamp here would leave the app on stale data for the whole TTL window).
-            if (combined.isEmpty() && renderedStaleCache) {
-                // The progressive partial merges above already mutated allChannels to a
-                // partial-only catalog - revert to the full cached list before bailing out.
-                if (cached != null) allChannels = cached
+            // A refresh that produced nothing must not wipe the cached catalog off disk or off the
+            // screen: keep the previously-cached allChannels, surface the errors, and don't stamp
+            // the TTL (a stamp here would leave the app on stale data for the whole TTL window).
+            // Covers both the stale-cache refresh and a forceRefresh (e.g. a VOD-toggle reload)
+            // whose fetches all failed - forceRefresh never loads `cached` up front, so fall back
+            // to reading the disk cache here.
+            if (combined.isEmpty()) {
+                val fallback = cached ?: withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
+                if (!fallback.isNullOrEmpty()) {
+                    allChannels = fallback
+                    filmsSeriesDeriveJob?.cancel()
+                    classifyAndShow(preserveUi = uiPainted)
+                }
                 setStatus("", visible = false)
                 if (errors.isNotEmpty()) {
                     Toast.makeText(this@MainActivity, errors.joinToString(" · "), Toast.LENGTH_LONG).show()
@@ -1452,7 +1494,7 @@ class MainActivity : AppCompatActivity() {
             allChannels = combined
             filmsSeriesDeriveJob?.cancel()
             classifyAndShow(preserveUi = uiPainted)
-            withContext(Dispatchers.IO) { ChannelCache.save(this@MainActivity, allChannels) }
+            persistCatalog(allChannels)
             // Only a load that actually produced a catalog resets the TTL - stamping it on a
             // total failure would leave the app sitting on an empty catalog for 12 hours.
             if (combined.isNotEmpty()) {
@@ -2327,7 +2369,7 @@ class MainActivity : AppCompatActivity() {
         // The old buildShelves() count-sorting is gone - shelf order IS the sidebar's row
         // order. Films keeps its single "Newest" prepend, exactly as before.
         val filmShelvesLocal = shelvesFromCategoryRows(filmCategoryRows.rows, films)
-            .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms)) + shelves }
+            .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms, categoryId = NEWEST_CATEGORY_ID)) + shelves }
 
         val rawSeries = list.filter { it.mediaType == MediaType.SERIES }
             .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
@@ -2354,7 +2396,7 @@ class MainActivity : AppCompatActivity() {
         // the sidebar order (Favourites > Continue Watching > Newest > categories).
         val seriesShelvesLocal = shelvesFromCategoryRows(seriesCategoryRows.rows, series)
             .let { shelves ->
-                (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries)) + shelves)
+                (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries, categoryId = NEWEST_CATEGORY_ID)) + shelves)
             }
             .let { shelves ->
                 val cw = seriesContinueItems()
@@ -2660,7 +2702,7 @@ class MainActivity : AppCompatActivity() {
         val favoriteSeries = seriesList.filter { it.id in FavoritesStore.getFavoriteSeriesIds(this) }
         val newestSeries = newestByDate(seriesList)
         val shelves = shelvesFromCategoryRows(cachedSeriesCategoryRows, seriesList)
-            .let { s -> (if (newestSeries.isEmpty()) s else listOf(ContentShelf("Newest", newestSeries)) + s) }
+            .let { s -> (if (newestSeries.isEmpty()) s else listOf(ContentShelf("Newest", newestSeries, categoryId = NEWEST_CATEGORY_ID)) + s) }
             .let { s ->
                 val cw = seriesContinueItems()
                 if (cw.isEmpty()) s else listOf(ContentShelf("Continue Watching", cw)) + s
@@ -7084,11 +7126,13 @@ class MainActivity : AppCompatActivity() {
                     applyProviderToggle(checked) { it.sourceProviderId == cfg.id }
                 }
                 val vodBox = row.findViewById<CheckBox>(R.id.rowVodBox)
-                vodBox.isChecked = cfg.disableVod
+                // Ticked = VOD enabled (inverse of the stored disableVod flag), so the
+                // checkbox reads the same way the user thinks about it and defaults ticked.
+                vodBox.isChecked = !cfg.disableVod
                 // Persist before reloading - the reload must see the new flag, and a stale
                 // cache would resurrect the VOD items otherwise (see the cold-start filter).
                 vodBox.setOnClickListener {
-                    IptvProviderStore.setVodDisabled(prefs, cfg.id, vodBox.isChecked)
+                    IptvProviderStore.setVodDisabled(prefs, cfg.id, !vodBox.isChecked)
                     if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
                 }
                 row.findViewById<TextView>(R.id.rowName).text = cfg.name
@@ -7123,9 +7167,10 @@ class MainActivity : AppCompatActivity() {
                     applyProviderToggle(checked) { it.isJellyfin }
                 }
                 val vodBox = row.findViewById<CheckBox>(R.id.rowVodBox)
-                vodBox.isChecked = prefs.getBoolean("jellyfin_disable_vod", false)
+                // Ticked = VOD enabled; Jellyfin flag is the inverse (disableVod style).
+                vodBox.isChecked = !prefs.getBoolean("jellyfin_disable_vod", false)
                 vodBox.setOnClickListener {
-                    prefs.edit().putBoolean("jellyfin_disable_vod", vodBox.isChecked).apply()
+                    prefs.edit().putBoolean("jellyfin_disable_vod", !vodBox.isChecked).apply()
                     if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
                 }
                 row.findViewById<TextView>(R.id.rowName).text = "Jellyfin"
