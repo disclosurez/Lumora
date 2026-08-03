@@ -482,60 +482,80 @@
         </HorizontalScrollView>
             </LinearLayout>
 
-            <!-- Settings / Refresh: fixed at the right end of the chrome row. marginStart =
-                 chrome_cluster_gap keeps them clear of the tab scroller's last item - Search,
-                 which now lives inside the scroller as a tab-styled button (id btnSearch, an
-                 exact copy of the tab items; the old search pill was removed). Search's
-                 RIGHT leaves the scroller into Settings, so the D-pad walks the whole row. -->
+            <!-- Settings / Refresh: fixed at the right end of the chrome row - deliberately
+                 OUTSIDE the tab scroller, so they stay visible and reachable when the tab
+                 bar is hidden (simple mode, search open, no provider). marginStart =
+                 chrome_cluster_gap keeps them clear of the scroller's last item (Search).
+                 Compact icon buttons, not tab pills: a pill is padded to hold icon+label,
+                 and that padding around a bare icon rendered as wide empty capsules. They
+                 keep the tab language where it matters - bg_tab_item (same focus ring as
+                 the tabs), tab-band height (chrome_button_height), focus_scale_flat, and
+                 gravity="top" so their top edge sits on the same y as the tab band's.
+                 clipChildren false so the 1.06x focus scale isn't sliced by this
+                 wrapper's bounds. -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginStart="@dimen/chrome_cluster_gap"
-                android:gravity="center_vertical"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:gravity="top"
                 android:orientation="horizontal">
 
-                <!-- Settings button: tab-band height (chrome_button_height) so the cluster
-                     reads uniform next to the tabs. -->
+                <!-- Settings button: icon-only, tab-band height, tight symmetric padding
+                     (chrome_button_padding_h) so it reads as a clean icon button rather
+                     than an empty pill. -->
                 <LinearLayout
                     android:id="@+id/btnSettings"
-                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_width="wrap_content"
                     android:layout_height="@dimen/chrome_button_height"
                     android:layout_marginStart="@dimen/toolbar_button_gap"
-                    android:background="@drawable/bg_toolbar_button"
+                    android:background="@drawable/bg_tab_item"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
+                    android:layerType="none"
                     android:nextFocusLeft="@id/btnSearch"
-                    android:nextFocusRight="@id/btnRefresh">
+                    android:nextFocusRight="@id/btnRefresh"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="@dimen/chrome_button_padding_h"
+                    android:stateListAnimator="@animator/focus_scale_flat">
 
                     <ImageView
-                        android:layout_width="@dimen/toolbar_icon_size"
-                        android:layout_height="@dimen/toolbar_icon_size"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
                         android:src="@drawable/ic_settings"
-                        android:tint="@color/text_primary" />
+                        android:tint="@color/text_secondary" />
                 </LinearLayout>
 
-                <!-- Refresh button: same tab-band height as search/settings. marginEnd
-                     mirrors toolbar_button_gap so the cluster gets the same air after the
-                     last button that it has between buttons - with the row's own end padding
-                     on top, the refresh glyph no longer hugs the screen edge. -->
+                <!-- Refresh button: same compact icon-button treatment as Settings. No
+                     start margin - it hugs Settings so the pair reads as one unit (the air
+                     to the scroller comes from the wrapper's chrome_cluster_gap). Padding
+                     is symmetric, matching Settings - the earlier asymmetric inner/outer
+                     padding read as a lopsided pill. marginEnd mirrors toolbar_button_gap
+                     so the cluster gets the same air after the last button that it has
+                     between buttons - with the row's own end padding on top, the refresh
+                     glyph no longer hugs the screen edge. -->
                 <LinearLayout
                     android:id="@+id/btnRefresh"
-                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_width="wrap_content"
                     android:layout_height="@dimen/chrome_button_height"
-                    android:layout_marginStart="@dimen/toolbar_button_gap"
                     android:layout_marginEnd="@dimen/toolbar_button_gap"
-                    android:background="@drawable/bg_toolbar_button"
+                    android:background="@drawable/bg_tab_item"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:nextFocusLeft="@id/btnSettings">
+                    android:layerType="none"
+                    android:nextFocusLeft="@id/btnSettings"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="@dimen/chrome_button_padding_h"
+                    android:stateListAnimator="@animator/focus_scale_flat">
 
                     <ImageView
-                        android:layout_width="@dimen/toolbar_icon_size"
-                        android:layout_height="@dimen/toolbar_icon_size"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
                         android:src="@drawable/ic_refresh"
-                        android:tint="@color/text_primary" />
+                        android:tint="@color/text_secondary" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>

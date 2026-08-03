@@ -167,6 +167,10 @@
          scroller's full height and read oversized next to the tabs. If the tab internals
          change, recalibrate this to the tab item's rendered height. -->
     <dimen name="chrome_button_height">51dp</dimen>
+    <!-- TV tier: tight edge for the icon-only settings/refresh pair - 18dp tab padding
+         around a 20dp icon rendered the measured 56dp-wide empty capsules. 10dp hugs the
+         icon while staying a reachable remote target inside the 51dp-tall band. -->
+    <dimen name="chrome_button_padding_h">10dp</dimen>
     <!-- TV tier: toolbar_padding_horizontal is 28dp, so -14dp leaves the brand ~14dp
          from the screen edge, corner-hugged with its top edge. -->
     <dimen name="toolbar_brand_translate_x">-14dp</dimen>

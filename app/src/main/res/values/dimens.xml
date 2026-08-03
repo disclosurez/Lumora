@@ -160,12 +160,21 @@
          pinched ones. The search pill now carries toolbar_search_padding_horizontal instead,
          so the spaces between and after the buttons share one rhythm. -->
     <dimen name="toolbar_button_gap">6dp</dimen>
-    <!-- Breathing room between the tab scroller and the search/settings/refresh cluster:
-         the pill used to touch the last tab (Discover) with zero gap, which read as an
+    <!-- Breathing room between the tab scroller and the settings/refresh cluster: the
+         search pill used to touch the last tab (Discover) with zero gap, which read as an
          overlap on TV. Dedicated dimen rather than toolbar_button_gap because that gap is
          for between-buttons spacing; this one separates a scrollable region from the
-         fixed cluster and needs to be wider. -->
-    <dimen name="chrome_cluster_gap">12dp</dimen>
+         fixed cluster and needs to be wider. 20dp (up from 12dp): the settings pill read
+         as crowding the Search tab even with the 12dp gap plus its own 8dp margin, and
+         either pill's 1.06x focus scale eats into it further. -->
+    <dimen name="chrome_cluster_gap">28dp</dimen>
+    <!-- Horizontal padding of the chrome-row icon buttons (settings/refresh). Deliberately
+         NOT tab_padding_horizontal: that metric pads a pill that holds icon+label, and
+         applied to a bare icon it rendered wide empty capsules (a 51dp-tall TV button was
+         56dp wide around a 20dp icon). This is a tight symmetric edge so the pair reads
+         as compact icon buttons - the tab-band height and focus ring carry the tab
+         language instead. -->
+    <dimen name="chrome_button_padding_h">10dp</dimen>
     <!-- The search pill's own horizontal padding, shrunk from the 14dp literal so its content
          sits as close to the settings button as the settings button sits to refresh. -->
     <dimen name="toolbar_search_padding_horizontal">10dp</dimen>

@@ -19,6 +19,9 @@
     <!-- Portrait-phone tab band: tab_padding_vertical 10dp x2 + 20dp icon + ~16dp label
          line (tab_text 12sp). Matches the unselected tab item height. -->
     <dimen name="chrome_button_height">56dp</dimen>
+    <!-- Portrait phone: tight edge for the icon-only settings/refresh pair (see
+         values/dimens.xml) - the 14dp tab padding would render them as empty capsules. -->
+    <dimen name="chrome_button_padding_h">8dp</dimen>
     <!-- The merged chrome row gives the tab scroller a weight=3 window; on a 360dp screen
          every dp counts, so the decorative brand collapses from 40dp to 28dp. -->
     <dimen name="toolbar_brand_size">28dp</dimen>
