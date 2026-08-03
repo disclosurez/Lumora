@@ -157,4 +157,26 @@
         android:stateListAnimator="@animator/focus_scale"
         android:tint="@color/text_secondary"
         android:visibility="gone" />
+
+    <!-- Watched-state toggle - the checkmark IS the control. Filled green when the
+         episode is watched, hollow outline otherwise (state_selected drives both this
+         background and the glyph tint). Always visible: at TV distance a badge alone
+         doesn't read as actionable, and this is the only affordance for marking.
+         The row's itemView focuses as a whole; LEFT/RIGHT between row and check is
+         wired via OnKeyListener in EpisodeAdapter (default focus search won't reach a
+         child at the row's edge - see the categoryStar pattern for the same reason). -->
+    <TextView
+        android:id="@+id/episodeCheckButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/bg_episode_check"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/inter_semibold"
+        android:gravity="center"
+        android:stateListAnimator="@animator/focus_scale_flat"
+        android:text="✓"
+        android:textColor="@color/episode_check_text"
+        android:textSize="@dimen/text_subhead" />
 </LinearLayout>

@@ -59,12 +59,16 @@ import com.lumora.adapter.DownloadAdapter
 import com.lumora.adapter.EpisodeAdapter
 import com.lumora.adapter.LiveGuideAdapter
 import com.lumora.adapter.PosterGridAdapter
+import com.lumora.adapter.SearchEpgResult
+import com.lumora.adapter.SearchResultItem
+import com.lumora.adapter.SearchResultsAdapter
 import com.lumora.adapter.ShelfAdapter
 import com.lumora.download.DownloadRecord
 import com.lumora.download.DownloadStatus
 import com.lumora.download.DownloadStore
 import com.lumora.download.VodDownloader
 import com.lumora.cache.ChannelCache
+import com.lumora.cache.EpgListCache
 import com.lumora.cache.ProgramReminder
 import com.lumora.cache.ReminderStore
 import com.lumora.reminder.ReminderScheduler
@@ -499,8 +503,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── Incremental Search ──────────────────────
-    private var searchAllResults: List<Channel> = emptyList()
+    private var searchAllResults: List<SearchResultItem> = emptyList()
     private var searchDisplayedCount = 0
+    /** Media-type filter for search results (All/Live/Films/Series chips). */
+    private enum class SearchFilter { ALL, LIVE, MOVIE, SERIES }
+    private var searchFilter = SearchFilter.ALL
+    /** EPG search budget: program results capped (a bonus surface, not a second catalog)
+     *  and on-demand guide fetches capped (each is a network call). */
+    private val MAX_EPG_SEARCH_RESULTS = 30
+    private val MAX_EPG_SEARCH_FETCHES = 10
+    /** Monotonic id for the latest scheduled search; async search work checks it before
+     *  publishing results, so a stale run (older query, or one whose overlay was dismissed)
+     *  can't clobber a newer one - the EPG fetches make runs long enough that the race
+     *  is real. */
+    private var searchRunId = 0
+    /** Query to restore once the player/detail opened from a search result closes, so picking
+     *  a result doesn't destroy the session (Back returns to the results, query intact). */
+    private var pendingSearchRestore: String? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -869,8 +888,8 @@ class MainActivity : AppCompatActivity() {
         if (activeSettingsOverlay != null && openPluginId != null) closeOpenPluginPage?.invoke()
         else if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
         else if (activeSearchOverlay != null) activeSearchOverlay?.dismiss()
-        else if (isPlayerVisible) hidePlayer()
-        else if (isContentDetailVisible) hideContentDetail()
+        else if (isPlayerVisible) { hidePlayer(); restoreSearchIfPending() }
+        else if (isContentDetailVisible) { hideContentDetail(); restoreSearchIfPending() }
         // Back walks back up the way the user came in rather than dropping straight out of
         // the app. Inside a section (Live/Series/Films/Discover/Downloads) the first press
         // goes to the top of that section - a Films/Series category grid up to that tab's
@@ -885,6 +904,17 @@ class MainActivity : AppCompatActivity() {
         else if (isSimpleMode()) return false
         else goHomeFromBack()
         return true
+    }
+
+    /** Re-opens search with the query that led to the just-closed player/detail, so picking
+     *  a search result doesn't destroy the session (P1-1). Only when the overlays that would
+     *  fight it are actually gone - a hidePlayer that lands back on the detail screen (the
+     *  normal episode flow) or a still-open overlay means there's nothing to restore yet. */
+    private fun restoreSearchIfPending() {
+        val query = pendingSearchRestore ?: return
+        if (isPlayerVisible || isContentDetailVisible || activeSearchOverlay != null) return
+        pendingSearchRestore = null
+        showSearchDialog(query)
     }
 
     /** The list filling the content area of whatever section is on screen. */
@@ -1045,6 +1075,14 @@ class MainActivity : AppCompatActivity() {
                 onSearchKey(typed.uppercase())
                 return true
             }
+        }
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && event.keyCode == android.view.KeyEvent.KEYCODE_SEARCH) {
+            // Many TV/Fire remotes carry a magnifier key; map it straight to search. Not
+            // while the player is up (a stray press mid-playback shouldn't drop the video)
+            // or with a detail open (search hides contentRow, and the stale isContentDetailVisible
+            // would corrupt the Back stack).
+            if (!isPlayerVisible && !isContentDetailVisible) showSearchDialog()
+            return true
         }
         if (event.action == android.view.KeyEvent.ACTION_DOWN && isContentDetailVisible && !isPlayerVisible) {
             val step = when (event.keyCode) {
@@ -3634,12 +3672,59 @@ class MainActivity : AppCompatActivity() {
         setGridSpan(binding.discoverGrid, discoverGridAdapter, R.id.tabDiscover)
         // setGridSpan only wires the layout manager/span; the adapter still has to be attached.
         binding.discoverGrid.adapter = discoverGridAdapter
-        binding.discoverSearchButton.setOnClickListener { runDiscoverSearch() }
-        binding.discoverSearchInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                runDiscoverSearch(); true
-            } else false
+        // The inline field isn't a real input (no platform IME on TV, and a focused field
+        // with the IME suppressed is a dead end for the remote) - both the field and the
+        // Search button open the on-screen-keyboard overlay instead.
+        binding.discoverSearchField.setOnClickListener { showDiscoverSearchOverlay() }
+        binding.discoverSearchButton.setOnClickListener { showDiscoverSearchOverlay() }
+    }
+
+    /** Opens the Discover (TMDB) search overlay - the keyboard pattern from the main
+     *  search overlay, minus a results surface (Discover's own grid shows the matches once
+     *  the query is submitted). Dismissing leaves the query behind in the inline field. */
+    private fun showDiscoverSearchOverlay() {
+        if (activeSettingsOverlay != null || activeSearchOverlay != null) return
+        val view = layoutInflater.inflate(R.layout.dialog_discover_search, null)
+        val input = view.findViewById<EditText>(R.id.discoverSearchQuery)
+        val keyboard = view.findViewById<com.lumora.ui.OnScreenKeyboard>(R.id.discoverSearchKeyboard)
+        applyPanelWidth(view.findViewById(R.id.discoverSearchPanel), R.dimen.search_panel_width)
+        input.showSoftInputOnFocus = false
+        keyboard.onKey = { ch -> input.setText(input.text.toString() + ch) }
+        keyboard.onBackspace = { input.setText(input.text.toString().dropLast(1)) }
+        keyboard.onClear = { input.setText("") }
+        // Hardware (BT/USB) keyboard routes here while the overlay is up.
+        searchKeyHandler = { ch ->
+            if (ch == null) keyboard.onBackspace?.invoke()
+            else input.setText(input.text.toString() + ch)
         }
+        val overlay = FullScreenOverlay(
+            binding.searchContainer,
+            view,
+            closeButton = view.findViewById(R.id.discoverSearchClose),
+            initialFocus = { keyboard.firstKey() ?: input }
+        )
+        view.findViewById<View>(R.id.discoverSearchSubmit).setOnClickListener {
+            val query = input.text.toString().trim()
+            overlay.dismiss()
+            if (query.isNotEmpty()) {
+                binding.discoverSearchInput.setText(query)
+                loadDiscover(query)
+            }
+        }
+        val tabBarWasVisible = binding.tabBar.visibility == View.VISIBLE
+        if (tabBarWasVisible) binding.tabBar.visibility = View.GONE
+        overlay.setOnDismissListener {
+            searchKeyHandler = null
+            activeSearchOverlay = null
+            if (tabBarWasVisible) binding.tabBar.visibility = View.VISIBLE
+            applyStatus()
+            // The overlay's dismissal detaches the focused subtree (the keyboard); leave
+            // nothing focused and the Discover pane is a dead D-pad. Focus the field that
+            // opened it, retried on the next frame like FullScreenOverlay's own focus logic.
+            binding.discoverSearchField.post { binding.discoverSearchField.requestFocus() }
+        }
+        activeSearchOverlay = overlay
+        overlay.show()
     }
 
     /** Discover is its own pane (like Downloads): browse/search TMDB, no category sidebar. */
@@ -4448,6 +4533,64 @@ class MainActivity : AppCompatActivity() {
         }
 
         lateinit var itemAdapter: EpisodeAdapter
+        // Season/episode list is loaded async after the adapter below is built; the
+        // watched-toggle callback fires on user interaction (always after load), so it
+        // reads this holder rather than the coroutine's local.
+        var detailSeasons: List<Pair<String, List<Channel>>> = emptyList()
+        // The detail Play button targets the first unwatched episode; a check-toggle
+        // shifts that target, so toggles refresh it. Assigned once wirePlayButton exists
+        // (declared below - local funs can't be forward-referenced).
+        var playButtonRefresh: (() -> Unit)? = null
+
+        // A season chip's checkmark reads checked when every episode in that season is
+        // watched. Re-runs after any episode or season toggle.
+        fun refreshSeasonChipStates(seasons: List<Pair<String, List<Channel>>>) {
+            for (i in 0 until seasonRow.childCount) {
+                val cell = seasonRow.getChildAt(i) as? ViewGroup ?: continue
+                val check = cell.findViewById<View>(R.id.seasonCheckButton) ?: continue
+                val episodes = seasons.getOrNull(i)?.second ?: emptyList()
+                if (episodes.isEmpty()) {
+                    // A season with nothing in it can't be marked - hide its dead check.
+                    check.visibility = View.GONE
+                    continue
+                }
+                check.visibility = View.VISIBLE
+                val watched = episodes.all { ep ->
+                    val key = ep.id.ifBlank { ep.url }
+                    key.isNotBlank() && PlaybackPositionStore.get(this@MainActivity, key)?.isNearComplete == true
+                }
+                check.isSelected = watched
+                check.contentDescription = getString(
+                    if (watched) R.string.season_mark_unwatched else R.string.season_mark_watched
+                )
+            }
+        }
+
+        // Whole-season watched toggle: mark/unmark every episode in one press. The
+        // episode list repaints via notifyDataSetChanged (DiffUtil wouldn't rebind on a
+        // submitList since the Channel items are unchanged), then chips and the Play
+        // target follow.
+        fun toggleSeasonWatched(seasons: List<Pair<String, List<Channel>>>, index: Int) {
+            val episodes = seasons.getOrNull(index)?.second ?: return
+            if (episodes.isEmpty()) return
+            val allWatched = episodes.all { ep ->
+                val key = ep.id.ifBlank { ep.url }
+                key.isNotBlank() && PlaybackPositionStore.get(this@MainActivity, key)?.isNearComplete == true
+            }
+            for (ep in episodes) {
+                val key = ep.id.ifBlank { ep.url }
+                if (key.isBlank()) continue
+                if (allWatched) {
+                    PlaybackPositionStore.clear(this@MainActivity, key)
+                } else {
+                    PlaybackPositionStore.save(this@MainActivity, key, 1L, 1L, ep)
+                }
+            }
+            itemAdapter.notifyDataSetChanged()
+            refreshSeasonChipStates(seasons)
+            playButtonRefresh?.invoke()
+        }
+
         itemAdapter = EpisodeAdapter(
             onEpisodeClick = { chosen ->
                 // User-initiated play - see playItem for why the suppression flag is cleared here.
@@ -4475,7 +4618,14 @@ class MainActivity : AppCompatActivity() {
             showDownloadButton = !isTv,
             onDownloadClick = { episode -> downloadItem(episode) },
             isDownloaded = { episode -> DownloadStore.get(this, episode.id) != null },
-            seriesName = if (isSeries) item.name else null
+            seriesName = if (isSeries) item.name else null,
+            onWatchedToggle = { _, _ ->
+                // One episode flipped - refresh the season chips' all-watched state and the
+                // Play button's first-unwatched target. The toggled row itself already
+                // repainted inside the adapter.
+                refreshSeasonChipStates(detailSeasons)
+                playButtonRefresh?.invoke()
+            }
         )
         itemsList.adapter = itemAdapter
 
@@ -4505,7 +4655,8 @@ class MainActivity : AppCompatActivity() {
 
         fun showSeason(seasons: List<Pair<String, List<Channel>>>, index: Int) {
             for (i in 0 until seasonRow.childCount) {
-                val chip = seasonRow.getChildAt(i)
+                val cell = seasonRow.getChildAt(i) as? ViewGroup ?: continue
+                val chip = cell.findViewById<View>(R.id.seasonChipLabel) ?: continue
                 chip.isSelected = i == index
                 // The focus "pop" is a stateListAnimator, so a chip that loses focus in the
                 // same frame it's clicked can keep the scaled-up transform the animator was
@@ -4518,7 +4669,9 @@ class MainActivity : AppCompatActivity() {
             }
             // UP escaping the episode list's first row jumps straight to this chip rather
             // than through default focus search - see dispatchKeyEvent's episode-list block.
-            selectedSeasonChip = seasonRow.getChildAt(index)
+            // The chip is the focusable label inside the cell, not the cell itself.
+            selectedSeasonChip = (seasonRow.getChildAt(index) as? ViewGroup)
+                ?.findViewById<View>(R.id.seasonChipLabel)
             itemAdapter.submitList(seasons[index].second)
         }
 
@@ -4557,7 +4710,7 @@ class MainActivity : AppCompatActivity() {
             return SeriesTargetSelection(target, ordered, inProgress != null)
         }
 
-        fun wirePlayButton(seasons: List<Pair<String, List<Channel>>>) {
+        fun wirePlayButton(seasons: List<Pair<String, List<Channel>>>, refocus: Boolean = true) {
             val selection = findSeriesTargetEpisode(seasons) ?: return
             val target = selection.target
             val ordered = selection.ordered
@@ -4568,7 +4721,9 @@ class MainActivity : AppCompatActivity() {
             val tag = if (seasonNum != null && target.episodeNum != null) "S${seasonNum}E${target.episodeNum}" else null
             playButtonLabel.text = listOfNotNull(if (selection.isResume) "Resume" else "Play", tag).joinToString(" ")
             playButton.visibility = View.VISIBLE
-            playButton.requestFocus()
+            // Landing focus on Play once the screen opens; refocus=false on watch-toggle
+            // refreshes (label/target changed) must NOT steal focus - the user is on a check.
+            if (refocus) playButton.requestFocus()
             playButton.setOnClickListener {
                 // User-initiated play - see playItem for why the suppression flag is cleared here.
                 skipResumePrompt = false
@@ -4593,6 +4748,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // After a check-toggle moves which episode is "next", the Play button's label and
+        // target must follow - re-wired without stealing focus from the check the user is on.
+        playButtonRefresh = { if (detailSeasons.isNotEmpty()) wirePlayButton(detailSeasons, refocus = false) }
+
         val requestedItemId = item.id
         val isJellyfin = item.isJellyfin
         scope.launch {
@@ -4601,6 +4760,7 @@ class MainActivity : AppCompatActivity() {
                 if (isSeries) {
                     sectionLabel.text = "Episodes"
                     val (details, seasons) = loadSeriesContent(item)
+                    detailSeasons = seasons
                     if (nowShowingDetailId != requestedItemId) return@launch
                     applyDetails(details)
                     if (seasons.all { it.second.isEmpty() }) {
@@ -4611,14 +4771,43 @@ class MainActivity : AppCompatActivity() {
                         if (seasons.size > 1) {
                             seasonScroll.visibility = View.VISIBLE
                             seasons.forEachIndexed { index, (label, _) ->
-                                val chip = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as TextView
+                                val cell = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as ViewGroup
+                                val chip = cell.findViewById<TextView>(R.id.seasonChipLabel)
+                                val check = cell.findViewById<TextView>(R.id.seasonCheckButton)
                                 chip.text = label
-                                chip.layoutParams = LinearLayout.LayoutParams(
+                                cell.layoutParams = LinearLayout.LayoutParams(
                                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
                                 ).apply { marginEnd = (8 * resources.displayMetrics.density).toInt() }
+                                // Chip click still selects the season - unchanged.
                                 chip.setOnClickListener { showSeason(seasons, index) }
-                                seasonRow.addView(chip)
+                                // The check click only toggles the whole season's watched state.
+                                check.setOnClickListener { toggleSeasonWatched(seasons, index) }
+                                // Same intra-cell LEFT/RIGHT wiring as the episode row's check:
+                                // default focus search won't cross into a focusable child at
+                                // the cell's edge, so label <-> check navigate explicitly.
+                                chip.setOnKeyListener { _, keyCode, event ->
+                                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                                        keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+                                    ) {
+                                        check.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                check.setOnKeyListener { _, keyCode, event ->
+                                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                                        keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                                    ) {
+                                        chip.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                seasonRow.addView(cell)
                             }
+                            refreshSeasonChipStates(seasons)
                         }
                         // Default the season selector to the season of the episode the user
                         // is actually on (the same "next episode to watch" the Play button
@@ -4839,7 +5028,12 @@ class MainActivity : AppCompatActivity() {
 
     // ── Search ───────────────────────────────────────
 
-    private fun showSearchDialog() {
+    private fun showSearchDialog(initialQuery: String? = null) {
+        // Re-entry guard: a second press while the overlay is up would stack a second
+        // FullScreenOverlay in the same container (double focus trees, overwritten
+        // searchKeyHandler) - especially easy to hit with a phone tap.
+        if (activeSearchOverlay != null) return
+        pendingSearchRestore = null
         // Search and Settings are sibling content slots in the same weighted LinearLayout, so if
         // Settings is still up when Search opens, the layout splits the content area between the
         // two and they render on top of each other. The toolbar stays usable over Settings by
@@ -4849,14 +5043,16 @@ class MainActivity : AppCompatActivity() {
         val input = searchView.findViewById<EditText>(R.id.searchInput)
         val statusText = searchView.findViewById<TextView>(R.id.searchStatus)
         val resultsList = searchView.findViewById<RecyclerView>(R.id.searchResults)
+        val recentsBlock = searchView.findViewById<View>(R.id.searchRecentsBlock)
+        val recentsRow = searchView.findViewById<LinearLayout>(R.id.searchRecentsRow)
+        val filtersRow = searchView.findViewById<View>(R.id.searchFiltersRow)
 
         val keyboard = searchView.findViewById<com.lumora.ui.OnScreenKeyboard>(R.id.searchKeyboard)
         applyPanelWidth(searchView.findViewById(R.id.searchPanel), R.dimen.search_panel_width)
 
         // The platform IME on a Fire TV opens full-screen over the app and takes focus with
         // it, so the query and its results can never be on screen together. Suppress it and
-        // drive the field from the on-screen keyboard instead. The field stays focusable so
-        // a paired bluetooth/USB keyboard still types into it normally.
+        // drive the field from the on-screen keyboard instead.
         input.showSoftInputOnFocus = false
         fun replaceQuery(text: String) = input.setText(text)
         keyboard.onKey = { ch -> replaceQuery(input.text.toString() + ch) }
@@ -4870,34 +5066,140 @@ class MainActivity : AppCompatActivity() {
         // width no longer describes the space it actually has.
         val dialogSpanCount = resources.getInteger(R.integer.search_results_span)
         resultsList.layoutManager = GridLayoutManager(this, dialogSpanCount)
-        val resultsAdapter = PosterGridAdapter(
+        val resultsAdapter = SearchResultsAdapter(
             showTypeBadge = true,
             onItemLongClick = { item -> toggleFavoriteVodItem(item) }
         ) { item ->
+            // P1-1: remember the query so Back from the player/detail returns to the
+            // results (the session survives picking a result). This is also the moment a
+            // search is "committed", so a search is only saved to recents when the user
+            // actually picks a result - typing pauses alone shouldn't pollute the list.
+            addSearchRecent(input.text.toString().trim())
+            pendingSearchRestore = input.text.toString()
             activeSearchOverlay?.dismiss()
-            if (item.mediaType == MediaType.LIVE) playItem(item) else showContentDetail(item)
+            when (item) {
+                is SearchResultItem.Media ->
+                    if (item.channel.mediaType == MediaType.LIVE) playItem(item.channel) else showContentDetail(item.channel)
+                is SearchResultItem.Epg -> playItem(item.program.channel)
+            }
         }
         resultsAdapter.spanCount = dialogSpanCount
-        resultsAdapter.topRowFocusUpTargetId = R.id.searchInput
+        // P0-1: UP from the top row used to target the non-focusable query field (a dead
+        // key - requestFocus failed silently while the press was consumed). Target the
+        // keyboard itself instead: it's focusable, and the next D-pad press enters the
+        // keys via normal focus search.
+        resultsAdapter.topRowFocusUpTargetId = R.id.searchKeyboard
+        // P0-1: LEFT from the first column must also return to the keyboard - default
+        // focus search can't cross out of the RecyclerView into the keyboard.
+        resultsAdapter.leftFocusTarget = keyboard
         resultsAdapter.posterHeightDimen = R.dimen.search_poster_image_height
         resultsList.adapter = resultsAdapter
+        // P2-7: DOWN from the keyboard's bottom row (and the K/L columns with nothing
+        // below them) lands on the first result row.
+        keyboard.bottomRowDownTarget = resultsList
+
+        var searchRunnable: Runnable? = null
+        // One scheduling path for both typing and filter-chip presses: debounce, and stamp
+        // the run with an id so a slower old run can't overwrite a newer query's results.
+        fun scheduleSearch(query: String) {
+            searchRunnable?.let { mainHandler.removeCallbacks(it) }
+            val runId = ++searchRunId
+            val runnable = Runnable { runSearch(query, runId, resultsAdapter, statusText, resultsList) }
+            searchRunnable = runnable
+            mainHandler.postDelayed(runnable, 200)
+        }
+
+        // P2-4: media-type filter chips. EPG results are only shown under All/Live.
+        fun applyFilterChip(selected: View) {
+            for (id in listOf(R.id.searchFilterAll, R.id.searchFilterLive, R.id.searchFilterFilms, R.id.searchFilterSeries)) {
+                searchView.findViewById<View>(id).isSelected = searchView.findViewById<View>(id) === selected
+            }
+        }
+        for ((filter, id) in listOf(
+            SearchFilter.ALL to R.id.searchFilterAll,
+            SearchFilter.LIVE to R.id.searchFilterLive,
+            SearchFilter.MOVIE to R.id.searchFilterFilms,
+            SearchFilter.SERIES to R.id.searchFilterSeries
+        )) {
+            searchView.findViewById<TextView>(id).setOnClickListener {
+                searchFilter = filter
+                applyFilterChip(it)
+                val q = input.text.toString().trim()
+                if (q.length >= 2) scheduleSearch(q)
+            }
+        }
+        // Selection must follow the persisted filter, not default to All: restoreSearchIfPending
+        // re-opens with the previous session's filter, and a chip row showing "All" while the
+        // results are FILMS-filtered is a lie (P1-2).
+        applyFilterChip(
+            searchView.findViewById(
+                when (searchFilter) {
+                    SearchFilter.ALL -> R.id.searchFilterAll
+                    SearchFilter.LIVE -> R.id.searchFilterLive
+                    SearchFilter.MOVIE -> R.id.searchFilterFilms
+                    SearchFilter.SERIES -> R.id.searchFilterSeries
+                }
+            )
+        )
+
+        // P2-1: recent searches - chips populated from prefs, shown while the query is short.
+        fun buildRecents() {
+            recentsRow.removeAllViews()
+            val recents = searchRecents()
+            recentsBlock.visibility = if (recents.isEmpty()) View.GONE else View.VISIBLE
+            val gap = (8 * resources.displayMetrics.density).toInt()
+            for (q in recents) {
+                val chip = TextView(this).apply {
+                    text = q
+                    setBackgroundResource(R.drawable.bg_season_chip)
+                    isClickable = true
+                    isFocusable = true
+                    setTextColor(getColor(R.color.text_secondary))
+                    textSize = 14f
+                    typeface = androidx.core.content.res.ResourcesCompat.getFont(this@MainActivity, R.font.inter_medium)
+                    stateListAnimator = android.animation.AnimatorInflater
+                        .loadStateListAnimator(this@MainActivity, R.animator.focus_scale)
+                    setPadding(gap, (8 * resources.displayMetrics.density).toInt(), gap, (8 * resources.displayMetrics.density).toInt())
+                    setOnClickListener { input.setText(q) }
+                    // DOWN from a recents chip would otherwise do nothing (results and
+                    // filters are GONE while the query is short) - route it into the keys.
+                    setOnKeyListener { _, keyCode, event ->
+                        if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN && event.action == android.view.KeyEvent.ACTION_DOWN) {
+                            keyboard.requestFocus()
+                            true
+                        } else false
+                    }
+                }
+                chip.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = gap }
+                recentsRow.addView(chip)
+            }
+        }
+        buildRecents()
+        searchView.findViewById<View>(R.id.searchRecentsClear).setOnClickListener {
+            clearSearchRecents()
+            buildRecents()
+        }
 
         val overlay = FullScreenOverlay(
             binding.searchContainer,
             searchView,
             closeButton = searchView.findViewById(R.id.searchCloseButton),
-            // The keyboard, not the input box: with no IME involved, landing on the field
-            // gives a caret and nothing to type with, and every session would start with a
-            // wasted press down into the keys.
+            // P2-3: land on the G key (center of the letter block), not the top-left "1" -
+            // a letter is the overwhelmingly likely first key, and G is closest to all of them.
             initialFocus = { keyboard.firstKey() ?: input }
         )
+        // P2-8: keep the tab bar out of reach while search is up - a stray press would
+        // dismiss search via selectTab and silently lose the query.
+        val tabBarWasVisible = binding.tabBar.visibility == View.VISIBLE
+        if (tabBarWasVisible) binding.tabBar.visibility = View.GONE
         binding.homeContent.visibility = View.GONE
         binding.homeSearchBar.visibility = View.GONE
         binding.discoverContent.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
         binding.emptyState.visibility = View.GONE
 
-        var searchRunnable: Runnable? = null
         // Incremental scroll: load more results as user scrolls near the bottom.
         resultsList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
@@ -4917,30 +5219,40 @@ class MainActivity : AppCompatActivity() {
                 searchRunnable?.let { mainHandler.removeCallbacks(it) }
                 val query = s?.toString()?.trim().orEmpty()
                 if (query.length < 2) {
-                    statusText.text = "Type to search"
+                    // Invalidate any in-flight async search so it can't publish for the old query.
+                    searchRunId++
+                    statusText.text = getString(R.string.type_to_search)
                     statusText.visibility = View.VISIBLE
                     resultsList.visibility = View.GONE
+                    filtersRow.visibility = View.GONE
+                    buildRecents()
                     searchAllResults = emptyList()
                     searchDisplayedCount = 0
                     return
                 }
+                filtersRow.visibility = View.VISIBLE
+                // Recents are the idle-state surface - once results take over, get them off
+                // the panel (on portrait they'd squeeze the grid with the filters and keyboard).
+                recentsBlock.visibility = View.GONE
                 // Fires as-you-type with a short debounce, not on submit - a large catalog
                 // filter is cheap enough (Dispatchers.Default, a few thousand items) that
                 // waiting for the user to stop typing is the only real cost here.
-                val runnable = Runnable { runSearch(query, resultsAdapter, statusText, resultsList) }
-                searchRunnable = runnable
-                mainHandler.postDelayed(runnable, 200)
+                scheduleSearch(query)
             }
         })
         overlay.setOnDismissListener {
             searchRunnable?.let { mainHandler.removeCallbacks(it) }
+            // Invalidate in-flight async search (EPG fetches can outlive the overlay).
+            searchRunId++
             searchKeyHandler = null
             activeSearchOverlay = null
+            if (tabBarWasVisible) binding.tabBar.visibility = View.VISIBLE
             applyStatus()
             if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
         }
         activeSearchOverlay = overlay
         applyStatus()
+        if (initialQuery != null) input.setText(initialQuery)
         overlay.show()
     }
 
@@ -4948,48 +5260,135 @@ class MainActivity : AppCompatActivity() {
      *  "starts with", then matching at a word boundary ("man" hits "Iron Man" but not
      *  "Batman"), plain substring last. Word-boundary keeps a query like "man" usable on
      *  a catalog with thousands of vaguely-matching substrings instead of it being buried. */
-    private fun searchRank(name: String, query: String): Int {
+    private fun searchRank(name: String, query: String, boundaryRegex: Regex): Int {
         val lower = name.lowercase()
         return when {
             lower == query -> 0
             lower.startsWith(query) -> 1
-            Regex("\\b${Regex.escape(query)}").containsMatchIn(lower) -> 2
+            boundaryRegex.containsMatchIn(lower) -> 2
             else -> 3
         }
     }
 
-    private fun runSearch(query: String, adapter: PosterGridAdapter, statusText: TextView, resultsList: RecyclerView) {
-        statusText.text = "Searching…"
+    private fun runSearch(query: String, runId: Int, adapter: SearchResultsAdapter, statusText: TextView, resultsList: RecyclerView) {
+        statusText.text = getString(R.string.search_status_searching)
         statusText.visibility = View.VISIBLE
         resultsList.visibility = View.GONE
         searchAllResults = emptyList()
         searchDisplayedCount = 0
         scope.launch {
-            val results = withContext(Dispatchers.Default) {
+            val filter = searchFilter
+            val mediaResults = withContext(Dispatchers.Default) {
                 val lower = query.lowercase()
-                (liveChannels + filmList + seriesList)
+                // P1-2: compiled once per query, not per comparison - the boundary regex was
+                // built inside searchRank (called by the comparator), so sorting ~50k titles
+                // compiled ~1.5M Patterns and cost seconds on a TV stick.
+                val boundaryRegex = Regex("\\b" + Regex.escape(lower))
+                val source = when (filter) {
+                    SearchFilter.ALL -> liveChannels + filmList + seriesList
+                    SearchFilter.LIVE -> liveChannels
+                    SearchFilter.MOVIE -> filmList
+                    SearchFilter.SERIES -> seriesList
+                }
+                source
                     .filter { it.name.lowercase().contains(lower) }
-                    .sortedWith(compareBy({ searchRank(it.name, lower) }, { it.name.lowercase() }))
+                    .sortedWith(compareBy({ searchRank(it.name, lower, boundaryRegex) }, { it.name.lowercase() }))
+                    .map { SearchResultItem.Media(it) }
             }
-            if (results.isEmpty()) {
-                statusText.text = "No results for \"$query\""
-                statusText.visibility = View.VISIBLE
-                resultsList.visibility = View.GONE
-            } else {
-                searchAllResults = results
-                val total = results.size
-                val batchSize = 50
-                val firstBatch = results.take(batchSize)
-                searchDisplayedCount = firstBatch.size
-                statusText.text = "${searchDisplayedCount}/$total results"
-                statusText.visibility = View.VISIBLE
-                resultsList.visibility = View.VISIBLE
-                adapter.submitList(firstBatch)
+            // Stale run (query changed or overlay dismissed while this was in flight) - the
+            // EPG fetches make runs long enough that publishing late would clobber newer
+            // results, so check before and after the slow part.
+            if (runId != searchRunId) return@launch
+            fun publish(all: List<SearchResultItem>) {
+                if (all.isEmpty()) {
+                    statusText.text = getString(R.string.search_status_no_results, query) + "\n" +
+                        getString(R.string.search_status_no_results_hint)
+                    statusText.visibility = View.VISIBLE
+                    resultsList.visibility = View.GONE
+                } else {
+                    searchAllResults = all
+                    val batchSize = 50
+                    val firstBatch = all.take(batchSize)
+                    searchDisplayedCount = firstBatch.size
+                    statusText.text = getString(R.string.search_status_count, searchDisplayedCount, all.size)
+                    statusText.visibility = View.VISIBLE
+                    resultsList.visibility = View.VISIBLE
+                    adapter.submitList(firstBatch)
+                }
             }
+            // P2-1: media matches land immediately; the EPG phase below fetches short guides
+            // for up to 10 channels over the network and can take seconds on a slow panel -
+            // don't make the user stare at "Searching…" the whole time. When there are no
+            // media matches, wait for EPG before declaring "no results" - it may still match.
+            if (mediaResults.isNotEmpty()) publish(mediaResults)
+            val epgResults = buildEpgSearchResults(query, filter)
+            if (runId != searchRunId) return@launch
+            publish(mediaResults + epgResults)
         }
     }
 
-    private fun loadMoreSearchResults(adapter: PosterGridAdapter, statusText: TextView) {
+    /** EPG search: matches TV programs across the guide. Sources: the already-loaded
+     *  in-memory EpgListCache (channels the user has scrolled past in the guide), plus
+     *  on-demand short-EPG fetches for the first few channels whose NAME matches the query
+     *  (a program-title match for a channel that was never visited requires its guide to
+     *  exist, so fetching it here is what makes the result appear). Program-title matches
+     *  qualify directly; a channel-name match contributes its current and next program.
+     *  Capped at 30 results and 10 fetches - EPG search is a bonus surface, not a second
+     *  catalog, and each fetch is a network call. */
+    private suspend fun buildEpgSearchResults(query: String, filter: SearchFilter): List<SearchResultItem.Epg> {
+        if (filter == SearchFilter.MOVIE || filter == SearchFilter.SERIES) return emptyList()
+        val lower = query.lowercase()
+        val nowSeconds = System.currentTimeMillis() / 1000
+        val results = linkedMapOf<String, SearchResultItem.Epg>()
+
+        fun add(channel: Channel, program: XtreamClient.EpgProgram) {
+            results["${channel.id}:${program.startTimestamp}"] = SearchResultItem.Epg(
+                SearchEpgResult(
+                    programTitle = program.title,
+                    metaLine = "${channel.name} · ${formatEpgTimeRange(program.startTimestamp, program.stopTimestamp)}",
+                    channel = channel
+                )
+            )
+        }
+
+        fun addPrograms(channel: Channel, programs: List<XtreamClient.EpgProgram>) {
+            val nameMatches = channel.name.lowercase().contains(lower)
+            var addedUpcoming = false
+            for (p in programs) {
+                when {
+                    p.title.lowercase().contains(lower) -> add(channel, p)
+                    nameMatches && p.isNowAiring(nowSeconds) -> add(channel, p)
+                    nameMatches && !addedUpcoming && p.startTimestamp > nowSeconds -> {
+                        add(channel, p)
+                        addedUpcoming = true
+                    }
+                }
+                if (results.size >= MAX_EPG_SEARCH_RESULTS) return
+            }
+        }
+
+        // Already-loaded EPG (channels the guide has visited).
+        for (ch in liveChannels) {
+            EpgListCache.get(ch.id)?.let { addPrograms(ch, it) }
+            if (results.size >= MAX_EPG_SEARCH_RESULTS) break
+        }
+        // On-demand: name-matching channels that have no guide data cached yet.
+        val toFetch = liveChannels.asSequence()
+            .filter { it.name.lowercase().contains(lower) && !EpgListCache.has(it.id) }
+            .distinctBy { it.id }
+            .take(MAX_EPG_SEARCH_FETCHES)
+            .toList()
+        for (ch in toFetch) {
+            if (results.size >= MAX_EPG_SEARCH_RESULTS) break
+            val programs = resolveEpgPrograms(ch.id) ?: continue
+            // Share with the guide: the next time this row scrolls into view it's a cache hit.
+            EpgListCache.put(ch.id, programs)
+            addPrograms(ch, programs)
+        }
+        return results.values.toList()
+    }
+
+    private fun loadMoreSearchResults(adapter: SearchResultsAdapter, statusText: TextView) {
         val remaining = searchAllResults.size - searchDisplayedCount
         if (remaining <= 0) return
         val batchSize = 50.coerceAtMost(remaining)
@@ -4997,7 +5396,23 @@ class MainActivity : AppCompatActivity() {
         currentList.addAll(searchAllResults.subList(searchDisplayedCount, searchDisplayedCount + batchSize))
         searchDisplayedCount += batchSize
         adapter.submitList(currentList)
-        statusText.text = "${searchDisplayedCount}/${searchAllResults.size} results"
+        statusText.text = getString(R.string.search_status_count, searchDisplayedCount, searchAllResults.size)
+    }
+
+    // ── Search recents ──────────────────────────────
+
+    private fun searchRecents(): List<String> =
+        getSharedPreferences("search_recents", MODE_PRIVATE)
+            .getString("list", "")?.split("\n").orEmpty().filter { it.isNotBlank() }
+
+    private fun addSearchRecent(q: String) {
+        if (q.isBlank()) return
+        val prefs = getSharedPreferences("search_recents", MODE_PRIVATE)
+        prefs.edit().putString("list", (listOf(q) + searchRecents()).distinct().take(10).joinToString("\n")).apply()
+    }
+
+    private fun clearSearchRecents() {
+        getSharedPreferences("search_recents", MODE_PRIVATE).edit().remove("list").apply()
     }
 
     /**
@@ -5023,7 +5438,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnPlayPause.setOnClickListener { playerManager.togglePlayPause(); updatePlayPauseIcon() }
         binding.btnPrevChannel.setOnClickListener { navigateChannel(-1) }
         binding.btnNextChannel.setOnClickListener { navigateChannel(1) }
-        binding.btnBack.setOnClickListener { hidePlayer() }
+        binding.btnBack.setOnClickListener { hidePlayer(); restoreSearchIfPending() }
         binding.btnAudioTrack.setOnClickListener { showTrackPicker(isAudio = true) }
         binding.btnSubtitleTrack.setOnClickListener { showTrackPicker(isAudio = false) }
         binding.btnChapters.setOnClickListener { showChapterPicker() }

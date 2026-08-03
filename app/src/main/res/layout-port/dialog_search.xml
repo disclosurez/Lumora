@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Portrait phones only (values-port comment explains the qualifier game: a large device
+     held in portrait still resolves the sw540dp tier and never lands here). The side-by-side
+     keyboard + results column of the default layout leaves a 360dp phone a ~76dp sliver of
+     results next to a 240dp keyboard - unusable posters. Here the zones stack: header, then
+     the keyboard full-width (keys scale to >=48dp via values-port), then status, recents,
+     filters and the grid filling what's left. Keep every stable id from the default layout:
+     the host drives both variants through the same code. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <LinearLayout
+        android:id="@+id/searchPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_category_panel"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:padding="@dimen/search_panel_padding">
+
+        <!-- Header: identical to the default layout, including the deliberately
+             non-focusable query field (see dialog_search.xml). -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/ic_search"
+                android:tint="@color/text_secondary" />
+
+            <EditText
+                android:id="@+id/searchInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_input"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:hint="@string/search_overlay_hint"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="12dp"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_tertiary"
+                android:textSize="@dimen/text_subhead" />
+
+            <LinearLayout
+                android:id="@+id/searchCloseButton"
+                android:layout_width="@dimen/toolbar_button_size"
+                android:layout_height="@dimen/toolbar_button_size"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@string/close"
+                    android:src="@drawable/ic_x"
+                    android:tint="@color/text_primary" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Full-width keyboard: with the zones stacked, giving the keys the whole panel
+             width is what makes them thumb-sized instead of pinched. -->
+        <com.lumora.ui.OnScreenKeyboard
+            android:id="@+id/searchKeyboard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/search_section_gap" />
+
+        <TextView
+            android:id="@+id/searchStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/search_section_gap"
+            android:gravity="center"
+            android:text="@string/type_to_search"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body" />
+
+        <!-- Recent searches: same structure as the default layout. -->
+        <LinearLayout
+            android:id="@+id/searchRecentsBlock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/search_row_gap"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/searchRecentsLabel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/inter_medium"
+                    android:text="@string/search_recents_label"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="@dimen/text_body_s" />
+
+                <TextView
+                    android:id="@+id/searchRecentsClear"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_season_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="@font/inter_medium"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="8dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:text="@string/search_recents_clear"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/text_body_s" />
+            </LinearLayout>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/searchRecentsRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <!-- Result-type filter: same static chip row as the default layout. -->
+        <LinearLayout
+            android:id="@+id/searchFiltersRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/search_row_gap"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/searchFilterAll"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/search_chip_gap"
+                android:background="@drawable/bg_season_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/inter_medium"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="10dp"
+                android:stateListAnimator="@animator/focus_scale"
+                android:text="@string/search_filter_all"
+                android:textColor="@color/season_chip_text"
+                android:textSize="@dimen/text_body_l" />
+
+            <TextView
+                android:id="@+id/searchFilterLive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/search_chip_gap"
+                android:background="@drawable/bg_season_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/inter_medium"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="10dp"
+                android:stateListAnimator="@animator/focus_scale"
+                android:text="@string/live_badge"
+                android:textColor="@color/season_chip_text"
+                android:textSize="@dimen/text_body_l" />
+
+            <TextView
+                android:id="@+id/searchFilterFilms"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/search_chip_gap"
+                android:background="@drawable/bg_season_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/inter_medium"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="10dp"
+                android:stateListAnimator="@animator/focus_scale"
+                android:text="@string/search_filter_films"
+                android:textColor="@color/season_chip_text"
+                android:textSize="@dimen/text_body_l" />
+
+            <TextView
+                android:id="@+id/searchFilterSeries"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_season_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/inter_medium"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="10dp"
+                android:stateListAnimator="@animator/focus_scale"
+                android:text="@string/search_filter_series"
+                android:textColor="@color/season_chip_text"
+                android:textSize="@dimen/text_body_l" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/searchResults"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="@dimen/search_row_gap"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>

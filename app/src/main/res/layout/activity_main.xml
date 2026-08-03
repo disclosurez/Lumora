@@ -653,25 +653,56 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <!-- Not focusable — on TV the platform IME would open over the UI,
-                     and keyboard input is handled by the search dialog's on-screen keyboard
-                     or via dispatchKeyEvent for hardware keyboards. -->
-                <EditText
-                    android:id="@+id/discoverSearchInput"
+                <!-- The field is a fake input: it's the discover search overlay's trigger,
+                     not a real text box. Focusable + clickable so D-pad and touch both
+                     reach it, with focus_scale_flat like the Home search bar; clicking it
+                     opens dialog_discover_search.xml (the platform IME is never involved,
+                     so the inner EditText stays non-focusable). The trailing chevron reads
+                     as "opens something". -->
+                <LinearLayout
+                    android:id="@+id/discoverSearchField"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="@drawable/card_surface_background"
-                    android:focusable="false"
-                    android:focusableInTouchMode="false"
-                    android:hint="Search movies &amp; series…"
-                    android:imeOptions="actionSearch"
-                    android:inputType="text"
-                    android:maxLines="1"
-                    android:paddingHorizontal="16dp"
+                    android:background="@drawable/bg_input"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="14dp"
                     android:paddingVertical="12dp"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_secondary" />
+                    android:stateListAnimator="@animator/focus_scale_flat">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="10dp"
+                        android:src="@drawable/ic_search"
+                        android:tint="@color/text_secondary" />
+
+                    <EditText
+                        android:id="@+id/discoverSearchInput"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:focusable="false"
+                        android:focusableInTouchMode="false"
+                        android:hint="@string/discover_search_hint"
+                        android:imeOptions="actionSearch"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary" />
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_chevron_right"
+                        android:tint="@color/text_tertiary" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/discoverSearchButton"

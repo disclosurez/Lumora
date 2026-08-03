@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- EPG (TV-program) search result tile. Sized exactly like item_poster_grid - same 8dp
+     margin, 8dp padding, and a poster area of search_poster_image_height - so it can sit
+     in the same results grid without disturbing the row math. Reads as "a TV program"
+     rather than a channel/film: the program title is the big line, the channel + start
+     time (formatted string supplied by the host) sits above it in smaller type, and the
+     color-coded EPG pill (success_green, unlike the poster grid's Live-red / Film-cyan /
+     Series-primary) marks it as a schedule match. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    android:background="@drawable/bg_grid_card"
+    android:clickable="true"
+    android:focusable="true"
+    android:padding="8dp"
+    android:stateListAnimator="@animator/focus_scale">
+
+    <!-- 16:9 artwork (channel logo / program backdrop) centre-cropped into the same area
+         the poster grid uses, so the row height matches item_poster_grid exactly. -->
+    <ImageView
+        android:id="@+id/epgPoster"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/search_poster_image_height"
+        android:background="@color/surface"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/grad_poster_scrim" />
+
+    <TextView
+        android:id="@+id/epgProgramBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="6dp"
+        android:background="@drawable/pill_live"
+        android:backgroundTint="@color/success_green"
+        android:fontFamily="@font/inter_semibold"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:text="@string/epg_badge"
+        android:textAllCaps="true"
+        android:textColor="@android:color/white"
+        android:textSize="@dimen/poster_badge_text" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- Channel name + start time, single formatted line supplied by the host. -->
+        <com.lumora.ui.OutlineTextView
+            android:id="@+id/epgProgramMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:maxLines="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_caption"
+            app:outlineColor="@color/poster_title_outline"
+            app:outlineWidth="@dimen/poster_title_outline_width" />
+
+        <!-- The program title: the prominent line, same treatment as poster titles
+             (auto-sized, outlined) so it stays readable over bright artwork. -->
+        <com.lumora.ui.OutlineTextView
+            android:id="@+id/epgProgramTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:autoSizeMaxTextSize="@dimen/poster_title_text"
+            android:autoSizeMinTextSize="8sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:breakStrategy="simple"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/poster_title_text"
+            app:outlineColor="@color/poster_title_outline"
+            app:outlineWidth="@dimen/poster_title_outline_width" />
+    </LinearLayout>
+</FrameLayout>

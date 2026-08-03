@@ -28,4 +28,13 @@
          yields a single poster per row. A narrower minimum gets two. -->
     <dimen name="poster_grid_min_column_width">83dp</dimen>
     <dimen name="poster_image_height">99dp</dimen>
+
+    <!-- Search overlay, portrait phones: the default 40dp phone-tier keys are under the
+         48dp touch-target floor, and with the portrait layout stacking the keyboard
+         full-width above the results (layout-port/dialog_search.xml) the keys are the
+         primary input - bump them to a real thumb target. -->
+    <dimen name="keyboard_key_height">48dp</dimen>
+    <dimen name="keyboard_key_gap">4dp</dimen>
+    <dimen name="keyboard_key_text">15sp</dimen>
+    <dimen name="keyboard_action_text">12sp</dimen>
 </resources>

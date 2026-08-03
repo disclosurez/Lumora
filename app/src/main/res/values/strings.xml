@@ -224,4 +224,35 @@
 
     <!-- item_shelf.xml -->
     <string name="see_all">See All</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - watched-state check toggles -->
+    <string name="episode_mark_watched">Mark episode as watched</string>
+    <string name="episode_mark_unwatched">Mark episode as unwatched</string>
+    <string name="season_mark_watched">Mark season as watched</string>
+    <string name="season_mark_unwatched">Mark season as unwatched</string>
+
+    <!-- dialog_search.xml - search overlay -->
+    <string name="search_overlay_hint">Search live TV, films &amp; series…</string>
+    <string name="search_recents_label">Recent searches</string>
+    <string name="search_recents_clear">Clear</string>
+    <string name="search_filter_all">All</string>
+    <string name="search_filter_films">Films</string>
+    <string name="search_filter_series">Series</string>
+    <!-- Status texts the search host switches between. No-results carries the query, and
+         the hint line goes on a second line of the same status TextView when shown. -->
+    <string name="search_status_searching">Searching…</string>
+    <string name="search_status_no_results">No results for "%1$s"</string>
+    <string name="search_status_no_results_hint">Try fewer letters, or check the spelling.</string>
+    <string name="search_status_count">%1$d/%2$d results</string>
+
+    <!-- item_epg_result.xml - EPG program search results -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - punctuation layer toggle. \? escapes the leading ? -
+         aapt would otherwise read "?123" as a resource reference. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - Discover (TMDB) search -->
+    <string name="discover_search_hint">Search movies &amp; series…</string>
 </resources>

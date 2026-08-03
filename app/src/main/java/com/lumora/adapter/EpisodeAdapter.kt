@@ -1,5 +1,6 @@
 package com.lumora.adapter
 
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,7 +34,12 @@ class EpisodeAdapter(
     // safe to strip when it's an exact match against *this* series' own name - trimming
     // any arbitrary leading "Word - S01E21 - " would also eat titles that legitimately
     // start that way.
-    private val seriesName: String? = null
+    private val seriesName: String? = null,
+    // Watched-state check toggle: fired after this row's checkmark flips (save/clear
+    // already done, row already repainted) so the host can refresh dependent UI - the
+    // season chips' all-watched state and the detail screen's Play button target.
+    // Boolean = the new watched state.
+    private val onWatchedToggle: ((Channel, Boolean) -> Unit)? = null
 ) : ListAdapter<Channel, EpisodeAdapter.ViewHolder>(DiffCallback()) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -75,11 +81,65 @@ class EpisodeAdapter(
         private val progressBar: ProgressBar = itemView.findViewById(R.id.episodeProgress)
         private val thumbImage: ImageView = itemView.findViewById(R.id.episodeThumb)
         private val downloadButton: ImageButton = itemView.findViewById(R.id.episodeDownloadButton)
+        private val checkButton: TextView = itemView.findViewById(R.id.episodeCheckButton)
         private var current: Channel? = null
 
         init {
             itemView.setOnClickListener { current?.let(onEpisodeClick) }
             downloadButton.setOnClickListener { current?.let { onDownloadClick?.invoke(it) } }
+
+            // The checkmark IS the control: OK toggles watched/unwatched directly - no
+            // long-press, no dialog. The store updates synchronously in memory, so the
+            // notifyItemChanged below repaints this row with the new state immediately.
+            checkButton.setOnClickListener {
+                val episode = current ?: return@setOnClickListener
+                val key = episode.id.ifBlank { episode.url }
+                if (key.isBlank()) return@setOnClickListener
+                val wasWatched = PlaybackPositionStore.get(itemView.context, key)?.isNearComplete == true
+                if (wasWatched) {
+                    PlaybackPositionStore.clear(itemView.context, key)
+                } else {
+                    // Duration unknown for an unwatched-from-scratch episode; 1ms of 1ms
+                    // clears the 0.95 completion threshold, i.e. counts as watched.
+                    PlaybackPositionStore.save(itemView.context, key, 1L, 1L, episode)
+                }
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) notifyItemChanged(pos)
+                onWatchedToggle?.invoke(episode, !wasWatched)
+            }
+
+            // LEFT/RIGHT inside the row: default focus search won't cross to a focusable
+            // child sitting at the row's right edge (FocusFinder's isCandidate requires the
+            // candidate to extend past the source's edge), so wire the row <-> check pair
+            // explicitly - same reason the category sidebar rows carry nextFocusLeft/Right.
+            // On phones the download button sits between them, so the chain goes through it
+            // when visible; on TV it's gone and row <-> check are direct neighbours.
+            itemView.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    val target = if (downloadButton.visibility == View.VISIBLE) downloadButton else checkButton
+                    target.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
+            downloadButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    itemView.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
+            checkButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    val target = if (downloadButton.visibility == View.VISIBLE) downloadButton else itemView
+                    target.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
         }
 
         fun bind(episode: Channel) {
@@ -88,11 +148,16 @@ class EpisodeAdapter(
             // elevation with it, so switching season left visibly enlarged/raised leftover
             // rows scattered through the new list. The focus_scale stateListAnimator only
             // drives these on an actual focus change, so nothing restores them on rebind -
-            // reset to rest here, on every bind.
-            itemView.animate().cancel()
-            itemView.scaleX = 1f
-            itemView.scaleY = 1f
-            itemView.translationZ = 0f
+            // reset to rest here, on every bind. A *focused* row rebinding in place (the
+            // watched-toggle repaint keeps the same ViewHolder and focus) must keep its
+            // pop instead - it was never recycled, and snapping it flat while it still
+            // holds focus reads as a glitch. Same guard on the check button below.
+            if (!itemView.isFocused) {
+                itemView.animate().cancel()
+                itemView.scaleX = 1f
+                itemView.scaleY = 1f
+                itemView.translationZ = 0f
+            }
 
             // Episode number as its own token leading the title line rather than buried
             // inside a long "S01E04 · Actual Episode Title" string - that string still
@@ -149,6 +214,20 @@ class EpisodeAdapter(
                 itemView.context.getColor(if (isWatched) R.color.text_tertiary else R.color.text_primary)
             )
             numberBadge.alpha = if (isWatched) 0.6f else 1f
+
+            // Watched-state toggle, always visible. State must be re-applied on every bind
+            // (recycled rows carry the previous episode's check), along with the
+            // content description announcing what a press would now do. Scale reset guard
+            // mirrors the row's above: a focused check rebinding in place keeps its pop.
+            checkButton.isSelected = isWatched
+            checkButton.contentDescription = itemView.context.getString(
+                if (isWatched) R.string.episode_mark_unwatched else R.string.episode_mark_watched
+            )
+            if (!checkButton.isFocused) {
+                checkButton.animate().cancel()
+                checkButton.scaleX = 1f
+                checkButton.scaleY = 1f
+            }
 
             if (showDownloadButton) {
                 downloadButton.visibility = View.VISIBLE

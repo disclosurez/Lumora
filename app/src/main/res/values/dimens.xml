@@ -174,6 +174,10 @@
          grid column, and the card's height doesn't follow its width, so the full-size value
          stretched the artwork well past the 2:3 it's cropped to. -->
     <dimen name="search_poster_image_height">96dp</dimen>
+    <!-- Vertical gap between the search status line, recents strip, filter chips and the
+         results grid, and horizontal gap between the filter chips. -->
+    <dimen name="search_row_gap">8dp</dimen>
+    <dimen name="search_chip_gap">8dp</dimen>
 
     <!-- Search bar at the top of Home. Same 0dp = fill sentinel. -->
     <dimen name="home_search_bar_width">0dp</dimen>

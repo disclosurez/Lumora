@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Discover (TMDB) search overlay. The Discover pane's inline field is a dead end on TV -
+     it isn't focusable (to keep the platform IME off the screen) and nothing can type into
+     it, so the field is now just a button that opens this overlay: same on-screen-keyboard
+     pattern as the main search, minus a results surface - Discover's own grid below shows
+     the matches once the host submits. Host applies the panel width in code via
+     applyPanelWidth()/search_panel_width, same as dialog_search.xml. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <LinearLayout
+        android:id="@+id/discoverSearchPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_category_panel"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:padding="@dimen/search_panel_padding">
+
+        <!-- Header: the query display + close, exactly the main search overlay's pattern. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/ic_search"
+                android:tint="@color/text_secondary" />
+
+            <!-- Not focusable, same as searchInput: a focused field with no IME is a dead
+                 end for the remote. The host feeds text from the keyboard below. -->
+            <EditText
+                android:id="@+id/discoverSearchQuery"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_input"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:hint="@string/discover_search_hint"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="12dp"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_tertiary"
+                android:textSize="@dimen/text_subhead" />
+
+            <LinearLayout
+                android:id="@+id/discoverSearchClose"
+                android:layout_width="@dimen/toolbar_button_size"
+                android:layout_height="@dimen/toolbar_button_size"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@string/close"
+                    android:src="@drawable/ic_x"
+                    android:tint="@color/text_primary" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- The keyboard, vertically centred like the main overlay: on a TV the panel is
+             far taller than the keys. -->
+        <com.lumora.ui.OnScreenKeyboard
+            android:id="@+id/discoverSearchKeyboard"
+            android:layout_width="@dimen/search_keyboard_width"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/search_section_gap" />
+
+        <!-- Submit: the one clearly primary action here, so it gets the filled play-button
+             treatment rather than the neutral toolbar chrome. Runs the search (host reads
+             discoverSearchQuery, calls runDiscoverSearch) and closes the overlay. -->
+        <TextView
+            android:id="@+id/discoverSearchSubmit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/search_section_gap"
+            android:background="@drawable/bg_play_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="@font/inter_semibold"
+            android:paddingHorizontal="32dp"
+            android:paddingVertical="12dp"
+            android:stateListAnimator="@animator/focus_scale"
+            android:text="@string/search"
+            android:textColor="@color/text_on_primary"
+            android:textSize="@dimen/text_body_l" />
+    </LinearLayout>
+</FrameLayout>

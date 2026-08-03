@@ -188,6 +188,10 @@
          the ~470dp beside the keyboard gives each card ~85dp of artwork width, which makes
          these slightly squatter than 2:3; centerCrop absorbs that. -->
     <dimen name="search_poster_image_height">94dp</dimen>
+    <!-- TV tier of the search inner-row spacing (status / recents / filters / grid) and the
+         filter-chip gap - roomier than phone, same +2dp as search_section_gap's step. -->
+    <dimen name="search_row_gap">10dp</dimen>
+    <dimen name="search_chip_gap">10dp</dimen>
 
     <dimen name="home_search_bar_width">560dp</dimen>
 </resources>
