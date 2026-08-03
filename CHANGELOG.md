@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.0
+
+### Providers & catalog
+- **Per-provider VOD toggle.** Each provider row in Settings has a VOD checkbox (ticked = VOD enabled, default on) that hides that provider's movies and series without touching the others — including Jellyfin. Movies/series are skipped at fetch time, so gated providers don't do the slow VOD crawl.
+- **Three new Filters switches** (all on by default): *Categorize live TV* and *Categorize movies & series* turn the dynamic sidebar categories off (genre buckets, brand clusters — real provider categories stay), and *Group duplicate channels* shows every HD/SD/RAW copy and multi-provider duplicate separately instead of merging them into one card with a version picker.
+- **M3U providers are labelled M3U/M3U8** across the settings UI and pairing flow.
+- **Settings > Plugins opens the Plugins pane** instead of routing to General.
+
+### Sidebar
+- **Pin stars reveal on focus.** A category's star is hidden until the remote lands on its row, then appears so it can be pinned — no more star clutter on every row. Newest, Jellyfin and the "Show all categories" toggle never show one (pinning them is inert), in the sidebar and on poster shelves alike.
+- Category chip padding tightened so more categories fit the rail.
+
+### Loading speed
+- **Films and Series load noticeably faster**: regex passes in title normalization are now gated on the characters they need, duplicate titles are memoized instead of re-normalized, bucket resolution indexes channels once instead of rescanning per bucket, and the Newest sort no longer re-derives dates on every comparison.
+- **Loading feedback appears instantly on tab switch** (same frame as the highlight) instead of after the background work finishes, and a cold start no longer flickers Loading → blank → Loading before the first tab renders.
+
+### Cache
+- **The catalog cache stays display-unfiltered.** Providers with VOD turned off keep their previously-cached movies/series in the cache, so re-enabling VOD restores them even offline.
+- **A failed refresh can't wipe the cache** — an empty fetch result falls back to the on-disk catalog instead of overwriting it.
+
 ## 2.9
 
 ### Simple mode
