@@ -59,6 +59,9 @@ private val PAREN_TAG_REGEX = Regex("""\([A-Z]{2,5}\)""")
  * get misread as a year.
  */
 fun extractYearFromName(name: String): String? {
+    // The pattern needs a "(YYYY)" literal - skip the scan entirely for the common
+    // title with no parens (called once per film/series with a blank year).
+    if ('(' !in name) return null
     val match = YEAR_PAREN_REGEX.findAll(name).lastOrNull() ?: return null
     val year = match.groupValues[1].toIntOrNull() ?: return null
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
@@ -76,12 +79,17 @@ fun Channel.withResolvedYear(): Channel =
  * "4K-MAX - The Breadwinner (2026) (US)" all group together.
  */
 fun normalizeTitleForGrouping(name: String): String {
-    var n = leadingTagMatch(name)?.let { name.removePrefix(it) } ?: name
-    n = YEAR_PAREN_REGEX.replace(n, "")
-    n = BRACKET_REGEX.replace(n, "")
-    n = PAREN_TAG_REGEX.replace(n, "")
-    n = WHITESPACE_REGEX.replace(n, " ").trim().lowercase()
-    return n
+    // Cheap char gates before each regex: every pattern needs its literal delimiter to
+    // match at all, and most titles carry none - skipping the scan avoids a regex pass
+    // per title across tens of thousands of items. Match order is unchanged.
+    var n = if ('-' in name) leadingTagMatch(name)?.let { name.removePrefix(it) } ?: name else name
+    if ('(' in n) n = YEAR_PAREN_REGEX.replace(n, "")
+    if ('[' in n) n = BRACKET_REGEX.replace(n, "")
+    if ('(' in n) n = PAREN_TAG_REGEX.replace(n, "")
+    // \s collapse only matters when whitespace is actually present (isWhitespace is a
+    // superset of \s, so a non-\s whitespace char still takes the regex path unchanged).
+    if (n.any(Char::isWhitespace)) n = WHITESPACE_REGEX.replace(n, " ").trim() else n = n.trim()
+    return n.lowercase()
 }
 
 /** Pulls just the leading source tag ("4K-D+", "TOP") off a title, for labeling version-picker chips. */
@@ -95,8 +103,11 @@ fun extractLeadingTag(name: String): String? =
  */
 fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String, List<Channel>>> {
     val groups = LinkedHashMap<String, MutableList<Channel>>()
+    // Duplicate titles are the whole point of this pass - memoize each title's
+    // normalized key so every extra copy of the same title skips the regex pipeline.
+    val keyCache = HashMap<String, String>()
     for (channel in movies) {
-        val key = normalizeTitleForGrouping(channel.name).ifBlank { channel.id }
+        val key = keyCache.getOrPut(channel.name) { normalizeTitleForGrouping(channel.name) }.ifBlank { channel.id }
         groups.getOrPut(key) { mutableListOf() }.add(channel)
     }
     val representatives = mutableListOf<Channel>()
@@ -148,8 +159,10 @@ private fun pickRepresentative(versions: List<Channel>): Channel {
  */
 fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String, List<Channel>>> {
     val groups = LinkedHashMap<String, MutableList<Channel>>()
+    // Same title-memo as groupDuplicateMovies - duplicates repeat the same raw title.
+    val keyCache = HashMap<String, String>()
     for (channel in series) {
-        val key = normalizeTitleForGrouping(channel.name).ifBlank { channel.id }
+        val key = keyCache.getOrPut(channel.name) { normalizeTitleForGrouping(channel.name) }.ifBlank { channel.id }
         groups.getOrPut(key) { mutableListOf() }.add(channel)
     }
     val representatives = mutableListOf<Channel>()
@@ -165,6 +178,8 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
 
 /** True if the title carries an explicit non-English bracket language tag, e.g. "[AR]", "[FR]". */
 fun isNonEnglishTitle(name: String): Boolean {
+    // Both bracket styles need a '(' or '[' literal - skip the scan for titles with neither.
+    if (name.none { it == '[' || it == '(' }) return false
     val match = LANGUAGE_BRACKET_REGEX.find(name) ?: return false
     return match.groupValues[1].uppercase() !in ENGLISH_LANGUAGE_CODES
 }
@@ -174,8 +189,12 @@ fun isNonEnglishTitle(name: String): Boolean {
 private val ADULT_KEYWORD_REGEX = Regex("""(?i)\b(xxx|adults?|porn|hentai|erotica?|18\+)\b""")
 
 /** Flags a category/group as adult content, for parental-control filtering. Checks category name first, falls back to the channel's own name/group. */
-fun isAdultCategory(categoryName: String?, group: String? = null): Boolean =
-    ADULT_KEYWORD_REGEX.containsMatchIn(categoryName ?: "") || ADULT_KEYWORD_REGEX.containsMatchIn(group ?: "")
+fun isAdultCategory(categoryName: String?, group: String? = null): Boolean {
+    val cn = categoryName ?: ""
+    val g = group ?: ""
+    if (cn.isEmpty() && g.isEmpty()) return false // nothing to scan - avoid both regex passes
+    return ADULT_KEYWORD_REGEX.containsMatchIn(cn) || ADULT_KEYWORD_REGEX.containsMatchIn(g)
+}
 
 // ── Live channel quality-version merging ──────────────────────────────────
 
@@ -484,7 +503,13 @@ data class CategoryGroup(val label: String, val members: List<CategoryFilter>, v
  *  most recent content appears first, regardless of category or source. */
 fun newestByDate(items: List<Channel>, limit: Int = 30): List<Channel> {
     fun dateKey(ch: Channel): String = ch.releaseDate?.takeIf { it.isNotBlank() } ?: ch.year?.let { "$it-01-01" } ?: ""
-    return items.sortedByDescending { dateKey(it) }.take(limit)
+    // Decorate-sort-undecorate: sortedByDescending re-runs its selector on every
+    // comparison (O(n log n) dateKey builds); computing each key once up front keeps
+    // the same stable sort (ties stay in original order), so output is unchanged.
+    return items.map { it to dateKey(it) }
+        .sortedByDescending { it.second }
+        .take(limit)
+        .map { it.first }
 }
 
 private fun cleanGroupLabel(raw: String): String =
@@ -559,7 +584,7 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
     val entries = leaves.mapNotNull { leaf ->
         val id = leaf.id ?: return@mapNotNull null
         val normalized = deSuperscript(leaf.name)
-        val words = normalized.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val words = normalized.split(WHITESPACE_REGEX).filter { it.isNotBlank() }
         // Strip any suffix words from the end (including unrecognized superscript leftovers)
         val stem = words.toMutableList()
         while (stem.isNotEmpty()) {

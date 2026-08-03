@@ -109,7 +109,14 @@ object ChannelCache {
                             tvgId = f[7].ifEmpty { null },
                             tvgName = f[8].ifEmpty { null },
                             tvgChno = f[9].ifEmpty { null },
-                            mediaType = runCatching { MediaType.valueOf(f[10]) }.getOrDefault(MediaType.LIVE),
+                            mediaType = when (f[10]) {
+                                // Direct dispatch avoids a valueOf call + runCatching
+                                // allocation per line (tens of thousands on every load).
+                                "LIVE" -> MediaType.LIVE
+                                "MOVIE" -> MediaType.MOVIE
+                                "SERIES" -> MediaType.SERIES
+                                else -> MediaType.LIVE // same fallback as the old valueOf(...).getOrDefault
+                            },
                             categoryId = f[11].ifEmpty { null },
                             categoryName = f[12].ifEmpty { null },
                             description = f[13].ifEmpty { null },
@@ -141,6 +148,9 @@ object ChannelCache {
     /** Strips characters that would corrupt the line/field format; real channel data never needs them. */
     private fun clean(value: String?): String {
         if (value == null) return ""
+        // Fast path: the overwhelming majority of fields are already clean - three char
+        // scans are cheaper than a regex pass, and the regex can only match these three.
+        if (value.indexOf('\n') < 0 && value.indexOf('\r') < 0 && value.indexOf(FIELD_SEP) < 0) return value
         return value.replace(FIELD_CLEAN_REGEX, " ")
     }
 }

@@ -3,7 +3,7 @@
     <string name="app_name">Lumora</string>
     <string name="search_hint">Search…</string>
     <string name="settings">Settings</string>
-    <string name="m3u_url">M3U Playlist URL</string>
+    <string name="m3u_url">M3U/M3U8 Playlist URL</string>
     <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
     <string name="xtream_server">Xtream Server URL</string>
     <string name="xtream_username">Username</string>
@@ -157,7 +157,7 @@
     <string name="no_iptv_providers_added_yet">No IPTV providers added yet</string>
     <string name="add_provider">+ Add Provider</string>
     <string name="what_kind_of_provider">What kind of provider is this?</string>
-    <string name="provider_type_m3u">M3U</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
     <string name="playlist_link">Playlist link</string>
     <string name="provider_type_xtream">Xtream</string>
     <string name="login_codes">Login codes</string>
@@ -207,7 +207,7 @@
     <!-- dialog_qr_pairing.xml -->
     <string name="pair_with_phone">Pair with Phone</string>
     <string name="select_provider_then_scan_qr">Select provider type, then scan QR</string>
-    <string name="m3u_url_option">M3U URL</string>
+    <string name="m3u_url_option">M3U/M3U8 URL</string>
     <string name="stop">Stop</string>
     <string name="close">Close</string>
 

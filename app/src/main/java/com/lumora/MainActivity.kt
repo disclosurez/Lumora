@@ -1395,11 +1395,18 @@ class MainActivity : AppCompatActivity() {
                     // Paint the cached catalog immediately (Live first, films/series in background),
                     // then only hit the network when the cache is stale - a non-stale cache returns
                     // here; a stale one falls through and refreshes silently under the content.
+                    val hadContentOnScreen = uiPainted // content already rendered before this cached paint?
                     allChannels = cached
                     classifyAndShowLiveFirst()
                     uiPainted = true
                     deriveFilmsSeries()
-                    setStatus("", visible = false)
+                    // On a cold start the initial tab render runs through selectTab (reached from
+                    // classifyAndShowLiveFirst above), which clears the status itself once content
+                    // lands. Clearing here first - before that render - blanked the screen into a
+                    // "Loading..." -> blank -> "Loading..." sandwich, because selectTab re-raises
+                    // the same message on entry. Only drop the status when content was already on
+                    // screen before this cached paint (a warm re-load).
+                    if (hadContentOnScreen) setStatus("", visible = false)
                     if (!isCatalogStale()) return@launch
                 }
             }
@@ -2987,6 +2994,13 @@ class MainActivity : AppCompatActivity() {
                     if (unit.first.pinned || (tab != 0 && unit.first.isDynamic)) return@forEach
                     bucketFor(unit.first.name)?.let { bucketed.getOrPut(it) { mutableListOf() }.add(unit) }
                 }
+                // Index channels by filterKey once, then resolve every bucket member's channel
+                // ids by lookup: the previous per-unit `list.filter` rescan was O(bucketed
+                // units x the whole list) and dominated the Films/Series sidebar+shelf build
+                // on large catalogs. channelIds is consumed as a set below, so order within
+                // one member's ids is irrelevant - the set of ids is unchanged (each channel
+                // has exactly one filterKey, so no duplication is possible across matchIds).
+                val filterKeyIndex = list.groupBy { it.filterKey() }.mapValues { (_, chs) -> chs.map { it.id } }
                 val rows = dynamicBuckets.mapNotNull { (label, _) ->
                     val members = bucketed[label] ?: return@mapNotNull null
                     val bucketId = "$DYNAMIC_BUCKET_ID_PREFIX$label"
@@ -2995,7 +3009,7 @@ class MainActivity : AppCompatActivity() {
                         if (row.channelIds.isNotEmpty()) {
                             row.channelIds
                         } else {
-                            val byKey = list.filter { ch -> ch.filterKey() in row.matchIds }.map { it.id }
+                            val byKey = row.matchIds.flatMap { filterKeyIndex[it].orEmpty() }
                             // Backup: match by categoryName in case filterKey is unreachable
                             val byName = if (byKey.isEmpty() && row.name.isNotBlank()) {
                                 list.filter { ch ->
@@ -4084,15 +4098,20 @@ class MainActivity : AppCompatActivity() {
         // its posters - under the new tab's highlight. Both come back below, populated.
         binding.categorySidebar.visibility = View.GONE
         binding.contentRow.visibility = View.GONE
+        // Raise the loading indicator synchronously, in the same frame as the tab-bar
+        // highlight, BEFORE the coroutine below does any work: the films/series derive
+        // join can take seconds on a large catalog, and the category build is also
+        // seconds - without this the user stares at a blank pane with no feedback for
+        // the whole join window. applyStatus() lets it through because contentRow is now
+        // GONE (the status row shares that same slot, and seriesContent/filmsContent/
+        // liveRow are not part of its slotTaken set). It is cleared only at the bottom
+        // of the coroutine, once the tab's content has actually landed.
+        setStatus("Loading...", visible = true)
         scope.launch {
             // A tab switch away from Live must not race the films/series derive: categories
             // for the Films/Series tabs read filmList/seriesList, so wait for any in-flight
             // derive to land before building them against possibly-stale lists.
             if (index != 0) filmsSeriesDeriveJob?.join()
-            // Building categories/filtering thousands of channels can take a couple of
-            // seconds on a large catalog - show the same loading indicator as app startup
-            // instead of leaving the tab looking empty/frozen while it works.
-            setStatus("Loading...", visible = true)
             // Pre-expand the Sports bucket so its children are visible when the user
             // scrolls down to it, regardless of what's selected at the top.
             if (index == 0) expandedGroupKeys.add("${DYNAMIC_BUCKET_ID_PREFIX}Sports")
@@ -6830,7 +6849,7 @@ class MainActivity : AppCompatActivity() {
         var editingProviderId: String? = null
         var editingVodDisabled = false
         val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
-        val typeLabels = mapOf("m3u" to "M3U", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
+        val typeLabels = mapOf("m3u" to "M3U/M3U8", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
 
         // Every place this form shows/hides a section, the view that was holding d-pad focus
         // can be the one going GONE - and a focused view disappearing leaves nothing focused,
@@ -7136,7 +7155,7 @@ class MainActivity : AppCompatActivity() {
                     if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
                 }
                 row.findViewById<TextView>(R.id.rowName).text = cfg.name
-                val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U" }
+                val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U/M3U8" }
                 row.findViewById<TextView>(R.id.rowDetail).text = "$typeLabel · ${cfg.url ?: ""}"
                 row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openIptvForm(cfg) }
                 row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
@@ -7613,7 +7632,7 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this, "Enter an M3U URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener
                     }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
-                        id = id, type = "m3u", name = name.ifBlank { "M3U Playlist" }, enabled = true,
+                        id = id, type = "m3u", name = name.ifBlank { "M3U/M3U8 Playlist" }, enabled = true,
                         disableVod = editingVodDisabled,
                         url = url, userAgent = uaInput.text.toString().trim().ifBlank { null }
                     ))
@@ -8167,7 +8186,7 @@ class MainActivity : AppCompatActivity() {
             val typeLabel = when (candidate.type) {
                 "xtream" -> "Xtream"
                 "stalker" -> "Stalker Portal"
-                else -> "M3U"
+                else -> "M3U/M3U8"
             }
             row.findViewById<TextView>(R.id.candidateName).text = candidate.label
             row.findViewById<TextView>(R.id.candidateDetail).text =
