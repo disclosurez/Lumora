@@ -81,6 +81,37 @@ object PlaybackPositionStore {
         runCatching { File(context.filesDir, FILE_NAME).delete() }
     }
 
+    /** Most recently-completed episode snapshot per series, only for series with no
+     *  in-progress entry left (those are already in Continue Watching). This is what feeds
+     *  the Home "up next" tiles: a series whose watched trail ends at a completed episode
+     *  has nothing in Continue Watching today (it filters near-complete entries out), so
+     *  its next episode would be silently unreachable from Home.
+     *  Requires the parent-series id on the snapshot - only Xtream and Jellyfin episodes
+     *  carry it (Stalker/Anime don't stamp categoryId), so those providers are naturally
+     *  skipped here. */
+    fun getCompletedSeriesTrails(context: Context): List<Channel> {
+        val inProgressSeries = mutableSetOf<String>()
+        val trailUpdated = HashMap<String, Long>()
+        val trailChannel = HashMap<String, Channel>()
+        for ((_, pos) in ensureLoaded(context)) {
+            val ch = pos.channel ?: continue
+            if (ch.mediaType != MediaType.SERIES) continue
+            val seriesId = ch.categoryId
+            if (seriesId.isNullOrBlank()) continue
+            if (!pos.isNearComplete) {
+                if (pos.positionMs > 0) inProgressSeries.add(seriesId)
+                continue
+            }
+            if (trailUpdated[seriesId] == null || pos.updatedAt > trailUpdated.getValue(seriesId)) {
+                trailUpdated[seriesId] = pos.updatedAt
+                trailChannel[seriesId] = ch
+            }
+        }
+        return trailChannel.values
+            .filter { it.categoryId !in inProgressSeries }
+            .sortedByDescending { trailUpdated[it.categoryId] ?: 0L }
+    }
+
     private fun ensureLoaded(context: Context): MutableMap<String, PlaybackPosition> {
         cache?.let { return it }
         // Cancel any pending flush so we don't overwrite the freshly loaded data with stale

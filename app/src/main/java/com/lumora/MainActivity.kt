@@ -457,6 +457,34 @@ class MainActivity : AppCompatActivity() {
      *  not extra content - merging them in would duplicate every partly-watched title. */
     private var jellyfinResumeItems: List<Channel> = emptyList()
     private var jellyfinNextUpItems: List<Channel> = emptyList()
+
+    // ── Up-next series (Continue Watching extension) ──
+    /** Bounded count of series whose episodes we'll fetch per Home build to surface
+     *  "next episode" tiles - each is one network call, and the catalog is cache-first
+     *  by design. */
+    private val MAX_UP_NEXT_SERIES = 6
+    /** seriesId -> resolved next-episode tile. Null value = resolved but no next episode
+     *  (fully watched / no seasons) - memoized so Home rebuilds don't refetch it. */
+    private val upNextTiles = LinkedHashMap<String, Channel?>()
+    /** seriesId currently being fetched, so Home rebuilds don't stack duplicate fetches. */
+    private val upNextFetching = mutableSetOf<String>()
+    /** Bumped on every clearUpNextMemo; in-flight fetches snapshot it and discard their
+     *  results if it moved - a fetch launched before a watched-state change must not write
+     *  pre-change tiles after the memo was reset. */
+    private var upNextEpoch = 0
+    /** next-episode id -> full cross-season episode chain, so clicking an up-next tile
+     *  plays with auto-advance instead of as a lone episode. */
+    private val upNextQueues = HashMap<String, List<Channel>>()
+
+    /** The memo is only valid while watched state is unchanged - any toggle or playback end
+     *  shifts which episode is "next", so drop everything and re-resolve lazily on the next
+     *  Home build. */
+    private fun clearUpNextMemo() {
+        upNextEpoch++
+        upNextTiles.clear()
+        upNextFetching.clear()
+        upNextQueues.clear()
+    }
     /** The negotiated stream for whatever Jellyfin item is playing (see
      *  JellyfinProvider.resolveStream). Its PlaySessionId is what ties every progress report
      *  to this play, and what lets the server tear a transcode down when it ends. */
@@ -2478,6 +2506,10 @@ class MainActivity : AppCompatActivity() {
             if (row.id == null) continue          // All row - the poster IS the All view
             if (row.isChild) continue             // content already in the parent's union
             if (row.count <= 0) continue          // toggle/utility rows (classic-layout toggle, etc.)
+            // The dedicated Jellyfin row stays in the sidebar for browsing but doesn't get a
+            // poster shelf - its titles are already interleaved into Newest and the genre
+            // shelves, and a whole shelf of one provider read as clutter in the poster view.
+            if (row.id == JELLYFIN_CATEGORY_ID) continue
             val items = when {
                 row.channelIds.isNotEmpty() -> list.filter { it.id in row.channelIds }
                 else -> list.filter { it.filterKey() in row.matchIds }
@@ -3949,6 +3981,19 @@ class MainActivity : AppCompatActivity() {
                 if (channel.pluginToken == null) detailReturnItem = channel
             }
             MediaType.SERIES -> {
+                // An up-next tile (synthesized for a series whose watched trail is complete)
+                // plays the next episode directly, queue included - one click continues the
+                // show. Identified by its episode id being registered in upNextQueues.
+                val upNextQueue = upNextQueues[channel.id.ifBlank { channel.url }]
+                if (upNextQueue != null) {
+                    val index = upNextQueue.indexOfFirst {
+                        it.id.ifBlank { it.url } == channel.id.ifBlank { channel.url }
+                    }
+                    showPlayerFor(channel)
+                    currentEpisodeQueue = upNextQueue
+                    currentEpisodeQueueIndex = if (index >= 0) index else 0
+                    return
+                }
                 // An episode tile (Continue Watching) carries an episode number; clicking it
                 // should land on the series' detail page - the season chip lands on the
                 // episode's season and the Play button already points at the next-unwatched
@@ -4050,6 +4095,7 @@ class MainActivity : AppCompatActivity() {
      *  un-hides the CW shelf so future watching isn't stuck behind a stale hide flag. */
     private fun clearContinueWatching() {
         PlaybackPositionStore.clearAll(this)
+        clearUpNextMemo()
         val serverIds = jellyfinResumeItems.map { it.id }.toList()
         jellyfinResumeItems = emptyList()
         val client = jellyfinClient
@@ -4082,6 +4128,98 @@ class MainActivity : AppCompatActivity() {
             isAdultCategory(item.name)
     }
 
+    /** First unwatched episode of a series in play order (season-major, then episode
+     *  number) - the same ordering the detail page and auto-advance use. Null when the
+     *  whole series is watched: a completed series gets no up-next tile. */
+    private fun nextEpisodeFor(seasons: List<Pair<String, List<Channel>>>): Channel? {
+        val ordered = seasons.flatMap { (_, eps) -> eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
+        return ordered.firstOrNull { ep ->
+            val key = ep.id.ifBlank { ep.url }
+            key.isNotBlank() && PlaybackPositionStore.get(this, key)?.isNearComplete != true
+        }
+    }
+
+    /** Builds an up-next tile's display name: "Series · S01E05 · Title". Episode titles often
+     *  already carry the series name (Xtream bakes it in), so a leading series-name
+     *  occurrence and the "SxxEyy · " marker are peeled from the title before the series
+     *  prefix is added - otherwise the series reads twice. */
+    private fun upNextTileName(seriesName: String, episodeName: String): String {
+        val sMark = Regex("""^S\d+E\d+""").find(episodeName)?.value
+        val title = episodeName
+            .replaceFirst(Regex("^" + Regex.escape(seriesName) + """\s*[·-]\s*"""), "")
+            .replaceFirst(Regex("""^S\d+E\d+\s*·\s*"""), "")
+            .replaceFirst(Regex("^" + Regex.escape(seriesName) + """\s*-\s*"""), "")
+        return listOfNotNull(seriesName, sMark, title.takeIf { it.isNotBlank() }).joinToString(" · ")
+    }
+
+    /** Continue Watching extension: a series whose watched trail ends at a completed
+     *  episode has nothing in Continue Watching (it only keeps in-progress entries), so its
+     *  next episode would be unreachable from Home. Resolve those lazily - return whatever
+     *  next-episode tiles are already memoized, and kick an async bounded fetch for the
+     *  rest. Cheap when everything's resolved: just a store read + memo lookups. */
+    private fun buildUpNextSeriesTiles(): List<Channel> {
+        // Home-only feature: other tabs' shelf builds (clear/watch toggle paths) shouldn't
+        // kick six network fetches for a row that isn't visible.
+        if (!showingHome) return emptyList()
+        val trails = PlaybackPositionStore.getCompletedSeriesTrails(this)
+        val pending = trails
+            .filterNot { it.isJellyfin } // server-side "Next Up" shelf already covers Jellyfin
+            .mapNotNull { it.categoryId?.takeIf { id -> id !in upNextTiles && id !in upNextFetching } }
+            .take(MAX_UP_NEXT_SERIES)
+        if (pending.isNotEmpty()) fetchUpNextSeries(pending)
+        // Trail order = most recently completed first; present the memoized tiles in that
+        // order (LinkedHashMap insertion order is fetch-completion order, which is arbitrary).
+        return trails.mapNotNull { t -> upNextTiles[t.categoryId]?.takeIf { it != null } }
+    }
+
+    /** Fetches the episode lists for up to [MAX_UP_NEXT_SERIES] series (one network call
+     *  each, Xtream-only because Jellyfin has its own Next Up), computes each series' next
+     *  unwatched episode, and rebuilds the Home shelves once. Results commit atomically only
+     *  if the memo epoch hasn't moved (see [clearUpNextMemo]) - a fetch that outlives a
+     *  watched-state change must not write pre-change tiles.
+     *  Only a *resolved* "no next episode" (fully watched / genuinely empty seasons) is
+     *  memoized as no-tile; catalog misses and network failures stay unresolved so the next
+     *  Home rebuild retries them. */
+    private fun fetchUpNextSeries(seriesIds: List<String>) {
+        val epoch = upNextEpoch
+        upNextFetching.addAll(seriesIds)
+        scope.launch {
+            val resolved = HashMap<String, Channel?>()
+            val queues = HashMap<String, List<Channel>>()
+            for (seriesId in seriesIds) {
+                if (epoch != upNextEpoch) break
+                val series = allChannels.firstOrNull {
+                    it.mediaType == MediaType.SERIES && it.id == seriesId
+                } ?: continue // not in catalog yet - leave unresolved, retry next build
+                val seasons = withContext(Dispatchers.IO) {
+                    runCatching { loadSeriesContent(series).second }.getOrNull()
+                } ?: continue // network failure - leave unresolved, retry next build
+                val next = nextEpisodeFor(seasons)
+                if (next == null) {
+                    // Resolved: fully watched (or no playable episodes) - no tile, ever.
+                    resolved[seriesId] = null
+                    continue
+                }
+                val chain = seasons.flatMap { (_, eps) -> eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
+                queues[next.id.ifBlank { next.url }] = chain
+                // Prefix the series name so a bare "S02E03 · Title" tile reads as the show
+                // it belongs to - but peel any series-name occurrence already baked into the
+                // episode title first (Xtream titles often read "Clarkson's Farm (2021) -
+                // Tractoring"), or the series shows twice.
+                resolved[seriesId] = next.copy(name = upNextTileName(series.name, next.name))
+            }
+            // Commit only if no watched-state change invalidated the memo mid-fetch. No
+            // upNextFetching cleanup here: the clear already wiped the set, and removing
+            // ids now could yank a *newer* epoch's in-flight claim for the same series.
+            if (epoch != upNextEpoch) return@launch
+            val foundAny = resolved.values.any { it != null }
+            upNextTiles.putAll(resolved)
+            upNextQueues.putAll(queues)
+            seriesIds.forEach { upNextFetching.remove(it) }
+            if (foundAny && showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        }
+    }
+
     private fun buildHomeShelves(): List<ContentShelf> {
         val shelves = mutableListOf<ContentShelf>()
         val hidden = getHiddenHomeShelves()
@@ -4092,7 +4230,13 @@ class MainActivity : AppCompatActivity() {
         val localContinue = PlaybackPositionStore.getAllInProgress(this)
         val serverContinue = jellyfinResumeItems
         val serverIds = serverContinue.map { it.id }.toSet()
-        val continueItems = (serverContinue + localContinue.filterNot { it.id in serverIds })
+        // Up-next series tiles: series whose watched trail ends at a completed episode have
+        // no in-progress entry, so they'd otherwise drop out of Continue Watching entirely.
+        // buildUpNextSeriesTiles returns what's already resolved and kicks the async fetch
+        // for the rest - the row fills in as episodes arrive.
+        val upNext = buildUpNextSeriesTiles().filterNot(::isAdultHomeItem)
+        val continueItems = (serverContinue + localContinue + upNext)
+            .distinctBy { it.id.ifBlank { it.url } }
             .filterNot(::isAdultHomeItem)
         if (continueItems.isNotEmpty()) shelves.add(ContentShelf("Continue Watching", continueItems))
 
@@ -4589,6 +4733,13 @@ class MainActivity : AppCompatActivity() {
             itemAdapter.notifyDataSetChanged()
             refreshSeasonChipStates(seasons)
             playButtonRefresh?.invoke()
+            // Watched state moved for a whole season - the Home up-next tiles are stale, and
+            // the Series tab's CW surfaces (poster shelf, sidebar count, open grid) are built
+            // from the same store, so they need a refresh too.
+            clearUpNextMemo()
+            refreshSeriesShelvesIfShowing()
+            if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+            if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
         }
 
         itemAdapter = EpisodeAdapter(
@@ -4622,7 +4773,14 @@ class MainActivity : AppCompatActivity() {
             onWatchedToggle = { _, _ ->
                 // One episode flipped - refresh the season chips' all-watched state and the
                 // Play button's first-unwatched target. The toggled row itself already
-                // repainted inside the adapter.
+                // repainted inside the adapter. Watched state changed, so the Home up-next
+                // memo is stale too - and the Series tab's CW poster shelf / sidebar count /
+                // open CW grid are all built from the store, so they need a refresh or a
+                // watched episode lingers in Continue Watching.
+                clearUpNextMemo()
+                refreshSeriesShelvesIfShowing()
+                if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+                if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
                 refreshSeasonChipStates(detailSeasons)
                 playButtonRefresh?.invoke()
             }
@@ -6479,6 +6637,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun hidePlayer() {
         saveCurrentPlaybackPosition()
+        // Watched state may have moved during playback - the Home up-next memo is stale.
+        clearUpNextMemo()
         // Before nowPlayingChannel is cleared: the server turns this final position into a
         // watched mark or a resume point, and closes out any transcode it started.
         if (reportJellyfinStopped()) refreshJellyfinRowsAfterPlayback()
@@ -7212,6 +7372,7 @@ class MainActivity : AppCompatActivity() {
                 .setMessage("Removes resume positions and recently-played channels. Favorites aren't affected.")
                 .setPositiveButton("Clear") { _, _ ->
                     PlaybackPositionStore.clearAll(this)
+                    clearUpNextMemo()
                     RecentlyPlayedStore.clear(this)
                     Toast.makeText(this, "Watch history cleared", Toast.LENGTH_SHORT).show()
                     if (showingHome) selectHome()
