@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The row itself is the enable/disable control: rowEnabled is display-only (a bare
      CheckBox is a poor D-pad target, and a focusable one competes with Edit/Remove), so
-     the root carries the focus and the click that flips it. rowVodBox is different: a real
-     per-provider VOD toggle, so it gets its own D-pad target with focus chrome. -->
+     the root carries the focus and the click that flips it. The three content-type boxes
+     (TV / Movies / Series) are real per-provider toggles, so each gets its own D-pad
+     target with focus chrome - the row's focus chain runs root -> TV -> Movies -> Series
+     -> Edit -> Remove. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rowRoot"
     android:layout_width="match_parent"
@@ -13,7 +15,7 @@
     android:clipToPadding="false"
     android:focusable="true"
     android:gravity="center_vertical"
-    android:nextFocusRight="@+id/rowVodBox"
+    android:nextFocusRight="@+id/rowTvBox"
     android:orientation="horizontal"
     android:padding="@dimen/settings_gap"
     android:stateListAnimator="@animator/focus_scale">
@@ -55,7 +57,7 @@
     </LinearLayout>
 
     <CheckBox
-        android:id="@+id/rowVodBox"
+        android:id="@+id/rowTvBox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/settings_gap_s"
@@ -64,11 +66,47 @@
         android:focusable="true"
         android:fontFamily="@font/inter_medium"
         android:nextFocusLeft="@+id/rowRoot"
+        android:nextFocusRight="@+id/rowMoviesBox"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="1dp"
+        android:stateListAnimator="@animator/focus_scale_flat"
+        android:text="@string/provider_content_tv"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/settings_text_caption" />
+
+    <CheckBox
+        android:id="@+id/rowMoviesBox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/settings_gap_s"
+        android:background="@drawable/bg_toolbar_button"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/inter_medium"
+        android:nextFocusLeft="@+id/rowTvBox"
+        android:nextFocusRight="@+id/rowSeriesBox"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="1dp"
+        android:stateListAnimator="@animator/focus_scale_flat"
+        android:text="@string/provider_content_movies"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/settings_text_caption" />
+
+    <CheckBox
+        android:id="@+id/rowSeriesBox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/settings_gap_s"
+        android:background="@drawable/bg_toolbar_button"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/inter_medium"
+        android:nextFocusLeft="@+id/rowMoviesBox"
         android:nextFocusRight="@+id/rowEditButton"
         android:paddingHorizontal="4dp"
         android:paddingVertical="1dp"
         android:stateListAnimator="@animator/focus_scale_flat"
-        android:text="VOD"
+        android:text="@string/provider_content_series"
         android:textColor="@color/text_primary"
         android:textSize="@dimen/settings_text_caption" />
 
@@ -81,7 +119,7 @@
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
-        android:nextFocusLeft="@+id/rowVodBox"
+        android:nextFocusLeft="@+id/rowSeriesBox"
         android:nextFocusRight="@+id/rowRemoveButton"
         android:paddingHorizontal="@dimen/settings_gap"
         android:stateListAnimator="@animator/focus_scale">

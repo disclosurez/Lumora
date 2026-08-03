@@ -50,10 +50,24 @@ object IptvProviderStore {
         return current
     }
 
-    /** Flips the per-provider VOD gate (movies/series off) for one provider, mirroring
-     *  setEnabled - loads, updates the matching entry, saves, returns the new list. */
-    fun setVodDisabled(prefs: SharedPreferences, id: String, disabled: Boolean): List<IptvProviderConfig> {
-        val current = load(prefs).map { if (it.id == id) it.copy(disableVod = disabled) else it }
+    /** Flips one per-provider content-type gate (live/movies/series) for one provider,
+     *  mirroring setEnabled - loads, updates the matching entry, saves, returns the new
+     *  list. Pass null to leave a flag untouched. */
+    fun setContentFlags(
+        prefs: SharedPreferences,
+        id: String,
+        live: Boolean? = null,
+        movies: Boolean? = null,
+        series: Boolean? = null
+    ): List<IptvProviderConfig> {
+        val current = load(prefs).map {
+            if (it.id != id) it
+            else it.copy(
+                liveEnabled = live ?: it.liveEnabled,
+                moviesEnabled = movies ?: it.moviesEnabled,
+                seriesEnabled = series ?: it.seriesEnabled
+            )
+        }
         save(prefs, current)
         return current
     }
@@ -109,22 +123,32 @@ object IptvProviderStore {
         put("type", c.type)
         put("name", c.name)
         put("enabled", c.enabled)
-        put("disableVod", c.disableVod)
+        put("liveEnabled", c.liveEnabled)
+        put("moviesEnabled", c.moviesEnabled)
+        put("seriesEnabled", c.seriesEnabled)
         c.url?.let { put("url", it) }
         c.username?.let { put("username", it) }
         c.password?.let { put("password", it) }
         c.userAgent?.let { put("userAgent", it) }
     }
 
-    private fun fromJson(o: JSONObject): IptvProviderConfig = IptvProviderConfig(
-        id = o.optString("id").ifBlank { newId() },
-        type = o.optString("type", "m3u"),
-        name = o.optString("name", "Provider"),
-        enabled = o.optBoolean("enabled", true),
-        disableVod = o.optBoolean("disableVod", false),
-        url = o.optString("url").takeIf { it.isNotBlank() },
-        username = o.optString("username").takeIf { it.isNotBlank() },
-        password = o.optString("password").takeIf { it.isNotBlank() },
-        userAgent = o.optString("userAgent").takeIf { it.isNotBlank() }
-    )
+    private fun fromJson(o: JSONObject): IptvProviderConfig {
+        // Legacy migration: configs saved before the per-type split carry disableVod
+        // (movies+series off together). Newer entries have the individual flags.
+        val legacyVodOff = o.optBoolean("disableVod", false)
+        fun flag(key: String) = if (o.has(key)) o.optBoolean(key, true) else !legacyVodOff
+        return IptvProviderConfig(
+            id = o.optString("id").ifBlank { newId() },
+            type = o.optString("type", "m3u"),
+            name = o.optString("name", "Provider"),
+            enabled = o.optBoolean("enabled", true),
+            liveEnabled = o.optBoolean("liveEnabled", true),
+            moviesEnabled = flag("moviesEnabled"),
+            seriesEnabled = flag("seriesEnabled"),
+            url = o.optString("url").takeIf { it.isNotBlank() },
+            username = o.optString("username").takeIf { it.isNotBlank() },
+            password = o.optString("password").takeIf { it.isNotBlank() },
+            userAgent = o.optString("userAgent").takeIf { it.isNotBlank() }
+        )
+    }
 }

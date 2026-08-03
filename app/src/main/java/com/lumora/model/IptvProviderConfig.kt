@@ -8,9 +8,14 @@ data class IptvProviderConfig(
     val type: String, // "m3u" | "xtream" | "stalker"
     val name: String,
     val enabled: Boolean = true,
-    // Per-provider VOD gate: hides this provider's movies/series (but keeps live TV).
-    // The effective gate for this provider is the global isVodDisabled() OR this flag.
-    val disableVod: Boolean = false,
+    // Per-content-type gates: TV (live) / Movies / Series can each be switched off for a
+    // single provider without touching the others. Movies and Series are also subject to
+    // the global isVodDisabled() gate (the effective gate for VOD is the global flag OR
+    // this provider's flag). The old single disableVod field (movies+series together) is
+    // migrated into moviesEnabled/seriesEnabled on load.
+    val liveEnabled: Boolean = true,
+    val moviesEnabled: Boolean = true,
+    val seriesEnabled: Boolean = true,
     val url: String? = null,
     val username: String? = null,
     val password: String? = null,

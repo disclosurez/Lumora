@@ -105,13 +105,16 @@
     <dimen name="category_sidebar_width">200dp</dimen>
 
     <!-- Toolbar / tab bar / poster grid, all +~30% over the phone scale. Tab padding drops
-         from 36dp to 22dp to keep the five-tab row inside the panel at the larger type. -->
+         from 36dp to 22dp to keep the five-tab row inside the panel at the larger type.
+         18dp (down from 22dp) since the chrome row gained a 12dp gap before the button
+         cluster - the tabs must still fit next to the search/settings/refresh buttons
+         without the last tab clipping or the scroller scrolling on a 1080p panel. -->
     <dimen name="toolbar_title_text">23sp</dimen>
     <dimen name="toolbar_search_text">17sp</dimen>
     <dimen name="toolbar_search_icon_size">22dp</dimen>
     <dimen name="toolbar_icon_size">29dp</dimen>
     <dimen name="tab_text">17sp</dimen>
-    <dimen name="tab_padding_horizontal">22dp</dimen>
+    <dimen name="tab_padding_horizontal">18dp</dimen>
     <dimen name="tab_padding_vertical">13dp</dimen>
     <dimen name="poster_title_text">13sp</dimen>
     <dimen name="poster_title_outline_width">0.9dp</dimen>
@@ -158,6 +161,15 @@
     <!-- 44dp, not 56dp: these hold a 24dp icon, and with the toolbar now wrap_content they
          are what makes it tall. A 56dp box around a 24dp glyph just padded the whole bar. -->
     <dimen name="toolbar_button_size">44dp</dimen>
+    <!-- TV tab band = the tab ITEM height, measured on a 1920px Fire TV: a tab item
+         renders 102px = 51dp (tab_padding_vertical 13dp x2 + 20dp icon + tab_text 17sp
+         label line). The search pill previously used match_parent, which overshot to the
+         scroller's full height and read oversized next to the tabs. If the tab internals
+         change, recalibrate this to the tab item's rendered height. -->
+    <dimen name="chrome_button_height">51dp</dimen>
+    <!-- TV tier: toolbar_padding_horizontal is 28dp, so -14dp leaves the brand ~14dp
+         from the screen edge, corner-hugged with its top edge. -->
+    <dimen name="toolbar_brand_translate_x">-14dp</dimen>
     <dimen name="toolbar_padding_horizontal">28dp</dimen>
     <!-- TV tier of the toolbar cluster spacing - see values/dimens.xml. Slightly wider than
          phone: the buttons are aimed at a remote across a room, and the panel has room to

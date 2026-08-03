@@ -17,14 +17,17 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
-        <!-- Top Toolbar with D-pad friendly buttons. Height is wrap_content, not a fixed
-             toolbar_height: the tallest child (the search/settings/refresh buttons, which
-             are sized off the type scale) decides how tall the bar is, so the bar tracks
-             the text instead of holding a constant box around whatever is inside it. -->
+        <!-- One chrome row: left group (brand + tab scroller) | search/settings/refresh.
+             Height is wrap_content, not a fixed toolbar_height: the tallest child (the
+             tabs) decides how tall the bar is, so it tracks the content instead of holding
+             a constant box. clipChildren false on the row so the tabs' 1.06x focus scale
+             isn't sliced top/bottom (they're taller than the row's other children). -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="@dimen/toolbar_padding_horizontal"
@@ -32,132 +35,61 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp">
 
-            <!-- App mark in place of the title text: the launcher's TV + antenna + play
-                 glyph redrawn monochrome in the toolbar's icon stroke language, so the
-                 brand reads crisp at 40dp with no colour blob against the dark toolbar.
-                 The 0dp + weight wrapper is what still pushes the search/settings/refresh
-                 cluster to the right edge (same job the weighted title did); the icon
-                 itself stays pinned to the start and centred vertically. Decorative - not
-                 focusable, so the D-pad never lands on it. -->
+            <!-- Left group: brand + tab scroller. weight=1 absorbs the free middle of the
+                 row, so the button cluster stays pinned right even when the scroller is
+                 GONE (simple mode, search open, no provider). The brand is plain
+                 wrap_content inside the group - no weight - so the first tab (Live TV)
+                 sits directly against the icon, and the scroller (0dp + weight=1) takes
+                 exactly the remaining width: all tabs at full size on TV, a scrolling
+                 window on a portrait phone. clipChildren false so the tabs' focus scale
+                 isn't sliced by the group's bounds. -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:gravity="start|center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:contentDescription="@string/app_name"
-                    android:src="@drawable/ic_toolbar_brand"
-                    android:tint="@color/text_primary" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:clipChildren="false"
+                android:clipToPadding="false"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <!-- Search button: icon + label box so it reads as "there's a search here"
-                     rather than a bare, easy-to-miss icon. Icon is the same size as the
-                     settings/refresh glyphs so the cluster reads as one set; its own padding
-                     is the small toolbar_search_padding_horizontal so the pill's content sits
-                     an even step away from the settings button. -->
-                <LinearLayout
-                    android:id="@+id/btnSearch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="@dimen/toolbar_button_size"
-                    android:background="@drawable/bg_toolbar_button"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:paddingHorizontal="@dimen/toolbar_search_padding_horizontal"
-                    android:nextFocusLeft="@id/tabFilms"
-                    android:nextFocusRight="@id/btnSettings">
+                <!-- App mark in place of the title text: the launcher's TV + antenna + play
+                     glyph redrawn monochrome in the toolbar's icon stroke language, so the
+                     brand reads crisp with no colour blob against the dark toolbar.
+                     Top-aligned (layout_gravity="top") so it hugs the row's top corner like
+                     a logo instead of floating centred next to the tabs, and pulled slightly
+                     left via translationX (toolbar_brand_translate_x) - translation is
+                     post-layout, so the scroller and tabs keep their positions; only the
+                     icon moves. Decorative - not focusable, so the D-pad never lands on it. -->
+                <ImageView
+                    android:layout_width="@dimen/toolbar_brand_size"
+                    android:layout_height="@dimen/toolbar_brand_size"
+                    android:layout_gravity="top"
+                    android:contentDescription="@string/app_name"
+                    android:src="@drawable/ic_toolbar_brand"
+                    android:tint="@color/text_primary"
+                    android:translationX="@dimen/toolbar_brand_translate_x" />
 
-                    <ImageView
-                        android:layout_width="@dimen/toolbar_icon_size"
-                        android:layout_height="@dimen/toolbar_icon_size"
-                        android:src="@drawable/ic_search"
-                        android:tint="@color/text_primary" />
+                <!-- Tab scroller: Home | Live | Series | Films | Discover (+ Downloads on
+                     phones) with D-pad focus (pill segmented control). weight=1 makes it
+                     flexible: it takes everything the brand doesn't, so on TV the tabs
+                     render full-size right next to the icon and on a ~360dp portrait phone
+                     it collapses to a narrow window that scrolls - every tab is still
+                     reachable, and the scroller keeps the focused tab in view.
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:fontFamily="@font/inter_medium"
-                        android:text="@string/search"
-                        android:textColor="@color/text_primary"
-                        android:textSize="@dimen/toolbar_search_text" />
-                </LinearLayout>
-
-                <!-- Settings button -->
-                <LinearLayout
-                    android:id="@+id/btnSettings"
-                    android:layout_width="@dimen/toolbar_button_size"
-                    android:layout_height="@dimen/toolbar_button_size"
-                    android:layout_marginStart="@dimen/toolbar_button_gap"
-                    android:background="@drawable/bg_toolbar_button"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:nextFocusLeft="@id/btnSearch"
-                    android:nextFocusRight="@id/btnRefresh">
-
-                    <ImageView
-                        android:layout_width="@dimen/toolbar_icon_size"
-                        android:layout_height="@dimen/toolbar_icon_size"
-                        android:src="@drawable/ic_settings"
-                        android:tint="@color/text_primary" />
-                </LinearLayout>
-
-                <!-- Refresh button. marginEnd mirrors toolbar_button_gap so the cluster gets
-                     the same air after the last button that it has between buttons - with the
-                     toolbar's own end padding on top, the refresh glyph no longer hugs the
-                     screen edge. -->
-                <LinearLayout
-                    android:id="@+id/btnRefresh"
-                    android:layout_width="@dimen/toolbar_button_size"
-                    android:layout_height="@dimen/toolbar_button_size"
-                    android:layout_marginStart="@dimen/toolbar_button_gap"
-                    android:layout_marginEnd="@dimen/toolbar_button_gap"
-                    android:background="@drawable/bg_toolbar_button"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:nextFocusLeft="@id/btnSettings">
-
-                    <ImageView
-                        android:layout_width="@dimen/toolbar_icon_size"
-                        android:layout_height="@dimen/toolbar_icon_size"
-                        android:src="@drawable/ic_refresh"
-                        android:tint="@color/text_primary" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Tab Bar: Home | Live | Series | Films with D-pad focus (pill segmented control).
-             clipChildren/clipToPadding false on both levels because each tab is
-             height=match_parent and scales to 1.06x on focus (focus_scale_flat) - without
-             this the scale-up overflows the row's height and gets clipped top+bottom, making
-             the focus highlight look cut off.
-
-             Horizontally scrollable so the row can never clip: five wrap_content pills do
-             not fit across a ~360dp portrait phone, and a plain LinearLayout just cut the
-             last tabs off screen with no way to reach them. fillViewport keeps the TV case
-             identical - when the tabs are narrower than the screen the row is stretched to
-             the full width and gravity still centres them, so nothing scrolls.
-             The tabBar id lives on the scroller because code toggles its visibility. -->
-        <HorizontalScrollView
-            android:id="@+id/tabBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clipChildren="false"
-            android:clipToPadding="false"
-            android:fillViewport="true"
-            android:scrollbars="none">
+                     clipChildren/clipToPadding false on both levels because each tab is
+                     height=match_parent and scales to 1.06x on focus (focus_scale_flat) -
+                     without this the scale-up overflows and gets clipped, making the focus
+                     highlight look cut off. The tabBar id lives on the scroller because
+                     code toggles its visibility (simple mode, search open). -->
+                <HorizontalScrollView
+                    android:id="@+id/tabBar"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:fillViewport="true"
+                    android:scrollbars="none">
 
         <LinearLayout
             android:id="@+id/tabBarRow"
@@ -166,7 +98,7 @@
             android:background="@android:color/transparent"
             android:clipChildren="false"
             android:clipToPadding="false"
-            android:gravity="center_horizontal"
+            android:gravity="start"
             android:orientation="horizontal"
             android:paddingHorizontal="10dp"
             android:paddingBottom="6dp">
@@ -397,7 +329,7 @@
                 android:paddingTop="@dimen/tab_padding_vertical"
                 android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabHome"
-                android:nextFocusRight="@id/tabDownloads"
+                android:nextFocusRight="@id/btnSearch"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none">
 
@@ -436,6 +368,63 @@
                     android:visibility="gone" />
             </LinearLayout>
 
+            <!-- Search: an exact copy of the tab items, id btnSearch. It isn't a tab - it
+                 opens the search overlay - so it never renders the selected state or the
+                 indicator (updateTabStyles never touches it and the indicator stays GONE),
+                 but it must look identical to the tabs so search reads as one of them.
+                 btnSearch keeps the id the old toolbar pill had: MainActivity wires the
+                 click and the visibility gating by this id, and both apply unchanged to
+                 this element. -->
+            <LinearLayout
+                android:id="@+id/btnSearch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:background="@drawable/bg_tab_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
+                android:nextFocusLeft="@id/tabDiscover"
+                android:nextFocusRight="@id/btnSettings"
+                android:stateListAnimator="@animator/focus_scale_flat"
+                android:layerType="none">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_search"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/search"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/tabDownloads"
                 android:layout_width="wrap_content"
@@ -449,8 +438,8 @@
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:paddingTop="@dimen/tab_padding_vertical"
                 android:paddingBottom="@dimen/tab_padding_vertical"
-                android:nextFocusLeft="@id/tabDiscover"
-                android:nextFocusRight="@id/tabLive"
+                android:nextFocusLeft="@id/btnSearch"
+                android:nextFocusRight="@id/btnSettings"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none"
                 android:visibility="gone">
@@ -491,6 +480,65 @@
             </LinearLayout>
         </LinearLayout>
         </HorizontalScrollView>
+            </LinearLayout>
+
+            <!-- Settings / Refresh: fixed at the right end of the chrome row. marginStart =
+                 chrome_cluster_gap keeps them clear of the tab scroller's last item - Search,
+                 which now lives inside the scroller as a tab-styled button (id btnSearch, an
+                 exact copy of the tab items; the old search pill was removed). Search's
+                 RIGHT leaves the scroller into Settings, so the D-pad walks the whole row. -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="@dimen/chrome_cluster_gap"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- Settings button: tab-band height (chrome_button_height) so the cluster
+                     reads uniform next to the tabs. -->
+                <LinearLayout
+                    android:id="@+id/btnSettings"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/chrome_button_height"
+                    android:layout_marginStart="@dimen/toolbar_button_gap"
+                    android:background="@drawable/bg_toolbar_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:nextFocusLeft="@id/btnSearch"
+                    android:nextFocusRight="@id/btnRefresh">
+
+                    <ImageView
+                        android:layout_width="@dimen/toolbar_icon_size"
+                        android:layout_height="@dimen/toolbar_icon_size"
+                        android:src="@drawable/ic_settings"
+                        android:tint="@color/text_primary" />
+                </LinearLayout>
+
+                <!-- Refresh button: same tab-band height as search/settings. marginEnd
+                     mirrors toolbar_button_gap so the cluster gets the same air after the
+                     last button that it has between buttons - with the row's own end padding
+                     on top, the refresh glyph no longer hugs the screen edge. -->
+                <LinearLayout
+                    android:id="@+id/btnRefresh"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/chrome_button_height"
+                    android:layout_marginStart="@dimen/toolbar_button_gap"
+                    android:layout_marginEnd="@dimen/toolbar_button_gap"
+                    android:background="@drawable/bg_toolbar_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:nextFocusLeft="@id/btnSettings">
+
+                    <ImageView
+                        android:layout_width="@dimen/toolbar_icon_size"
+                        android:layout_height="@dimen/toolbar_icon_size"
+                        android:src="@drawable/ic_refresh"
+                        android:tint="@color/text_primary" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
 
         <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text.
              Fills the same content slot every tab uses (0dp/weight=1) so a "Loading..."
@@ -962,6 +1010,28 @@
                     android:text="@string/no_downloads_yet"
                     android:textColor="@color/text_secondary"
                     android:textSize="@dimen/text_body_s"
+                    android:visibility="gone" />
+
+                <!-- Collapse re-expand affordance (phone-only): when the category sidebar is
+                     collapsed, this narrow button sits where the rail's left edge was, as the
+                     only way back to the categories. Drawn last so it overlays the content
+                     list; visibility is driven by applySidebarVisibility() alongside the
+                     rail's own, never by hand. Focusable so a D-pad user on the content's
+                     first row can reach it with one LEFT press. -->
+                <ImageButton
+                    android:id="@+id/sidebarExpandButton"
+                    android:layout_width="44dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginStart="16dp"
+                    android:background="@drawable/bg_toolbar_button"
+                    android:clickable="true"
+                    android:contentDescription="Expand categories"
+                    android:focusable="true"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_chevron_right"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:tint="@color/text_secondary"
                     android:visibility="gone" />
 
             </FrameLayout>

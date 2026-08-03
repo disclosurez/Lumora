@@ -214,6 +214,12 @@
     <!-- item_iptv_provider_row.xml -->
     <string name="edit">Edit</string>
     <string name="remove">Remove</string>
+    <!-- Per-provider content-type toggles on the provider row. Dedicated ids even though
+         "Movies"/"Series" exist as tab labels (films_tab/series_tab) - the wiring lane
+         keys each checkbox off these ids and reusing the tab strings would couple the two. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Movies</string>
+    <string name="provider_content_series">Series</string>
 
     <!-- item_plugin_row.xml -->
     <string name="run">Run</string>

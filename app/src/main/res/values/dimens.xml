@@ -138,6 +138,21 @@
          thing in the toolbar, so they set its (wrap_content) height. 48dp here is the
          minimum comfortable touch target on a phone. -->
     <dimen name="toolbar_button_size">48dp</dimen>
+    <!-- Height of the chrome-row cluster buttons (search/settings/refresh). Sized to the
+         tab ITEM's height - the tabs are icon+label blocks whose wrap height is their
+         vertical padding plus the icon plus the label line, so this tracks the tab band
+         per tier (see the sw540dp and values-port overrides). The search pill used
+         match_parent, which overshot to the whole scroller height and read as oversized
+         next to the tabs. -->
+    <dimen name="chrome_button_height">62dp</dimen>
+    <!-- The brand mark in the chrome row. Was a 40dp literal; now a dimen so portrait
+         phones (values-port) can collapse it and give the tab scroller more width. -->
+    <dimen name="toolbar_brand_size">40dp</dimen>
+    <!-- Post-layout leftward shift for the brand icon so it sits ~14dp from the screen
+         edge instead of behind the row's full toolbar_padding_horizontal. Negative per
+         tier (padding minus the 14dp target): base padding 20dp -> -6dp. translationX
+         moves only the icon - the tabs keep their laid-out position. -->
+    <dimen name="toolbar_brand_translate_x">-6dp</dimen>
     <dimen name="toolbar_padding_horizontal">20dp</dimen>
     <!-- Gap between the three toolbar cluster buttons (search/settings/refresh) and the air
          after the last one. Was a 4dp literal on settings/refresh with nothing on the right;
@@ -145,6 +160,12 @@
          pinched ones. The search pill now carries toolbar_search_padding_horizontal instead,
          so the spaces between and after the buttons share one rhythm. -->
     <dimen name="toolbar_button_gap">6dp</dimen>
+    <!-- Breathing room between the tab scroller and the search/settings/refresh cluster:
+         the pill used to touch the last tab (Discover) with zero gap, which read as an
+         overlap on TV. Dedicated dimen rather than toolbar_button_gap because that gap is
+         for between-buttons spacing; this one separates a scrollable region from the
+         fixed cluster and needs to be wider. -->
+    <dimen name="chrome_cluster_gap">12dp</dimen>
     <!-- The search pill's own horizontal padding, shrunk from the 14dp literal so its content
          sits as close to the settings button as the settings button sits to refresh. -->
     <dimen name="toolbar_search_padding_horizontal">10dp</dimen>

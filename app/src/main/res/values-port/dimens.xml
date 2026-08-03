@@ -16,6 +16,15 @@
          wrap_content - these buttons are what set its height. -->
     <dimen name="toolbar_padding_horizontal">12dp</dimen>
     <dimen name="toolbar_button_size">42dp</dimen>
+    <!-- Portrait-phone tab band: tab_padding_vertical 10dp x2 + 20dp icon + ~16dp label
+         line (tab_text 12sp). Matches the unselected tab item height. -->
+    <dimen name="chrome_button_height">56dp</dimen>
+    <!-- The merged chrome row gives the tab scroller a weight=3 window; on a 360dp screen
+         every dp counts, so the decorative brand collapses from 40dp to 28dp. -->
+    <dimen name="toolbar_brand_size">28dp</dimen>
+    <!-- Portrait phone: toolbar_padding_horizontal is already 12dp - no pull needed
+         (the icon is ~12dp from the edge), keep 0 so it doesn't go flush. -->
+    <dimen name="toolbar_brand_translate_x">0dp</dimen>
 
     <!-- Tabs: 36dp of padding either side of five pills is far wider than a portrait phone.
          The row scrolls rather than clipping now, but tightening the pills means the first

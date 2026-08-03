@@ -186,6 +186,11 @@ private const val NEWEST_CATEGORY_ID = "__newest__"
  *  are not seriesList members (a grid-filter on seriesList would come up empty). */
 private const val CONTINUE_WATCHING_CATEGORY_ID = "__continue_watching__"
 private const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
+/** Phone-only sidebar utility row that collapses the category rail; persisted so the rail
+ *  stays collapsed across launches. Never built on TV (see buildCategoryRows), and always
+ *  gated on !isTv at behavior time too - a pref set on a phone must not collapse a TV. */
+private const val COLLAPSE_CATEGORIES_TOGGLE_ID = "__collapse_categories__"
+private const val PREF_CATEGORY_SIDEBAR_COLLAPSED = "category_sidebar_collapsed"
 /** Films/Series sidebar row that filters the tab down to Jellyfin-sourced items only.
  *  Only built when the tab actually contains Jellyfin content. */
 private const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
@@ -725,12 +730,11 @@ class MainActivity : AppCompatActivity() {
             val filter = android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
             ContextCompat.registerReceiver(this, downloadCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         } else {
-            // The XML D-pad chain routes Discover -> Downloads -> Live, but Downloads stays
-            // View.GONE on TV - an explicit nextFocus target that's GONE just eats the key
-            // press instead of falling through. Re-route around the hidden Downloads tab so
-            // the ring closes Discover -> Live directly.
-            binding.tabDiscover.nextFocusRightId = R.id.tabLive
-            binding.tabLive.nextFocusLeftId = R.id.tabDiscover
+            // Downloads stays View.GONE on TV. In the merged chrome row the XML chain already
+            // exits the tabs into the button cluster (Discover -> Search pill), so only the
+            // left end needs fixing: Live's LEFT would target the GONE Downloads tab and eat
+            // the press - stop it there instead of wrapping into a hidden tab.
+            binding.tabLive.nextFocusLeftId = View.NO_ID
         }
 
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -967,7 +971,10 @@ class MainActivity : AppCompatActivity() {
         if (isTabDrilledIn()) return false
         if (!isListAtTop(activeContentList())) return false
         if (showingDiscover || showingDownloads) return true
-        if (!isListAtTop(binding.categorySidebar)) return false
+        // Collapsed rail (or a tab whose sidebar is otherwise hidden) has nothing to scroll
+        // to - the content list alone decides "top" then. Without this guard, a GONE
+        // RecyclerView keeps stale child geometry and can report a mid-list scroll position.
+        if (binding.categorySidebar.visibility == View.VISIBLE && !isListAtTop(binding.categorySidebar)) return false
         // No "first row selected" requirement on purpose: on Live TV the first sidebar row
         // is the classic-layout control, not a category - walking the selection up to it
         // flipped the layout on every Back and never satisfied the check, so Back got stuck
@@ -983,7 +990,9 @@ class MainActivity : AppCompatActivity() {
         }
         val content = activeContentList()
         content.scrollToPosition(0)
-        if (showingDiscover || showingDownloads) {
+        // No rail to focus when the sidebar is hidden (collapsed / Downloads-style) - focus
+        // the content instead, same as the non-categorized panes below.
+        if (showingDiscover || showingDownloads || binding.categorySidebar.visibility != View.VISIBLE) {
             focusFirstItemWhenReady(content)
             return
         }
@@ -1280,6 +1289,40 @@ class MainActivity : AppCompatActivity() {
      *  and simple mode never writes the manual pref so turning it off re-enables VOD. */
     private fun isVodDisabled(): Boolean = isSimpleMode() || prefs.getBoolean(PREF_DISABLE_VOD, false)
 
+    // ── Per-provider content-type gates ──────────────
+    /** Effective per-content-type gate for one IPTV provider: the provider's own flag,
+     *  with Movies/Series additionally subject to the global VOD gate. */
+    private fun providerAllowsLive(cfg: IptvProviderConfig): Boolean = cfg.liveEnabled
+    private fun providerAllowsMovies(cfg: IptvProviderConfig): Boolean = !isVodDisabled() && cfg.moviesEnabled
+    private fun providerAllowsSeries(cfg: IptvProviderConfig): Boolean = !isVodDisabled() && cfg.seriesEnabled
+
+    /** Jellyfin's content-type flags live in loose prefs (one slot, no IptvProviderConfig).
+     *  Legacy jellyfin_disable_vod (movies+series off) maps into the individual flags until
+     *  the new keys are written. */
+    private fun jellyfinAllowsLive(): Boolean = prefs.getBoolean("jellyfin_live_enabled", true)
+    private fun jellyfinAllowsMovies(): Boolean =
+        !isVodDisabled() && jellyfinFlag("jellyfin_movies_enabled")
+    private fun jellyfinAllowsSeries(): Boolean =
+        !isVodDisabled() && jellyfinFlag("jellyfin_series_enabled")
+
+    private fun jellyfinFlag(key: String): Boolean =
+        if (prefs.contains(key)) prefs.getBoolean(key, true)
+        else !prefs.getBoolean("jellyfin_disable_vod", false)
+
+    /** True when a channel survives the per-provider content-type gates for its owner.
+     *  Used by the cold-start cache filter and cache resurrection - the cache is saved
+     *  unfiltered, so a channel whose type was switched off since it was written would
+     *  otherwise come back here. A channel with no configured owner passes. */
+    private fun isTypeAllowed(ch: Channel, configs: List<IptvProviderConfig>): Boolean {
+        val owner = ch.sourceProviderId?.let { id -> configs.firstOrNull { it.id == id } }
+        return when (ch.mediaType) {
+            MediaType.LIVE -> if (ch.isJellyfin) jellyfinAllowsLive() else owner?.let { providerAllowsLive(it) } ?: true
+            MediaType.MOVIE -> if (ch.isJellyfin) jellyfinAllowsMovies() else owner?.let { providerAllowsMovies(it) } ?: true
+            MediaType.SERIES -> if (ch.isJellyfin) jellyfinAllowsSeries() else owner?.let { providerAllowsSeries(it) } ?: true
+            else -> true
+        }
+    }
+
     private fun applySimpleModeUi() {
         val simple = isSimpleMode()
         // Chrome up = something to browse, so the tab bar would be showing in normal mode.
@@ -1298,7 +1341,10 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             binding.tabBar.visibility = if (chromeUp) View.VISIBLE else View.GONE
-            binding.btnSearch.nextFocusLeftId = R.id.tabFilms
+            // Search's LEFT joins the merged chrome row at its last tab. Downloads is
+            // phone-only and GONE on TV, so Discover is the row's rightmost always-visible
+            // tab on both devices.
+            binding.btnSearch.nextFocusLeftId = R.id.tabDiscover
         }
     }
 
@@ -1360,11 +1406,12 @@ class MainActivity : AppCompatActivity() {
      *  so the cache itself stays display-unfiltered. */
     private suspend fun persistCatalog(channels: List<Channel>) = withContext(Dispatchers.IO) {
         val configs = IptvProviderStore.load(prefs)
-        val disableVodById = configs.filter { it.disableVod }.map { it.id }.toSet()
         val configuredIds = configs.map { it.id }.toSet()
-        val jellyfinVodOff = prefs.getBoolean("jellyfin_disable_vod", false)
-        val globalVodOff = isVodDisabled()
-        if (!globalVodOff && disableVodById.isEmpty() && !jellyfinVodOff) {
+        // Fast path: no content-type gate is active (per-provider flags fold the global VOD
+        // gate in via isVodDisabled), so the cache can be saved unfiltered.
+        val anyGateOff = configs.any { !providerAllowsLive(it) || !providerAllowsMovies(it) || !providerAllowsSeries(it) } ||
+            !jellyfinAllowsLive() || !jellyfinAllowsMovies() || !jellyfinAllowsSeries()
+        if (!anyGateOff) {
             ChannelCache.save(this@MainActivity, channels)
             return@withContext
         }
@@ -1374,18 +1421,15 @@ class MainActivity : AppCompatActivity() {
             return@withContext
         }
         val known = channels.map { it.id }.toSet()
+        // Keep cached items whose type is currently gated OFF for their still-configured
+        // owner, so re-enabling the type restores them without a network re-fetch. Items of
+        // dropped/removed providers and of types that are ON do not resurrect.
         val resurrect = old.filter { ch ->
-            if (ch.mediaType == MediaType.LIVE || ch.id in known) return@filter false
-            when {
-                // Per-provider gate (Xtream/M3U/Stalker): the provider is configured and flagged.
-                ch.sourceProviderId != null && ch.sourceProviderId in disableVodById -> true
-                // Jellyfin gate.
-                ch.isJellyfin && jellyfinVodOff -> true
-                // Global gate (simple mode / Disable VOD): keep VOD of still-configured owners so
-                // re-enabling restores it; dropped/removed providers' stale VOD does not resurrect.
-                globalVodOff && (ch.sourceProviderId in configuredIds || (ch.isJellyfin && hasJellyfinConfigured())) -> true
-                else -> false
-            }
+            if (ch.id in known) return@filter false
+            val ownerConfigured = if (ch.isJellyfin) hasJellyfinConfigured()
+            else ch.sourceProviderId != null && ch.sourceProviderId in configuredIds
+            if (!ownerConfigured) return@filter false
+            !isTypeAllowed(ch, configs)
         }
         ChannelCache.save(this@MainActivity, channels + resurrect)
     }
@@ -1445,18 +1489,14 @@ class MainActivity : AppCompatActivity() {
             if (!forceRefresh) {
                 cached = withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
                 if (!cached.isNullOrEmpty()) {
-                    // The VOD gate applies to a cached cold start too - the cache is saved
-                    // unfiltered, so a cache written with VOD on would resurrect it here.
-                    val vodDisabledProviderIds = IptvProviderStore.load(prefs).filter { it.disableVod }.map { it.id }.toSet()
-                    val jellyfinVodDisabled = prefs.getBoolean("jellyfin_disable_vod", false)
-                    if (isVodDisabled()) {
-                        cached = cached.filter { it.mediaType == MediaType.LIVE }
-                    } else if (vodDisabledProviderIds.isNotEmpty() || jellyfinVodDisabled) {
-                        cached = cached.filter { ch ->
-                            ch.mediaType == MediaType.LIVE ||
-                                !((ch.sourceProviderId != null && ch.sourceProviderId in vodDisabledProviderIds) ||
-                                    (ch.isJellyfin && jellyfinVodDisabled))
-                        }
+                    // The content-type gates apply to a cached cold start too - the cache
+                    // is saved unfiltered, so types switched off since it was written would
+                    // otherwise resurrect here (a cache saved with VOD on, for example).
+                    val typeGates = IptvProviderStore.load(prefs)
+                    cached = if (isVodDisabled()) {
+                        cached.filter { it.mediaType == MediaType.LIVE }
+                    } else {
+                        cached.filter { isTypeAllowed(it, typeGates) }
                     }
                     // Paint the cached catalog immediately (Live first, films/series in background),
                     // then only hit the network when the cache is stale - a non-stale cache returns
@@ -1619,16 +1659,20 @@ class MainActivity : AppCompatActivity() {
 
             val liveResult = withContext(Dispatchers.IO) { stalker.loadLiveChannels(stalkerProvider) }
             if (liveResult.isFailure) return FetchResult.Failure(liveResult.exceptionOrNull()?.message?.take(60) ?: "error")
-            val live = tag(liveResult.getOrThrow())
+            val live = tag(liveResult.getOrThrow()).filter { providerAllowsLive(config) }
             onLive(live)
 
-            // VOD gate: a live-only portal never touches the (slow) VOD/series fetch.
-            if (isVodDisabled() || config.disableVod) return FetchResult.Success(live)
+            // Content-type gates: a live-only setup never touches the (slow) VOD/series fetch.
+            if (!providerAllowsMovies(config) && !providerAllowsSeries(config)) return FetchResult.Success(live)
 
             val vodSeriesResult = withContext(Dispatchers.IO) { stalker.loadVodAndSeries(stalkerProvider) }
             if (vodSeriesResult.isFailure) return FetchResult.Failure(vodSeriesResult.exceptionOrNull()?.message?.take(60) ?: "error")
             val (films, series) = vodSeriesResult.getOrThrow()
-            FetchResult.Success(live + tag(films) + tag(series))
+            FetchResult.Success(
+                live +
+                    tag(films).filter { providerAllowsMovies(config) } +
+                    tag(series).filter { providerAllowsSeries(config) }
+            )
         } catch (e: Exception) {
             FetchResult.Failure(e.message?.take(60) ?: "error")
         }
@@ -1688,14 +1732,18 @@ class MainActivity : AppCompatActivity() {
             }
             val stub = jellyfinProviderStub(url)
             val items: List<Channel> = withContext(Dispatchers.IO) {
-                val liveItems = jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
-                // VOD gate: only live TV is fetched - no movies/series crawl, no user-state
-                // import to seed their resume rows.
-                if (isVodDisabled() || prefs.getBoolean("jellyfin_disable_vod", false)) {
+                // Live is only crawled when its type is on - every other type's fetch skips
+                // the network call entirely when gated, and live should too.
+                val liveItems = if (jellyfinAllowsLive()) {
+                    jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
+                } else emptyList()
+                // Content-type gates: off types are not crawled at all - no movies/series
+                // fetch, no user-state import to seed their resume rows.
+                if (!jellyfinAllowsMovies() && !jellyfinAllowsSeries()) {
                     liveItems
                 } else {
-                    val movies = jellyfin.getMovies()
-                    val series = jellyfin.getSeries()
+                    val movies = if (jellyfinAllowsMovies()) jellyfin.getMovies() else emptyList()
+                    val series = if (jellyfinAllowsSeries()) jellyfin.getSeries() else emptyList()
                     importJellyfinUserState(movies + series)
                     liveItems +
                         movies.map { JellyfinProvider.toChannel(it, stub) } +
@@ -2018,9 +2066,16 @@ class MainActivity : AppCompatActivity() {
         val url = config.url ?: return FetchResult.Failure("no URL")
         return try {
             val result = withContext(Dispatchers.IO) { M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient) }
-            // VOD gate: an M3U file lists live and VOD in one parse - drop the VOD entries.
-            val channels = result.channels
-                .let { list -> if (isVodDisabled() || config.disableVod) list.filter { it.mediaType == MediaType.LIVE } else list }
+            // Content-type gates: an M3U file lists live and VOD in one parse - drop the
+            // types this provider has switched off, per mediaType.
+            val channels = result.channels.filter { ch ->
+                when (ch.mediaType) {
+                    MediaType.LIVE -> providerAllowsLive(config)
+                    MediaType.MOVIE -> providerAllowsMovies(config)
+                    MediaType.SERIES -> providerAllowsSeries(config)
+                    else -> true
+                }
+            }
             // sourceProviderId isn't needed for playback here (an M3U item's url is already
             // final), but it's what names the provider a duplicate came from on the detail
             // screen's version chips - without it every M3U copy is an anonymous "Version N".
@@ -2050,16 +2105,19 @@ class MainActivity : AppCompatActivity() {
             val films: List<Channel>
             val series: List<Channel>
             withContext(Dispatchers.IO) {
-                // VOD gate: the (slow) VOD/series category+stream fetches are skipped entirely.
-                val vodDisabled = isVodDisabled() || config.disableVod
-                val liveCatsDeferred = async { runCatching { client.getLiveCategories(xtreamProvider) }.getOrDefault(emptyList()) }
-                val vodCatsDeferred: Deferred<List<Pair<String, String>>>? = if (vodDisabled) null else async { runCatching { client.getVodCategories(xtreamProvider) }.getOrDefault(emptyList()) }
-                val seriesCatsDeferred: Deferred<List<Pair<String, String>>>? = if (vodDisabled) null else async { runCatching { client.getSeriesCategories(xtreamProvider) }.getOrDefault(emptyList()) }
-                val liveDeferred = async { client.getLiveStreams(xtreamProvider) }
-                val filmsDeferred: Deferred<List<Channel>>? = if (vodDisabled) null else async { client.getVodStreams(xtreamProvider) }
-                val seriesDeferred: Deferred<List<Channel>>? = if (vodDisabled) null else async { client.getSeries(xtreamProvider) }
+                // Content-type gates: the (slow) VOD/series category+stream fetches are
+                // skipped entirely for types this provider has switched off.
+                val liveOff = !providerAllowsLive(config)
+                val moviesOff = !providerAllowsMovies(config)
+                val seriesOff = !providerAllowsSeries(config)
+                val liveCatsDeferred: Deferred<List<Pair<String, String>>>? = if (liveOff) null else async { runCatching { client.getLiveCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val vodCatsDeferred: Deferred<List<Pair<String, String>>>? = if (moviesOff) null else async { runCatching { client.getVodCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val seriesCatsDeferred: Deferred<List<Pair<String, String>>>? = if (seriesOff) null else async { runCatching { client.getSeriesCategories(xtreamProvider) }.getOrDefault(emptyList()) }
+                val liveDeferred: Deferred<List<Channel>>? = if (liveOff) null else async { client.getLiveStreams(xtreamProvider) }
+                val filmsDeferred: Deferred<List<Channel>>? = if (moviesOff) null else async { client.getVodStreams(xtreamProvider) }
+                val seriesDeferred: Deferred<List<Channel>>? = if (seriesOff) null else async { client.getSeries(xtreamProvider) }
 
-                val liveCatNames = liveCatsDeferred.await().toMap()
+                val liveCatNames = liveCatsDeferred?.await()?.toMap() ?: emptyMap()
                 val vodCatNames = vodCatsDeferred?.await()?.toMap() ?: emptyMap()
                 val seriesCatNames = seriesCatsDeferred?.await()?.toMap() ?: emptyMap()
 
@@ -2079,7 +2137,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     return mapped.copy(sourceProviderId = config.id)
                 }
-                live = liveDeferred.await().map { withCategory(it, liveCatNames, "uncat_live") }
+                live = liveDeferred?.await()?.map { withCategory(it, liveCatNames, "uncat_live") } ?: emptyList()
                 films = filmsDeferred?.await()?.map { withCategory(it, vodCatNames, "uncat_vod") } ?: emptyList()
                 series = seriesDeferred?.await()?.map { withCategory(it, seriesCatNames, "uncat_series") } ?: emptyList()
             }
@@ -2834,8 +2892,10 @@ class MainActivity : AppCompatActivity() {
         // the categories were built for - and the sidebar must not reappear over a pane that
         // never had one.
         val onCategorizedTab = !showingHome && !showingDiscover && !showingDownloads
-        binding.categorySidebar.visibility =
-            if (onCategorizedTab && categories.size > 1) View.VISIBLE else View.GONE
+        // Phone-only collapse composes on top of the tab-context decision here - this is the
+        // single canonical re-show point for the rail, so the collapsed pref applies
+        // everywhere a tab is (re)built (tab switch, category rebuild, catalog refresh).
+        applySidebarVisibility(onCategorizedTab && categories.size > 1)
         // submitList uses AsyncListDiffer which commits the list asynchronously.
         // Set the selected highlight only after the list is committed, otherwise
         // the diff callback can reset the adapter's selected state.
@@ -2844,6 +2904,33 @@ class MainActivity : AppCompatActivity() {
                 categoryAdapter.setSelected(selectedRowId)
             }
         }
+    }
+
+    /** Whether the category rail is collapsed on this device: a persisted phone-only pref,
+     *  never active on TV (the collapse row isn't even built there). */
+    private fun isSidebarCollapsed(): Boolean =
+        !isTv && prefs.getBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false)
+
+    /** Single place that decides the sidebar's visibility for a categorized tab: the
+     *  tab-context decision (categorized tab with more than one row) comes in as
+     *  [tabWantsSidebar], and the phone-only collapse pref composes on top. Also drives the
+     *  re-expand affordance, which only exists when a categorized tab's rail is collapsed. */
+    private fun applySidebarVisibility(tabWantsSidebar: Boolean) {
+        val collapsed = isSidebarCollapsed()
+        binding.categorySidebar.visibility = if (tabWantsSidebar && !collapsed) View.VISIBLE else View.GONE
+        binding.sidebarExpandButton.visibility = if (tabWantsSidebar && collapsed) View.VISIBLE else View.GONE
+    }
+
+    /** Collapses the category rail on this phone: the current selection/filter stays applied
+     *  (no applyCategoryFilter call - only the rail hides), the state persists, and focus
+     *  moves to the re-expand button since the focused sidebar row is about to disappear.
+     *  Landing on the button (rather than the content's first row) keeps the content's
+     *  scroll position untouched - focusing a scrolled-off item would yank the list to it. */
+    private fun collapseCategorySidebar() {
+        if (isTv) return
+        prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, true).apply()
+        applySidebarVisibility(tabWantsSidebar = true)
+        binding.sidebarExpandButton.requestFocus()
     }
 
     private data class CategoryBuildResult(
@@ -3253,6 +3340,13 @@ class MainActivity : AppCompatActivity() {
                     if (parent.expanded) result.addAll(children)
                 }
             }
+            if (tab != 0 && !isTv) {
+                // Phone-only sidebar collapse utility row, mirroring the classic-layout
+                // toggle (count = -1 so no shelf/count machinery treats it as a category,
+                // and it's in NON_PINNABLE_CATEGORY_IDS so it gets no star). TV never gets
+                // the row - the rail is the primary nav surface there.
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
+            }
             if (tab != 0) result.add(allRow)
             if (tab == 0) {
                 val favoriteCount = list.count { it.id in favoriteChannelIds }
@@ -3265,6 +3359,9 @@ class MainActivity : AppCompatActivity() {
                             count = -1
                         )
                     )
+                    if (!isTv) {
+                        result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
+                    }
                 } else {
                     result.add(
                         CategoryFilter(
@@ -3273,6 +3370,9 @@ class MainActivity : AppCompatActivity() {
                             count = -1
                         )
                     )
+                    if (!isTv) {
+                        result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
+                    }
                 }
             }
             // Pinned (favourite) categories always come first - above dynamic clusters,
@@ -3465,6 +3565,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onCategorySelected(category: CategoryFilter) {
+        if (category.id == COLLAPSE_CATEGORIES_TOGGLE_ID) {
+            collapseCategorySidebar()
+            return
+        }
         if (category.id == CLASSIC_LAYOUT_TOGGLE_ID) {
             val useClassic = prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
             prefs.edit().putBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, !useClassic).apply()
@@ -3688,7 +3792,7 @@ class MainActivity : AppCompatActivity() {
         binding.contentRow.visibility = View.VISIBLE
         binding.homeContent.visibility = View.GONE
         binding.homeSearchBar.visibility = View.GONE
-        binding.categorySidebar.visibility = View.GONE
+        applySidebarVisibility(tabWantsSidebar = false)
         binding.liveRow.visibility = View.GONE
         binding.seriesContent.visibility = View.GONE
         binding.filmsContent.visibility = View.GONE
@@ -3794,12 +3898,20 @@ class MainActivity : AppCompatActivity() {
         setDiscoverStatus(if (query == null) "Loading trending…" else "Searching \"$query\"…")
         discoverSearchJob = scope.launch {
             val results = if (query == null) tmdbClient.trending() else tmdbClient.search(query)
-            discoverGridAdapter.submitList(results)
+            // Without a stream-search plugin (the torrent plugin being the common one), a
+            // TMDB-only title is a dead tile - its dialog offers nothing but a trailer.
+            // Drop anything that isn't already in the library; with a plugin enabled the
+            // plugin can play every title, so nothing gets filtered.
+            val pluginEnabled = enabledStreamSearchPlugin() != null
+            val visible = if (pluginEnabled) results else withContext(Dispatchers.Default) {
+                results.filter { findCatalogMatch(it) != null }
+            }
+            discoverGridAdapter.submitList(visible)
             setDiscoverStatus(
                 when {
-                    results.isNotEmpty() -> null
-                    query == null -> "Couldn't load titles. Check your connection."
-                    else -> "No results for \"$query\"."
+                    visible.isNotEmpty() -> null
+                    results.isEmpty() -> if (query == null) "Couldn't load titles. Check your connection." else "No results for \"$query\"."
+                    else -> "Enable a stream plugin to browse titles outside your library."
                 }
             )
         }
@@ -4325,7 +4437,7 @@ class MainActivity : AppCompatActivity() {
         // sidebar and the content pane were both left up until submitCategories() replaced
         // them, so switching tabs showed the previous tab's categories - and, for a moment,
         // its posters - under the new tab's highlight. Both come back below, populated.
-        binding.categorySidebar.visibility = View.GONE
+        applySidebarVisibility(tabWantsSidebar = false)
         binding.contentRow.visibility = View.GONE
         // Raise the loading indicator synchronously, in the same frame as the tab-bar
         // highlight, BEFORE the coroutine below does any work: the films/series derive
@@ -5182,6 +5294,30 @@ class MainActivity : AppCompatActivity() {
         binding.btnSearch.setOnClickListener { showSearchDialog() }
         binding.emptyQrPair.setOnClickListener { showProviderSettings() }
         binding.homeSearchBar.setOnClickListener { showSearchDialog() }
+        // Phone-only re-expand affordance for a collapsed category rail: restores the
+        // sidebar (persisted pref flips back), then refocuses the row the user had selected
+        // so the D-pad doesn't land them at the rail's top with their category nowhere.
+        binding.sidebarExpandButton.setOnClickListener {
+            prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false).apply()
+            // The button is only ever visible on a categorized tab with a collapsed rail, so
+            // "wants sidebar" is true by construction.
+            applySidebarVisibility(tabWantsSidebar = true)
+            val selectedPos = categoryAdapter.currentList
+                .indexOfFirst { it.id == categoryAdapter.selectedId }
+                .coerceAtLeast(0)
+            binding.categorySidebar.post {
+                val target = binding.categorySidebar.layoutManager?.findViewByPosition(selectedPos)
+                if (target != null) {
+                    target.requestFocus()
+                } else {
+                    // Rows not laid out yet right after the rail becomes visible - retry once
+                    // (same double-post pattern as focusFirstItemWhenReady).
+                    binding.categorySidebar.post {
+                        binding.categorySidebar.layoutManager?.findViewByPosition(selectedPos)?.requestFocus()
+                    }
+                }
+            }
+        }
     }
 
     // ── Search ───────────────────────────────────────
@@ -7423,7 +7559,6 @@ class MainActivity : AppCompatActivity() {
         // name, type-specific fields) stays hidden until then.
         var currentType: String? = null
         var editingProviderId: String? = null
-        var editingVodDisabled = false
         val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
         val typeLabels = mapOf("m3u" to "M3U/M3U8", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
 
@@ -7647,7 +7782,6 @@ class MainActivity : AppCompatActivity() {
         // is what keeps the QR code/fields on screen without a scroll.
         fun openIptvForm(existing: IptvProviderConfig?) {
             editingProviderId = existing?.id
-            editingVodDisabled = existing?.disableVod ?: false
             addIptvProviderButton.visibility = View.GONE
             iptvListSection.visibility = View.GONE
             providerNameInput.setText(existing?.name ?: "")
@@ -7691,7 +7825,6 @@ class MainActivity : AppCompatActivity() {
         // but pre-fills from those prefs instead of an IptvProviderConfig.
         fun openJellyfinEditForm() {
             editingProviderId = null
-            editingVodDisabled = prefs.getBoolean("jellyfin_disable_vod", false)
             addIptvProviderButton.visibility = View.GONE
             iptvListSection.visibility = View.GONE
             iptvFormTitle.text = "Editing Jellyfin"
@@ -7720,16 +7853,19 @@ class MainActivity : AppCompatActivity() {
                     IptvProviderStore.setEnabled(prefs, cfg.id, checked)
                     applyProviderToggle(checked) { it.sourceProviderId == cfg.id }
                 }
-                val vodBox = row.findViewById<CheckBox>(R.id.rowVodBox)
-                // Ticked = VOD enabled (inverse of the stored disableVod flag), so the
-                // checkbox reads the same way the user thinks about it and defaults ticked.
-                vodBox.isChecked = !cfg.disableVod
-                // Persist before reloading - the reload must see the new flag, and a stale
-                // cache would resurrect the VOD items otherwise (see the cold-start filter).
-                vodBox.setOnClickListener {
-                    IptvProviderStore.setVodDisabled(prefs, cfg.id, !vodBox.isChecked)
-                    if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
+                // Per-content-type toggles: TV / Movies / Series, one checkbox each. Persist
+                // before reloading - the reload must see the new flags, and a stale cache
+                // would resurrect the types otherwise (see the cold-start filter).
+                fun bindContentBox(box: CheckBox, checked: Boolean, write: (Boolean) -> Unit) {
+                    box.isChecked = checked
+                    box.setOnClickListener {
+                        write(box.isChecked)
+                        if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
+                    }
                 }
+                bindContentBox(row.findViewById(R.id.rowTvBox), cfg.liveEnabled) { on -> IptvProviderStore.setContentFlags(prefs, cfg.id, live = on) }
+                bindContentBox(row.findViewById(R.id.rowMoviesBox), cfg.moviesEnabled) { on -> IptvProviderStore.setContentFlags(prefs, cfg.id, movies = on) }
+                bindContentBox(row.findViewById(R.id.rowSeriesBox), cfg.seriesEnabled) { on -> IptvProviderStore.setContentFlags(prefs, cfg.id, series = on) }
                 row.findViewById<TextView>(R.id.rowName).text = cfg.name
                 val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U/M3U8" }
                 row.findViewById<TextView>(R.id.rowDetail).text = "$typeLabel · ${cfg.url ?: ""}"
@@ -7761,13 +7897,21 @@ class MainActivity : AppCompatActivity() {
                     prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
                     applyProviderToggle(checked) { it.isJellyfin }
                 }
-                val vodBox = row.findViewById<CheckBox>(R.id.rowVodBox)
-                // Ticked = VOD enabled; Jellyfin flag is the inverse (disableVod style).
-                vodBox.isChecked = !prefs.getBoolean("jellyfin_disable_vod", false)
-                vodBox.setOnClickListener {
-                    prefs.edit().putBoolean("jellyfin_disable_vod", !vodBox.isChecked).apply()
-                    if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
+                // Per-content-type toggles for the Jellyfin slot (loose prefs, no config object).
+                fun bindJellyfinBox(box: CheckBox, key: String, checked: Boolean) {
+                    box.isChecked = checked
+                    box.setOnClickListener {
+                        prefs.edit().putBoolean(key, box.isChecked).apply()
+                        if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
+                    }
                 }
+                bindJellyfinBox(row.findViewById(R.id.rowTvBox), "jellyfin_live_enabled", jellyfinAllowsLive())
+                // Read the STORED flags (like the provider rows), not the effective gates:
+                // the effective gates fold in the global VOD switch, so a provider that
+                // allows movies while the app-level gate is on would otherwise render its
+                // Movies box unchecked and look broken.
+                bindJellyfinBox(row.findViewById(R.id.rowMoviesBox), "jellyfin_movies_enabled", jellyfinFlag("jellyfin_movies_enabled"))
+                bindJellyfinBox(row.findViewById(R.id.rowSeriesBox), "jellyfin_series_enabled", jellyfinFlag("jellyfin_series_enabled"))
                 row.findViewById<TextView>(R.id.rowName).text = "Jellyfin"
                 row.findViewById<TextView>(R.id.rowDetail).text = "Jellyfin · ${prefs.getString("jellyfin_url", "") ?: ""}"
                 row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openJellyfinEditForm() }
@@ -7777,7 +7921,8 @@ class MainActivity : AppCompatActivity() {
                         .setMessage("Its channels will no longer appear.")
                         .setPositiveButton("Remove") { _, _ ->
                             prefs.edit().remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
-                                .remove("jellyfin_provider_enabled").remove("jellyfin_disable_vod").apply()
+                                .remove("jellyfin_provider_enabled").remove("jellyfin_disable_vod")
+                                .remove("jellyfin_live_enabled").remove("jellyfin_movies_enabled").remove("jellyfin_series_enabled").apply()
                             renderIptvProviderList()
                             focusWhenReady(addIptvProviderButton)
                             loadAllConfiguredProviders(forceRefresh = true)
@@ -8201,6 +8346,9 @@ class MainActivity : AppCompatActivity() {
             }
             val name = providerNameInput.text.toString().trim()
             val id = editingProviderId ?: IptvProviderStore.newId()
+            // The form has no per-type controls; preserve the provider's existing content
+            // flags so saving the form never silently resets a movies/series split.
+            val prevConfig = editingProviderId?.let { pid -> IptvProviderStore.load(prefs).firstOrNull { it.id == pid } }
             when (currentType) {
                 "m3u" -> {
                     val url = m3uUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
@@ -8209,7 +8357,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = id, type = "m3u", name = name.ifBlank { "M3U/M3U8 Playlist" }, enabled = true,
-                        disableVod = editingVodDisabled,
+                        liveEnabled = prevConfig?.liveEnabled ?: true,
+                        moviesEnabled = prevConfig?.moviesEnabled ?: true, seriesEnabled = prevConfig?.seriesEnabled ?: true,
                         url = url, userAgent = uaInput.text.toString().trim().ifBlank { null }
                     ))
                 }
@@ -8218,7 +8367,8 @@ class MainActivity : AppCompatActivity() {
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = id, type = "xtream", name = name.ifBlank { "Xtream" }, enabled = true,
-                        disableVod = editingVodDisabled,
+                        liveEnabled = prevConfig?.liveEnabled ?: true,
+                        moviesEnabled = prevConfig?.moviesEnabled ?: true, seriesEnabled = prevConfig?.seriesEnabled ?: true,
                         url = url, username = xtreamUser.text.toString().trim(), password = xtreamPass.text.toString().trim()
                     ))
                 }
@@ -8227,7 +8377,8 @@ class MainActivity : AppCompatActivity() {
                     if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = id, type = "stalker", name = name.ifBlank { "Stalker Portal" }, enabled = true,
-                        disableVod = editingVodDisabled,
+                        liveEnabled = prevConfig?.liveEnabled ?: true,
+                        moviesEnabled = prevConfig?.moviesEnabled ?: true, seriesEnabled = prevConfig?.seriesEnabled ?: true,
                         url = url, userAgent = stalkerMac.text.toString().trim()
                     ))
                 }
@@ -8241,7 +8392,6 @@ class MainActivity : AppCompatActivity() {
                         .putString("jellyfin_user", jellyfinUser.text.toString().trim())
                         .putString("jellyfin_pass", jellyfinPass.text.toString().trim())
                         .putBoolean("jellyfin_provider_enabled", true)
-                        .putBoolean("jellyfin_disable_vod", editingVodDisabled)
                         .apply()
                 }
             }
