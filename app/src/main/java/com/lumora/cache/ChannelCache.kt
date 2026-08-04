@@ -85,6 +85,7 @@ object ChannelCache {
     fun load(context: Context): List<Channel>? {
         val file = File(context.filesDir, CACHE_FILE)
         if (!file.exists()) return null
+        val startedAt = System.currentTimeMillis()
         return try {
             val result = ArrayList<Channel>(50_000)
             file.bufferedReader().use { reader: BufferedReader ->
@@ -132,6 +133,14 @@ object ChannelCache {
                     )
                 }
             }
+            // Cold-start budget line: this parse and the derive passes that follow it are
+            // what "instant cached start" is spent on - keep them measurable on-device
+            // (adb logcat -s LumoraPerf) rather than guessed at.
+            Log.i(
+                "LumoraPerf",
+                "cache load: ${result.size} items in ${System.currentTimeMillis() - startedAt}ms " +
+                    "(${file.length() / 1024}KB)"
+            )
             result
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load cache: ${e.message}")

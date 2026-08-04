@@ -124,6 +124,20 @@
          hardcoded across the layouts - this introduces no visual change on phones. -->
     <dimen name="text_tiny">9sp</dimen>
     <dimen name="text_caption">10sp</dimen>
+    <!-- Player side menu drawer width - shared by the layout and the slide-in/out
+         animation so the panel always lands exactly one panel-width off-screen. -->
+    <dimen name="player_side_menu_width">228dp</dimen>
+    <!-- The category column that flies out to the right of the nav rows. Shared by the
+         layout and the expand/collapse width animation. -->
+    <dimen name="player_side_menu_category_width">248dp</dimen>
+    <!-- Side-menu row metrics, deliberately NOT the browse sidebar's (category_row_*/
+         tab_text): this panel is an overlay on top of playing video on a 960dp-wide TV, so
+         both columns together have to stay near half the screen and every section has to
+         fit without scrolling. Sized once here rather than per-bucket - dp/sp already
+         normalise across the phone and TV densities this panel runs at. -->
+    <dimen name="side_menu_row_height">38dp</dimen>
+    <dimen name="side_menu_text">13sp</dimen>
+    <dimen name="side_menu_icon">17dp</dimen>
     <dimen name="text_body_s">11sp</dimen>
     <dimen name="text_body">12sp</dimen>
     <dimen name="text_body_l">13sp</dimen>

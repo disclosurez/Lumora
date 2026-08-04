@@ -12,6 +12,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.updateLayoutParams
 import androidx.core.view.WindowInsetsCompat
 import android.net.Uri
 import android.os.Build
@@ -32,6 +33,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -63,11 +65,13 @@ import com.lumora.adapter.SearchEpgResult
 import com.lumora.adapter.SearchResultItem
 import com.lumora.adapter.SearchResultsAdapter
 import com.lumora.adapter.ShelfAdapter
+import com.lumora.adapter.SideMenuCategoryAdapter
 import com.lumora.download.DownloadRecord
 import com.lumora.download.DownloadStatus
 import com.lumora.download.DownloadStore
 import com.lumora.download.VodDownloader
 import com.lumora.cache.ChannelCache
+import com.lumora.cache.DerivedCache
 import com.lumora.cache.EpgListCache
 import com.lumora.cache.ProgramReminder
 import com.lumora.cache.ReminderStore
@@ -121,6 +125,7 @@ import com.lumora.util.groupLiveQualityVersions
 import com.lumora.util.isNonEnglishTitle
 import com.lumora.util.withResolvedYear
 import com.lumora.data.local.LumoraDatabase
+import com.lumora.data.local.entity.EpgProgramEntity
 import com.lumora.data.local.entity.EpgSourceEntity
 import com.lumora.data.backup.BackupManager
 import com.lumora.data.remote.stalker.StalkerProvider
@@ -161,6 +166,19 @@ private const val PREF_GROUP_CHANNELS = "group_channels"
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 private const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
 private const val CATALOG_TTL_MS = 24 * 60 * 60 * 1000L
+// How long a channel's stored guide is served without re-checking the provider. Short EPG
+// covers the next few hours, so a few hours of reuse is the useful window - long enough that
+// relaunching the app doesn't re-fetch, short enough that same-day schedule changes land.
+private const val EPG_DISK_TTL_MS = 6 * 60 * 60 * 1000L
+// Finished programmes are kept briefly so a guide that's mid-render doesn't lose the block
+// the user is currently watching.
+private const val EPG_PRUNE_GRACE_SECONDS = 2 * 60 * 60L
+// How far ahead a stored guide has to still reach to be worth serving. Age alone is the
+// wrong test: a channel fetched at 17:00 is only hours old at 20:00, but most of what was
+// fetched has already aired, so serving it fills the first slot of the timeline and leaves
+// the rest of the row empty. The guide grid draws about three hours, so anything covering
+// less than four is re-fetched instead.
+private const val EPG_MIN_COVERAGE_SECONDS = 4 * 60 * 60L
 /** Per-provider ceiling on a catalogue fetch. Deliberately far above what a healthy provider
  *  needs: this exists to stop a *dead* entry starving the providers queued behind it, not to
  *  discipline a slow one. A real portal measured here streams 67MB of live channels in 4s and
@@ -410,6 +428,23 @@ class MainActivity : AppCompatActivity() {
     private var isPlayerVisible = false
     private var isContentDetailVisible = false
     private var nowShowingDetailId: String? = null
+    /** Category drill-down inside the player side menu (Live/Series/Films section rows). */
+    private lateinit var sideMenuCategoryAdapter: SideMenuCategoryAdapter
+    private var sideMenuCategoriesExpanded = false
+    /** Which content section (0 Live / 1 Series / 2 Films) the flown-out column belongs to -
+     *  not necessarily the tab on screen: every section row opens its own categories. */
+    private var sideMenuExpandedTab = 0
+    /** Set while the column is a step deeper, listing this live category's channels. */
+    private var sideMenuChannelCategory: CategoryFilter? = null
+    private var sideMenuChannelRows: List<Channel> = emptyList()
+    /** True while the column's list is mid-swap between levels - see onSideMenuCategoryClicked. */
+    private var sideMenuColumnBusy = false
+    /** Per-tab category rows, built once per player session (the non-active tabs aren't in
+     *  the browsing sidebar, so they'd otherwise be rebuilt on every expand). */
+    private val sideMenuCategoryCache = mutableMapOf<Int, List<CategoryFilter>>()
+    /** In-flight fly-out/fly-in of the category column's width - cancelled before a new
+     *  one starts so a fast expand/collapse can't leave the column stuck mid-width. */
+    private var sideMenuCategoryWidthAnimator: android.animation.ValueAnimator? = null
     /** The season chip matching the episode list currently on screen - where UP from the
      *  list's first row lands. Kept pointed at the *selected* chip (updated on every season
      *  change) because default focus search would otherwise pick whichever chip is
@@ -721,12 +756,16 @@ class MainActivity : AppCompatActivity() {
             else { pluginDiscoveryOnStart.join(); loadSavedProvider() }
         }
         requestNotificationPermissionIfNeeded()
+        pruneStoredEpg()
         checkAndPromptUpdate()
 
         // Downloads are a mobile-only affordance - a TV box has nowhere meaningful to
         // browse a downloaded file, and it's not what "download for offline" means there.
         if (!isTv) {
             binding.tabDownloads.visibility = View.VISIBLE
+            // The player side menu mirrors the tab bar, so its Downloads row is phone-only
+            // too (the row ships GONE - see activity_main.xml).
+            binding.navDownloads.visibility = View.VISIBLE
             val filter = android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
             ContextCompat.registerReceiver(this, downloadCompleteReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         } else {
@@ -735,6 +774,9 @@ class MainActivity : AppCompatActivity() {
             // left end needs fixing: Live's LEFT would target the GONE Downloads tab and eat
             // the press - stop it there instead of wrapping into a hidden tab.
             binding.tabLive.nextFocusLeftId = View.NO_ID
+            // Same in the side menu: Discover's DOWN would land on the GONE Downloads row
+            // and stop the walk short of Settings.
+            binding.navDiscover.nextFocusDownId = R.id.navSettings
         }
 
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -920,6 +962,7 @@ class MainActivity : AppCompatActivity() {
         if (activeSettingsOverlay != null && openPluginId != null) closeOpenPluginPage?.invoke()
         else if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
         else if (activeSearchOverlay != null) activeSearchOverlay?.dismiss()
+        else if (isPlayerVisible && isPlayerSideMenuOpen()) { closeSideMenu() }
         else if (isPlayerVisible) { hidePlayer(); restoreSearchIfPending() }
         else if (isContentDetailVisible) { hideContentDetail(); restoreSearchIfPending() }
         // Back walks back up the way the user came in rather than dropping straight out of
@@ -1204,11 +1247,50 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Side menu: DPAD_LEFT opens it (TV remotes have no touch; the phone gets the
+        // btnPlayerMenu hamburger instead). While it's open, LEFT stays consumed so focus
+        // never tries to leave the panel, RIGHT crosses into the category column when one
+        // is flown out (and dismisses the whole menu otherwise), and UP/DOWN/CENTER fall
+        // through to the framework to navigate/activate rows. LEFT back out of the column
+        // is the adapter's job - the focused row sees the key before this runs.
+        if (isPlayerVisible) {
+            if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT && !isPlayerSideMenuOpen()) {
+                openSideMenu()
+                return true
+            }
+            if (isPlayerSideMenuOpen()) {
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> return true
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        when {
+                            // Already inside the column - nothing further right, so swallow
+                            // it rather than close the menu out from under the user.
+                            binding.sideMenuCategoryList.hasFocus() -> {}
+                            // The right-pointing chevron on a section row is an "opens
+                            // rightwards" promise - RIGHT there flies that column out (or
+                            // steps into it when it's already open).
+                            focusedSideMenuSectionTab() != null -> {
+                                val tab = focusedSideMenuSectionTab()!!
+                                if (sideMenuCategoriesExpanded && sideMenuExpandedTab == tab) {
+                                    focusSideMenuCategoryList()
+                                } else {
+                                    expandSideMenuCategories(tab)
+                                }
+                            }
+                            else -> closeSideMenu()
+                        }
+                        return true
+                    }
+                }
+            }
+        }
+
         // Live channel-surf is a blind shortcut only while the controls are hidden - once
         // they're showing, UP/DOWN needs to navigate between buttons (transport row ->
         // seek bar -> Speed/Sleep/Cast/...) instead of surfing channels out from under
-        // whatever the user's trying to select.
-        if (isPlayerVisible && nowPlayingChannel?.mediaType == MediaType.LIVE && binding.controlsOverlay.visibility != View.VISIBLE) {
+        // whatever the user's trying to select. Skipped entirely while the side menu is
+        // open so UP from the first menu row doesn't surf channels under the drawer.
+        if (isPlayerVisible && !isPlayerSideMenuOpen() && nowPlayingChannel?.mediaType == MediaType.LIVE && binding.controlsOverlay.visibility != View.VISIBLE) {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP -> { navigateChannel(-1); return true }
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { navigateChannel(1); return true }
@@ -1218,13 +1300,15 @@ class MainActivity : AppCompatActivity() {
         // center-only, so a movie/series (no channel-surf shortcut to fall back on) had
         // literally no key that showed them at all. First press just reveals; doesn't
         // also perform whatever that direction would otherwise do, same as it not also
-        // clicking the button it lands focus on.
+        // clicking the button it lands focus on. Skipped while the side menu is open -
+        // the drawer is the only chrome on screen and it must not pop the bottom bar
+        // over itself.
         val isDirectionalKey = keyCode in intArrayOf(
             android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
             android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
             android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER
         )
-        if (isPlayerVisible && isDirectionalKey) {
+        if (isPlayerVisible && !isPlayerSideMenuOpen() && isDirectionalKey) {
             if (binding.controlsOverlay.visibility != View.VISIBLE) {
                 showControls()
                 return true
@@ -2342,6 +2426,10 @@ class MainActivity : AppCompatActivity() {
                     // Guard: user already moved to another tab - live side only, no selectTab.
                     else -> Unit
                 }
+                // The number to judge a cold start by: process start to content on screen.
+                // The per-pass lines above only account for their own work, and miss process
+                // creation, Application.onCreate, layout inflation and the first frame.
+                perf("FIRST CONTENT", BaseApplication.instance.processStartedAt)
             } else {
                 showEmptyState()
             }
@@ -2446,11 +2534,26 @@ class MainActivity : AppCompatActivity() {
      *  liveChannels/liveVersions. Cheap relative to the films/series half (no shelves), so
      *  it's extracted first and reused by the paint-Live-ASAP path. */
     private fun deriveLiveHalf(list: List<Channel>) {
+        val startedAt = System.currentTimeMillis()
         val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
-        val rawLive = list.filter { it.mediaType == MediaType.LIVE && !it.name.contains("##") }
-            .filterNot { hideAdult && isAdultCategory(it.categoryName, it.group) }
         val useClassic = prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
         val groupChannels = prefs.getBoolean(PREF_GROUP_CHANNELS, true)
+
+        // Same catalogue, same prefs, same answer - restore last time's grouping instead of
+        // re-running it (see DerivedCache).
+        val fingerprint = liveDerivedFingerprint(list, hideAdult, useClassic, groupChannels)
+        DerivedCache.loadLive(this, fingerprint, list)?.let { snapshot ->
+            liveChannels = snapshot.channels
+            liveVersions = snapshot.versions
+            perf("deriveLiveHalf(cached)", startedAt, "${liveChannels.size} live out")
+            return
+        }
+
+        val rawLive = list.filter { ch ->
+            ch.mediaType == MediaType.LIVE &&
+                !ch.name.contains("##") &&
+                !(hideAdult && isAdultCategory(ch.categoryName, ch.group))
+        }
         if (useClassic || !groupChannels) {
             // Classic: no quality version merging — show every channel as-is from the provider.
             // Version map is empty since every variant appears as its own channel entry.
@@ -2461,24 +2564,71 @@ class MainActivity : AppCompatActivity() {
             liveChannels = grouped
             liveVersions = vers
         }
+        perf("deriveLiveHalf", startedAt, "${list.size} in / ${liveChannels.size} live out")
+        DerivedCache.saveLive(this, fingerprint, DerivedCache.LiveSnapshot(liveChannels, liveVersions))
+    }
+
+    /** Cache key for the live derive: the catalogue itself, plus every pref that changes what
+     *  the pass produces. Anything not listed here (categorize, pinned/hidden, favourites)
+     *  feeds the category rows, which are still built fresh on every load. */
+    private fun liveDerivedFingerprint(
+        list: List<Channel>,
+        hideAdult: Boolean,
+        useClassic: Boolean,
+        groupChannels: Boolean
+    ): String = DerivedCache.catalogFingerprint(list, "live:$hideAdult:$useClassic:$groupChannels")
+
+    /** Cache key for the films/series derive - see [liveDerivedFingerprint]. */
+    private fun vodDerivedFingerprint(
+        list: List<Channel>,
+        hideAdult: Boolean,
+        hideNonEnglish: Boolean,
+        groupChannels: Boolean
+    ): String = DerivedCache.catalogFingerprint(list, "vod:$hideAdult:$hideNonEnglish:$groupChannels")
+
+    /** One cold-start budget line per pass (adb logcat -s LumoraPerf). Cheap enough to
+     *  leave in a release build - a handful of calls per load - and the only way to tell
+     *  which pass owns a slow start on the actual TV hardware. */
+    private fun perf(stage: String, startedAt: Long, detail: String = "") {
+        android.util.Log.i("LumoraPerf", "$stage: ${System.currentTimeMillis() - startedAt}ms $detail")
     }
 
     /** Films/series half of the derive pass: dedup/sort, category rows, and shelf build into
      *  a [FilmsSeriesContent] result (no field side effects - the caller assigns them on its
      *  own thread). The expensive half - run off the main thread. */
     private fun deriveFilmsSeriesHalf(list: List<Channel>): FilmsSeriesContent {
+        val startedAt = System.currentTimeMillis()
         val hideNonEnglish = prefs.getBoolean(PREF_HIDE_NON_ENGLISH, true)
         val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
         val groupChannels = prefs.getBoolean(PREF_GROUP_CHANNELS, true)
         val categorizeVod = prefs.getBoolean(PREF_CATEGORIZE_VOD, true)
         fun isAdult(ch: Channel) = hideAdult && isAdultCategory(ch.categoryName, ch.group)
 
-        val rawFilms = list.filter { it.mediaType == MediaType.MOVIE }
-            .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
-            .filterNot { isAdult(it) }
-            .map { it.withResolvedYear() }
-        val (groupedFilms, versions) = if (groupChannels) groupDuplicateMovies(rawFilms) else rawFilms to emptyMap()
-        val films = groupedFilms.sortedByDescending { it.year?.toIntOrNull() ?: -1 }
+        // One pass, not four: the chained filter/filterNot/map each walked the whole 50k+
+        // catalogue and allocated its own intermediate list. Same predicates, same order.
+        // The dedup/sort half is a pure function of the catalogue and three prefs, so it is
+        // restored from disk when nothing that feeds it has changed (see DerivedCache). The
+        // category rows and shelves below are always rebuilt: they also depend on pinned,
+        // hidden, favourites and Continue Watching, which move constantly.
+        val vodFingerprint = vodDerivedFingerprint(list, hideAdult, hideNonEnglish, groupChannels)
+        val cachedVod = DerivedCache.loadVod(this, vodFingerprint, list)
+
+        val films: List<Channel>
+        val versions: Map<String, List<Channel>>
+        if (cachedVod != null) {
+            films = cachedVod.films
+            versions = cachedVod.filmVersions
+        } else {
+            val rawFilms = list.mapNotNull { ch ->
+                if (ch.mediaType != MediaType.MOVIE) null
+                else if (hideNonEnglish && isNonEnglishTitle(ch.name)) null
+                else if (isAdult(ch)) null
+                else ch.withResolvedYear()
+            }
+            val (groupedFilms, filmVers) = if (groupChannels) groupDuplicateMovies(rawFilms) else rawFilms to emptyMap()
+            films = groupedFilms.sortedByDescending { it.year?.toIntOrNull() ?: -1 }
+            versions = filmVers
+        }
         // "Newest" pools the most recent releases (by date, not rating) into one shelf
         // pinned at the top, sorted by release date descending regardless of category.
         val newestFilms = newestByDate(films)
@@ -2502,15 +2652,30 @@ class MainActivity : AppCompatActivity() {
         val filmShelvesLocal = shelvesFromCategoryRows(filmCategoryRows.rows, films)
             .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms, categoryId = NEWEST_CATEGORY_ID)) + shelves }
 
-        val rawSeries = list.filter { it.mediaType == MediaType.SERIES }
-            .filterNot { hideNonEnglish && isNonEnglishTitle(it.name) }
-            .filterNot { isAdult(it) }
-            .map { it.withResolvedYear() }
-        // Real release date (from the provider's bulk series list) sorts more precisely
-        // than year alone; falls back to year for anything that came back without one.
-        val (groupedSeries, seriesVers) = if (groupChannels) groupDuplicateSeries(rawSeries) else rawSeries to emptyMap()
-        val series = groupedSeries
-            .sortedWith(compareByDescending<Channel> { it.releaseDate ?: "" }.thenByDescending { it.year?.toIntOrNull() ?: -1 })
+        val series: List<Channel>
+        val seriesVers: Map<String, List<Channel>>
+        if (cachedVod != null) {
+            series = cachedVod.series
+            seriesVers = cachedVod.seriesVersions
+        } else {
+            val rawSeries = list.mapNotNull { ch ->
+                if (ch.mediaType != MediaType.SERIES) null
+                else if (hideNonEnglish && isNonEnglishTitle(ch.name)) null
+                else if (isAdult(ch)) null
+                else ch.withResolvedYear()
+            }
+            // Real release date (from the provider's bulk series list) sorts more precisely
+            // than year alone; falls back to year for anything that came back without one.
+            val (groupedSeries, vers) = if (groupChannels) groupDuplicateSeries(rawSeries) else rawSeries to emptyMap()
+            series = groupedSeries
+                .sortedWith(compareByDescending<Channel> { it.releaseDate ?: "" }.thenByDescending { it.year?.toIntOrNull() ?: -1 })
+            seriesVers = vers
+            DerivedCache.saveVod(
+                this,
+                vodFingerprint,
+                DerivedCache.VodSnapshot(films, versions, series, seriesVers)
+            )
+        }
         // Favourited series get their own shelf pinned above everything else in the
         // Series tab itself, not just on Home.
         val favoriteSeriesIds = FavoritesStore.getFavoriteSeriesIds(this)
@@ -2537,6 +2702,7 @@ class MainActivity : AppCompatActivity() {
                 if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
             }
 
+        perf("deriveFilmsSeriesHalf", startedAt, "${films.size} films / ${series.size} series")
         return FilmsSeriesContent(
             filmList = films,
             filmVersions = versions,
@@ -2560,6 +2726,15 @@ class MainActivity : AppCompatActivity() {
     private fun shelvesFromCategoryRows(rows: List<CategoryFilter>, list: List<Channel>): List<ContentShelf> {
         // key: categoryId ?: title, merge same-name rows
         val merged = LinkedHashMap<String, ContentShelf>()
+        // One pass to index the catalogue, instead of one pass per category row below.
+        val byId = HashMap<String, Channel>(list.size)
+        val byFilterKey = HashMap<String, MutableList<Channel>>()
+        val orderInList = HashMap<String, Int>(list.size)
+        for ((i, ch) in list.withIndex()) {
+            byId[ch.id] = ch
+            orderInList.putIfAbsent(ch.id, i)
+            ch.filterKey()?.let { byFilterKey.getOrPut(it) { mutableListOf() }.add(ch) }
+        }
         for (row in rows) {
             if (row.id == null) continue          // All row - the poster IS the All view
             if (row.isChild) continue             // content already in the parent's union
@@ -2568,9 +2743,15 @@ class MainActivity : AppCompatActivity() {
             // poster shelf - its titles are already interleaved into Newest and the genre
             // shelves, and a whole shelf of one provider read as clutter in the poster view.
             if (row.id == JELLYFIN_CATEGORY_ID) continue
+            // Indexed lookup, not a scan per row: with ~500 rows over a 20k-title catalogue
+            // the old `list.filter` per row was ~10M predicate evaluations (seconds on a TV
+            // stick). Both branches re-sort by the item's position in `list` so the shelf
+            // order is byte-for-byte what the scan produced.
             val items = when {
-                row.channelIds.isNotEmpty() -> list.filter { it.id in row.channelIds }
-                else -> list.filter { it.filterKey() in row.matchIds }
+                row.channelIds.isNotEmpty() ->
+                    row.channelIds.mapNotNull { byId[it] }.sortedBy { orderInList[it.id] ?: 0 }
+                else ->
+                    row.matchIds.flatMap { byFilterKey[it].orEmpty() }.sortedBy { orderInList[it.id] ?: 0 }
             }
             if (items.isEmpty()) continue
             val shelf = ContentShelf(title = row.name, items = items, pinned = row.pinned, categoryId = row.id)
@@ -2646,7 +2827,9 @@ class MainActivity : AppCompatActivity() {
             ?: group?.takeIf { it.isNotBlank() }
             ?: categoryName?.takeIf { it.isNotBlank() }
 
-    private fun activeFullList(): List<Channel> = when (activeTab) {
+    private fun activeFullList(): List<Channel> = fullListForTab(activeTab)
+
+    private fun fullListForTab(tab: Int): List<Channel> = when (tab) {
         0 -> liveChannels
         1 -> seriesList
         2 -> filmList
@@ -2938,11 +3121,13 @@ class MainActivity : AppCompatActivity() {
         val childrenByParent: Map<String, List<CategoryFilter>>
     )
 
-    private suspend fun buildCategoriesForActiveTab(): List<CategoryFilter> {
-        val list = activeFullList()
-        val pinned = getPinnedCategories()
-        val hiddenIds = getHiddenCategories()
-        val tab = activeTab
+    /** Categories for [tab]. Defaults to the tab on screen; the player side menu passes an
+     *  explicit tab so it can list Series/Films categories while Live is what's playing. */
+    private suspend fun buildCategoriesForActiveTab(tab: Int = activeTab): List<CategoryFilter> {
+        val startedAt = System.currentTimeMillis()
+        val list = fullListForTab(tab)
+        val pinned = getPinnedCategories(tab)
+        val hiddenIds = getHiddenCategories(tab)
         val expandedSnapshot = expandedGroupKeys.toSet()
         val favoriteChannelIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this) else emptySet()
         val animeSectionsSnapshot = animeSections
@@ -2977,7 +3162,9 @@ class MainActivity : AppCompatActivity() {
                 if (tab == 1) seriesContinueItems() else emptyList()
             )
         }
-        categoryChildrenCache = result.childrenByParent
+        // The children cache backs the on-screen sidebar's expand/collapse - only the tab
+        // that owns the sidebar may write it (the side menu builds other tabs too).
+        if (tab == activeTab) categoryChildrenCache = result.childrenByParent
         // Guarded on pinned too: the legacy title-folding (buildCategoryRows) maps a pinned
         // "Newest"/"Continue Watching" shelf title onto a real row id, and a folded row would
         // collide with the synthetic one below - skip ours when the id is already pinned.
@@ -3010,6 +3197,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+        perf("buildCategories(tab=$tab)", startedAt, "${rows.size} rows from ${list.size} items")
         return rows
     }
 
@@ -3028,6 +3216,21 @@ class MainActivity : AppCompatActivity() {
         favoriteChannelIds: Set<String>,   // tab 0 only
         categorize: Boolean   // render dynamic categories (buckets/brands/service clusters) for this tab
     ): CategoryBuildResult {
+            // Rows are a pure function of these arguments, and the pass behind them (brand
+            // clustering walks every live channel name twice) was the last multi-second item
+            // on a cold start. Restore the last result whenever every input still matches.
+            val startedAt = System.currentTimeMillis()
+            val fingerprint = DerivedCache.catalogFingerprint(
+                list,
+                "rows:$tab:${pinned.hashCode()}:${hiddenIds.hashCode()}:${expanded.hashCode()}:" +
+                    "${animeSections.hashCode()}:${favoriteChannelIds.hashCode()}:" +
+                    "${versionsById.size}:$useClassicLayout:$categorize"
+            )
+            DerivedCache.loadRows(this, tab, fingerprint)?.let { cached ->
+                perf("buildCategoryRows(cached,tab=$tab)", startedAt, "${cached.rows.size} rows")
+                return CategoryBuildResult(cached.rows, cached.childrenByParent)
+            }
+
             val names = LinkedHashMap<String, String>()
             val counts = LinkedHashMap<String, Int>()
             for (ch in list) {
@@ -3110,7 +3313,7 @@ class MainActivity : AppCompatActivity() {
                 val grouped = if (tab == 0 || !categorize) groupCategories(groupableLeaves) else groupSeriesFilmCategories(groupableLeaves)
                 grouped.map(::groupUnit) + pinnedLeaves.map { it to emptyList<CategoryFilter>() }
             }
-            val brandUnits = if (tab == 0 && !useClassicLayout && categorize) {
+                val brandUnits = if (tab == 0 && !useClassicLayout && categorize) {
                 deriveBrandCategories(list).map { (label, members) ->
                     val brandId = "brand:$label"
                     CategoryFilter(
@@ -3414,7 +3617,14 @@ class MainActivity : AppCompatActivity() {
             val finalRows = result
                 .filterNot { it.id in legacyHiddenIds }
                 .map { row -> if (row.id in legacyPinnedIds && !row.pinned) row.copy(pinned = true) else row }
-            return CategoryBuildResult(finalRows, childrenByParent.toMap())
+            val built = CategoryBuildResult(finalRows, childrenByParent.toMap())
+            DerivedCache.saveRows(
+                this,
+                tab,
+                fingerprint,
+                DerivedCache.RowsSnapshot(built.rows, built.childrenByParent)
+            )
+            return built
     }
 
     /** Column count for the single-category poster grid, sized off the RecyclerView's actual
@@ -5733,6 +5943,38 @@ class MainActivity : AppCompatActivity() {
         binding.btnPrevChannel.setOnClickListener { navigateChannel(-1) }
         binding.btnNextChannel.setOnClickListener { navigateChannel(1) }
         binding.btnBack.setOnClickListener { hidePlayer(); restoreSearchIfPending() }
+        binding.btnPlayerMenu.setOnClickListener { openSideMenu() }
+        binding.btnCloseSideMenu.setOnClickListener { closeSideMenu() }
+        // TV remotes open the side menu with DPAD_LEFT, so the hamburger is phone-only.
+        if (isTv) binding.btnPlayerMenu.visibility = View.GONE
+
+        // Side-menu nav rows mirror the top tab bar: close the drawer, tear down the
+        // player, then switch to the destination screen. hidePlayer() runs BEFORE the
+        // navigation because the player overlay covers mainContent. The three content
+        // rows (Live/Series/Films) branch: pressing the row for the CURRENT tab drills
+        // into that section's categories instead of navigating away (see
+        // onSideMenuSectionRowClicked).
+        binding.navHome.setOnClickListener { closeSideMenu(); hidePlayer(); selectHome() }
+        binding.navLive.setOnClickListener { onSideMenuSectionRowClicked(0) }
+        binding.navSeries.setOnClickListener { onSideMenuSectionRowClicked(1) }
+        binding.navFilms.setOnClickListener { onSideMenuSectionRowClicked(2) }
+        binding.navDiscover.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; selectDiscover() }
+        binding.navDownloads.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; selectDownloads() }
+        // Settings lives behind the browse screen's gear button, which the player covers -
+        // this is the only way into it without backing out of playback by hand.
+        binding.navSettings.setOnClickListener { closeSideMenu(); hidePlayer(); showProviderSettings() }
+
+        // Category drill-down list under the expanded section row.
+        sideMenuCategoryAdapter = SideMenuCategoryAdapter(onCategoryClick = ::onSideMenuCategoryClicked)
+        sideMenuCategoryAdapter.onLeftPressed = ::onSideMenuColumnLeft
+        // RIGHT on a category opens its channels/titles, same as pressing OK. At the item
+        // level there is nothing further right, so it's swallowed rather than playing the
+        // item - a direction key should never start playback.
+        sideMenuCategoryAdapter.onRightPressed = { category ->
+            if (sideMenuChannelCategory == null) onSideMenuCategoryClicked(category)
+        }
+        binding.sideMenuCategoryList.layoutManager = LinearLayoutManager(this)
+        binding.sideMenuCategoryList.adapter = sideMenuCategoryAdapter
         binding.btnAudioTrack.setOnClickListener { showTrackPicker(isAudio = true) }
         binding.btnSubtitleTrack.setOnClickListener { showTrackPicker(isAudio = false) }
         binding.btnChapters.setOnClickListener { showChapterPicker() }
@@ -6789,6 +7031,22 @@ class MainActivity : AppCompatActivity() {
         binding.mainContent.visibility = View.VISIBLE
         binding.playerLayout.keepScreenOn = false
         mainHandler.removeCallbacks(hideControlsRunnable)
+        // A fresh player session starts with the side menu tucked away - kill any
+        // in-flight slide animation and reset the transform it left behind.
+        binding.playerSideMenu.animate().cancel()
+        binding.playerSideMenu.visibility = View.GONE
+        binding.playerSideMenu.translationX = 0f
+        sideMenuCategoryWidthAnimator?.cancel()
+        sideMenuCategoryWidthAnimator = null
+        sideMenuCategoriesExpanded = false
+        sideMenuChannelCategory = null
+        sideMenuChannelRows = emptyList()
+        sideMenuColumnBusy = false
+        // The catalog can change between sessions (refresh, provider toggled) - next
+        // player session rebuilds rather than serving stale category rows.
+        sideMenuCategoryCache.clear()
+        binding.sideMenuCategoryPanel.visibility = View.GONE
+        binding.sideMenuCategoryPanel.updateLayoutParams<ViewGroup.LayoutParams> { width = 0 }
         mainHandler.removeCallbacks(progressRunnable)
         mainHandler.removeCallbacks(longStallCheckRunnable)
         mainHandler.removeCallbacks(blackFrameCheckRunnable)
@@ -6893,26 +7151,85 @@ class MainActivity : AppCompatActivity() {
         return listOfNotNull(liveChannels.find { it.id == channelId })
     }
 
+    /** Goes through [resolveEpgPrograms] rather than calling the provider itself, so the
+     *  "what's on now" line reads the stored guide when there is one - and warms it when
+     *  there isn't - instead of always spending a request of its own. */
     private suspend fun resolveCurrentProgram(channelId: String): XtreamClient.EpgProgram? {
-        val client = XtreamClient(BaseApplication.instance.okHttpClient)
         val nowSeconds = System.currentTimeMillis() / 1000
-        for (ch in epgCandidateChannels(channelId)) {
-            val chProvider = xtreamProviderFor(ch) ?: continue
-            val programs = runCatching { client.getShortEpg(chProvider, ch.id, 2) }.getOrDefault(emptyList())
-            if (programs.isNotEmpty()) return programs.firstOrNull { it.isNowAiring(nowSeconds) } ?: programs.firstOrNull()
-        }
-        return null
+        val programs = resolveEpgPrograms(channelId) ?: return null
+        return programs.firstOrNull { it.isNowAiring(nowSeconds) } ?: programs.firstOrNull()
     }
 
-    /** Next several EPG entries for a channel, used to build one row of the guide timeline. */
+    /** Next several EPG entries for a channel, used to build one row of the guide timeline.
+     *
+     *  Disk first, network second. EpgListCache is per-process, so before this every cold
+     *  start re-fetched a short EPG per channel as its row scrolled into view - the guide
+     *  filled in over the network every single launch. The Room copy survives the process,
+     *  so a relaunch inside [EPG_DISK_TTL_MS] paints the guide straight off disk and the
+     *  network is only touched for channels whose cached guide is missing or stale. */
     private suspend fun resolveEpgPrograms(channelId: String): List<XtreamClient.EpgProgram>? {
+        if (channelId.isBlank()) return null
+        val nowSeconds = System.currentTimeMillis() / 1000
+        val cached = withContext(Dispatchers.IO) {
+            runCatching {
+                val dao = database.epgProgramDao()
+                val fetchedAt = dao.lastFetchedAt(channelId) ?: return@runCatching null
+                if (System.currentTimeMillis() - fetchedAt >= EPG_DISK_TTL_MS) return@runCatching null
+                val rows = dao.upcomingFor(channelId, nowSeconds)
+                // Two tests, not one: the fetch has to be recent AND what it fetched has to
+                // still reach far enough ahead to fill the row (see EPG_MIN_COVERAGE_SECONDS).
+                val coverage = (rows.lastOrNull()?.stopTimestamp ?: 0L) - nowSeconds
+                if (coverage < EPG_MIN_COVERAGE_SECONDS) null else rows
+            }.getOrNull()
+        }
+        if (!cached.isNullOrEmpty()) {
+            return cached.map { XtreamClient.EpgProgram(it.title, it.startTimestamp, it.stopTimestamp) }
+        }
+
         val client = XtreamClient(BaseApplication.instance.okHttpClient)
         for (ch in epgCandidateChannels(channelId)) {
             val chProvider = xtreamProviderFor(ch) ?: continue
             val programs = runCatching { client.getShortEpg(chProvider, ch.id, 16) }.getOrDefault(emptyList())
-            if (programs.isNotEmpty()) return programs
+            if (programs.isNotEmpty()) {
+                persistEpgPrograms(channelId, programs)
+                return programs
+            }
         }
         return null
+    }
+
+    /** Writes a freshly fetched guide to disk under the id the guide asked for - not the
+     *  provider-specific id it was fetched with, since a quality-merged channel resolves
+     *  through whichever of its versions answered (see epgCandidateChannels). */
+    private fun persistEpgPrograms(channelId: String, programs: List<XtreamClient.EpgProgram>) {
+        val rows = programs.map {
+            EpgProgramEntity(
+                channelId = channelId,
+                startTimestamp = it.startTimestamp,
+                stopTimestamp = it.stopTimestamp,
+                title = it.title
+            )
+        }
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                // Replace rather than merge: a re-fetch is the provider's current truth, and
+                // leaving old rows behind would keep a superseded schedule in the guide.
+                database.epgProgramDao().deleteForChannel(channelId)
+                database.epgProgramDao().upsertAll(rows)
+            }
+        }
+    }
+
+    /** Drops guide rows whose programmes have already finished. Once per session, off the
+     *  first-paint path - without it the table only ever grows. */
+    private fun pruneStoredEpg() {
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val dao = database.epgProgramDao()
+                val dropped = dao.pruneEndedBefore(System.currentTimeMillis() / 1000 - EPG_PRUNE_GRACE_SECONDS)
+                android.util.Log.i("LumoraPerf", "epg store: ${dao.count()} rows kept, $dropped pruned")
+            }
+        }
     }
 
     // ── Live TV inline preview ──────────────────────
@@ -7168,6 +7485,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showControls() {
+        // The side menu and the bottom bar are mutually exclusive chrome - any other
+        // reveal path (center press, media key, gesture tap) dismisses the drawer
+        // rather than stacking the bar over it.
+        if (isPlayerSideMenuOpen()) closeSideMenu()
         // Up Next shares the bottom-right corner with the controls bar's track buttons -
         // don't let both render at once.
         if (upNextActive) binding.upNextOverlay.visibility = View.GONE
@@ -7186,6 +7507,357 @@ class MainActivity : AppCompatActivity() {
     }
     private fun toggleControls() {
         if (binding.controlsOverlay.visibility == View.VISIBLE) hideControls() else showControls()
+    }
+
+    // ── Side menu ─────────────────────────────────
+
+    private fun isPlayerSideMenuOpen(): Boolean = binding.playerSideMenu.visibility == View.VISIBLE
+
+    private fun openSideMenu() {
+        // Also covers the re-open-during-close race: the panel is still VISIBLE while the
+        // close animation runs, so a stray LEFT there is ignored rather than fighting the
+        // in-flight transform.
+        if (isPlayerSideMenuOpen()) return
+        // Fresh open: no category drill-down until the user asks for it. The section on
+        // screen is where a later collapse hands focus back to, until a row is expanded.
+        collapseSideMenuCategories()
+        sideMenuExpandedTab = activeTab.coerceIn(0, 2)
+        // The drawer covers the bottom-right corner the Up Next card sits in - clear it
+        // so the menu opens over clean video, same as showControls does.
+        if (upNextActive) binding.upNextOverlay.visibility = View.GONE
+        // The menu stays put until the user dismisses it - no auto-hide countdown.
+        mainHandler.removeCallbacks(hideControlsRunnable)
+        binding.controlsOverlay.visibility = View.GONE
+        // Slide in from the left edge. translationX starts a full panel-width off-screen
+        // (width is 0 while GONE, so the shared dimen keeps the code and layout in sync),
+        // then the visibility flip can't flash the panel in place.
+        val menuWidth = resources.getDimensionPixelSize(R.dimen.player_side_menu_width)
+        binding.playerSideMenu.translationX = -menuWidth.toFloat()
+        binding.playerSideMenu.visibility = View.VISIBLE
+        binding.playerSideMenu.animate()
+            .translationX(0f)
+            .setDuration(250)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+        // Mark the section the user is actually in and land focus on it, so the remote's
+        // UP/DOWN immediately walks the nav list from "where you are".
+        val activeNavRow = updateSideMenuSelection()
+        updateSideMenuChevrons()
+        activeNavRow.requestFocus()
+    }
+
+    private fun closeSideMenu() {
+        if (!isPlayerSideMenuOpen()) return
+        val menuWidth = resources.getDimensionPixelSize(R.dimen.player_side_menu_width)
+        binding.playerSideMenu.animate()
+            .translationX(-menuWidth.toFloat())
+            .setDuration(250)
+            .withEndAction {
+                binding.playerSideMenu.visibility = View.GONE
+                binding.playerSideMenu.translationX = 0f
+            }
+            .start()
+        // Menu closed - drop the "where you are" highlight and any open drill-down so a
+        // fresh open re-derives both.
+        clearSideMenuSelection()
+        collapseSideMenuCategories()
+        // Menu closed over the video - bring Up Next back if it was mid-countdown,
+        // exactly like hideControls does. The bottom bar stays hidden, so the video is
+        // fullscreen again = "back to what's playing".
+        if (upNextActive) binding.upNextOverlay.visibility = View.VISIBLE
+    }
+
+    /** The side-menu row for the section currently on screen - mirrors the top tab bar:
+     *  Home / Discover / Downloads own their panes; Live / Series / Films are the three
+     *  categorized tabs (activeTab). */
+    private fun activeSideMenuRow(): View = when {
+        showingHome -> binding.navHome
+        showingDiscover -> binding.navDiscover
+        showingDownloads -> binding.navDownloads
+        else -> listOf(binding.navLive, binding.navSeries, binding.navFilms)[activeTab.coerceIn(0, 2)]
+    }
+
+    /** Highlights the active section's row (brand_muted fill + primary border via
+     *  bg_select_item's selected state) and clears the rest - same "where you are" signal
+     *  updateTabStyles gives the top tab bar. Returns the active row so openSideMenu can
+     *  land focus on it. */
+    private fun updateSideMenuSelection(): View {
+        val active = activeSideMenuRow()
+        for (row in listOf(
+            binding.navHome, binding.navLive, binding.navSeries,
+            binding.navFilms, binding.navDiscover, binding.navDownloads
+        )) {
+            row.isSelected = row === active
+        }
+        return active
+    }
+
+    private fun clearSideMenuSelection() {
+        for (row in listOf(
+            binding.navHome, binding.navLive, binding.navSeries,
+            binding.navFilms, binding.navDiscover, binding.navDownloads
+        )) {
+            row.isSelected = false
+        }
+    }
+
+    // ── Side-menu category drill-down ─────────────
+
+    /** Live/Series/Films nav row: flies its category column out to the right (or folds it
+     *  back in on a second press). All three expand - the section you're *playing* has no
+     *  special status here, so Series/Films list their categories while Live is on screen.
+     *  Leaving the player happens by picking something inside the column, not by pressing
+     *  the section row. */
+    private fun onSideMenuSectionRowClicked(tab: Int) {
+        if (sideMenuCategoriesExpanded && sideMenuExpandedTab == tab) collapseSideMenuCategories()
+        else expandSideMenuCategories(tab)
+    }
+
+    private fun expandSideMenuCategories(tab: Int) {
+        // A different section was already flown out - swap the column's contents rather
+        // than animating it shut and straight back open.
+        val wasExpanded = sideMenuCategoriesExpanded
+        sideMenuCategoriesExpanded = true
+        sideMenuExpandedTab = tab
+        sideMenuChannelCategory = null
+        updateSideMenuChevrons()
+        if (!wasExpanded) animateSideMenuCategoryPanel(open = true)
+
+        val cached = sideMenuCategoryCache[tab]
+        if (cached != null) {
+            showSideMenuCategories(tab, cached)
+            return
+        }
+        // The on-screen sidebar already holds the active tab's rows - reuse them and skip
+        // the rebuild. Any other tab has to be built here (same pipeline, other tab's list).
+        val fromSidebar = if (tab == activeTab) categoryAdapter.currentList else emptyList()
+        if (fromSidebar.isNotEmpty()) {
+            sideMenuCategoryCache[tab] = fromSidebar
+            showSideMenuCategories(tab, fromSidebar)
+            return
+        }
+        binding.sideMenuColumnTitle.setText(R.string.side_menu_loading)
+        sideMenuCategoryAdapter.submitList(emptyList())
+        scope.launch {
+            val rows = buildCategoriesForActiveTab(tab)
+            // The user may have folded the column shut, or moved to another section,
+            // while this was building.
+            if (!sideMenuCategoriesExpanded || sideMenuExpandedTab != tab) return@launch
+            sideMenuCategoryCache[tab] = rows
+            showSideMenuCategories(tab, rows)
+        }
+    }
+
+    /** Renders the category level of the column for [tab]. [focusId] overrides which row
+     *  opens focused - used when walking back from the channel level, so focus returns to
+     *  the category the user drilled into rather than to the applied filter. */
+    private fun showSideMenuCategories(tab: Int, rows: List<CategoryFilter>, focusId: String? = null) {
+        sideMenuChannelCategory = null
+        binding.sideMenuColumnTitle.text = getString(
+            when (tab) {
+                0 -> R.string.tab_live_tv
+                1 -> R.string.series_tab
+                else -> R.string.films_tab
+            }
+        )
+        sideMenuColumnBusy = true
+        // Cleared first: submitting over a non-empty list makes AsyncListDiffer compute a
+        // diff on a background thread (a second, on an 800-channel level swap), and the
+        // column is a *different* list at each level, so that diff is wasted work with a
+        // race attached. Clearing first takes both submits down AsyncListDiffer's
+        // synchronous paths - the swap lands before the next key can be pressed.
+        sideMenuCategoryAdapter.submitList(null)
+        sideMenuCategoryAdapter.submitList(rows) {
+            sideMenuColumnBusy = false
+            // Mirror the browsing sidebar's applied filter, but only on the tab that
+            // sidebar actually belongs to.
+            sideMenuCategoryAdapter.setSelected(focusId ?: if (tab == activeTab) selectedRowId else null)
+            focusSideMenuCategoryList()
+        }
+    }
+
+    /** Renders the item level: what's actually inside [category] - live channels, or the
+     *  films/series in a VOD category. Reuses the same column and adapter (item rows carry
+     *  count = -1 so no "(n)" is drawn); LEFT walks back to the categories. */
+    private fun showSideMenuItems(category: CategoryFilter, items: List<Channel>) {
+        sideMenuChannelCategory = category
+        sideMenuChannelRows = items
+        binding.sideMenuColumnTitle.text = category.name
+        sideMenuColumnBusy = true
+        sideMenuCategoryAdapter.submitList(null)
+        sideMenuCategoryAdapter.submitList(
+            items.map { CategoryFilter(id = it.id, name = it.name, count = -1) }
+        ) {
+            sideMenuColumnBusy = false
+            // Highlight what's playing so the column opens on the current item.
+            sideMenuCategoryAdapter.setSelected(nowPlayingChannel?.id)
+            focusSideMenuCategoryList()
+        }
+    }
+
+    /** LEFT inside the column: back to the categories from the channel level, otherwise
+     *  out onto the section row that opened it. */
+    private fun onSideMenuColumnLeft() {
+        if (sideMenuColumnBusy) return
+        val category = sideMenuChannelCategory
+        if (category != null) {
+            showSideMenuCategories(
+                sideMenuExpandedTab,
+                sideMenuCategoryCache[sideMenuExpandedTab].orEmpty(),
+                focusId = category.id
+            )
+        } else {
+            sectionRowForTab(sideMenuExpandedTab).requestFocus()
+        }
+    }
+
+    /** Moves focus into the column, onto its selected row (first row if none). Scrolls
+     *  there first: a row that was never laid out has no ViewHolder to focus, so a long
+     *  category list would otherwise swallow the focus move. Double post: the first waits
+     *  for the pending layout request to be queued, the second runs after it has run. */
+    private fun focusSideMenuCategoryList() {
+        val list = binding.sideMenuCategoryList
+        val target = sideMenuCategoryAdapter.currentList
+            .indexOfFirst { it.id == sideMenuCategoryAdapter.selectedId }
+            .coerceAtLeast(0)
+        list.scrollToPosition(target)
+        list.post {
+            list.post {
+                (list.findViewHolderForAdapterPosition(target)
+                    as? SideMenuCategoryAdapter.ViewHolder)?.itemView?.requestFocus()
+            }
+        }
+    }
+
+    private fun collapseSideMenuCategories() {
+        if (!sideMenuCategoriesExpanded) return
+        sideMenuCategoriesExpanded = false
+        val row = sectionRowForTab(sideMenuExpandedTab)
+        updateSideMenuChevrons()
+        // Pull focus off the column before it starts shrinking, or the framework drops
+        // focus to the root when the collapsing panel goes GONE under it.
+        if (isPlayerSideMenuOpen()) row.requestFocus()
+        animateSideMenuCategoryPanel(open = false)
+        sideMenuCategoryAdapter.setSelected(null)
+        sideMenuChannelCategory = null
+        sideMenuChannelRows = emptyList()
+        sideMenuColumnBusy = false
+    }
+
+    /** Slides the category column out of / back into the nav column's right edge by
+     *  animating the clipping container's width. The panel itself is wrap_content, so its
+     *  right edge, rounded corners and shadow travel with it. */
+    private fun animateSideMenuCategoryPanel(open: Boolean) {
+        val panel = binding.sideMenuCategoryPanel
+        panel.animation?.cancel()
+        sideMenuCategoryWidthAnimator?.cancel()
+        val target = if (open) resources.getDimensionPixelSize(R.dimen.player_side_menu_category_width) else 0
+        val from = if (panel.visibility == View.VISIBLE) panel.width else 0
+        if (open) panel.visibility = View.VISIBLE
+        sideMenuCategoryWidthAnimator = android.animation.ValueAnimator.ofInt(from, target).apply {
+            duration = 220
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { anim ->
+                panel.updateLayoutParams<ViewGroup.LayoutParams> { width = anim.animatedValue as Int }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (!open) {
+                        panel.visibility = View.GONE
+                        panel.updateLayoutParams<ViewGroup.LayoutParams> { width = 0 }
+                    }
+                    sideMenuCategoryWidthAnimator = null
+                }
+            })
+            start()
+        }
+    }
+
+    /** The content section whose nav row currently holds focus, or null for any other row. */
+    private fun focusedSideMenuSectionTab(): Int? = when {
+        binding.navLive.hasFocus() -> 0
+        binding.navSeries.hasFocus() -> 1
+        binding.navFilms.hasFocus() -> 2
+        else -> null
+    }
+
+    private fun sectionRowForTab(tab: Int): View = when (tab) {
+        0 -> binding.navLive
+        1 -> binding.navSeries
+        else -> binding.navFilms
+    }
+
+    /** Expand affordance: every content section carries one, since all three open their
+     *  categories. Points right at the column it opens, flipped back left while that
+     *  section's column is out. */
+    private fun updateSideMenuChevrons() {
+        for ((tab, chevron) in listOf(
+            0 to binding.navLiveChevron, 1 to binding.navSeriesChevron, 2 to binding.navFilmsChevron
+        )) {
+            chevron.rotation = if (sideMenuCategoriesExpanded && sideMenuExpandedTab == tab) 180f else 0f
+        }
+    }
+
+    /** A category picked from the column. Drills one step further right into what's inside
+     *  it - channels on Live, titles on Series/Films - and picking one of those plays it
+     *  (live swaps the stream in place; a film/series opens its detail page). A category
+     *  that resolves to nothing falls back to the browsing screen with it applied as the
+     *  sidebar filter. */
+    private fun onSideMenuCategoryClicked(category: CategoryFilter) {
+        // A level swap is a whole new list in the same RecyclerView, committed off-thread by
+        // DiffUtil. A key press landing inside that window acts on a row that is about to be
+        // rebound to a different item - which drilled into whatever category happened to be
+        // under the focus ring rather than the one on screen when the key went down.
+        if (sideMenuColumnBusy) return
+        val tab = sideMenuExpandedTab
+        // Item level: the "category" is really a channel/title row - play it.
+        if (sideMenuChannelCategory != null) {
+            val item = sideMenuChannelRows.firstOrNull { it.id == category.id } ?: return
+            closeSideMenu()
+            // A film/series opens its detail page, which lives behind the player - drop
+            // playback first, the way the tab bar's own navigation does.
+            if (item.mediaType != MediaType.LIVE) hidePlayer()
+            playItem(item)
+            return
+        }
+        val items = resolveSideMenuCategoryItems(tab, category)
+        if (items.isNotEmpty()) {
+            showSideMenuItems(category, items)
+            return
+        }
+        // Nothing resolved (a synthetic row like Continue Watching, whose members aren't
+        // members of the tab list) - fall back to navigating with the filter applied.
+        closeSideMenu()
+        hidePlayer()
+        // hidePlayer() on Live asynchronously re-selects the last-played channel's row (its
+        // dynamic-row branch), so the pick is re-asserted inside the coroutine - queued
+        // after that work - rather than set before, which that branch would clobber. Mirror
+        // of onCategorySelected's field assignments, plus the tab switch when the column
+        // belonged to a section other than the one on screen.
+        scope.launch {
+            if (tab != activeTab) selectTab(tab)
+            selectedShelfItems = null
+            selectedRowId = category.id
+            selectedCategoryLabel = category.name
+            selectedBrandChannelIds = category.channelIds.ifEmpty { null }
+            selectedCategoryIds = if (category.id == null) null else category.matchIds
+            categoryAdapter.setSelected(selectedRowId)
+            applyCategoryFilter()
+        }
+    }
+
+    /** What a category row on [tab] resolves to: explicit channel ids when present (brand
+     *  rows / dynamic buckets), provider category ids otherwise; the "All" row (id == null)
+     *  means the whole tab. Reads the same derived per-tab lists the category rows were
+     *  built from, so the counts on the rows match what opens. */
+    private fun resolveSideMenuCategoryItems(tab: Int, category: CategoryFilter): List<Channel> {
+        val source = fullListForTab(tab)
+        if (category.id == null) return source
+        return if (category.channelIds.isNotEmpty()) {
+            source.filter { it.id in category.channelIds }
+        } else {
+            source.filter { it.filterKey() in category.matchIds }
+        }
     }
 
     private fun updatePlayPauseIcon() {

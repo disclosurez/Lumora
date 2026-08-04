@@ -1459,6 +1459,8 @@
         android:id="@+id/playerLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:visibility="gone">
 
         <com.lumora.player.VideoAspectFrameLayout
@@ -1552,6 +1554,23 @@
                     android:padding="12dp"
                     android:stateListAnimator="@animator/focus_scale"
                     android:src="@drawable/ic_x"
+                    android:tint="@color/text_primary" />
+                <!-- Phone access to the side menu - TV remotes open it with DPAD_LEFT, so this
+                     is hidden on TV (see setupPlayerControls). -->
+                <ImageButton
+                    android:id="@+id/btnPlayerMenu"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="12dp"
+                    android:layout_toEndOf="@id/btnBack"
+                    android:background="@drawable/bg_toolbar_button"
+                    android:clickable="true"
+                    android:contentDescription="@string/player_menu"
+                    android:focusable="true"
+                    android:padding="12dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:src="@drawable/ic_menu"
                     android:tint="@color/text_primary" />
             </RelativeLayout>
 
@@ -1983,7 +2002,407 @@
                 </LinearLayout>
             </FrameLayout>
         </LinearLayout>
+        <!-- Player side menu: app navigation drawer that slides in from the left edge over
+             the still-playing video (translucent panel - the video reads through). Opened by
+             DPAD_LEFT (TV) or the btnPlayerMenu hamburger (phone); closed by BACK / DPAD_RIGHT
+             / the X button / picking a destination. Drawn after controlsOverlay so it layers
+             above the bottom bar when both exist.
 
+             Two columns side by side: the fixed-width nav column, and the category column
+             that flies out to its RIGHT when a section row is expanded (width 0 while
+             collapsed, so the panel itself is nav-width until then). The panel is
+             wrap_content horizontally so its right edge - and the rounded corners +
+             drop shadow on it - travels with the category column as it opens. -->
+        <LinearLayout
+            android:id="@+id/playerSideMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:background="@drawable/bg_player_side_menu"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:elevation="8dp"
+            android:orientation="horizontal"
+            android:outlineProvider="background"
+            android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/sideMenuNavColumn"
+            android:layout_width="@dimen/player_side_menu_width"
+            android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <!-- Header: title + close affordance (phone touch / TV both) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:focusable="false"
+                    android:text="@string/player_menu_title"
+                    android:textAllCaps="true"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_caption"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btnCloseSideMenu"
+                    android:layout_width="@dimen/side_menu_row_height"
+                    android:layout_height="@dimen/side_menu_row_height"
+                    android:background="@drawable/bg_toolbar_button"
+                    android:clickable="true"
+                    android:contentDescription="@string/close_side_menu"
+                    android:focusable="true"
+                    android:nextFocusDown="@id/navHome"
+                    android:nextFocusUp="@id/navSettings"
+                    android:padding="10dp"
+                    android:src="@drawable/ic_x"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:tint="@color/text_primary" />
+            </LinearLayout>
+
+            <!-- App navigation: the same destinations as the top chrome (Home / Live TV /
+                 Series / Movies / Discover, + Downloads on phones, + Settings). The
+                 currently-open section's row carries the selected state (brand_muted fill +
+                 primary border via bg_select_item), set in Kotlin when the menu opens and
+                 cleared on close. Focus chain: close -> Home -> Live -> Series -> Movies ->
+                 Discover -> Downloads -> Settings -> close (wraps). Every row uses the
+                 side_menu_* metrics so the whole list fits without scrolling. -->
+            <LinearLayout
+                android:id="@+id/navHome"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/btnCloseSideMenu"
+                android:nextFocusDown="@id/navLive"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_home"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/tab_home"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/navLive"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navHome"
+                android:nextFocusDown="@id/navSeries"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_live_tv"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/tab_live_tv"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+
+                <!-- Expand affordance: points right at the column this row opens. -->
+                <ImageView
+                    android:id="@+id/navLiveChevron"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="6dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    android:tint="@color/text_tertiary" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/navSeries"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navLive"
+                android:nextFocusDown="@id/navFilms"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_series"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/series_tab"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+
+                <ImageView
+                    android:id="@+id/navSeriesChevron"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="6dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    android:tint="@color/text_tertiary" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/navFilms"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navSeries"
+                android:nextFocusDown="@id/navDiscover"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_films"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/films_tab"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+
+                <ImageView
+                    android:id="@+id/navFilmsChevron"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="6dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    android:tint="@color/text_tertiary" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/navDiscover"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navFilms"
+                android:nextFocusDown="@id/navDownloads"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_discover"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/discover_tab"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+            </LinearLayout>
+
+            <!-- Downloads is a mobile-only section (mirrors tabDownloads; stays GONE on TV).
+                 While gone, Discover's nextFocusDown is retargeted to Settings in Kotlin. -->
+            <LinearLayout
+                android:id="@+id/navDownloads"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navDiscover"
+                android:nextFocusDown="@id/navSettings"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_downloads"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/downloads_tab"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+            </LinearLayout>
+
+            <!-- Settings: same destination as the browse screen's gear button, which the
+                 player covers while it's up. -->
+            <LinearLayout
+                android:id="@+id/navSettings"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navDownloads"
+                android:nextFocusDown="@id/btnCloseSideMenu"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_settings"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/settings"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+            </LinearLayout>
+        </LinearLayout>
+
+            <!-- Category drill-down for the current-tab section row (Live/Series/Films) -
+                 the second column, right of the nav rows, which keep their place. The
+                 container clips, so animating ITS width 0 -> player_side_menu_category_width
+                 wipes the fixed-width list into view left-to-right (rather than reflowing
+                 the rows every frame, which animating the RecyclerView itself would do).
+                 Starts GONE at width 0 - expansion is owned entirely by MainActivity. -->
+            <FrameLayout
+                android:id="@+id/sideMenuCategoryPanel"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="start"
+                    android:background="@color/color_border" />
+
+                <!-- Fixed width so nothing inside reflows while the container animates. -->
+                <LinearLayout
+                    android:layout_width="@dimen/player_side_menu_category_width"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="start"
+                    android:orientation="vertical"
+                    android:paddingStart="4dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="4dp"
+                    android:paddingBottom="8dp">
+
+                    <!-- Which level the column is showing: the section's categories, or one
+                         category's channels/titles after drilling a step further right. -->
+                    <TextView
+                        android:id="@+id/sideMenuColumnTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/side_menu_row_height"
+                        android:ellipsize="end"
+                        android:focusable="false"
+                        android:gravity="center_vertical"
+                        android:maxLines="1"
+                        android:paddingHorizontal="12dp"
+                        android:textAllCaps="true"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/text_caption"
+                        android:textStyle="bold" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/sideMenuCategoryList"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:scrollbars="none" />
+                </LinearLayout>
+            </FrameLayout>
+        </LinearLayout>
         <!-- Up Next / Auto-advance overlay -->
         <LinearLayout
             android:id="@+id/upNextOverlay"

@@ -139,6 +139,10 @@
     <string name="subtitles">Subtitles</string>
     <string name="chapters">Chapters</string>
     <string name="seek_preview">Seek preview</string>
+    <string name="player_menu_title">Menu</string>
+    <string name="player_menu">Player menu</string>
+    <string name="close_side_menu">Close menu</string>
+    <string name="side_menu_loading">Loading…</string>
 
     <!-- activity_settings.xml -->
     <string name="providers">Providers</string>

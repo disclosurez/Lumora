@@ -13,12 +13,20 @@ class BaseApplication : Application() {
     lateinit var okHttpClient: OkHttpClient
         private set
 
+    /** See [onCreate] - epoch millis at process start. */
+    var processStartedAt: Long = 0L
+        private set
+
     lateinit var database: LumoraDatabase
         private set
 
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Wall-clock zero for the cold-start budget: the first line of app code that runs in
+        // a fresh process. Everything MainActivity reports as "time to first content" is
+        // measured from here, so the number matches what someone counting out loud sees.
+        processStartedAt = System.currentTimeMillis()
 
         // Initialize Google Cast framework (required before any Cast calls)
         try {

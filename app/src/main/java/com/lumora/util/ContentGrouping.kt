@@ -3,8 +3,48 @@ package com.lumora.util
 import com.lumora.model.CategoryFilter
 import com.lumora.model.Channel
 import java.util.Calendar
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Memo tables for the pure name-normalisation functions below.
+ *
+ * These are regex-heavy (stripDecorativeTags alone runs six replaces per call) and every
+ * one of them is called on the *same* strings many times over a single catalogue load:
+ * deriveLiveHalf runs once per provider merge plus once per re-render, the category-row
+ * build re-derives brand prefixes from the same names in two passes, and liveQualityScore
+ * is called from inside a sort comparator, so it recomputes O(n log n) times per group. On
+ * a 52k-item catalogue that churned hundreds of MB of short-lived strings and Matchers, and
+ * the resulting back-to-back GCs - not the disk read - were what made a cached cold start
+ * take tens of seconds on a TV stick.
+ *
+ * Keys are the name strings the Channel objects already hold, so an entry costs the map
+ * node, not a copy. Bounded and cleared wholesale on overflow: this is a hot-loop cache,
+ * not a correctness-critical store, and the functions are pure so a miss only costs time.
+ */
+private const val MEMO_MAX_ENTRIES = 120_000
+
+private inline fun <V : Any> ConcurrentHashMap<String, V>.memoize(key: String, compute: () -> V): V {
+    get(key)?.let { return it }
+    val value = compute()
+    if (size >= MEMO_MAX_ENTRIES) clear()
+    put(key, value)
+    return value
+}
+
+private val stripDecorativeTagsMemo = ConcurrentHashMap<String, String>(4096)
+private val liveQualityScoreMemo = ConcurrentHashMap<String, Int>(4096)
+private val liveChannelKeyMemo = ConcurrentHashMap<String, String>(4096)
+private val normalizeTitleMemo = ConcurrentHashMap<String, String>(4096)
+private val nonEnglishTitleMemo = ConcurrentHashMap<String, Boolean>(4096)
+private val adultCategoryMemo = ConcurrentHashMap<String, Boolean>(512)
+// A catalogue has a few hundred distinct category labels but calls this per item.
+private val vodCategoryLabelMemo = ConcurrentHashMap<String, String>(512)
 
 private val YEAR_PAREN_REGEX = Regex("""\((\d{4})\)""")
+// Read once per process rather than per title - a Calendar allocation per item across a
+// 20k-title catalogue is pure overhead, and a session that spans New Year at worst accepts
+// one extra year as valid.
+private val CURRENT_YEAR: Int by lazy { Calendar.getInstance().get(Calendar.YEAR) }
 // Matches one or more hyphen-joined ALL-CAPS/digit/"+" tokens before " - ", e.g.
 // "EN - ", "4K-D+ - ", "EN-TOP - ". Tags are always uppercase in this provider's
 // data, which is what keeps this from eating real (mixed-case) title words.
@@ -62,10 +102,25 @@ fun extractYearFromName(name: String): String? {
     // The pattern needs a "(YYYY)" literal - skip the scan entirely for the common
     // title with no parens (called once per film/series with a blank year).
     if ('(' !in name) return null
-    val match = YEAR_PAREN_REGEX.findAll(name).lastOrNull() ?: return null
-    val year = match.groupValues[1].toIntOrNull() ?: return null
-    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-    return if (year in 1900..(currentYear + 1)) year.toString() else null
+    // Hand-rolled scan rather than YEAR_PAREN_REGEX.findAll(...).lastOrNull(): almost every
+    // VOD title carries a "(2026)" suffix, so the regex path built a Sequence, a MatchResult
+    // and a groupValues list per item across tens of thousands of items on every derive pass.
+    // Same acceptance: the LAST "(dddd)" in the string, digits only, inside 1900..next year.
+    var year = -1
+    // Last index at which a full "(dddd)" can still fit.
+    var i = name.length - 6
+    while (i >= 0) {
+        if (name[i] == '(' && name[i + 5] == ')' &&
+            name[i + 1].isDigit() && name[i + 2].isDigit() && name[i + 3].isDigit() && name[i + 4].isDigit()
+        ) {
+            year = (name[i + 1] - '0') * 1000 + (name[i + 2] - '0') * 100 +
+                (name[i + 3] - '0') * 10 + (name[i + 4] - '0')
+            break
+        }
+        i--
+    }
+    if (year < 0) return null
+    return if (year in 1900..(CURRENT_YEAR + 1)) year.toString() else null
 }
 
 /** Fills in Channel.year from the title when the provider left it blank. */
@@ -78,7 +133,7 @@ fun Channel.withResolvedYear(): Channel =
  * region/quality tag, so "TOP - The Breadwinner (2026)", "NF - The Breadwinner" and
  * "4K-MAX - The Breadwinner (2026) (US)" all group together.
  */
-fun normalizeTitleForGrouping(name: String): String {
+fun normalizeTitleForGrouping(name: String): String = normalizeTitleMemo.memoize(name) {
     // Cheap char gates before each regex: every pattern needs its literal delimiter to
     // match at all, and most titles carry none - skipping the scan avoids a regex pass
     // per title across tens of thousands of items. Match order is unchanged.
@@ -89,7 +144,7 @@ fun normalizeTitleForGrouping(name: String): String {
     // \s collapse only matters when whitespace is actually present (isWhitespace is a
     // superset of \s, so a non-\s whitespace char still takes the regex path unchanged).
     if (n.any(Char::isWhitespace)) n = WHITESPACE_REGEX.replace(n, " ").trim() else n = n.trim()
-    return n.lowercase()
+    n.lowercase()
 }
 
 /** Pulls just the leading source tag ("4K-D+", "TOP") off a title, for labeling version-picker chips. */
@@ -177,11 +232,10 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
 }
 
 /** True if the title carries an explicit non-English bracket language tag, e.g. "[AR]", "[FR]". */
-fun isNonEnglishTitle(name: String): Boolean {
+fun isNonEnglishTitle(name: String): Boolean = nonEnglishTitleMemo.memoize(name) {
     // Both bracket styles need a '(' or '[' literal - skip the scan for titles with neither.
-    if (name.none { it == '[' || it == '(' }) return false
-    val match = LANGUAGE_BRACKET_REGEX.find(name) ?: return false
-    return match.groupValues[1].uppercase() !in ENGLISH_LANGUAGE_CODES
+    val match = if (name.none { it == '[' || it == '(' }) null else LANGUAGE_BRACKET_REGEX.find(name)
+    match != null && match.groupValues[1].uppercase() !in ENGLISH_LANGUAGE_CODES
 }
 
 // "adults?" (not just "adult") because real provider data files this under "FOR ADULTS"
@@ -193,7 +247,11 @@ fun isAdultCategory(categoryName: String?, group: String? = null): Boolean {
     val cn = categoryName ?: ""
     val g = group ?: ""
     if (cn.isEmpty() && g.isEmpty()) return false // nothing to scan - avoid both regex passes
-    return ADULT_KEYWORD_REGEX.containsMatchIn(cn) || ADULT_KEYWORD_REGEX.containsMatchIn(g)
+    // Called once per item on every derive pass, but a catalogue has a few hundred distinct
+    // category/group pairs across tens of thousands of items - the memo hit rate is ~100%.
+    return adultCategoryMemo.memoize("$cn\u0000$g") {
+        ADULT_KEYWORD_REGEX.containsMatchIn(cn) || ADULT_KEYWORD_REGEX.containsMatchIn(g)
+    }
 }
 
 // ── Live channel quality-version merging ──────────────────────────────────
@@ -261,13 +319,15 @@ private val LIVE_LEADING_TAG_REGEX = Regex("""(?i)^(?:[a-z0-9+]{1,8}[|:]\s*)+"""
 /** Strips leading source tags ("UK:", "VIP:", "NOW|") and quality/codec noise ("HEVC",
  *  "4K", "UHD", "RAW", pixel-resolution tags...) for display - keeps original casing,
  *  unlike normalizeLiveChannelName/Key which lowercase and light-stem for matching. */
-fun stripDecorativeTags(name: String): String {
+fun stripDecorativeTags(name: String): String = stripDecorativeTagsMemo.memoize(name) {
     var n = LIVE_LEADING_TAG_REGEX.replace(deSuperscript(name), "")
     n = DECORATIVE_TOKEN_REGEX.replace(n, " ")
-    n = HASH_BORDER_REGEX.replace(n, " ")
-    n = BRACKET_REGEX.replace(n, " ")
+    // Cheap char gates: both patterns need their literal to match at all, and most channel
+    // names carry neither - skipping the scan avoids two regex passes per name.
+    if ('#' in n) n = HASH_BORDER_REGEX.replace(n, " ")
+    if ('[' in n) n = BRACKET_REGEX.replace(n, " ")
     n = SYMBOL_NOISE_REGEX.replace(n, " ")
-    return WHITESPACE_REGEX.replace(n, " ").trim()
+    WHITESPACE_REGEX.replace(n, " ").trim()
 }
 
 // Singular/plural provider drift ("Main Event" vs "Main Events") fractures what's
@@ -305,7 +365,7 @@ private val VOD_LEADING_SEGMENT_REGEX = Regex("""^\s*([\p{L}0-9+]+(?:-[\p{L}0-9+
  * meaningful core - and any real leading brand - untouched. Never applied to Live, whose leading
  * country tags ("UK|", "US:") are the actual grouping the user wants there.
  */
-fun cleanVodCategoryLabel(raw: String): String {
+fun cleanVodCategoryLabel(raw: String): String = vodCategoryLabelMemo.memoize(raw) {
     var s = deSuperscript(raw).trim()
     var guard = 0
     while (guard++ < 5) {
@@ -313,15 +373,19 @@ fun cleanVodCategoryLabel(raw: String): String {
         val tag = m.groupValues[1].lowercase()
         if (tag in VOD_LEADING_TAGS) s = s.substring(m.range.last + 1).trimStart() else break
     }
-    return WHITESPACE_REGEX.replace(s, " ").trim().ifBlank { raw.trim() }
+    WHITESPACE_REGEX.replace(s, " ").trim().ifBlank { raw.trim() }
 }
 
 /** Same as [normalizeLiveChannelName] but additionally singular-stems each word, for use as a dedup/grouping key (never for display - see [lightStem]). */
-fun normalizeLiveChannelKey(name: String): String =
+fun normalizeLiveChannelKey(name: String): String = liveChannelKeyMemo.memoize(name) {
+    // Plain ' ' split, not the regex: stripDecorativeTags (inside normalizeLiveChannelName)
+    // has already collapsed every whitespace run to a single space, so this is the same
+    // partition without a Matcher per channel.
     normalizeLiveChannelName(name)
-        .split(WHITESPACE_REGEX)
+        .split(' ')
         .filter { it.isNotBlank() }
         .joinToString(" ") { lightStem(it) }
+}
 
 /**
  * Display-clean a VOD/series item title: expands superscripts, peels "PRIME:"/"UK|" prefixes
@@ -376,10 +440,12 @@ private fun resolutionLines(name: String): Int? {
 }
 
 /** Higher is better; used to auto-pick the best version and order fallbacks. */
-fun liveQualityScore(rawName: String): Int {
+fun liveQualityScore(rawName: String): Int = liveQualityScoreMemo.memoize(rawName) {
     val name = deSuperscript(rawName)
     val resWidth = resolutionLines(name)
-    return when {
+    // Not `return when` - a non-local return out of the memoize lambda would hand back the
+    // score without ever caching it.
+    when {
         QUALITY_4K_REGEX.containsMatchIn(name) -> 5
         resWidth != null && resWidth >= 2160 -> 5
         // RAW = unencoded/unprocessed master feed - no resolution tag of its own, but
@@ -456,12 +522,31 @@ fun deriveBrandCategories(channels: List<Channel>): List<Pair<String, List<Chann
     // one brand into several near-duplicate categories.
     fun normalizeToken(word: String): String = lightStem(word.trimEnd('+')).lowercase()
 
+    // rawPrefix is asked for the same name up to four times (a groupBy key per pass, then
+    // again per member when voting on the display label), and each call used to re-split the
+    // stripped name with a regex. Cached per (name, wordCount) for the life of this call.
+    // stripDecorativeTags already collapses runs of whitespace to single spaces, so a plain
+    // ' ' split is the same partition WHITESPACE_REGEX produced.
+    // "no prefix" is the common answer, so it is cached as an empty string rather than as a
+    // null - getOrPut treats a null value as a miss and would recompute it every time.
+    val prefixCache = HashMap<String, String>()
     fun rawPrefix(name: String, wordCount: Int): String? {
-        val words = stripDecorativeTags(name).split(WHITESPACE_REGEX).filter { it.isNotBlank() }
-        if (words.size <= wordCount) return null
-        val prefix = words.take(wordCount)
-        if (prefix.any { it.trimEnd('+').length <= 2 }) return null // too short to be a meaningful brand token
-        return prefix.joinToString(" ")
+        val cached = prefixCache.getOrPut("$wordCount\u0000$name") {
+            val words = stripDecorativeTags(name).split(' ').filter { it.isNotBlank() }
+            val prefix = if (words.size <= wordCount) emptyList() else words.take(wordCount)
+            // too short to be a meaningful brand token
+            if (prefix.isEmpty() || prefix.any { it.trimEnd('+').length <= 2 }) "" else prefix.joinToString(" ")
+        }
+        return cached.ifEmpty { null }
+    }
+
+    // Same story for the stemmed group key derived from that prefix.
+    val keyCache = HashMap<String, String>()
+    fun prefixKey(name: String, wordCount: Int): String? {
+        val cached = keyCache.getOrPut("$wordCount\u0000$name") {
+            rawPrefix(name, wordCount)?.split(" ")?.joinToString(" ") { normalizeToken(it) } ?: ""
+        }
+        return cached.ifEmpty { null }
     }
 
     val claimed = mutableSetOf<String>()
@@ -473,7 +558,7 @@ fun deriveBrandCategories(channels: List<Channel>): List<Pair<String, List<Chann
 
     for ((wordCount, minSize) in listOf(2 to MIN_BRAND_CLUSTER_SIZE_MULTI_WORD, 1 to MIN_BRAND_CLUSTER_SIZE_SINGLE_WORD)) {
         val remaining = channels.filter { it.id.isNotBlank() && it.id !in claimed }
-        val grouped = remaining.groupBy { ch -> rawPrefix(ch.name, wordCount)?.split(" ")?.joinToString(" ") { normalizeToken(it) } }
+        val grouped = remaining.groupBy { ch -> prefixKey(ch.name, wordCount) }
         for ((key, group) in grouped) {
             if (key == null || group.size < minSize) continue
             for (ch in group) {

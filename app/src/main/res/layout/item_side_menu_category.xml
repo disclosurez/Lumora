@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A category row inside the player side menu's drill-down list. Mirrors the browsing
+     sidebar's item_category.xml: selectable row chrome via bg_select_item (selected =
+     brand_muted fill + primary border), focus_scale pop, name + count. The count uses the
+     same text_tertiary treatment as the sidebar so the name stays the primary signal. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/sideMenuCategoryRow"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/side_menu_row_height"
+    android:layout_marginHorizontal="4dp"
+    android:layout_marginVertical="2dp"
+    android:background="@drawable/bg_select_item"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="10dp"
+    android:stateListAnimator="@animator/focus_scale">
+
+    <TextView
+        android:id="@+id/sideMenuCategoryName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFamily="@font/inter_medium"
+        android:maxLines="1"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/side_menu_text" />
+</LinearLayout>
