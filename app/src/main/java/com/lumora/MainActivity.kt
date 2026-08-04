@@ -151,6 +151,23 @@ private const val PREF_SUBTITLES_WITH_DUB = "subtitles_with_dub"
 // Sidecar subtitles are opt-in: off by default, and PlayerManager reads this to decide
 // whether DEFAULT-flagged subtitle tracks auto-select on playback.
 private const val PREF_SUBTITLES_ENABLED = "subtitles_enabled"
+/** Preferred subtitle language, as an ISO 639-1 code. Drives which track is picked when
+ *  subtitles are on, and which forced track is allowed through when they're off. Read by
+ *  PlayerManager straight from the same prefs file. */
+private const val PREF_SUBTITLE_LANGUAGE = "subtitle_language"
+/** Preferred audio language, ISO 639-1. Applied to VOD only - a live channel's own audio is
+ *  the point of it. Read by PlayerManager from the same prefs file. */
+private const val PREF_AUDIO_LANGUAGE = "audio_language"
+/** Language code -> display name for the audio/subtitle pickers. Ordered by how often these
+ *  turn up as tracks in IPTV catalogues rather than alphabetically. */
+private val PLAYBACK_LANGUAGES = listOf(
+    "en" to "English", "es" to "Spanish", "fr" to "French", "de" to "German",
+    "it" to "Italian", "pt" to "Portuguese", "nl" to "Dutch", "pl" to "Polish",
+    "ru" to "Russian", "tr" to "Turkish", "ar" to "Arabic", "hi" to "Hindi",
+    "zh" to "Chinese", "ja" to "Japanese", "ko" to "Korean", "sv" to "Swedish",
+    "no" to "Norwegian", "da" to "Danish", "fi" to "Finnish", "el" to "Greek",
+    "ro" to "Romanian", "cs" to "Czech", "hu" to "Hungarian"
+)
 private const val PREF_PARENTAL_PIN = "parental_pin"
 private const val PREF_ASPECT_MODE = "player_aspect_mode"
 private const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
@@ -1518,6 +1535,20 @@ class MainActivity : AppCompatActivity() {
         ChannelCache.save(this@MainActivity, channels + resurrect)
     }
 
+    /** Drops catalog items that only exist because a plugin supplied them, once that plugin
+     *  is gone or switched off.
+     *
+     *  The anime catalog is fetched by the stream_search plugin, and its items are written to
+     *  the flat cache like everything else - but unlike a provider's channels they carry no
+     *  sourceProviderId, so the enabled-provider filter passes them straight through. Disabling
+     *  the plugin therefore left its titles (and the Anime sidebar row built from them) on
+     *  screen until the cache happened to be rewritten by a network refresh. A fresh fetch
+     *  already skips them; this is the cached cold-start path saying the same thing. */
+    private fun dropDisabledPluginContent(channels: List<Channel>): List<Channel> {
+        if (enabledStreamSearchPlugin() != null) return channels
+        return channels.filterNot { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
+    }
+
     /** True when the cached catalog is old enough to be worth re-fetching. A missing stamp
      *  counts as stale so a cache written by an older build refreshes once, then follows
      *  the TTL like everything else. */
@@ -1582,6 +1613,7 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         cached.filter { isTypeAllowed(it, typeGates) }
                     }
+                    cached = dropDisabledPluginContent(cached)
                     // Paint the cached catalog immediately (Live first, films/series in background),
                     // then only hit the network when the cache is stale - a non-stale cache returns
                     // here; a stale one falls through and refreshes silently under the content.
@@ -1675,7 +1707,8 @@ class MainActivity : AppCompatActivity() {
             // whose fetches all failed - forceRefresh never loads `cached` up front, so fall back
             // to reading the disk cache here.
             if (combined.isEmpty()) {
-                val fallback = cached ?: withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) }
+                val fallback = (cached ?: withContext(Dispatchers.IO) { ChannelCache.load(this@MainActivity) })
+                    ?.let { dropDisabledPluginContent(it) }
                 if (!fallback.isNullOrEmpty()) {
                     allChannels = fallback
                     filmsSeriesDeriveJob?.cancel()
@@ -6461,7 +6494,12 @@ class MainActivity : AppCompatActivity() {
                     // Not the MAC (which Stalker channels carry as their UA for the portal API):
                     // the resolved movie.php/live.php stream is plain HTTP and wants a normal
                     // player UA. Sending the MAC as User-Agent is what errored the playback.
-                    playerManager.playUrl(resolved, STREAM_USER_AGENT, audio = audio)
+                    playerManager.playUrl(
+                        resolved,
+                        STREAM_USER_AGENT,
+                        audio = audio,
+                        preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
+                    )
                 }
                 resumeFromMs?.let { playerManager.seekTo(it) }
             }
@@ -6485,7 +6523,8 @@ class MainActivity : AppCompatActivity() {
                     startVersion.streamUserAgent,
                     subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
                     startPositionMs = startAt,
-                    audio = audio
+                    audio = audio,
+                    preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
                 )
                 jellyfinPlaySession = resolved
                 jellyfinPlayingItemId = startVersion.id
@@ -6538,7 +6577,8 @@ class MainActivity : AppCompatActivity() {
                         headers = resolved.headers.ifEmpty { null },
                         // The fresh resolve may know the audio category even when the original
                         // caller didn't (or better), so its hint wins.
-                        audio = resolved.audio ?: audio
+                        audio = resolved.audio ?: audio,
+                        preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
                     )
                     is ResolveResult.Failed -> {
                         binding.bufferingSpinner.visibility = View.GONE
@@ -6552,7 +6592,8 @@ class MainActivity : AppCompatActivity() {
                     startVersion.streamUserAgent,
                     subtitles = externalSubtitles,
                     headers = startVersion.streamHeaders,
-                    audio = audio
+                    audio = audio,
+                    preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
                 )
                 resumeFromMs?.let { playerManager.seekTo(it) }
             }
@@ -6671,7 +6712,8 @@ class MainActivity : AppCompatActivity() {
                 resolved?.url ?: channel.url,
                 channel.streamUserAgent,
                 subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
-                startPositionMs = startAt
+                startPositionMs = startAt,
+                preferAudioLanguage = channel.mediaType != MediaType.LIVE
             )
             jellyfinPlaySession = resolved
             jellyfinPlayingItemId = channel.id
@@ -6701,7 +6743,11 @@ class MainActivity : AppCompatActivity() {
         binding.playerChannelName.text = next.name
         Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
         binding.bufferingSpinner.visibility = View.VISIBLE
-        playerManager.playUrl(next.url, next.streamUserAgent)
+        playerManager.playUrl(
+            next.url,
+            next.streamUserAgent,
+            preferAudioLanguage = next.mediaType != MediaType.LIVE
+        )
     }
 
     /** Lets the user manually pick a specific version of whatever's playing - the auto-picked
@@ -8068,8 +8114,54 @@ class MainActivity : AppCompatActivity() {
      *  sees the same value (subtitles_with_dub, subtitles_enabled) without any extra plumbing. Styled to match the
      *  static pane rows (hide-adult row's card surface, focus scale, and text hierarchy) so
      *  runtime-added rows don't read as cheaper than their XML siblings. */
-    private fun dubCheckBoxRow(title: String, subtitle: String, key: String, onToggle: ((Boolean) -> Unit)? = null): CheckBox {
-        val checkBox = CheckBox(this)
+    /** A settings row that picks a language into [key]. Sits in General with the other
+     *  whole-app choices; the Subtitles on/off switch stays under Filters with the rest of
+     *  the playback toggles. */
+    private fun languageChoiceRow(title: String, key: String, caption: String): TextView {
+        val row = TextView(this)
+        row.setTextColor(getColor(R.color.text_primary))
+        row.setBackgroundResource(R.drawable.card_surface_background)
+        val hPad = resources.getDimensionPixelSize(R.dimen.settings_gap_l)
+        val vPad = resources.getDimensionPixelSize(R.dimen.settings_row_padding_vertical)
+        row.setPadding(hPad, vPad, hPad, vPad)
+        row.stateListAnimator = AnimatorInflater.loadStateListAnimator(this, R.animator.focus_scale_flat)
+        row.isClickable = true
+        row.isFocusable = true
+        row.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = resources.getDimensionPixelSize(R.dimen.settings_gap_m) }
+
+        fun render() {
+            val current = languageName(prefs.getString(key, "en") ?: "en")
+            row.text = twoLineSettingsText(title, "$current  ·  $caption")
+        }
+        render()
+        row.setOnClickListener {
+            val codes = PLAYBACK_LANGUAGES.map { it.first }
+            val current = prefs.getString(key, "en") ?: "en"
+            AlertDialog.Builder(this)
+                .setTitle(title)
+                .setSingleChoiceItems(
+                    PLAYBACK_LANGUAGES.map { it.second }.toTypedArray(),
+                    codes.indexOf(current).coerceAtLeast(0)
+                ) { dialog, which ->
+                    prefs.edit().putString(key, codes[which]).apply()
+                    render()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+        return row
+    }
+
+    private fun languageName(code: String): String =
+        PLAYBACK_LANGUAGES.firstOrNull { it.first == code }?.second ?: code.uppercase()
+
+    /** The medium-title-over-grey-caption text every settings row uses. Shared so a plain
+     *  row and a CheckBox row can't drift apart. */
+    private fun twoLineSettingsText(title: String, subtitle: String): SpannableStringBuilder {
         val titleEnd = title.length
         val captionStart = titleEnd + 1 // skip the "\n"
         val text = SpannableStringBuilder(title).append("\n").append(subtitle)
@@ -8082,7 +8174,12 @@ class MainActivity : AppCompatActivity() {
         text.setSpan(FontSpan(captionFont), captionStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         text.setSpan(AbsoluteSizeSpan(captionSize), captionStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         text.setSpan(ForegroundColorSpan(getColor(R.color.text_secondary)), captionStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        checkBox.text = text
+        return text
+    }
+
+    private fun dubCheckBoxRow(title: String, subtitle: String, key: String, onToggle: ((Boolean) -> Unit)? = null): CheckBox {
+        val checkBox = CheckBox(this)
+        checkBox.text = twoLineSettingsText(title, subtitle)
         checkBox.setTextColor(getColor(R.color.text_primary))
         checkBox.setBackgroundResource(R.drawable.card_surface_background)
         val hPad = resources.getDimensionPixelSize(R.dimen.settings_gap_l)
@@ -8836,6 +8933,20 @@ class MainActivity : AppCompatActivity() {
             PREF_DISABLE_VOD
         ) { vodStateChanged() }
         generalPane.addView(vodCheckBox)
+        generalPane.addView(
+            languageChoiceRow(
+                "Audio language",
+                PREF_AUDIO_LANGUAGE,
+                "preferred track on films and series"
+            )
+        )
+        generalPane.addView(
+            languageChoiceRow(
+                "Subtitle language",
+                PREF_SUBTITLE_LANGUAGE,
+                "used for forced subtitles too"
+            )
+        )
 
         // StreamVault-style nav rail: one section visible at a time.
         val navRows = listOf(

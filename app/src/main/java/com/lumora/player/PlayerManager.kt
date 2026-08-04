@@ -103,7 +103,8 @@ class PlayerManager(
         subtitles: List<ExternalSubtitle> = emptyList(),
         startPositionMs: Long = 0L,
         headers: Map<String, String>? = null,
-        audio: String? = null
+        audio: String? = null,
+        preferAudioLanguage: Boolean = false
     ) {
         val dataSourceFactory = buildDataSourceFactory(userAgent, headers)
 
@@ -137,6 +138,37 @@ class PlayerManager(
             )
         }
 
+        // Per-item track defaults, applied before the source is set so they're in force for
+        // the first selection pass.
+        //
+        // Text off unless the user opted in. Stamping SELECTION_FLAG_DEFAULT on the sidecar
+        // configurations above only governs *sideloaded* tracks - subtitles embedded in the
+        // media (an mkv whose subtitle track is flagged default in the container) are chosen
+        // by the selector, so a VOD file would still start with subtitles burned on screen
+        // however the pref was set. Disabling the text type is per-player and covers both.
+        //
+        // Preferred audio language (Settings > General) for VOD: multi-audio films and
+        // episodes routinely list another language first and the selector takes it, so the
+        // title opens in a language the user didn't ask for. Live TV is left alone - a
+        // foreign-language channel's own audio is the point of it. Cleared (not just
+        // skipped) when not wanted, since these parameters persist on the player across
+        // items.
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subtitlesEnabled)
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .apply {
+                if (preferAudioLanguage) {
+                    val wanted = preferredAudioLanguage()
+                    // Both code forms, since sources tag the same language either way.
+                    val iso3 = runCatching { java.util.Locale(wanted).isO3Language }.getOrNull().orEmpty()
+                    if (iso3.isNotEmpty() && iso3 != wanted) setPreferredAudioLanguages(wanted, iso3)
+                    else setPreferredAudioLanguages(wanted)
+                } else {
+                    setPreferredAudioLanguages()
+                }
+            }
+            .build()
+
         val mediaItem = mediaItemBuilder.build()
 
         // Auto-detects HLS/DASH/SmoothStreaming/progressive (mp4, mkv, ts...) from the
@@ -159,11 +191,14 @@ class PlayerManager(
         // auto-selects). When ON, force text tracks on and point the selector at the sidecar's
         // language (including the subtitles.first() fallback) so opt-in users get their subs.
         if (subtitlesEnabled && subtitles.isNotEmpty() && (audio?.equals("dub", ignoreCase = true) != true || subtitlesWithDub)) {
+            // The user's chosen language wins; the sidecar's own tag is the fallback for a
+            // source that only ships one subtitle track and doesn't tag it usefully.
             val preferred = subtitles.firstOrNull { it.isDefault } ?: subtitles.first()
+            val wanted = preferredSubtitleLanguage()
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                .apply { preferred.language?.let { setPreferredTextLanguage(it) } }
+                .setPreferredTextLanguages(wanted, preferred.language ?: wanted)
                 // Sources routinely ship a track with no language tag at all; without this the
                 // selector skips it and the subtitles the user was given go unused.
                 .setSelectUndeterminedTextLanguage(true)
@@ -179,6 +214,12 @@ class PlayerManager(
         if (audio != null) {
             attachOneShotAudioPreference(audio)
         }
+        // Subtitles off still means "no wall of subtitles on an English film" - not "lose the
+        // translation of the one Russian scene". Forced English tracks are exactly that
+        // narrow case, so they're allowed back in.
+        if (!subtitlesEnabled) {
+            attachOneShotForcedSubtitlePreference(preferredSubtitleLanguage())
+        }
         player.play()
     }
 
@@ -191,6 +232,72 @@ class PlayerManager(
      * listener removes itself after deciding, so a later episode's track listing can't make
      * it re-apply against the wrong media.
      */
+    /**
+     * Turns on an English *forced* subtitle track when the media carries one, while everything
+     * else stays off.
+     *
+     * Done as an explicit override rather than by loosening the track-selection parameters:
+     * the selector's own forced-subtitle handling keys off the selected audio language and the
+     * DEFAULT flag, which would also let a full default-flagged subtitle track back in - the
+     * exact thing "subtitles off" is meant to stop. Deciding from the actual track list is
+     * unambiguous.
+     *
+     * "Forced" is read from the selection flag, from the transcribes-dialog role (what our own
+     * sideloaded configurations carry), or from the label, since plenty of sources only say it
+     * in the name.
+     */
+    private fun attachOneShotForcedSubtitlePreference(language: String) {
+        // ISO 639-2 alongside the 639-1 code: sources tag the same language either way
+        // ("en" or "eng"), and Media3 hands the format's tag through as it found it.
+        val iso3 = runCatching { java.util.Locale(language).isO3Language }.getOrNull().orEmpty()
+        val listener = object : Player.Listener {
+            private var decided = false
+            override fun onTracksChanged(tracks: Tracks) {
+                if (decided) return
+                val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT && it.isSupported }
+                // Still preparing - no track list to judge yet.
+                if (tracks.groups.isEmpty()) return
+                decided = true
+                player.removeListener(this)
+                if (textGroups.isEmpty()) return
+                for (group in textGroups) {
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val tag = format.language?.lowercase()
+                        val matchesLanguage = tag != null &&
+                            (tag == language || tag.startsWith("$language-") || (iso3.isNotEmpty() && tag == iso3))
+                        if (!matchesLanguage) continue
+                        val label = format.label?.lowercase().orEmpty()
+                        val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0 ||
+                            (format.roleFlags and C.ROLE_FLAG_TRANSCRIBES_DIALOG) != 0 ||
+                            label.contains("forced")
+                        if (!isForced) continue
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, listOf(i)))
+                            .build()
+                        return
+                    }
+                }
+            }
+        }
+        player.addListener(listener)
+        // Same as the audio preference: covers a source that fired onTracksChanged during
+        // prepare(), before this listener existed.
+        listener.onTracksChanged(player.currentTracks)
+    }
+
+    /** The user's audio language from Settings > General, defaulting to English. */
+    private fun preferredAudioLanguage(): String =
+        context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+            .getString("audio_language", "en") ?: "en"
+
+    /** The user's subtitle language from Settings > General, defaulting to English. */
+    private fun preferredSubtitleLanguage(): String =
+        context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+            .getString("subtitle_language", "en") ?: "en"
+
     private fun attachOneShotAudioPreference(audio: String) {
         val wantsDub = audio.equals("dub", ignoreCase = true)
         val listener = object : Player.Listener {
