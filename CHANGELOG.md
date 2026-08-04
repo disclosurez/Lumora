@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.1
+
+### Player side menu
+- **A navigation menu over the video.** Opens with LEFT on a remote, or the hamburger on phones. Columns fly out to the right: sections, then that section's categories, then its channels or titles. Picking a live channel swaps the stream in place; a film or series opens its detail page.
+- **Every section expands**, not just the one playing — browse Series and Movies categories without leaving Live TV.
+- **Settings is reachable from the player**, which previously meant backing out of playback to get to the gear button.
+
+### Startup speed
+- **Cold start is roughly 3.4s instead of ~30s** on a Fire TV stick with a 50k-item catalogue. Live TV appears at ~3s with the sidebar and shelves landing right behind it, where before the app kept working for another 25 seconds after the grid appeared.
+- The grouping and duplicate-folding passes are now **cached to disk** along with the category rows, keyed to the catalogue and the settings that shape them — change a provider or a relevant setting and it re-derives, otherwise it restores.
+- The passes themselves are faster too: name normalisation is memoised, shelf building indexes the catalogue once instead of scanning it per category row, and release years are parsed without a regex per title.
+
+### EPG
+- **The guide is stored on disk**, so relaunching no longer re-fetches every channel's programmes over the network before the grid fills in.
+- A stored guide is only used while it still reaches several hours ahead — an older one is refreshed rather than half-filling the row.
+
+### Playback
+- **Subtitles off by default now covers subtitles embedded in the file**, not just sideloaded ones. VOD no longer opens with subtitles on screen when they're switched off.
+- **Forced subtitles still come on** — the translated foreign-language scene in an otherwise English film is not lost to "subtitles off".
+- **Audio and subtitle language pickers** in Settings > General (English by default). The audio preference applies to films and series, so a multi-audio title opens in the language you asked for; live channels keep their own audio.
+
+### Fixes
+- Anime titles and the Anime sidebar row no longer linger after the anime plugin is switched off.
+
 ## 3.0
 
 ### Providers & catalog
