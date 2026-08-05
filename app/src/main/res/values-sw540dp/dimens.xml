@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- TV tier of the live-preview pane (see values/dimens.xml for the phone size). The
+         base 240x126dp size was set for a ~360dp-wide phone column and left most of the
+         ~700dp gutter beside a TV guide empty; wider here to actually use that space, and
+         taller so the pane's bottom edge clears into the next channel row rather than
+         cutting off partway through the row it's floating over. 16:9 to match source video. -->
+    <dimen name="live_preview_width">260dp</dimen>
+    <!-- 4 guide rows tall - 160dp (the 40dp min-height x4 math) rendered as 5 rows on
+         device, so actual rendered row height runs closer to 32dp than the 40dp floor;
+         scaled down to match. -->
+    <dimen name="live_preview_height">136dp</dimen>
     <!-- Large-screen scale: everything with a smallest-width of 540dp or more - TVs, TV
          boxes, and tablets. The whole app was laid out at phone reading distance (8-13sp
          labels), which is legible in the hand and not from a sofa, so every scale steps up

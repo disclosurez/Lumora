@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.2
+
+### Category sidebar
+- **Collapse categories now works on TV**, not just phones — the toggle row, the persisted collapsed state, and the re-expand pill are no longer gated to non-TV devices.
+- **The re-expand pill no longer overlaps content.** Collapsing the rail now reserves the pill's own space above the active list (including above the Live TV guide's time ruler), instead of floating over the first channel/poster row.
+- Reordered the sidebar utility rows so **Collapse categories sits above Show all categories**.
+
+### Live TV
+- The **preview pane is bigger on TV** — wider and a bit taller, sized to reach the top of the fifth guide row instead of a small phone-sized box floating in a lot of empty gutter space.
+- **Brand mark and Live TV tab nudged slightly** on TV for better spacing.
+
 ## 3.1
 
 ### Player side menu

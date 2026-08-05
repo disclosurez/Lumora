@@ -800,6 +800,7 @@ internal fun MainActivity.buildCategoryRows(
             val favoriteCount = list.count { it.id in favoriteChannelIds }
             if (favoriteCount > 0) {
                 result.add(CategoryFilter(id = FAVOURITES_CATEGORY_ID, name = "Favourites", count = favoriteCount))
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
                 result.add(
                     CategoryFilter(
                         id = CLASSIC_LAYOUT_TOGGLE_ID,
@@ -807,8 +808,8 @@ internal fun MainActivity.buildCategoryRows(
                         count = -1
                     )
                 )
-                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
             } else {
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
                 result.add(
                     CategoryFilter(
                         id = CLASSIC_LAYOUT_TOGGLE_ID,
@@ -816,7 +817,6 @@ internal fun MainActivity.buildCategoryRows(
                         count = -1
                     )
                 )
-                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
             }
         }
         // Pinned (favourite) categories always come first - above dynamic clusters,
@@ -1667,4 +1667,4 @@ internal fun MainActivity.formatTime(ms: Long): String {
 
 /** Bumped whenever buildCategoryRows' output changes shape - see the rows fingerprint.
  *  2: utility rows (collapse rail / classic layout) became un-hideable. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 3
+private const val CATEGORY_ROWS_LOGIC_VERSION = 4
