@@ -69,5 +69,12 @@ data class Channel(
     // episodeNum, which resolve() needs to pick the right episode.
     val pluginToken: String? = null,
     // PluginScript.id of the script that produced pluginToken. Null for everything else.
-    val pluginId: String? = null
+    val pluginId: String? = null,
+    // Xtream `tv_archive` (0/1): the panel keeps a rolling recording of this channel, so a
+    // programme that already aired can be played back from the archive. Live channels only,
+    // and only Xtream reports it - M3U/Stalker/Jellyfin leave it false.
+    val tvArchive: Boolean = false,
+    // Xtream `tv_archive_duration`: how many days back the panel kept, typically 3-7. Bounds
+    // the Catch Up day picker; 0 means "no archive" even if tvArchive somehow says otherwise.
+    val tvArchiveDays: Int = 0
 )

@@ -81,13 +81,22 @@
                      without this the scale-up overflows and gets clipped, making the focus
                      highlight look cut off. The tabBar id lives on the scroller because
                      code toggles its visibility (simple mode, search open). -->
+                <!-- clipChildren is deliberately TRUE here, unlike its parents. With it
+                     false the scroller painted its overflow *outside* its own bounds, so
+                     once the tabs stopped fitting (adding Catch Up was enough) the last of
+                     them rendered straight over the Settings/Refresh cluster instead of
+                     scrolling under it. Clipping is what makes the scroller behave as one.
+                     The focus scale (1.06x, focus_scale_flat) still has room because
+                     clipToPadding stays false and the 4dp vertical padding below gives the
+                     scaled pill a band to bleed into. -->
                 <HorizontalScrollView
                     android:id="@+id/tabBar"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:clipChildren="false"
+                    android:clipChildren="true"
                     android:clipToPadding="false"
+                    android:paddingVertical="4dp"
                     android:fillViewport="true"
                     android:scrollbars="none">
 
@@ -276,7 +285,7 @@
                 android:paddingTop="@dimen/tab_padding_vertical"
                 android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabFilms"
-                android:nextFocusRight="@id/tabDiscover"
+                android:nextFocusRight="@id/tabCatchup"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none">
 
@@ -315,6 +324,64 @@
                     android:visibility="gone" />
             </LinearLayout>
 
+            <!-- Catch Up: the live catalogue shifted back in time. Sits after Home, and is the
+                 one other section simple mode keeps alongside Live TV. Hidden entirely
+                 unless some enabled provider reports tv_archive channels (see
+                 updateCatchupTabVisibility) - a dead tab reads as a broken one. -->
+            <LinearLayout
+                android:id="@+id/tabCatchup"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:background="@drawable/bg_tab_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingHorizontal="@dimen/tab_padding_horizontal"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
+                android:nextFocusLeft="@id/tabHome"
+                android:nextFocusRight="@id/tabDiscover"
+                android:stateListAnimator="@animator/focus_scale_flat"
+                android:layerType="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/tabCatchupIcon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_catchup"
+                        android:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tabCatchupLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_medium"
+                        android:maxLines="1"
+                        android:text="@string/tab_catchup"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/tab_text" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/tabCatchupIndicator"
+                    android:layout_width="24dp"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="gone" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/tabDiscover"
                 android:layout_width="wrap_content"
@@ -328,7 +395,7 @@
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:paddingTop="@dimen/tab_padding_vertical"
                 android:paddingBottom="@dimen/tab_padding_vertical"
-                android:nextFocusLeft="@id/tabHome"
+                android:nextFocusLeft="@id/tabCatchup"
                 android:nextFocusRight="@id/btnSearch"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none">
@@ -1009,6 +1076,106 @@
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"
                     android:visibility="gone" />
+
+                <!-- Content area: Catch Up. Columns rather than replaced screens: the
+                     channel stays on the left while the days fly out beside it and that
+                     day's programmes beside those, so the whole path you took is on screen
+                     at once and stepping back is a LEFT press rather than a redraw. -->
+                <LinearLayout
+                    android:id="@+id/catchupContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/catchupCrumb"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/inter_semibold"
+                        android:maxLines="1"
+                        android:paddingHorizontal="16dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/text_body_s" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:orientation="horizontal">
+
+                        <!-- Categories: the entry column. Provider category names, so a
+                             220-channel archive is browsable without scrolling past 200
+                             channels to reach the one you want. -->
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/catchupCategoryList"
+                            android:layout_width="@dimen/catchup_category_column_width"
+                            android:layout_height="match_parent"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
+                            android:defaultFocusHighlightEnabled="true"
+                            android:paddingHorizontal="8dp"
+                            android:paddingBottom="8dp" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/catchupChannelList"
+                            android:layout_width="@dimen/catchup_channel_column_width"
+                            android:layout_height="match_parent"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
+                            android:defaultFocusHighlightEnabled="true"
+                            android:paddingHorizontal="8dp"
+                            android:paddingBottom="8dp"
+                            android:visibility="gone" />
+
+                        <!-- Days: flies out beside the channel once one is picked. -->
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/catchupDayList"
+                            android:layout_width="@dimen/catchup_day_column_width"
+                            android:layout_height="match_parent"
+                            android:clipChildren="false"
+                            android:clipToPadding="false"
+                            android:defaultFocusHighlightEnabled="true"
+                            android:paddingHorizontal="8dp"
+                            android:paddingBottom="8dp"
+                            android:visibility="gone" />
+
+                        <!-- Programmes: the widest column, since its rows carry a title and
+                             a time range. Holds its own status line (loading / no guide). -->
+                        <LinearLayout
+                            android:id="@+id/catchupProgrammeColumn"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:id="@+id/catchupStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:paddingHorizontal="14dp"
+                                android:paddingBottom="6dp"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="@dimen/text_caption"
+                                android:visibility="gone" />
+
+                            <androidx.recyclerview.widget.RecyclerView
+                                android:id="@+id/catchupProgrammeList"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:clipChildren="false"
+                                android:clipToPadding="false"
+                                android:defaultFocusHighlightEnabled="true"
+                                android:paddingHorizontal="8dp"
+                                android:paddingBottom="8dp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
 
                 <!-- Content area: Downloads list (mobile only) -->
                 <androidx.recyclerview.widget.RecyclerView

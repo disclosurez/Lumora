@@ -136,6 +136,10 @@ internal fun MainActivity.toggleHiddenSidebarCategory(category: CategoryFilter, 
  *  inline icon buttons like the shelf headers have, so pin/hide live behind a chooser. */
 internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
     val id = category.id ?: return
+    // Utility rows (collapse rail, classic-layout toggle) act on the rail rather than
+    // filtering it. Pin is inert for them and Hide is destructive-and-unrecoverable, so
+    // they get no menu at all rather than one with two bad options.
+    if (id in UTILITY_ROW_IDS) return
     // The Jellyfin row is always first by construction, so "Pin to top" would be a
     // no-op - hiding it is the only meaningful action. Same for the synthetic Newest and
     // Continue Watching rows: they're prepended above the pinned block, so pinning them
@@ -284,7 +288,7 @@ internal fun MainActivity.submitCategories(categories: List<CategoryFilter>) {
     // caller here is asynchronous, so any of them can land after the user has left the tab
     // the categories were built for - and the sidebar must not reappear over a pane that
     // never had one.
-    val onCategorizedTab = !showingHome && !showingDiscover && !showingDownloads
+    val onCategorizedTab = !showingHome && !showingDiscover && !showingDownloads && !showingCatchup
     // Phone-only collapse composes on top of the tab-context decision here - this is the
     // single canonical re-show point for the rail, so the collapsed pref applies
     // everywhere a tab is (re)built (tab switch, category rebuild, catalog refresh).
@@ -431,8 +435,18 @@ internal fun MainActivity.buildCategoryRows(
         val startedAt = System.currentTimeMillis()
         val fingerprint = DerivedCache.catalogFingerprint(
             list,
-            "rows:$tab:${pinned.hashCode()}:${hiddenIds.hashCode()}:${expanded.hashCode()}:" +
-                "${animeSections.hashCode()}:${favoriteChannelIds.hashCode()}:" +
+            // The rows are a function of this function's *code* as much as of its
+            // arguments - which rows exist at all (the collapse row, say) changes between
+            // builds while catalog and prefs stay identical, so a fingerprint over inputs
+            // alone keeps restoring rows built by older logic forever.
+            //
+            // Both parts are needed: versionCode covers released upgrades, and
+            // CATEGORY_ROWS_LOGIC_VERSION covers changes made *within* one versionCode -
+            // every development build carries the same versionCode, so on its own it
+            // silently failed to invalidate anything. Bump it whenever what this function
+            // emits changes.
+            "rows:$tab:${BuildConfig.VERSION_CODE}.$CATEGORY_ROWS_LOGIC_VERSION:${pinned.hashCode()}:${hiddenIds.hashCode()}:" +
+                "${expanded.hashCode()}:${animeSections.hashCode()}:${favoriteChannelIds.hashCode()}:" +
                 "${versionsById.size}:$useClassicLayout:$categorize"
         )
         DerivedCache.loadRows(this, tab, fingerprint)?.let { cached ->
@@ -824,7 +838,10 @@ internal fun MainActivity.buildCategoryRows(
             if (value in knownRowIds) null else idForName[value.lowercase()]
         }
         val finalRows = result
-            .filterNot { it.id in legacyHiddenIds }
+            // Utility rows are exempt: a hidden one can't be unhidden (its context menu is
+            // the only route back, and it's gone with the row), so an accidental long-press
+            // → Hide silently removed the only way to collapse the rail, permanently.
+            .filterNot { it.id in legacyHiddenIds && it.id !in UTILITY_ROW_IDS }
             .map { row -> if (row.id in legacyPinnedIds && !row.pinned) row.copy(pinned = true) else row }
         val built = MainActivity.CategoryBuildResult(finalRows, childrenByParent.toMap())
         DerivedCache.saveRows(
@@ -879,6 +896,9 @@ internal fun MainActivity.showSeeAll(shelf: ContentShelf) {
 // scrollable poster grid instead - a horizontal strip isn't enough room to browse
 // a whole category in. Filtering the full catalog is real work, so it runs off-main.
 internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boolean = false) {
+    // Claim this run. Anything that resumes from the background filter below only gets to
+    // touch an adapter if no newer switch has started since - see categoryFilterGeneration.
+    val generation = ++categoryFilterGeneration
     val matchIds = selectedCategoryIds
     val tab = activeTab
     when (tab) {
@@ -897,6 +917,9 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
                     else -> source.filter { it.filterKey() in matchIds }
                 }
             }
+            // A newer category switch started while this filter ran - its result is the
+            // one the user is waiting for, so drop ours rather than overwrite it.
+            if (generation != categoryFilterGeneration) return
             liveAdapter.submitList(filtered) {
                 if (!focusFirstLiveChannel) return@submitList
                 val first = filtered.firstOrNull() ?: return@submitList
@@ -924,7 +947,7 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
             if (selectedRowId == CONTINUE_WATCHING_CATEGORY_ID) {
                 setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                 binding.seriesContent.adapter = seriesGridAdapter
-                seriesGridAdapter.submitList(seriesContinueItems())
+                seriesGridAdapter.replaceAll(seriesContinueItems())
                 binding.seriesContent.scrollToPosition(0)
                 return
             }
@@ -937,21 +960,27 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
             if (shelfItems != null) {
                 setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                 binding.seriesContent.adapter = seriesGridAdapter
-                seriesGridAdapter.submitList(shelfItems)
+                seriesGridAdapter.replaceAll(shelfItems)
             } else if (brandIds != null) {
                 val filtered = withContext(Dispatchers.Default) { source.filter { it.id in brandIds } }
+                // A newer category switch started while this filter ran - its result is the
+                // one the user is waiting for, so drop ours rather than overwrite it.
+                if (generation != categoryFilterGeneration) return
                 setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                 binding.seriesContent.adapter = seriesGridAdapter
-                seriesGridAdapter.submitList(filtered)
+                seriesGridAdapter.replaceAll(filtered)
             } else if (matchIds == null) {
                 binding.seriesContent.layoutManager = LinearLayoutManager(this)
                 binding.seriesContent.adapter = seriesShelfAdapter
                 seriesShelfAdapter.submitList(seriesShelves)
             } else {
                 val filtered = withContext(Dispatchers.Default) { source.filter { it.filterKey() in matchIds } }
+                // A newer category switch started while this filter ran - its result is the
+                // one the user is waiting for, so drop ours rather than overwrite it.
+                if (generation != categoryFilterGeneration) return
                 setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                 binding.seriesContent.adapter = seriesGridAdapter
-                seriesGridAdapter.submitList(filtered)
+                seriesGridAdapter.replaceAll(filtered)
             }
             binding.seriesContent.scrollToPosition(0)
         }
@@ -962,21 +991,27 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
             if (shelfItems != null) {
                 setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
                 binding.filmsContent.adapter = filmsGridAdapter
-                filmsGridAdapter.submitList(shelfItems)
+                filmsGridAdapter.replaceAll(shelfItems)
             } else if (brandIds != null) {
                 val filtered = withContext(Dispatchers.Default) { source.filter { it.id in brandIds } }
+                // A newer category switch started while this filter ran - its result is the
+                // one the user is waiting for, so drop ours rather than overwrite it.
+                if (generation != categoryFilterGeneration) return
                 setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
                 binding.filmsContent.adapter = filmsGridAdapter
-                filmsGridAdapter.submitList(filtered)
+                filmsGridAdapter.replaceAll(filtered)
             } else if (matchIds == null) {
                 binding.filmsContent.layoutManager = LinearLayoutManager(this)
                 binding.filmsContent.adapter = filmsShelfAdapter
                 filmsShelfAdapter.submitList(filmShelves)
             } else {
                 val filtered = withContext(Dispatchers.Default) { source.filter { it.filterKey() in matchIds } }
+                // A newer category switch started while this filter ran - its result is the
+                // one the user is waiting for, so drop ours rather than overwrite it.
+                if (generation != categoryFilterGeneration) return
                 setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
                 binding.filmsContent.adapter = filmsGridAdapter
-                filmsGridAdapter.submitList(filtered)
+                filmsGridAdapter.replaceAll(filtered)
             }
             binding.filmsContent.scrollToPosition(0)
         }
@@ -1124,6 +1159,7 @@ internal fun MainActivity.applyStatus() {
 internal fun MainActivity.setupTabs() {
     binding.tabHome.setOnClickListener { selectHome() }
     binding.tabLive.setOnClickListener { selectTab(0) }
+    binding.tabCatchup.setOnClickListener { showingHome = false; selectCatchup() }
     binding.tabSeries.setOnClickListener { selectTab(1) }
     binding.tabFilms.setOnClickListener { selectTab(2) }
     binding.tabDiscover.setOnClickListener { showingHome = false; selectDiscover() }
@@ -1134,7 +1170,7 @@ internal fun MainActivity.setupTabs() {
     // self-invalidate on unfocus doesn't always clear it. Forcing the whole bar to
     // redraw on every focus change is a blunt but reliable fix.
     val invalidateBarOnFocus = View.OnFocusChangeListener { _, _ -> binding.tabBar.invalidate() }
-    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
+    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabCatchup, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
         tv.onFocusChangeListener = invalidateBarOnFocus
     }
     // Hide tab bar + search until an enabled provider exists
@@ -1142,11 +1178,12 @@ internal fun MainActivity.setupTabs() {
 }
 
 internal fun MainActivity.updateTabStyles(selected: View) {
-    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
+    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabCatchup, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
         val isSelected = tv === selected
         tv.isSelected = isSelected
         val (labelId, iconId, indicatorId) = when (tv.id) {
             R.id.tabLive -> Triple(R.id.tabLiveLabel, R.id.tabLiveIcon, R.id.tabLiveIndicator)
+            R.id.tabCatchup -> Triple(R.id.tabCatchupLabel, R.id.tabCatchupIcon, R.id.tabCatchupIndicator)
             R.id.tabSeries -> Triple(R.id.tabSeriesLabel, R.id.tabSeriesIcon, R.id.tabSeriesIndicator)
             R.id.tabFilms -> Triple(R.id.tabFilmsLabel, R.id.tabFilmsIcon, R.id.tabFilmsIndicator)
             R.id.tabHome -> Triple(R.id.tabHomeLabel, R.id.tabHomeIcon, R.id.tabHomeIndicator)
@@ -1176,6 +1213,7 @@ internal fun MainActivity.selectHome() {
     showingHome = true
     showingDownloads = false
     showingDiscover = false
+    hideCatchup()
     releaseLivePreview()
     binding.discoverContent.visibility = View.GONE
     binding.contentRow.visibility = View.GONE
@@ -1206,6 +1244,7 @@ internal fun MainActivity.selectDownloads() {
     activeSearchOverlay?.dismiss()
     showingDownloads = true
     showingDiscover = false
+    hideCatchup()
     releaseLivePreview()
     binding.discoverContent.visibility = View.GONE
     binding.contentRow.visibility = View.VISIBLE
@@ -1373,6 +1412,8 @@ internal fun MainActivity.showSideMenuCategories(tab: Int, rows: List<CategoryFi
         }
     )
     sideMenuColumnBusy = true
+    // Category rows are not channels, so there is no EPG to line up under them.
+    sideMenuCategoryAdapter.showNowPlaying = false
     // Cleared first: submitting over a non-empty list makes AsyncListDiffer compute a
     // diff on a background thread (a second, on an 800-channel level swap), and the
     // column is a *different* list at each level, so that diff is wasted work with a
@@ -1396,6 +1437,8 @@ internal fun MainActivity.showSideMenuItems(category: CategoryFilter, items: Lis
     sideMenuChannelRows = items
     binding.sideMenuColumnTitle.text = category.name
     sideMenuColumnBusy = true
+    // Channel rows carry "what's on now" under the name; category rows never do.
+    sideMenuCategoryAdapter.showNowPlaying = true
     sideMenuCategoryAdapter.submitList(null)
     sideMenuCategoryAdapter.submitList(
         items.map { CategoryFilter(id = it.id, name = it.name, count = -1) }
@@ -1603,3 +1646,7 @@ internal fun MainActivity.updateProgress() {
 internal fun MainActivity.formatTime(ms: Long): String {
     val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60)
 }
+
+/** Bumped whenever buildCategoryRows' output changes shape - see the rows fingerprint.
+ *  2: utility rows (collapse rail / classic layout) became un-hideable. */
+private const val CATEGORY_ROWS_LOGIC_VERSION = 2

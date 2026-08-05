@@ -115,6 +115,24 @@
     <string name="search">Search</string>
     <string name="tab_home">Home</string>
     <string name="tab_live_tv">Live TV</string>
+    <!-- Catch Up: Xtream tv_archive playback (channel → day → programme that already aired). -->
+    <string name="tab_catchup">Catch Up</string>
+    <string name="catchup_crumb_categories">Catch Up · %1$d channels with an archive</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d channels</string>
+    <string name="catchup_crumb_days">%1$s · pick a day</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Today</string>
+    <string name="catchup_yesterday">Yesterday</string>
+    <string name="catchup_loading">Loading guide…</string>
+    <string name="catchup_no_guide">No guide data for this day — showing hourly blocks.</string>
+    <string name="catchup_nothing_aired">Nothing has aired on this day yet.</string>
+    <string name="catchup_no_channels">No channels with catch-up. Your provider reports no archive for any channel.</string>
+    <string name="catchup_no_provider">Can\'t play this — the provider it came from is no longer configured.</string>
+    <string name="catchup_hour_block">Hourly block</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d day kept</item>
+        <item quantity="other">%1$d days kept</item>
+    </plurals>
     <string name="series_tab">Series</string>
     <string name="films_tab">Movies</string>
     <string name="discover_tab">Discover</string>

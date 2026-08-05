@@ -59,9 +59,10 @@ internal fun MainActivity.updateTopChromeVisibility() {
     applySimpleModeUi()
 }
 
-/** Simple mode hides the whole tab bar - the only tab it would hold is Live TV, whose
- *  row the bar exists to keep, so the EPG/live content shifts up into the freed space.
- *  The toolbar above it stays, so Settings remains reachable. */
+/** Simple mode is "TV only": Live TV plus Catch Up (the same channels shifted back in
+ *  time) and nothing else. With no archive channels the bar would hold a single tab, so
+ *  it is hidden entirely and the EPG/live content shifts up into the freed space, which is
+ *  what simple mode always did. The toolbar above it stays, so Settings stays reachable. */
 internal fun MainActivity.isSimpleMode(): Boolean = prefs.getBoolean(PREF_SIMPLE_MODE, false)
 
 /** VOD is dropped at fetch time; the manual toggle and simple mode both turn it off,
@@ -113,16 +114,41 @@ internal fun MainActivity.applySimpleModeUi() {
     // (with no providers the empty state owns the screen and selectTab would fight it).
     val chromeUp = hasProviderEnabled() || enabledStreamSearchPlugin() != null
     if (simple) {
-        binding.tabBar.visibility = View.GONE
-        // The toolbar's Search chain points left into the hidden bar - a LEFT press
-        // there would target a GONE tab and eat the key. Re-route onto itself.
-        binding.btnSearch.nextFocusLeftId = R.id.btnSearch
+        // Simple mode is "TV only", not "no navigation": Catch Up is the same live
+        // channels shifted back in time, so it stays alongside Live TV when the panel
+        // offers an archive. With no archive channels the bar has a single tab in it and
+        // is worth no space, so it goes away exactly as it used to.
+        val catchupAvailable = catchupChannels().isNotEmpty()
+        binding.tabBar.visibility = if (chromeUp && catchupAvailable) View.VISIBLE else View.GONE
+        for (tab in listOf(binding.tabHome, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
+            tab.visibility = View.GONE
+        }
+        binding.tabLive.visibility = View.VISIBLE
+        binding.tabCatchup.visibility = if (catchupAvailable) View.VISIBLE else View.GONE
+        // Live TV is the leftmost tab here, so its LEFT has nowhere to go but itself -
+        // Downloads (its normal-mode target) is GONE and would eat the press.
+        binding.tabLive.nextFocusLeftId = R.id.tabLive
+        binding.tabLive.nextFocusRightId = R.id.tabCatchup
+        binding.tabCatchup.nextFocusLeftId = R.id.tabLive
+        binding.tabCatchup.nextFocusRightId = R.id.tabCatchup
+        // The toolbar's Search chain points left into the bar - onto Catch Up when it is
+        // there, otherwise onto itself rather than a GONE tab.
+        binding.btnSearch.nextFocusLeftId = if (catchupAvailable) R.id.tabCatchup else R.id.btnSearch
         // Home/Discover/Downloads (and any Series/Movies drill) aren't reachable in
         // simple mode - land back on Live TV instead of leaving a hidden pane on screen.
         if (chromeUp && (showingHome || showingDiscover || showingDownloads || activeTab != 0)) {
-            selectTab(0)
+            if (!showingCatchup) selectTab(0)
         }
     } else {
+        for (tab in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover)) {
+            tab.visibility = View.VISIBLE
+        }
+        // Back to the full-row chain: Live -> Series ... Home -> Catch Up -> Discover.
+        binding.tabLive.nextFocusLeftId = R.id.tabDownloads
+        binding.tabLive.nextFocusRightId = R.id.tabSeries
+        binding.tabCatchup.nextFocusLeftId = R.id.tabHome
+        binding.tabCatchup.nextFocusRightId = R.id.tabDiscover
+        updateCatchupTabVisibility()
         binding.tabBar.visibility = if (chromeUp) View.VISIBLE else View.GONE
         // Search's LEFT joins the merged chrome row at its last tab. Downloads is
         // phone-only and GONE on TV, so Discover is the row's rightmost always-visible
@@ -306,7 +332,12 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 // the same message on entry. Only drop the status when content was already on
                 // screen before this cached paint (a warm re-load).
                 if (hadContentOnScreen) setStatus("", visible = false)
-                if (!isCatalogStale()) return@launch
+                // A cache written before a Channel field existed reads back with that
+                // field at its default for every item - which is why Catch Up stayed
+                // hidden on an upgraded install: tvArchive was false catalogue-wide until
+                // something refetched. Treat that file as stale so the refresh below runs
+                // once, silently, under the content already on screen.
+                if (!isCatalogStale() && !ChannelCache.lastLoadWasLegacyFormat) return@launch
             }
         }
 

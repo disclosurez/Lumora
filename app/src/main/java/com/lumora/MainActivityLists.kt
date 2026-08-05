@@ -96,6 +96,7 @@ internal fun MainActivity.selectTab(index: Int) {
     activeTab = index
     showingDownloads = false
     showingDiscover = false
+    hideCatchup()
     // Owned here rather than by each caller. Every tab-bar handler already paired
     // "showingHome = false" with this call, so any *other* entry point (the launch
     // resume, which opens Live TV directly) left the flag set - and every later rebuild

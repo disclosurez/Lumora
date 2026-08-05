@@ -143,6 +143,34 @@ class XtreamClient(private val client: OkHttpClient) {
             else listings.map { it.copy(startTimestamp = it.startTimestamp - shift, stopTimestamp = it.stopTimestamp - shift) }
         }
 
+    /**
+     * The channel's whole stored guide (`get_simple_data_table`), not just the next few
+     * entries - Catch Up needs a full day's listings for a day that has already passed,
+     * which get_short_epg (forward-looking, limited) can't answer.
+     *
+     * Same panel quirks as [getShortEpg]: base64 titles and the local-clock-as-UTC epoch
+     * offset, corrected through the same shared shift so a catch-up listing lines up with
+     * the guide the user saw live.
+     */
+    suspend fun getEpgTable(provider: Provider, streamId: String): List<EpgProgram> =
+        withContext(Dispatchers.IO) {
+            val url = buildApiUrl(provider, "action=get_simple_data_table&stream_id=$streamId")
+            val json = fetchJson(url) ?: return@withContext emptyList()
+            val arr = json.optJSONArray("epg_listings") ?: json.optJSONArray("items")
+                ?: return@withContext emptyList()
+            val listings = (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.optJSONObject(i) ?: return@mapNotNull null
+                val title = decodeEpgText(obj.optString("title", "")) ?: return@mapNotNull null
+                val start = obj.optString("start_timestamp", "0").toLongOrNull() ?: return@mapNotNull null
+                val stop = obj.optString("stop_timestamp", "0").toLongOrNull() ?: return@mapNotNull null
+                if (start <= 0L || stop <= start) return@mapNotNull null
+                EpgProgram(title, start, stop)
+            }.sortedBy { it.startTimestamp }
+            val shift = epgEpochShiftSeconds(provider.serverUrl, listings)
+            if (shift == 0L) listings
+            else listings.map { it.copy(startTimestamp = it.startTimestamp - shift, stopTimestamp = it.stopTimestamp - shift) }
+        }
+
     /** Estimated per-provider EPG timezone shift, seconds. 0 = panel is spec-compliant. */
     private fun epgEpochShiftSeconds(serverUrl: String?, listings: List<EpgProgram>): Long {
         if (serverUrl == null) return 0L
@@ -315,6 +343,14 @@ class XtreamClient(private val client: OkHttpClient) {
             MediaType.LIVE -> "$base/live/${provider.username}/${provider.password}/$streamId.$container"
             else -> "$base/${provider.username}/${provider.password}/$streamId.$container"
         }
+        // Archive/catch-up availability, live only. Panels are inconsistent about the JSON
+        // type here - some send tv_archive as a number, some as the string "1" - and
+        // optInt returns 0 for a string value, so read both shapes.
+        val archiveFlag = obj.opt("tv_archive")?.toString()?.trim()
+        val hasArchive = mediaType == MediaType.LIVE && (archiveFlag == "1" || archiveFlag == "true")
+        val archiveDays = if (hasArchive) {
+            obj.opt("tv_archive_duration")?.toString()?.trim()?.toIntOrNull() ?: 0
+        } else 0
         return Channel(
             id = streamId,
             name = name,
@@ -325,7 +361,11 @@ class XtreamClient(private val client: OkHttpClient) {
             categoryName = categoryName,
             mediaType = mediaType,
             rating = rating.ifBlank { null },
-            year = year.ifBlank { null }
+            year = year.ifBlank { null },
+            // A panel that advertises the archive but reports 0 days kept has nothing to
+            // play back, so it doesn't count as catch-up capable.
+            tvArchive = hasArchive && archiveDays > 0,
+            tvArchiveDays = archiveDays
         )
     }
 

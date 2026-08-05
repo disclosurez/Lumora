@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Rewind time" mark: a clock face whose hands point back, with a counter-clockwise
+     arrow head on the arc at top-left. Reads as replay/archive rather than plain history,
+     and pairs with ic_live_tv on the tab row either side of it. Same stroke language as
+     the other tab icons (1.8dp, round caps/joins); colour is tinted at usage sites. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Open circle, broken at the top-left where the arrow head sits. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF1F5F9"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M4.6,9.4A8,8 0 1 0 8.5,4.4" />
+    <!-- Arrow head closing the break, pointing anti-clockwise. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF1F5F9"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M4,5.5L4.6,9.4L8.5,8.8" />
+    <!-- Hands: short hand back to 10, long hand up to 12. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF1F5F9"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,8.5V12.5L9.2,14.2" />
+</vector>

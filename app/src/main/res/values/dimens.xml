@@ -181,7 +181,7 @@
          fixed cluster and needs to be wider. 20dp (up from 12dp): the settings pill read
          as crowding the Search tab even with the 12dp gap plus its own 8dp margin, and
          either pill's 1.06x focus scale eats into it further. -->
-    <dimen name="chrome_cluster_gap">28dp</dimen>
+    <dimen name="chrome_cluster_gap">20dp</dimen>
     <!-- Horizontal padding of the chrome-row icon buttons (settings/refresh). Deliberately
          NOT tab_padding_horizontal: that metric pads a pill that holds icon+label, and
          applied to a bare icon it rendered wide empty capsules (a 51dp-tall TV button was
@@ -225,4 +225,8 @@
 
     <!-- Search bar at the top of Home. Same 0dp = fill sentinel. -->
     <dimen name="home_search_bar_width">0dp</dimen>
+    <dimen name="catchup_category_column_width">240dp</dimen>
+    <!-- Catch Up columns: channel list stays put while days/programmes fly out beside it. -->
+    <dimen name="catchup_channel_column_width">260dp</dimen>
+    <dimen name="catchup_day_column_width">150dp</dimen>
 </resources>

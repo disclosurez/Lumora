@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- How many Catch Up columns stay on screen at once. There are four levels
+         (category -> channel -> day -> programme) but not the width for four columns, so
+         the window slides: drilling past this many hides the leftmost, and stepping back
+         brings it round again. Portrait gets two. -->
+    <integer name="catchup_max_columns">2</integer>
+</resources>

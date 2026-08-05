@@ -82,6 +82,7 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
 
 /** Discover is its own pane (like Downloads): browse/search TMDB, no category sidebar. */
 internal fun MainActivity.selectDiscover() {
+    hideCatchup()
     activeSettingsOverlay?.dismiss()
     activeSearchOverlay?.dismiss()
     showingHome = false
@@ -123,7 +124,7 @@ internal fun MainActivity.loadDiscover(query: String?) {
         val visible = if (pluginEnabled) results else withContext(Dispatchers.Default) {
             results.filter { findCatalogMatch(it) != null }
         }
-        discoverGridAdapter.submitList(visible)
+        discoverGridAdapter.replaceAll(visible)
         setDiscoverStatus(
             when {
                 visible.isNotEmpty() -> null

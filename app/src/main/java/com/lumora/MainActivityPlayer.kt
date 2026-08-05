@@ -89,6 +89,9 @@ internal fun MainActivity.setupPlayerControls() {
     // Category drill-down list under the expanded section row.
     sideMenuCategoryAdapter = SideMenuCategoryAdapter(onCategoryClick = ::onSideMenuCategoryClicked)
     sideMenuCategoryAdapter.onLeftPressed = ::onSideMenuColumnLeft
+    // Same fetch the guide grid uses, so a channel already drawn there costs nothing here
+    // (results are shared through EpgListCache).
+    sideMenuCategoryAdapter.fetchPrograms = { channelId -> resolveEpgPrograms(channelId) }
     // RIGHT on a category opens its channels/titles, same as pressing OK. At the item
     // level there is nothing further right, so it's swallowed rather than playing the
     // item - a direction key should never start playback.
@@ -1130,6 +1133,11 @@ internal fun MainActivity.maybeShowResumePrompt() {
 internal fun MainActivity.saveCurrentPlaybackPosition() {
     val channel = nowPlayingChannel ?: return
     if (channel.mediaType == MediaType.LIVE) return
+    // A catch-up programme is played as MOVIE to get VOD controls, but it is not a
+    // library item: its URL is a timeshift window that the panel drops as the archive
+    // rolls, so a resume position would age into a Continue Watching tile that plays
+    // nothing. The archive is browsable again from the Catch Up tab either way.
+    if (channel.id.startsWith(CATCHUP_ID_PREFIX)) return
     if (isAdultCategory(channel.categoryName, channel.group)) return
     val dur = playerManager.duration
     val pos = playerManager.currentPosition

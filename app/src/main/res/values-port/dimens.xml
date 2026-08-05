@@ -49,4 +49,8 @@
     <dimen name="keyboard_key_gap">4dp</dimen>
     <dimen name="keyboard_key_text">15sp</dimen>
     <dimen name="keyboard_action_text">12sp</dimen>
+    <dimen name="catchup_category_column_width">150dp</dimen>
+    <!-- Catch Up columns: channel list stays put while days/programmes fly out beside it. -->
+    <dimen name="catchup_channel_column_width">160dp</dimen>
+    <dimen name="catchup_day_column_width">110dp</dimen>
 </resources>

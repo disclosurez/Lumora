@@ -226,6 +226,11 @@ internal const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
  *  gated on !isTv at behavior time too - a pref set on a phone must not collapse a TV. */
 internal const val COLLAPSE_CATEGORIES_TOGGLE_ID = "__collapse_categories__"
 internal const val PREF_CATEGORY_SIDEBAR_COLLAPSED = "category_sidebar_collapsed"
+/** Rows that act on the rail itself rather than filtering it. They must never be hideable:
+ *  hiding one is unrecoverable, since the only way to unhide a row is the context menu on
+ *  that same row. The hidden-id filter in buildCategoryRows skips these too, so anyone who
+ *  already hid one gets it back. */
+internal val UTILITY_ROW_IDS = setOf(CLASSIC_LAYOUT_TOGGLE_ID, COLLAPSE_CATEGORIES_TOGGLE_ID)
 /** Films/Series sidebar row that filters the tab down to Jellyfin-sourced items only.
  *  Only built when the tab actually contains Jellyfin content. */
 internal const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
@@ -477,6 +482,23 @@ class MainActivity : AppCompatActivity() {
     internal var showingHome = false
     internal var showingDownloads = false
     internal var showingDiscover = false
+    /** Catch Up is a pane of its own rather than a fourth catalogue tab: it browses the
+     *  same live channels through a different axis (time), and every tab-indexed path
+     *  (activeTab 0/1/2, its prefs, its category rail) would otherwise need a fourth case
+     *  that means nothing. Mirrors showingHome/showingDiscover/showingDownloads. */
+    internal var showingCatchup = false
+    internal var catchupStage = CatchupStage.CHANNELS
+    internal var catchupChannel: Channel? = null
+    /** Local midnight of the day being listed, ms. 0 while no day is chosen. */
+    internal var catchupDayStart = 0L
+    internal var catchupEpgJob: Job? = null
+    /** One adapter per column. Separate instances rather than one re-submitted list: each
+     *  column keeps its own selection highlight and its own sideways focus targets. */
+    internal var catchupCategoryName: String? = null
+    internal val catchupCategoryAdapter = com.lumora.adapter.CatchupAdapter { row -> onCatchupCategoryClick(row) }
+    internal val catchupChannelAdapter = com.lumora.adapter.CatchupAdapter { row -> onCatchupChannelClick(row) }
+    internal val catchupDayAdapter = com.lumora.adapter.CatchupAdapter { row -> onCatchupDayClick(row) }
+    internal val catchupProgrammeAdapter = com.lumora.adapter.CatchupAdapter { row -> playCatchup(row) }
     internal val isTv by lazy { isTvDevice(this) }
     // Edge-swipe-to-back tracking (phone only - see dispatchTouchEvent). Only armed when
     // the gesture *starts* within EDGE_SWIPE_ZONE_DP of the left edge, so it can't be
@@ -493,6 +515,12 @@ class MainActivity : AppCompatActivity() {
     // exact category name doesn't necessarily line up with the sidebar's merged rows).
     // Takes priority over selectedCategoryIds in applyCategoryFilter when set.
     internal var selectedShelfItems: List<Channel>? = null
+    /** Bumped by every applyCategoryFilter() run. Each run filters the whole catalog on a
+     *  background dispatcher, and nothing cancels the run a fast category switch just
+     *  superseded - two in flight can resume in either order, so without this the *older*
+     *  filter can be the one that submits last and leaves the previous category's items
+     *  (or nothing) on screen. A run whose generation is stale on resume drops its result. */
+    internal var categoryFilterGeneration = 0
     internal val expandedGroupKeys = mutableSetOf<String>()
     /** Set while the search overlay is open. Receives a typed character, or null for
      *  backspace, from a real keyboard - the query field itself isn't focusable. */
@@ -1014,6 +1042,7 @@ class MainActivity : AppCompatActivity() {
 
     /** The list filling the content area of whatever section is on screen. */
     private fun activeContentList(): RecyclerView = when {
+        showingCatchup -> binding.catchupCategoryList
         showingDiscover -> binding.discoverGrid
         showingDownloads -> binding.downloadsContent
         activeTab == 1 -> binding.seriesContent
@@ -1032,8 +1061,11 @@ class MainActivity : AppCompatActivity() {
      *  go before leaving for Home. */
     private fun isAtSectionTop(): Boolean {
         if (isTabDrilledIn()) return false
+        // Catch Up's own steps are levels above the section's top: while a day or a
+        // programme list is showing, Back walks the crumb back up rather than leaving.
+        if (showingCatchup && catchupStage != CatchupStage.CATEGORIES) return false
         if (!isListAtTop(activeContentList())) return false
-        if (showingDiscover || showingDownloads) return true
+        if (showingCatchup || showingDiscover || showingDownloads) return true
         // Collapsed rail (or a tab whose sidebar is otherwise hidden) has nothing to scroll
         // to - the content list alone decides "top" then. Without this guard, a GONE
         // RecyclerView keeps stale child geometry and can report a mid-list scroll position.
@@ -1051,11 +1083,13 @@ class MainActivity : AppCompatActivity() {
             resetTabToShelves()
             return
         }
+        // Inside Catch Up, "up a level" is the crumb, not a scroll position.
+        if (showingCatchup && catchupBack()) return
         val content = activeContentList()
         content.scrollToPosition(0)
         // No rail to focus when the sidebar is hidden (collapsed / Downloads-style) - focus
         // the content instead, same as the non-categorized panes below.
-        if (showingDiscover || showingDownloads || binding.categorySidebar.visibility != View.VISIBLE) {
+        if (showingCatchup || showingDiscover || showingDownloads || binding.categorySidebar.visibility != View.VISIBLE) {
             focusFirstItemWhenReady(content)
             return
         }
@@ -1067,7 +1101,7 @@ class MainActivity : AppCompatActivity() {
      *  rather than its shelves. Live TV is excluded on purpose - it always has a row
      *  selected (see selectTab), so there's no shelf level there to go back up to. */
     private fun isTabDrilledIn(): Boolean =
-        !showingHome && !showingDiscover && !showingDownloads && activeTab != 0 &&
+        !showingHome && !showingDiscover && !showingDownloads && !showingCatchup && activeTab != 0 &&
             (selectedShelfItems != null || selectedRowId != null ||
                 selectedCategoryIds != null || selectedBrandChannelIds != null)
 
@@ -1101,7 +1135,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Focuses a list's first row once it has been laid out - a single requestFocus() right
      *  after submitList() lands before the new items exist and silently no-ops. */
-    private fun focusFirstItemWhenReady(list: RecyclerView) {
+    internal fun focusFirstItemWhenReady(list: RecyclerView) {
         fun attempt(): Boolean =
             list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() == true
         list.post { if (!attempt()) list.post { attempt() } }

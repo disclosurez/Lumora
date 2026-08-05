@@ -14,7 +14,15 @@ private const val TAG = "ChannelCache"
 private const val CACHE_FILE = "channels_cache.txt"
 private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
 private const val FIELD_SEP = ''
-private const val FIELD_COUNT = 22
+/** Fields written per line. Append-only: new fields go at the end so older files stay
+ *  readable. */
+private const val FIELD_COUNT = 24
+/** Fields a line must have to be usable. Held at the pre-Catch-Up count on purpose - a
+ *  cache written by an older build is still perfectly good, and every field added since
+ *  is read with getOrElse. Raising this to FIELD_COUNT dropped every line of an existing
+ *  13MB cache on first launch after update, turning an instant cold start into a full
+ *  network refetch. */
+private const val FIELD_COUNT_MIN = 22
 
 /**
  * Persists the last successfully loaded channel list to disk so re-opening the
@@ -69,7 +77,11 @@ object ChannelCache {
                 // Stalker VOD/series play command - without it a cached film reloads with a
                 // blank url and nothing to create_link, so playback opens "" as a local file
                 // and dies with ENOENT.
-                sb.append(clean(ch.stalkerCmd)).append('\n')
+                sb.append(clean(ch.stalkerCmd)).append(FIELD_SEP)
+                // Catch Up needs these on cold start - the tab is built from the cached
+                // catalogue, before any provider refetch has run.
+                sb.append(if (ch.tvArchive) "1" else "0").append(FIELD_SEP)
+                sb.append(ch.tvArchiveDays.toString()).append('\n')
                 out.append(sb)
             }
             }
@@ -82,17 +94,27 @@ object ChannelCache {
         }
     }
 
+    /** True when the file just loaded was written before the archive fields existed, so
+     *  every channel came back with tvArchive=false regardless of what the panel reports.
+     *  The catalogue is still perfectly usable - it just cannot answer "does this channel
+     *  have catch-up" until a refetch, which the caller schedules off the back of this. */
+    @Volatile
+    var lastLoadWasLegacyFormat: Boolean = false
+        private set
+
     fun load(context: Context): List<Channel>? {
         val file = File(context.filesDir, CACHE_FILE)
         if (!file.exists()) return null
         val startedAt = System.currentTimeMillis()
         return try {
             val result = ArrayList<Channel>(50_000)
+            var sawLegacyLine = false
             file.bufferedReader().use { reader: BufferedReader ->
                 reader.forEachLine { line ->
                     if (line.isBlank()) return@forEachLine
                     val f = line.split(FIELD_SEP)
-                    if (f.size < FIELD_COUNT) return@forEachLine
+                    if (f.size < FIELD_COUNT_MIN) return@forEachLine
+                    if (f.size < FIELD_COUNT) sawLegacyLine = true
                     result.add(
                         Channel(
                             // Falls back to the url, matching what M3uParser now assigns.
@@ -128,7 +150,9 @@ object ChannelCache {
                             streamUserAgent = f[18].ifEmpty { null },
                             sourceProviderId = f[19].ifEmpty { null },
                             avOffsetMs = f.getOrElse(20) { "0" }.toIntOrNull() ?: 0,
-                            stalkerCmd = f.getOrElse(21) { "" }.ifEmpty { null }
+                            stalkerCmd = f.getOrElse(21) { "" }.ifEmpty { null },
+                            tvArchive = f.getOrElse(22) { "0" } == "1",
+                            tvArchiveDays = f.getOrElse(23) { "0" }.toIntOrNull() ?: 0
                         )
                     )
                 }
@@ -136,10 +160,11 @@ object ChannelCache {
             // Cold-start budget line: this parse and the derive passes that follow it are
             // what "instant cached start" is spent on - keep them measurable on-device
             // (adb logcat -s LumoraPerf) rather than guessed at.
+            lastLoadWasLegacyFormat = sawLegacyLine
             Log.i(
                 "LumoraPerf",
                 "cache load: ${result.size} items in ${System.currentTimeMillis() - startedAt}ms " +
-                    "(${file.length() / 1024}KB)"
+                    "(${file.length() / 1024}KB)" + if (sawLegacyLine) " [legacy format]" else ""
             )
             result
         } catch (e: Exception) {

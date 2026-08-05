@@ -9,4 +9,5 @@
          now shares the panel with the on-screen keyboard, so screen width no longer
          describes the space it actually has. -->
     <integer name="search_results_span">2</integer>
+    <integer name="catchup_max_columns">3</integer>
 </resources>

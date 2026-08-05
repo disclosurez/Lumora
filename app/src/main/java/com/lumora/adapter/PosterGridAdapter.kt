@@ -68,6 +68,22 @@ class PosterGridAdapter(
      *  stretched well past the 2:3 it was cropped for. Null keeps the layout's own value. */
     var posterHeightDimen: Int? = null
 
+    /** Wholesale replacement - a category switch, a fresh search, a different shelf's
+     *  contents. There is nothing meaningful to diff between "all 17k films" and "this
+     *  category's 400": every item differs, so the differ pays a full Myers pass (on a
+     *  background thread, then a hop back) to conclude "replace everything".
+     *
+     *  submitList(null) takes AsyncListDiffer's remove-all fast path and the submitList
+     *  that follows takes its insert-all fast path. Both are synchronous and neither
+     *  computes a diff, so the list is in place before the frame is drawn - there is no
+     *  moment where an empty grid renders. Use plain [submitList] where the new list is
+     *  genuinely a small edit of the old one (appending a search batch, say); the diff
+     *  earns its keep there. */
+    fun replaceAll(items: List<Channel>, commitCallback: Runnable? = null) {
+        submitList(null)
+        submitList(items, commitCallback)
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_poster_grid, parent, false)
         posterHeightDimen?.let { dimen ->
@@ -142,6 +158,30 @@ class PosterGridAdapter(
 
     class DiffCallback : DiffUtil.ItemCallback<Channel>() {
         override fun areItemsTheSame(old: Channel, new: Channel): Boolean = old.url == new.url || (old.id.isNotBlank() && old.id == new.id)
-        override fun areContentsTheSame(old: Channel, new: Channel): Boolean = old == new
+
+        /** Deliberately not `old == new`. Channel is a 25-field data class holding several
+         *  nullable strings and a Map, and equality walks *every* field on the pairs that
+         *  match - which is the common case in a diff. This compares only what a rebind
+         *  would actually change, so an equal pair costs a handful of reference compares.
+         *
+         *  The first four are what [ViewHolder.bind] draws. The rest are not drawn, but the
+         *  holder caches the whole Channel in `current` and hands that instance to
+         *  onItemClick/onItemLongClick: skipping a rebind keeps the *old* instance, so any
+         *  field the click path plays from has to count as content. Xtream URLs carry
+         *  credentials and Stalker/plugin items resolve through a token, so a catalog
+         *  refresh really can change these under a stable id. */
+        override fun areContentsTheSame(old: Channel, new: Channel): Boolean =
+            old.name == new.name &&
+                old.posterUrl == new.posterUrl &&
+                old.logoUrl == new.logoUrl &&
+                old.mediaType == new.mediaType &&
+                old.url == new.url &&
+                old.stalkerCmd == new.stalkerCmd &&
+                old.pluginToken == new.pluginToken &&
+                old.pluginId == new.pluginId &&
+                old.sourceProviderId == new.sourceProviderId &&
+                old.streamUserAgent == new.streamUserAgent &&
+                old.avOffsetMs == new.avOffsetMs &&
+                old.streamHeaders == new.streamHeaders
     }
 }

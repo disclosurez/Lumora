@@ -113,8 +113,11 @@
     <dimen name="toolbar_search_text">17sp</dimen>
     <dimen name="toolbar_search_icon_size">22dp</dimen>
     <dimen name="toolbar_icon_size">29dp</dimen>
-    <dimen name="tab_text">17sp</dimen>
-    <dimen name="tab_padding_horizontal">18dp</dimen>
+    <dimen name="tab_text">16sp</dimen>
+    <!-- Six tabs fitted the 960dp row at 18dp; the seventh (Catch Up) put it ~150dp
+         over, which is what pushed Search off the end and - before the scroller clipped
+         its own overflow - straight under the Settings/Refresh cluster. -->
+    <dimen name="tab_padding_horizontal">10dp</dimen>
     <dimen name="tab_padding_vertical">13dp</dimen>
     <dimen name="poster_title_text">13sp</dimen>
     <dimen name="poster_title_outline_width">0.9dp</dimen>
