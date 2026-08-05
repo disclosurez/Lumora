@@ -1,0 +1,1250 @@
+package com.lumora
+
+import android.app.AlertDialog
+import androidx.core.view.updateLayoutParams
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.view.PixelCopy
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.View
+import android.view.ViewGroup
+import android.widget.*
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.lumora.adapter.SideMenuCategoryAdapter
+import com.lumora.cache.PlaybackPositionStore
+import com.lumora.cache.RecentlyPlayedStore
+import com.lumora.model.Channel
+import com.lumora.model.MediaType
+import com.lumora.model.Provider
+import com.lumora.model.ProviderType
+import com.lumora.model.IptvProviderConfig
+import com.lumora.data.IptvProviderStore
+import com.lumora.plugin.ResolveResult
+import com.lumora.torrent.TorrentEngine
+import com.lumora.torrent.TorrentForegroundService
+import com.lumora.player.PlayerManager
+import com.lumora.player.VideoAspectFrameLayout
+import com.lumora.util.extractLeadingTag
+import com.lumora.util.isAdultCategory
+import com.lumora.util.normalizeServerUrl
+import com.lumora.data.remote.stalker.StalkerProvider
+import kotlinx.coroutines.*
+import okhttp3.Request
+
+// ── Playback: controls, aspect, stream resolution, failover & overlays ──
+//
+// Extracted from MainActivity.kt; see that file's header.
+/**
+ * The toolbar's refresh button: re-connect to every enabled provider, ignoring the cache.
+ *
+ * Announced with a toast rather than the status row, because once there is content on
+ * screen the status row is suppressed (it shares the content slot - see applyStatus), so
+ * pressing refresh over a populated Home gave no sign anything had happened at all.
+ */
+internal fun MainActivity.reloadCurrentProvider() {
+    if (!hasProviderEnabled()) {
+        Toast.makeText(this, "No provider is enabled - turn one on in Settings", Toast.LENGTH_LONG).show()
+        showProviderSettings()
+        return
+    }
+    Toast.makeText(this, "Refreshing providers…", Toast.LENGTH_SHORT).show()
+    loadAllConfiguredProviders(forceRefresh = true)
+}
+
+// ── Player ─────────────────────────────────────
+
+internal fun MainActivity.setupPlayerControls() {
+    // showControls() here restarts the 4s auto-hide: this button consumes the OK press
+    // itself, so the Activity-level timer refresh in onKeyDown never sees it, and the
+    // bar would otherwise vanish right after the press that paused.
+    binding.btnPlayPause.setOnClickListener { playerManager.togglePlayPause(); updatePlayPauseIcon(); showControls() }
+    binding.btnPrevChannel.setOnClickListener { navigateChannel(-1) }
+    binding.btnNextChannel.setOnClickListener { navigateChannel(1) }
+    binding.btnBack.setOnClickListener { hidePlayer(); restoreSearchIfPending() }
+    binding.btnPlayerMenu.setOnClickListener { openSideMenu() }
+    binding.btnCloseSideMenu.setOnClickListener { closeSideMenu() }
+    // TV remotes open the side menu with DPAD_LEFT, so the hamburger is phone-only.
+    if (isTv) binding.btnPlayerMenu.visibility = View.GONE
+
+    // Side-menu nav rows mirror the top tab bar: close the drawer, tear down the
+    // player, then switch to the destination screen. hidePlayer() runs BEFORE the
+    // navigation because the player overlay covers mainContent. The three content
+    // rows (Live/Series/Films) branch: pressing the row for the CURRENT tab drills
+    // into that section's categories instead of navigating away (see
+    // onSideMenuSectionRowClicked).
+    binding.navHome.setOnClickListener { closeSideMenu(); hidePlayer(); selectHome() }
+    binding.navLive.setOnClickListener { onSideMenuSectionRowClicked(0) }
+    binding.navSeries.setOnClickListener { onSideMenuSectionRowClicked(1) }
+    binding.navFilms.setOnClickListener { onSideMenuSectionRowClicked(2) }
+    binding.navDiscover.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; selectDiscover() }
+    binding.navDownloads.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; selectDownloads() }
+    // Settings lives behind the browse screen's gear button, which the player covers -
+    // this is the only way into it without backing out of playback by hand.
+    binding.navSettings.setOnClickListener { closeSideMenu(); hidePlayer(); showProviderSettings() }
+
+    // Category drill-down list under the expanded section row.
+    sideMenuCategoryAdapter = SideMenuCategoryAdapter(onCategoryClick = ::onSideMenuCategoryClicked)
+    sideMenuCategoryAdapter.onLeftPressed = ::onSideMenuColumnLeft
+    // RIGHT on a category opens its channels/titles, same as pressing OK. At the item
+    // level there is nothing further right, so it's swallowed rather than playing the
+    // item - a direction key should never start playback.
+    sideMenuCategoryAdapter.onRightPressed = { category ->
+        if (sideMenuChannelCategory == null) onSideMenuCategoryClicked(category)
+    }
+    binding.sideMenuCategoryList.layoutManager = LinearLayoutManager(this)
+    binding.sideMenuCategoryList.adapter = sideMenuCategoryAdapter
+    binding.btnAudioTrack.setOnClickListener { showTrackPicker(isAudio = true) }
+    binding.btnSubtitleTrack.setOnClickListener { showTrackPicker(isAudio = false) }
+    binding.btnChapters.setOnClickListener { showChapterPicker() }
+    binding.btnLiveVersions.setOnClickListener { showVersionPicker() }
+    binding.btnRewind.setOnClickListener { playerManager.seekBy(-15_000); showControls() }
+    binding.btnFastForward.setOnClickListener { playerManager.seekBy(30_000); showControls() }
+    applyAspectMode(loadSavedAspectMode())
+    binding.btnAspectRatio.setOnClickListener { cycleAspectMode() }
+
+    // Speed control
+    speedController = com.lumora.player.playback.PlaybackSpeedController(playerManager.getExoPlayer())
+    binding.btnSpeed.setOnClickListener {
+        val speeds = arrayOf("0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x")
+        val currentSpeed = speedController.currentSpeed
+        val checkedIndex = when {
+            currentSpeed <= 0.5f -> 0; currentSpeed <= 0.75f -> 1; currentSpeed <= 1.0f -> 2
+            currentSpeed <= 1.25f -> 3; currentSpeed <= 1.5f -> 4; else -> 5
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Playback Speed")
+            .setSingleChoiceItems(speeds, checkedIndex) { dialog, which ->
+                val speed = when (which) { 0 -> 0.5f; 1 -> 0.75f; 2 -> 1.0f; 3 -> 1.25f; 4 -> 1.5f; else -> 2.0f }
+                speedController.setSpeed(speed)
+                binding.btnSpeed.text = String.format("%.1fx", speed)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // Sleep timer
+    sleepTimer = com.lumora.player.playback.SleepTimer(playerManager.getExoPlayer()).apply {
+        onTickCallback = { display -> binding.btnSleepTimer.text = display }
+    }
+    binding.btnSleepTimer.setOnClickListener {
+        val presets = arrayOf("Off", "15 min", "30 min", "45 min", "60 min", "90 min", "120 min")
+        val checkedIndex = sleepTimer.currentPreset.ordinal
+        AlertDialog.Builder(this)
+            .setTitle("Sleep Timer")
+            .setSingleChoiceItems(presets, checkedIndex) { dialog, which ->
+                val preset = com.lumora.player.playback.SleepTimer.Preset.entries[which]
+                sleepTimer.start(preset)
+                binding.btnSleepTimer.text = if (preset == com.lumora.player.playback.SleepTimer.Preset.OFF) "Sleep" else presets[which]
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // Up Next - Play Now / Cancel buttons
+    binding.upNextPlayNow.setOnClickListener {
+        cancelUpNextCountdown()
+        executeUpNextAdvance()
+    }
+    binding.upNextCancel.setOnClickListener {
+        cancelUpNext()
+    }
+
+    // Cast — uses MediaRouteButton which shows a device picker on tap.
+    // Hidden on Android TV because the TV itself is a Cast receiver, not a sender.
+    if (isTv) {
+        binding.btnCast.visibility = View.GONE
+    } else {
+        castManager = com.lumora.player.CastManager(this).apply {
+            init()
+            onCastSessionConnected = { session ->
+                val channel = nowPlayingChannel
+                if (channel != null) {
+                    if (castChannel(channel, channel.name)) {
+                        playerManager.pause()
+                    } else {
+                        Toast.makeText(this@setupPlayerControls, "Cast failed: check TV and try again", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this@setupPlayerControls, "Play content first, then Cast", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        try {
+            com.google.android.gms.cast.framework.CastButtonFactory.setUpMediaRouteButton(
+                this, binding.btnCast
+            )
+        } catch (_: Exception) {
+            binding.btnCast.visibility = View.GONE
+        }
+    }
+
+    // Diagnostics
+    binding.btnDiagnostics.setOnClickListener {
+        val snapshot = playerDiagnostics.getSnapshot()
+        val diag = """
+            |Decoder: ${snapshot.videoDecoder}
+            |Video: ${snapshot.videoFormat}
+            |Audio: ${snapshot.audioFormat}
+            |Stalls: ${snapshot.stallCount} (${snapshot.totalStallDuration / 1000}s)
+            |State: ${snapshot.playbackState}
+        """.trimMargin()
+        AlertDialog.Builder(this)
+            .setTitle("Player Diagnostics")
+            .setMessage(diag)
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    // Record button
+    binding.btnRecord.setOnClickListener {
+        if (nowPlayingChannel?.mediaType != MediaType.LIVE) {
+            Toast.makeText(this, "Recording is only available for live TV", Toast.LENGTH_SHORT).show()
+            return@setOnClickListener
+        }
+        val channel = nowPlayingChannel ?: return@setOnClickListener
+        AlertDialog.Builder(this)
+            .setTitle("Schedule Recording")
+            .setMessage("Record \"${channel.name}\"?")
+            .setPositiveButton("Record for 2 hours") { _, _ ->
+                val recEntry = com.lumora.recording.RecordingScheduler.createRecording(
+                    channelId = channel.id,
+                    channelName = channel.name,
+                    programTitle = channel.name,
+                    startTimeUtc = System.currentTimeMillis() / 1000,
+                    stopTimeUtc = (System.currentTimeMillis() / 1000) + 7200
+                )
+                com.lumora.recording.RecordingScheduler.schedule(this, recEntry)
+                scope.launch {
+                    database.recordingDao().insert(recEntry)
+                }
+                Toast.makeText(this, "Recording scheduled", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    binding.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        private var tracking = false
+        override fun onProgressChanged(s: SeekBar?, p: Int, u: Boolean) {
+            // Preview the frame at the scrub target while the bar is being moved - by the
+            // user (touch drag or D-pad, both of which arrive as fromUser) rather than by
+            // the 1s progress tick, which would flash a thumbnail during normal playback.
+            if (!u) return
+            val duration = playerManager.duration
+            if (duration <= 0) return
+            val target = duration * p / 100
+            showTrickplayPreview(target)
+            // A touch drag commits its seek in onStopTrackingTouch, but D-pad presses
+            // never fire that callback - the bar is focused, not touched, so the thumb
+            // just slid with no effect. A touched bar is `pressed`; a key-driven one
+            // isn't, so seek here for the key case (and clear stall state, like the
+            // drag-commit does) and the video actually follows the thumb on a remote.
+            if (s?.isPressed != true) {
+                playerManager.seekTo(target)
+                resetStallTracking()
+            }
+        }
+        override fun onStartTrackingTouch(s: SeekBar?) { tracking = true }
+        override fun onStopTrackingTouch(s: SeekBar?) {
+            tracking = false
+            if (playerManager.duration > 0) {
+                playerManager.seekTo((playerManager.duration * (s?.progress ?: 0)) / 100)
+                resetStallTracking()
+            }
+            hideTrickplayPreview()
+        }
+    })
+    // D-pad seeking never goes through onStopTrackingTouch (no touch involved), so the
+    // preview has to be dismissed on focus loss too or it stays up over the video.
+    binding.seekBar.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) hideTrickplayPreview() }
+
+    // Safe to build here (not as field initializers): the Activity context is fully
+    // attached by setupPlayerControls time, so GestureDetector's getResources() call
+    // in its constructor cannot NPE.
+    gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            val width = binding.playerLayout.width
+            val target = if (e.x < width / 2) {
+                (playerManager.currentPosition - GESTURE_SEEK_MS).coerceAtLeast(0L)
+            } else {
+                (playerManager.currentPosition + GESTURE_SEEK_MS).coerceAtMost(maxOf(playerManager.duration, 0L))
+            }
+            playerManager.seekTo(target)
+            // Visible feedback for the seek - the time label updates via progressRunnable.
+            showControls()
+            updatePlayPauseIcon()
+            return true
+        }
+
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            // Same two-stage rule as the remote's OK (see dispatchKeyEvent): a tap only
+            // shows/hides the controls, pausing is the explicit play/pause button.
+            toggleControls()
+            return true
+        }
+    })
+    scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            // Pinch around the focal point, clamped inside the surface bounds.
+            val surface = binding.playerSurface
+            surface.pivotX = detector.focusX.coerceIn(0f, surface.width.toFloat())
+            surface.pivotY = detector.focusY.coerceIn(0f, surface.height.toFloat())
+            return true
+        }
+
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val surface = binding.playerSurface
+            val newScale = (surface.scaleX * detector.scaleFactor).coerceIn(ZOOM_MIN, ZOOM_MAX)
+            surface.scaleX = newScale
+            surface.scaleY = newScale
+            return true
+        }
+    })
+
+    binding.playerLayout.setOnTouchListener { _, event ->
+        // Both detectors observe every event; the listener always returns true so touches
+        // on the player are fully consumed (single/double-tap, pinch). The controls overlay
+        // is a child that keeps its own clickable buttons - those consume their own events.
+        gestureDetector.onTouchEvent(event)
+        scaleDetector.onTouchEvent(event)
+        true
+    }
+
+    playerManager.addListener(object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            binding.bufferingSpinner.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+            if (state == Player.STATE_BUFFERING) onBufferingStarted() else onBufferingEnded()
+            if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
+                updateProgress(); updatePlayPauseIcon()
+                if (state == Player.STATE_READY) { currentStreamPlayed = true; maybeShowResumePrompt() }
+            if (state == Player.STATE_ENDED) {
+                saveCurrentPlaybackPosition()
+                // The plain save above leaves a just-finished episode near-complete
+                // (filtered off Continue Watching), but the season isn't over - keep
+                // the series on the "last watching" shelf by advancing the stored entry
+                // to the next episode. Real duration (not the 0L the old branch wrote,
+                // which the store dropped); the 1ms position is a placeholder that the
+                // next episode's own progress ticks overwrite. Exhausted queue = series
+                // finished, so drop the entry and let the series leave Home.
+                val finished = nowPlayingChannel
+                if (finished?.mediaType == MediaType.SERIES) {
+                    val finishedDur = playerManager.duration
+                    val finishedKey = finished.id.ifBlank { finished.url }
+                    val nextIdx = currentEpisodeQueueIndex + 1
+                    if (currentEpisodeQueueIndex >= 0 && nextIdx in currentEpisodeQueue.indices) {
+                        val next = currentEpisodeQueue[nextIdx]
+                        PlaybackPositionStore.save(
+                            this@setupPlayerControls,
+                            next.id.ifBlank { next.url },
+                            1L,
+                            finishedDur,
+                            next
+                        )
+                    } else if (currentEpisodeQueueIndex >= 0 && currentEpisodeQueue.isNotEmpty()) {
+                        PlaybackPositionStore.clear(this@setupPlayerControls, finishedKey)
+                    }
+                }
+                // If Up Next countdown is already running, it will handle the advance.
+                if (upNextActive) return@onPlaybackStateChanged
+                // Silent fallback auto-advance when Up Next wasn't triggered
+                // (e.g. user seeks to end, skipping the 30s countdown window).
+                val queue = currentEpisodeQueue
+                val nextIdx = currentEpisodeQueueIndex + 1
+                if (nextIdx in queue.indices) {
+                    skipResumePrompt = true
+                    showPlayerFor(queue[nextIdx])
+                    currentEpisodeQueue = queue
+                    currentEpisodeQueueIndex = nextIdx
+                }
+            }
+            }
+        }
+        override fun onPlayerError(error: PlaybackException) {
+            binding.bufferingSpinner.visibility = View.GONE
+            resetStallTracking()
+            blackFrameStreak = 0
+            if (!tryNextQualityVersion()) {
+                // Jellyfin direct-play: one fresh-URL re-resolve before giving up - a
+                // transient server timeout or an expired direct-play URL often recovers.
+                if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
+                    retryJellyfinPlayback()
+                } else {
+                    Toast.makeText(this@setupPlayerControls, "Playback error", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            updatePlayPauseIcon()
+            if (isPlaying) mainHandler.post(progressRunnable)
+            else mainHandler.removeCallbacks(progressRunnable)
+        }
+        override fun onCues(cues: androidx.media3.common.text.CueGroup) {
+            binding.playerSubtitleView.setCues(cues.cues)
+        }
+        override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+            if (videoSize.height == 0 || videoSize.width == 0) return
+            val rotated = videoSize.unappliedRotationDegrees == 90 || videoSize.unappliedRotationDegrees == 270
+            val w = if (rotated) videoSize.height else videoSize.width
+            val h = if (rotated) videoSize.width else videoSize.height
+            binding.playerAspectContainer.videoAspectRatio = (w * videoSize.pixelWidthHeightRatio) / h
+            lastVideoWidth = w
+            lastVideoHeight = h
+        }
+    })
+}
+
+// ── Aspect ratio / zoom ─────────────────────────
+
+internal fun MainActivity.loadSavedAspectMode(): VideoAspectFrameLayout.Mode =
+    runCatching { VideoAspectFrameLayout.Mode.valueOf(prefs.getString(PREF_ASPECT_MODE, null) ?: "") }
+        .getOrDefault(VideoAspectFrameLayout.Mode.FIT)
+
+internal fun MainActivity.applyAspectMode(mode: VideoAspectFrameLayout.Mode) {
+    binding.playerAspectContainer.resizeMode = mode
+    binding.btnAspectRatio.text = when (mode) {
+        VideoAspectFrameLayout.Mode.FIT -> "Fit"
+        VideoAspectFrameLayout.Mode.ZOOM -> "Zoom"
+        VideoAspectFrameLayout.Mode.FILL -> "Stretch"
+    }
+    prefs.edit().putString(PREF_ASPECT_MODE, mode.name).apply()
+}
+
+internal fun MainActivity.cycleAspectMode() {
+    val modes = VideoAspectFrameLayout.Mode.entries
+    val next = modes[(modes.indexOf(binding.playerAspectContainer.resizeMode) + 1) % modes.size]
+    applyAspectMode(next)
+    Toast.makeText(this, "Video: ${binding.btnAspectRatio.text}", Toast.LENGTH_SHORT).show()
+}
+
+/** [resumeFromMs] carries the position across a version switch (see showVersionPicker):
+ *  the replacement stream is a different item with its own saved-position key, so without
+ *  it switching version on a half-watched film restarts it from zero. Also suppresses the
+ *  resume prompt - the user just answered that question by switching mid-playback.
+ *
+ *  [externalSubtitles] are sidecar tracks a caller already resolved (the Find Stream
+ *  dialog); [pluginStreamAlreadyResolved] marks that same caller's URL as freshly resolved,
+ *  so the plugin branch below doesn't resolve it a second time. [audio] is the stream's
+ *  audio category hint ("sub"/"dub") when the caller knows it - the player prefers the
+ *  matching audio track and gates sidecar subtitles on it. */
+internal fun MainActivity.showPlayerFor(
+    channel: Channel,
+    resumeFromMs: Long? = null,
+    preferredVersionId: String? = null,
+    externalSubtitles: List<PlayerManager.ExternalSubtitle> = emptyList(),
+    pluginStreamAlreadyResolved: Boolean = false,
+    audio: String? = null
+) {
+    // Reset Up Next state on any new playback
+    cancelUpNext()
+    // Never run the preview decode and the fullscreen decode at once.
+    releaseLivePreview()
+    // Cleared unconditionally - callers that want episode tracking (Next/Prev,
+    // auto-advance) re-set these right after calling this, once playback has
+    // actually started for the episode they picked.
+    currentEpisodeQueue = emptyList()
+    currentEpisodeQueueIndex = -1
+    isPlayerVisible = true
+    nowPlayingChannel = channel
+    // Cleared unconditionally, same as the episode queue above - the series version
+    // context only applies to playback started from a series detail screen, which re-sets
+    // it right after this call.
+    currentSeriesVersionContext = null
+    // Live TV has no detail page behind it, so a return target left over from a VOD session
+    // must not survive into it. Everything else keeps whatever the caller set: a version
+    // switch or an auto-advance to the next episode is still the same title's playback, and
+    // backing out of it belongs on the same poster the first episode was started from.
+    if (channel.mediaType == MediaType.LIVE) {
+        detailReturnItem = null
+        detailReturnGroup = null
+    }
+    resumePromptShown = resumeFromMs != null
+    progressTickCount = 0
+    binding.mainContent.visibility = View.GONE
+    binding.playerLayout.visibility = View.VISIBLE
+    binding.playerLayout.keepScreenOn = true
+    // Every new video starts unzoomed - a pinch-zoom from a previous session must not
+    // carry over into the next title.
+    binding.playerSurface.scaleX = 1f
+    binding.playerSurface.scaleY = 1f
+    binding.playerSurface.pivotX = 0f
+    binding.playerSurface.pivotY = 0f
+    applyStatus()
+    binding.playerChannelName.text = channel.name
+    binding.playerSubtitle.visibility = View.GONE
+    binding.playerLiveBadge.visibility = if (channel.mediaType == MediaType.LIVE) View.VISIBLE else View.GONE
+    if (channel.mediaType == MediaType.LIVE) {
+        // Don't add adult channels to recently played.
+        if (!isAdultCategory(channel.categoryName, channel.group)) {
+            RecentlyPlayedStore.recordPlayed(this, channel.id)
+        }
+        speedController.resetSpeed()
+    }
+
+    // Live channels get a square logo tile (fitCenter, so a wide/odd-aspect logo
+    // doesn't get cropped); movies/series get a poster-shaped tile (centerCrop) -
+    // squeezing a 2:3 poster into a 52x52 square looked like a stretched thumbnail.
+    val density = resources.displayMetrics.density
+    val isPoster = channel.mediaType != MediaType.LIVE
+    binding.playerLogoBox.layoutParams = binding.playerLogoBox.layoutParams.apply {
+        width = ((if (isPoster) 34 else 36) * density).toInt()
+        height = ((if (isPoster) 50 else 36) * density).toInt()
+    }
+    binding.playerChannelLogo.scaleType = if (isPoster) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
+    val logoPadding = if (isPoster) 0 else (6 * density).toInt()
+    binding.playerChannelLogo.setPadding(logoPadding, logoPadding, logoPadding, logoPadding)
+    binding.playerChannelInitial.text = channel.name.firstOrNull()?.uppercase() ?: "?"
+    binding.playerChannelInitial.visibility = View.VISIBLE
+    binding.playerChannelLogo.visibility = View.GONE
+    binding.playerChannelLogo.setImageDrawable(null)
+    val logoUrl = channel.logoUrl ?: channel.posterUrl
+    if (!logoUrl.isNullOrBlank()) {
+        scope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                runCatching {
+                    val request = Request.Builder().url(logoUrl).build()
+                    BaseApplication.instance.okHttpClient.newCall(request).execute()
+                        .body?.byteStream()?.use { BitmapFactory.decodeStream(it) }
+                }.getOrNull()
+            }
+            if (bitmap != null && nowPlayingChannel?.id == channel.id) {
+                binding.playerChannelLogo.setImageBitmap(bitmap)
+                binding.playerChannelLogo.visibility = View.VISIBLE
+                binding.playerChannelInitial.visibility = View.GONE
+            }
+        }
+    }
+
+    if (channel.mediaType == MediaType.LIVE && channel.id.isNotBlank()) {
+        scope.launch {
+            val program = runCatching { resolveCurrentProgram(channel.id) }.getOrNull()
+            if (nowPlayingChannel?.id != channel.id || program == null) return@launch
+            binding.playerSubtitle.text = "${program.title}  ·  ${formatEpgTimeRange(program.startTimestamp, program.stopTimestamp)}"
+            binding.playerSubtitle.visibility = View.VISIBLE
+        }
+    }
+
+    // Live channels may have multiple quality versions; start at the best
+    // (versions are pre-sorted highest quality first) and keep the group
+    // around so onPlayerError can fall back to the next one.
+    val versions = liveVersions[channel.id]
+    currentVersionGroup = versions ?: listOf(channel)
+    // An explicitly requested version wins over the quality/dead-stream auto-pick: it's
+    // the one the user was already watching (launch resume), so re-deriving a "best"
+    // choice here would start them on a different stream and, when that one doesn't
+    // play, walk the whole group by failover before arriving back where they started.
+    val preferredIndex = preferredVersionId?.let { id -> currentVersionGroup.indexOfFirst { it.id == id } }
+        ?.takeIf { it >= 0 }
+    currentVersionIndex = preferredIndex
+        ?: currentVersionGroup.indexOfFirst { !isStreamDead(it) }.takeIf { it >= 0 }
+        ?: 0
+    // channel.name is the cleaned/generic representative name (guide/shelf display) -
+    // the player card shows the exact raw version actually playing instead, same as
+    // switchToVersionIndex() does on failover/manual switch.
+    if (channel.mediaType == MediaType.LIVE) {
+        binding.playerChannelName.text = currentVersionGroup.getOrNull(currentVersionIndex)?.name ?: channel.name
+    }
+
+    resetStallTracking()
+    beginStreamAttempt()
+    startBlackFrameWatch()
+    binding.playerAspectContainer.videoAspectRatio = 0f
+    playerManager.setSurfaceView(binding.playerSurface)
+    showControls()
+    binding.bufferingSpinner.visibility = View.VISIBLE
+    val startVersion = if (channel.mediaType == MediaType.LIVE) currentVersionGroup.getOrNull(currentVersionIndex) ?: channel else channel
+    // Stalker VOD carries a base64 play command, not a URL - it must be create_link'd at
+    // play time (the resolved link is short-lived and per-session). Everything else has a
+    // direct url already.
+    // Reset per-play Jellyfin state before anything below can populate it - a chapters
+    // button left over from the last title would otherwise seek into the wrong film.
+    jellyfinPlaySession = null
+    jellyfinPlayingItemId = null
+    jellyfinRetryAttempted = false
+    jellyfinChapters = emptyList()
+    jellyfinTrickplay = null
+    trickplayTileCache = null
+    updateChaptersButtonVisibility()
+    hideTrickplayPreview()
+
+    when {
+        startVersion.url.isBlank() && !startVersion.stalkerCmd.isNullOrBlank() -> scope.launch {
+            val resolved = resolveStalkerPlayUrl(startVersion)
+            if (nowPlayingChannel?.id != channel.id) return@launch
+            if (resolved.isNullOrBlank()) {
+                binding.bufferingSpinner.visibility = View.GONE
+                Toast.makeText(this@showPlayerFor, "Couldn't open this title", Toast.LENGTH_SHORT).show()
+            } else {
+                // Not the MAC (which Stalker channels carry as their UA for the portal API):
+                // the resolved movie.php/live.php stream is plain HTTP and wants a normal
+                // player UA. Sending the MAC as User-Agent is what errored the playback.
+                playerManager.playUrl(
+                    resolved,
+                    STREAM_USER_AGENT,
+                    audio = audio,
+                    preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
+                )
+            }
+            resumeFromMs?.let { playerManager.seekTo(it) }
+        }
+        // Jellyfin VOD/episodes ask the server how to play them rather than assuming the
+        // file is directly playable: `?static=true` hands the raw file over untouched, so
+        // anything this device has no decoder for (HEVC 10-bit, TrueHD, DTS) opened to a
+        // black screen or silence. PlaybackInfo picks direct play where it fits and an
+        // HLS transcode where it doesn't, and brings the subtitle tracks with it.
+        startVersion.isJellyfin && startVersion.mediaType != MediaType.LIVE && startVersion.id.isNotBlank() -> scope.launch {
+            val startAt = resumeFromMs ?: 0L
+            val jellyfin = jellyfinClientOrConnect()
+            val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
+                runCatching { jellyfin.resolveStream(startVersion.id, startAt) }.getOrNull()
+            }
+            if (nowPlayingChannel?.id != channel.id) return@launch
+            // A failed negotiation is not a failed play: the plain static URL is what the
+            // app always used, and for most files it works - so fall back to it rather
+            // than refusing to open the title.
+            playerManager.playUrl(
+                resolved?.url ?: startVersion.url,
+                startVersion.streamUserAgent,
+                subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
+                startPositionMs = startAt,
+                audio = audio,
+                preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
+            )
+            jellyfinPlaySession = resolved
+            jellyfinPlayingItemId = startVersion.id
+            reportJellyfinStart(startVersion.id, resolved, startAt)
+            loadJellyfinPlaybackExtras(startVersion.id)
+        }
+        // A plugin-resolved stream cannot be replayed from the URL it was saved with: the
+        // CDN signs it with an expiry in the path and gates it behind request headers the
+        // URL alone doesn't carry, so a Continue Watching tile replaying yesterday's URL
+        // 403s twice over. Re-run the plugin's resolve() for a fresh URL, headers and
+        // subtitle tracks instead - that's also what makes resuming an anime episode land
+        // on the same episode rather than the series' first one.
+        !pluginStreamAlreadyResolved && !startVersion.pluginToken.isNullOrBlank() -> scope.launch {
+            val startAt = resumeFromMs ?: 0L
+            val plugin = pluginScriptManager.getDiscoveredScripts()
+                .firstOrNull { it.enabled && it.id == startVersion.pluginId }
+            val resolved = when {
+                plugin == null -> ResolveResult.Failed("The plugin that played this is no longer enabled")
+                // Same split as the Find Stream dialog: a natively-resolving plugin's token
+                // is a magnet for the built-in torrent engine, not something the JS runtime
+                // can turn into a URL.
+                // Torrent metadata + initial buffering can take minutes with nothing on
+                // screen but a spinner, so the progress lines land on the player's subtitle
+                // row (free for VOD - only live TV puts EPG text there). TorrentEngine
+                // reports from its own IO thread, hence the hop.
+                plugin.resolvesNatively -> resolveTorrentStream(
+                    startVersion.pluginToken, null, startVersion.episodeNum
+                ) { line ->
+                    runOnUiThread {
+                        if (nowPlayingChannel?.id != channel.id) return@runOnUiThread
+                        binding.playerSubtitle.text = line
+                        binding.playerSubtitle.visibility = View.VISIBLE
+                    }
+                }
+                else -> jsPluginEngine.resolve(
+                    pluginScriptManager.readSource(plugin),
+                    startVersion.pluginToken,
+                    null,
+                    startVersion.episodeNum
+                )
+            }
+            if (nowPlayingChannel?.id != channel.id) return@launch
+            binding.playerSubtitle.visibility = View.GONE
+            when (resolved) {
+                is ResolveResult.Ready -> playerManager.playUrl(
+                    resolved.url,
+                    startVersion.streamUserAgent,
+                    subtitles = resolved.subtitles.map(::externalSubtitleFor),
+                    startPositionMs = startAt,
+                    headers = resolved.headers.ifEmpty { null },
+                    // The fresh resolve may know the audio category even when the original
+                    // caller didn't (or better), so its hint wins.
+                    audio = resolved.audio ?: audio,
+                    preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
+                )
+                is ResolveResult.Failed -> {
+                    binding.bufferingSpinner.visibility = View.GONE
+                    Toast.makeText(this@showPlayerFor, resolved.message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        else -> {
+            playerManager.playUrl(
+                startVersion.url,
+                startVersion.streamUserAgent,
+                subtitles = externalSubtitles,
+                headers = startVersion.streamHeaders,
+                audio = audio,
+                preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
+            )
+            resumeFromMs?.let { playerManager.seekTo(it) }
+        }
+    }
+
+    // Apply persisted A/V sync offset (per-channel or global)
+    val params = avOffsetManager.buildPlaybackParameters(
+        playerManager.getExoPlayer().playbackParameters,
+        nowPlayingChannel?.id
+    )
+    playerManager.getExoPlayer().setPlaybackParameters(params)
+}
+
+/** Resolves a Stalker VOD/series item's base64 command into a playable URL against the
+ *  portal it came from (matched by sourceProviderId). Null if the portal's gone or the
+ *  config isn't a Stalker one. */
+internal fun MainActivity.stalkerConfigFor(channel: Channel): IptvProviderConfig? =
+    channel.sourceProviderId?.let { id -> IptvProviderStore.load(prefs).firstOrNull { it.id == id && it.type == "stalker" } }
+
+internal fun MainActivity.stalkerProviderStub(config: IptvProviderConfig): Provider = Provider(
+    name = config.name, type = ProviderType.M3U,
+    serverUrl = config.url?.let { normalizeServerUrl(it) }, userAgent = config.userAgent
+)
+
+internal suspend fun MainActivity.resolveStalkerPlayUrl(channel: Channel): String? {
+    val config = stalkerConfigFor(channel) ?: return null
+    val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
+    return withContext(Dispatchers.IO) {
+        // A series episode passes its number so create_link picks the right one within the
+        // season it shares a cmd with; a film passes none.
+        stalker.resolvePlayUrl(
+            stalkerProviderStub(config),
+            channel.stalkerCmd!!,
+            episode = channel.episodeNum?.takeIf { channel.mediaType == MediaType.SERIES }
+        )
+    }
+}
+
+/** The Xtream provider a Channel actually came from, for detail/EPG calls that need to
+ *  hit the matching server/credentials - not whichever Xtream provider loaded last into
+ *  the legacy single `provider` field. Null for non-Xtream items. */
+internal fun MainActivity.xtreamProviderFor(channel: Channel): Provider? {
+    val config = channel.sourceProviderId?.let { xtreamProviderConfigs[it] } ?: return null
+    return Provider(
+        name = config.name, type = ProviderType.XTREAM,
+        serverUrl = config.url?.let { normalizeServerUrl(it) },
+        username = config.username, password = config.password
+    )
+}
+
+/** The name of the provider a Channel came from, for labelling version chips. Jellyfin is
+ *  its own fixed slot; everything else is an IptvProviderConfig matched by
+ *  sourceProviderId. Null when the config's since been deleted (cached items outlive it). */
+internal fun MainActivity.providerNameFor(channel: Channel): String? = when {
+    channel.isJellyfin -> "Jellyfin"
+    else -> channel.sourceProviderId?.let { providerNamesById[it] }?.takeIf { it.isNotBlank() }
+}
+
+internal fun MainActivity.streamKey(channel: Channel) = channel.id.ifBlank { channel.url }
+
+internal fun MainActivity.markStreamDead(channel: Channel) {
+    deadStreamUntil[streamKey(channel)] = System.currentTimeMillis() + DEAD_STREAM_COOLDOWN_MS
+    saveDeadStreams()
+}
+
+/** Dead marks outlive the process: a stream that was broken a minute before the app was
+ *  closed is still broken when it reopens, and an in-memory-only map handed it back as a
+ *  fresh candidate on every launch. Expired entries are dropped as they're written. */
+internal fun MainActivity.saveDeadStreams() {
+    val now = System.currentTimeMillis()
+    deadStreamUntil.entries.removeAll { it.value <= now }
+    val json = org.json.JSONObject()
+    deadStreamUntil.forEach { (key, until) -> json.put(key, until) }
+    prefs.edit().putString(PREF_DEAD_STREAMS, json.toString()).apply()
+}
+
+internal fun MainActivity.loadDeadStreams() {
+    val raw = prefs.getString(PREF_DEAD_STREAMS, null) ?: return
+    runCatching {
+        val json = org.json.JSONObject(raw)
+        val now = System.currentTimeMillis()
+        json.keys().forEach { key ->
+            val until = json.optLong(key)
+            if (until > now) deadStreamUntil[key] = until
+        }
+    }
+}
+
+internal fun MainActivity.isStreamDead(channel: Channel): Boolean {
+    val until = deadStreamUntil[streamKey(channel)] ?: return false
+    if (System.currentTimeMillis() >= until) {
+        deadStreamUntil.remove(streamKey(channel))
+        return false
+    }
+    return true
+}
+
+/** Retries playback with the next-best quality version of the current live channel, if
+ *  any - the one being left behind failed (that's why this got called), so it's marked
+ *  dead for a cooldown window instead of being tried again a few seconds later. */
+/** One-shot Jellyfin direct-play recovery: a source error (server read timeout, expired
+ *  direct-play URL) re-resolves the item for a fresh URL rather than erroring out - the
+ *  failed URL is short-lived and per-session, so a fresh resolveStream is the right fix. */
+internal fun MainActivity.retryJellyfinPlayback() {
+    val channel = nowPlayingChannel ?: return
+    if (!channel.isJellyfin || channel.id.isBlank()) return
+    jellyfinRetryAttempted = true
+    scope.launch {
+        val startAt = playerManager.currentPosition
+        val jellyfin = jellyfinClientOrConnect()
+        val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
+            runCatching { jellyfin.resolveStream(channel.id, startAt) }.getOrNull()
+        }
+        if (nowPlayingChannel?.id != channel.id) return@launch
+        playerManager.playUrl(
+            resolved?.url ?: channel.url,
+            channel.streamUserAgent,
+            subtitles = resolved?.let(::externalSubtitlesFor) ?: emptyList(),
+            startPositionMs = startAt,
+            preferAudioLanguage = channel.mediaType != MediaType.LIVE
+        )
+        jellyfinPlaySession = resolved
+        jellyfinPlayingItemId = channel.id
+    }
+}
+
+internal fun MainActivity.tryNextQualityVersion(message: String = "Switching to alternate quality…"): Boolean {
+    if (nowPlayingChannel?.mediaType != MediaType.LIVE) return false
+    currentVersionGroup.getOrNull(currentVersionIndex)?.let { markStreamDead(it) }
+    var nextIndex = currentVersionIndex + 1
+    while (nextIndex < currentVersionGroup.size && isStreamDead(currentVersionGroup[nextIndex])) nextIndex++
+    if (nextIndex >= currentVersionGroup.size) return false
+    switchToVersionIndex(nextIndex, message)
+    return true
+}
+
+/** Swaps playback to an arbitrary version within the current channel's merged quality/source
+ *  group - used both for manual picks (showLiveVersionPicker) and auto-failover (above). */
+internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = null) {
+    if (index !in currentVersionGroup.indices) return
+    currentVersionIndex = index
+    val next = currentVersionGroup[index]
+    resetStallTracking()
+    beginStreamAttempt()
+    startBlackFrameWatch()
+    binding.playerAspectContainer.videoAspectRatio = 0f
+    binding.playerChannelName.text = next.name
+    Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
+    binding.bufferingSpinner.visibility = View.VISIBLE
+    playerManager.playUrl(
+        next.url,
+        next.streamUserAgent,
+        preferAudioLanguage = next.mediaType != MediaType.LIVE
+    )
+}
+
+/** Lets the user manually pick a specific version of whatever's playing - the auto-picked
+ *  one isn't always the working one (a live channel's best quality can be the one that
+ *  buffers or is geo-blocked; a film's first source can be dead; one provider's copy of a
+ *  show can have a broken or incomplete episode list).
+ *
+ *  Three shapes behind one button, because "version" means something different per type:
+ *  live/film versions are alternate streams of the same item, swapped in place; a series
+ *  episode's alternatives live in another provider's separate episode list, which has to
+ *  be fetched and matched by season/episode before there's anything to play. */
+internal fun MainActivity.showVersionPicker() {
+    val playing = nowPlayingChannel ?: return
+    when {
+        playing.mediaType == MediaType.LIVE -> {
+            if (currentVersionGroup.size <= 1) {
+                Toast.makeText(this, "No other versions of this channel", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val labels = currentVersionGroup.map { it.name }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Channel Version")
+                .setSingleChoiceItems(labels, currentVersionIndex) { dialog, which ->
+                    switchToVersionIndex(which)
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+        currentSeriesVersionContext != null -> showSeriesVersionPicker(playing)
+        else -> showFilmVersionPicker(playing)
+    }
+}
+
+/** Alternate sources for the film that's playing. filmVersions is keyed by the group's
+ *  representative, and the thing playing may itself be a non-representative version
+ *  (picked from the detail screen's chips), so the group is found by membership. */
+internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
+    val group = filmVersions[playing.id]
+        ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
+        ?: emptyList()
+    if (group.size <= 1) {
+        Toast.makeText(this, "No other versions of this title", Toast.LENGTH_SHORT).show()
+        return
+    }
+    val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
+    val currentIndex = group.indexOfFirst { it.id == playing.id }
+    // The replacement is a different item with its own saved-position key, so the current
+    // position is carried across by hand - otherwise switching source mid-film restarts it.
+    val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
+    AlertDialog.Builder(this)
+        .setTitle("Version")
+        .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
+            dialog.dismiss()
+            if (which != currentIndex) showPlayerFor(group[which], resumeFromMs = resumeMs)
+        }
+        .setNegativeButton("Cancel", null)
+        .show()
+}
+
+/** Other providers' copies of the show whose episode is playing. Each copy is a separate
+ *  catalog entry with its own episode list, so switching means fetching that list and
+ *  finding the same season/episode in it - which can legitimately fail (a provider may
+ *  simply not carry that episode), hence the explicit message rather than a silent no-op. */
+internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
+    val (series, group) = currentSeriesVersionContext ?: return
+    if (group.size <= 1) {
+        Toast.makeText(this, "No other versions of this series", Toast.LENGTH_SHORT).show()
+        return
+    }
+    val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
+    val currentIndex = group.indexOfFirst { it.id == series.id }
+    val episodeNum = playing.episodeNum
+    // An episode Channel carries its episode number but not its season, so the season is
+    // approximated by the length of the queue it came from (that queue is one season's
+    // episodes) - enough to prefer the right season when two carry the same episode
+    // number, with a plain episode-number match as the fallback.
+    val queueSeasonSize = currentEpisodeQueue.size.takeIf { it > 0 }
+    AlertDialog.Builder(this)
+        .setTitle("Series Version")
+        .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
+            dialog.dismiss()
+            if (which == currentIndex) return@setSingleChoiceItems
+            val target = group[which]
+            Toast.makeText(this, "Loading ${versionChipLabel(target, which)}…", Toast.LENGTH_SHORT).show()
+            scope.launch {
+                val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
+                val match = seasons.firstNotNullOfOrNull { (_, eps) ->
+                    eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum && (queueSeasonSize == null || eps.size == queueSeasonSize) }
+                } ?: seasons.firstNotNullOfOrNull { (_, eps) ->
+                    eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+                }
+                if (match == null) {
+                    Toast.makeText(this@showSeriesVersionPicker, "That provider doesn't have this episode", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
+                val newQueue = seasons.firstOrNull { (_, eps) -> eps.any { it.id == match.id } }?.second ?: listOf(match)
+                showPlayerFor(match, resumeFromMs = resumeMs)
+                currentEpisodeQueue = newQueue
+                currentEpisodeQueueIndex = newQueue.indexOfFirst { it.id == match.id }
+                currentSeriesVersionContext = target to group
+            }
+        }
+        .setNegativeButton("Cancel", null)
+        .show()
+}
+
+// ── Buffer-based auto-failover ─────────────────
+// onPlayerError already fails over on a hard error; this covers the "plays but
+// buffers constantly" case, which ExoPlayer never surfaces as an error at all.
+internal fun MainActivity.onBufferingStarted() {
+    if (nowPlayingChannel?.mediaType != MediaType.LIVE) return
+    // The buffering a stream does before it has ever reached READY is it starting up,
+    // not stalling. Counting it meant a launch-time tune - where the app is also parsing
+    // the channel cache and building categories, so the first fill is slow - burned
+    // through the stall threshold and failed over to version after version.
+    if (!currentStreamPlayed) return
+    if (bufferingStartMs != 0L) return
+    val now = System.currentTimeMillis()
+    bufferingStartMs = now
+    stallTimestamps.add(now)
+    stallTimestamps.removeAll { it < now - STALL_WINDOW_MS }
+    if (stallTimestamps.size >= STALL_COUNT_THRESHOLD) {
+        attemptBufferFailover()
+        return
+    }
+    mainHandler.postDelayed(longStallCheckRunnable, STALL_LONG_MS)
+}
+
+internal fun MainActivity.onBufferingEnded() {
+    bufferingStartMs = 0L
+    mainHandler.removeCallbacks(longStallCheckRunnable)
+}
+
+internal fun MainActivity.resetStallTracking() {
+    bufferingStartMs = 0L
+    stallTimestamps.clear()
+    mainHandler.removeCallbacks(longStallCheckRunnable)
+}
+
+internal fun MainActivity.attemptBufferFailover() {
+    if (nowPlayingChannel?.mediaType != MediaType.LIVE) return
+    if (withinFailoverGrace()) { resetStallTracking(); return }
+    resetStallTracking()
+    tryNextQualityVersion("Stream buffering, switching version…")
+}
+
+/** Whether the current stream is still too young to judge. Every automatic failover is a
+ *  verdict on a stream that's been given a fair chance to settle; without this the app
+ *  cycles through the whole version group in the first few seconds of a tune, each switch
+ *  restarting the clock on the next one. Hard playback errors bypass this - those are
+ *  conclusive on their own. */
+internal fun MainActivity.withinFailoverGrace(): Boolean =
+    System.currentTimeMillis() - currentStreamStartMs < FAILOVER_GRACE_MS
+
+/** Marks the start of a playback attempt for failover purposes. */
+internal fun MainActivity.beginStreamAttempt() {
+    currentStreamStartMs = System.currentTimeMillis()
+    currentStreamPlayed = false
+}
+
+// ── Black-frame auto-failover ──────────────────
+// A dead feed sometimes never stalls or errors at all - the server just serves a
+// technically-valid, steadily-decoding encode of a blank black frame instead, so
+// neither onPlayerError nor the buffer-stall watchdog above ever fires. Sample the
+// actual rendered surface periodically and treat sustained near-black output as a
+// dead feed too.
+internal fun MainActivity.startBlackFrameWatch() {
+    if (isDestroyed) return
+    blackFrameStreak = 0
+    mainHandler.removeCallbacks(blackFrameCheckRunnable)
+    mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
+}
+
+internal fun MainActivity.checkForBlackFrame() {
+    if (nowPlayingChannel?.mediaType != MediaType.LIVE || !isPlayerVisible || !playerManager.isPlaying) {
+        mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
+    val surfaceView = binding.playerSurface
+    if (surfaceView.width <= 0 || surfaceView.height <= 0) {
+        mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
+    val sample = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888)
+    try {
+        PixelCopy.request(surfaceView, sample, { result ->
+            if (isDestroyed || !isPlayerVisible) { sample.recycle(); return@request }
+            val isBlack = result == PixelCopy.SUCCESS && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+            sample.recycle()
+            blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
+            if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD && !withinFailoverGrace()) {
+                blackFrameStreak = 0
+                if (!tryNextQualityVersion("Channel appears offline, switching version…")) {
+                    Toast.makeText(this, "Channel appears offline", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+            }
+        }, mainHandler)
+    } catch (e: Exception) {
+        sample.recycle()
+        mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+    }
+}
+
+internal fun MainActivity.averageLuma(bitmap: Bitmap): Int {
+    val w = bitmap.width
+    val h = bitmap.height
+    val pixels = IntArray(w * h)
+    bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+    var sum = 0L
+    for (p in pixels) {
+        sum += (((p shr 16) and 0xFF) + ((p shr 8) and 0xFF) + (p and 0xFF)) / 3
+    }
+    return if (pixels.isNotEmpty()) (sum / pixels.size).toInt() else 0
+}
+
+/** Same black-frame detection as fullscreen playback, but for the muted inline preview
+ *  player used while browsing the guide - it plays a version group's best entry same as
+ *  fullscreen, so it can hit the exact same dead/blank-feed case, silently (no Toast,
+ *  nothing to interrupt) skipping to the next non-dead version instead. */
+internal fun MainActivity.startPreviewBlackFrameWatch() {
+    previewBlackFrameStreak = 0
+    mainHandler.removeCallbacks(previewBlackFrameCheckRunnable)
+    mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
+}
+
+internal fun MainActivity.checkForPreviewBlackFrame() {
+    if (activeTab != 0 || isPlayerVisible || binding.livePreviewPane.visibility != View.VISIBLE) return
+    // Never sample while the preview player is buffering - mid-buffer frames are
+    // usually black, and a slow stall could streak past the threshold and falsely
+    // kill a healthy version. Re-arm and try again once it reaches READY.
+    val previewState = previewPlayerManager?.playbackState
+    if (previewState == null || previewState == Player.STATE_BUFFERING) {
+        mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
+    val textureView = binding.previewSurface
+    if (!textureView.isAvailable) {
+        mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
+    val sample = runCatching { textureView.getBitmap(32, 18) }.getOrNull()
+    val isBlack = sample != null && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+    sample?.recycle()
+    previewBlackFrameStreak = if (isBlack) previewBlackFrameStreak + 1 else 0
+    if (previewBlackFrameStreak < BLACK_FRAME_STREAK_THRESHOLD) {
+        mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
+    previewBlackFrameStreak = 0
+    previewVersionGroup.getOrNull(previewVersionIndex)?.let { markStreamDead(it) }
+    var nextIndex = previewVersionIndex + 1
+    while (nextIndex < previewVersionGroup.size && isStreamDead(previewVersionGroup[nextIndex])) nextIndex++
+    if (nextIndex >= previewVersionGroup.size) return // nothing else to try - leave it, stop watching
+    previewVersionIndex = nextIndex
+    val next = previewVersionGroup[nextIndex]
+    ensurePreviewPlayer().playUrl(next.url, next.streamUserAgent)
+    mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+}
+
+/** Live channels are never resumable; movies/episodes are, once far enough in. */
+internal fun MainActivity.maybeShowResumePrompt() {
+    // An auto-advanced episode should just start from its beginning - no resume
+    // question. Consume the suppression either way so it never leaks into a later,
+    // user-initiated play.
+    if (skipResumePrompt) {
+        skipResumePrompt = false
+        return
+    }
+    if (resumePromptShown) return
+    val channel = nowPlayingChannel ?: return
+    if (channel.mediaType == MediaType.LIVE) return
+    val key = channel.id.ifBlank { channel.url }
+    val saved = PlaybackPositionStore.get(this, key) ?: return
+    if (saved.isNearComplete || saved.positionMs < 5000) return
+    resumePromptShown = true
+
+    playerManager.pause()
+    AlertDialog.Builder(this)
+        .setTitle("Resume playback?")
+        .setMessage("Continue from ${formatTime(saved.positionMs)}?")
+        .setPositiveButton("Resume") { _, _ -> playerManager.seekTo(saved.positionMs); playerManager.play() }
+        .setNegativeButton("Start Over") { _, _ -> playerManager.seekTo(0); playerManager.play() }
+        .setCancelable(false)
+        .show()
+}
+
+internal fun MainActivity.saveCurrentPlaybackPosition() {
+    val channel = nowPlayingChannel ?: return
+    if (channel.mediaType == MediaType.LIVE) return
+    if (isAdultCategory(channel.categoryName, channel.group)) return
+    val dur = playerManager.duration
+    val pos = playerManager.currentPosition
+    if (pos == androidx.media3.common.C.TIME_UNSET || pos < 0) return
+    if (dur <= 0) return
+    val key = channel.id.ifBlank { channel.url }
+    // Jellyfin episodes carry no series id of their own (toChannel drops it), so stamp
+    // the parent series id here - the detail page sets currentSeriesVersionContext for
+    // its plays - letting a later Continue Watching click resolve the series page.
+    // Movies and live channels are untouched.
+    val saveChannel = if (channel.mediaType == MediaType.SERIES) {
+        channel.copy(categoryId = channel.categoryId ?: currentSeriesVersionContext?.first?.id)
+    } else channel
+    PlaybackPositionStore.save(this, key, pos, dur, saveChannel)
+}
+
+internal fun MainActivity.hidePlayer() {
+    saveCurrentPlaybackPosition()
+    // Watched state may have moved during playback - the Home up-next memo is stale.
+    clearUpNextMemo()
+    // Before nowPlayingChannel is cleared: the server turns this final position into a
+    // watched mark or a resume point, and closes out any transcode it started.
+    if (reportJellyfinStopped()) refreshJellyfinRowsAfterPlayback()
+    hideTrickplayPreview()
+    // What was playing is the best preview target when nothing in the guide was ever
+    // focused - a launch that resumes straight into the player never fires a focus
+    // event, so lastFocusedLiveChannel is null and the preview pane came back blank.
+    val wasPlaying = nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE }
+    isPlayerVisible = false
+    nowPlayingChannel = null
+    binding.playerLayout.visibility = View.GONE
+    binding.mainContent.visibility = View.VISIBLE
+    binding.playerLayout.keepScreenOn = false
+    mainHandler.removeCallbacks(hideControlsRunnable)
+    // A fresh player session starts with the side menu tucked away - kill any
+    // in-flight slide animation and reset the transform it left behind.
+    binding.playerSideMenu.animate().cancel()
+    binding.playerSideMenu.visibility = View.GONE
+    binding.playerSideMenu.translationX = 0f
+    sideMenuCategoryWidthAnimator?.cancel()
+    sideMenuCategoryWidthAnimator = null
+    sideMenuCategoriesExpanded = false
+    sideMenuChannelCategory = null
+    sideMenuChannelRows = emptyList()
+    sideMenuColumnBusy = false
+    // The catalog can change between sessions (refresh, provider toggled) - next
+    // player session rebuilds rather than serving stale category rows.
+    sideMenuCategoryCache.clear()
+    binding.sideMenuCategoryPanel.visibility = View.GONE
+    binding.sideMenuCategoryPanel.updateLayoutParams<ViewGroup.LayoutParams> { width = 0 }
+    mainHandler.removeCallbacks(progressRunnable)
+    mainHandler.removeCallbacks(longStallCheckRunnable)
+    mainHandler.removeCallbacks(blackFrameCheckRunnable)
+    mainHandler.removeCallbacks(upNextTickRunnable)
+    playerManager.stop()
+    sleepTimer.stop()
+    // A plugin-served stream (Find Stream) keeps a torrent + local server alive for as long
+    // as we're playing its URL - release it now.
+    activeTorrentSession?.let { engine -> Thread { runCatching { engine.stop() } }.start() }
+    activeTorrentSession = null
+    TorrentForegroundService.stop(this)
+    if (isCastManagerReady) castManager.stopCasting()
+    if (activeTab == 0) {
+        showLivePreviewPane()
+        val previewTarget = lastFocusedLiveChannel ?: wasPlaying
+        previewTarget?.let { requestPreviewLoad(it) }
+        // Backing out lands in the channel's own dynamic row (Sports/News bucket, brand
+        // row, Jellyfin) when it belongs to one - that's the list it was picked from, so
+        // returning to whatever filter happened to be selected loses the user's place.
+        val dynamicRow = previewTarget?.let { dynamicCategoryFor(it) }
+        if (dynamicRow != null && dynamicRow.id != selectedRowId) {
+            selectedShelfItems = null
+            selectedRowId = dynamicRow.id
+            selectedCategoryLabel = dynamicRow.name
+            selectedBrandChannelIds = dynamicRow.channelIds.ifEmpty { null }
+            selectedCategoryIds = if (dynamicRow.channelIds.isNotEmpty()) null else dynamicRow.matchIds
+            // Scroll only once the new filter's list is in place - the position of the
+            // channel is meaningless against the outgoing one.
+            scope.launch {
+                // The row can be a brand row inside a collapsed bucket, in which case
+                // selecting it without expanding its parent highlights nothing.
+                if (categoryAdapter.currentList.none { it.id == dynamicRow.id }) {
+                    parentOfCategoryRow(dynamicRow.id)?.let { parentId ->
+                        expandedGroupKeys.add(parentId)
+                        rebuildCategoriesForActiveTab()
+                    }
+                }
+                categoryAdapter.setSelected(selectedRowId)
+                applyCategoryFilter()
+                previewTarget.let { scrollLiveListTo(it) }
+            }
+        } else {
+            // Scroll the channel list so the last-watched channel is visible when
+            // the player closes, instead of showing the first channel (which
+            // applyCategoryFilter scrolled to on tab switch). The list may have a
+            // category filter active, so find the position in the adapter list
+            // rather than assuming liveChannels order.
+            previewTarget?.let { scrollLiveListTo(it) }
+        }
+    }
+    // Whatever just finished playing may have changed Continue Watching - refresh
+    // Home so it's not stale until the next unrelated rebuild happens to touch it.
+    if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+    // Same for the Series poster shelf and its Continue Watching row.
+    refreshSeriesShelvesIfShowing()
+    // Backing out of a film or an episode lands on that title's poster - the screen it was
+    // started from - instead of the grid behind it, which is several D-pad moves and a
+    // scroll position away from where the user actually was.
+    val returnTo = detailReturnItem
+    val returnGroup = detailReturnGroup
+    detailReturnItem = null
+    detailReturnGroup = null
+    if (returnTo != null) {
+        showContentDetail(returnTo, returnGroup)
+        return
+    }
+    restoreTabFocus()
+}
