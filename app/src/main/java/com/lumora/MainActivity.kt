@@ -1173,6 +1173,27 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+        // Two-stage OK while fullscreen: first press only reveals the controls, a second one
+        // (on the play/pause button they land focus on) is what actually pauses. Glancing at
+        // the clock or the now-playing programme is then free - on LIVE especially, where an
+        // unwanted pause costs a rebuffer on resume.
+        //
+        // This has to sit in dispatchKeyEvent, not onKeyDown: showControls() focuses
+        // btnPlayPause, and that focus outlives the overlay going GONE on auto-hide, so the
+        // next OK reaches the button's click listener and the Activity-level reveal branch
+        // never runs. Claiming the key before it is dispatched to any view is the only place
+        // that holds regardless of what happens to be focused behind the hidden overlay.
+        // Every action (down, up, repeats) is swallowed so the reveal press can't also click
+        // whatever it just focused. Up Next is excluded - its card owns focus while the
+        // controls are hidden and OK there means "play the next episode now".
+        if (isPlayerVisible && !isPlayerSideMenuOpen() && !upNextActive &&
+            binding.controlsOverlay.visibility != View.VISIBLE &&
+            (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                event.keyCode == android.view.KeyEvent.KEYCODE_ENTER)
+        ) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) showControls()
+            return true
+        }
         if (event.action == android.view.KeyEvent.ACTION_DOWN && event.keyCode == android.view.KeyEvent.KEYCODE_SEARCH) {
             // Many TV/Fire remotes carry a magnifier key; map it straight to search. Not
             // while the player is up (a stray press mid-playback shouldn't drop the video)
@@ -3147,6 +3168,10 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, true).apply()
         applySidebarVisibility(tabWantsSidebar = true)
         binding.sidebarExpandButton.requestFocus()
+        // Names the way back at the one moment the user is guaranteed to be looking at this
+        // corner of the screen - an accidental collapse otherwise reads as a dead end, since
+        // the rail vanishing is a big change and the pill replacing it is a small one.
+        Toast.makeText(this, R.string.categories_hidden_hint, Toast.LENGTH_SHORT).show()
     }
 
     private data class CategoryBuildResult(
@@ -5972,7 +5997,10 @@ class MainActivity : AppCompatActivity() {
     // ── Player ─────────────────────────────────────
 
     private fun setupPlayerControls() {
-        binding.btnPlayPause.setOnClickListener { playerManager.togglePlayPause(); updatePlayPauseIcon() }
+        // showControls() here restarts the 4s auto-hide: this button consumes the OK press
+        // itself, so the Activity-level timer refresh in onKeyDown never sees it, and the
+        // bar would otherwise vanish right after the press that paused.
+        binding.btnPlayPause.setOnClickListener { playerManager.togglePlayPause(); updatePlayPauseIcon(); showControls() }
         binding.btnPrevChannel.setOnClickListener { navigateChannel(-1) }
         binding.btnNextChannel.setOnClickListener { navigateChannel(1) }
         binding.btnBack.setOnClickListener { hidePlayer(); restoreSearchIfPending() }
@@ -6194,8 +6222,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                playerManager.togglePlayPause()
-                updatePlayPauseIcon()
+                // Same two-stage rule as the remote's OK (see dispatchKeyEvent): a tap only
+                // shows/hides the controls, pausing is the explicit play/pause button.
                 toggleControls()
                 return true
             }

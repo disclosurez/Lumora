@@ -179,6 +179,11 @@
     <string name="playback_settings">Playback settings</string>
     <string name="hide_non_english">Hide non-English movies/series</string>
     <string name="hide_adult_categories">Hide adult categories</string>
+    <!-- Collapsed category rail: the pill that brings it back, and the one-shot hint shown
+         at the moment of collapse so the way back is never something to hunt for. -->
+    <string name="categories">Categories</string>
+    <string name="show_categories">Show categories</string>
+    <string name="categories_hidden_hint">Categories hidden — tap “Categories” to show</string>
     <string name="categorize_live">Categorize live TV</string>
     <string name="categorize_vod">Categorize movies &amp; series</string>
     <string name="group_channels">Group duplicate channels</string>
