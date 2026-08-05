@@ -119,6 +119,8 @@
          its own overflow - straight under the Settings/Refresh cluster. -->
     <dimen name="tab_padding_horizontal">10dp</dimen>
     <dimen name="tab_padding_vertical">13dp</dimen>
+    <!-- Nudges the Live TV tab a tiny bit right, away from the brand mark, at TV scale. -->
+    <dimen name="tab_live_start_gap">6dp</dimen>
     <dimen name="poster_title_text">13sp</dimen>
     <dimen name="poster_title_outline_width">0.9dp</dimen>
     <dimen name="poster_badge_text">10sp</dimen>
@@ -177,6 +179,9 @@
     <!-- TV tier: toolbar_padding_horizontal is 28dp, so -14dp leaves the brand ~14dp
          from the screen edge, corner-hugged with its top edge. -->
     <dimen name="toolbar_brand_translate_x">-14dp</dimen>
+    <!-- Nudges the brand mark up slightly so it doesn't crowd the tab row beneath it at
+         TV scale. -->
+    <dimen name="toolbar_brand_translate_y">-4dp</dimen>
     <dimen name="toolbar_padding_horizontal">28dp</dimen>
     <!-- TV tier of the toolbar cluster spacing - see values/dimens.xml. Slightly wider than
          phone: the buttons are aimed at a remote across a room, and the panel has room to

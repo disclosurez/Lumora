@@ -221,9 +221,8 @@ internal const val NEWEST_CATEGORY_ID = "__newest__"
  *  are not seriesList members (a grid-filter on seriesList would come up empty). */
 internal const val CONTINUE_WATCHING_CATEGORY_ID = "__continue_watching__"
 internal const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
-/** Phone-only sidebar utility row that collapses the category rail; persisted so the rail
- *  stays collapsed across launches. Never built on TV (see buildCategoryRows), and always
- *  gated on !isTv at behavior time too - a pref set on a phone must not collapse a TV. */
+/** Sidebar utility row that collapses the category rail; persisted so the rail stays
+ *  collapsed across launches. */
 internal const val COLLAPSE_CATEGORIES_TOGGLE_ID = "__collapse_categories__"
 internal const val PREF_CATEGORY_SIDEBAR_COLLAPSED = "category_sidebar_collapsed"
 /** Rows that act on the rail itself rather than filtering it. They must never be hideable:

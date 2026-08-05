@@ -289,7 +289,7 @@ internal fun MainActivity.submitCategories(categories: List<CategoryFilter>) {
     // the categories were built for - and the sidebar must not reappear over a pane that
     // never had one.
     val onCategorizedTab = !showingHome && !showingDiscover && !showingDownloads && !showingCatchup
-    // Phone-only collapse composes on top of the tab-context decision here - this is the
+    // Collapse composes on top of the tab-context decision here - this is the
     // single canonical re-show point for the rail, so the collapsed pref applies
     // everywhere a tab is (re)built (tab switch, category rebuild, catalog refresh).
     applySidebarVisibility(onCategorizedTab && categories.size > 1)
@@ -303,28 +303,51 @@ internal fun MainActivity.submitCategories(categories: List<CategoryFilter>) {
     }
 }
 
-/** Whether the category rail is collapsed on this device: a persisted phone-only pref,
- *  never active on TV (the collapse row isn't even built there). */
+/** Whether the category rail is collapsed on this device: a persisted pref. */
 internal fun MainActivity.isSidebarCollapsed(): Boolean =
-    !isTv && prefs.getBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false)
+    prefs.getBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false)
+
+/** Base (XML) paddingTop of each content view, recorded the first time this device
+ *  touches it - so the reserve added below can be undone exactly rather than guessed. */
+private val contentBasePaddingTop = mutableMapOf<View, Int>()
 
 /** Single place that decides the sidebar's visibility for a categorized tab: the
  *  tab-context decision (categorized tab with more than one row) comes in as
- *  [tabWantsSidebar], and the phone-only collapse pref composes on top. Also drives the
- *  re-expand affordance, which only exists when a categorized tab's rail is collapsed. */
+ *  [tabWantsSidebar], and the collapse pref composes on top. Also drives the
+ *  re-expand affordance, which only exists when a categorized tab's rail is collapsed.
+ *
+ *  The re-expand pill floats over the content (see sidebarExpandButton's layout doc),
+ *  and every content view's top row starts within a few dp of the top edge - collapsing
+ *  used to drop the pill straight on top of the first channel/poster. Reserving the
+ *  pill's footprint as extra top padding on the now-visible content keeps it in its own
+ *  space instead of overlapping a real row. Live TV reserves on liveGuideColumn (the
+ *  ruler + guide together), not liveContent alone - liveContent already sits below the
+ *  ruler, so padding it left the ruler itself, and the pill riding above it, untouched. */
 internal fun MainActivity.applySidebarVisibility(tabWantsSidebar: Boolean) {
     val collapsed = isSidebarCollapsed()
     binding.categorySidebar.visibility = if (tabWantsSidebar && !collapsed) View.VISIBLE else View.GONE
     binding.sidebarExpandButton.visibility = if (tabWantsSidebar && collapsed) View.VISIBLE else View.GONE
+    if (tabWantsSidebar) {
+        val content: View = when (activeTab) {
+            1 -> binding.seriesContent
+            2 -> binding.filmsContent
+            else -> binding.liveGuideColumn
+        }
+        val baseTop = contentBasePaddingTop.getOrPut(content) { content.paddingTop }
+        val reservePx = (56 * resources.displayMetrics.density).toInt()
+        val newTop = if (collapsed) baseTop + reservePx else baseTop
+        if (content.paddingTop != newTop) {
+            content.setPadding(content.paddingLeft, newTop, content.paddingRight, content.paddingBottom)
+        }
+    }
 }
 
-/** Collapses the category rail on this phone: the current selection/filter stays applied
+/** Collapses the category rail: the current selection/filter stays applied
  *  (no applyCategoryFilter call - only the rail hides), the state persists, and focus
  *  moves to the re-expand button since the focused sidebar row is about to disappear.
  *  Landing on the button (rather than the content's first row) keeps the content's
  *  scroll position untouched - focusing a scrolled-off item would yank the list to it. */
 internal fun MainActivity.collapseCategorySidebar() {
-    if (isTv) return
     prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, true).apply()
     applySidebarVisibility(tabWantsSidebar = true)
     binding.sidebarExpandButton.requestFocus()
@@ -766,11 +789,10 @@ internal fun MainActivity.buildCategoryRows(
                 if (parent.expanded) result.addAll(children)
             }
         }
-        if (tab != 0 && !isTv) {
-            // Phone-only sidebar collapse utility row, mirroring the classic-layout
-            // toggle (count = -1 so no shelf/count machinery treats it as a category,
-            // and it's in NON_PINNABLE_CATEGORY_IDS so it gets no star). TV never gets
-            // the row - the rail is the primary nav surface there.
+        if (tab != 0) {
+            // Sidebar collapse utility row, mirroring the classic-layout toggle
+            // (count = -1 so no shelf/count machinery treats it as a category, and
+            // it's in NON_PINNABLE_CATEGORY_IDS so it gets no star).
             result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
         }
         if (tab != 0) result.add(allRow)
@@ -785,9 +807,7 @@ internal fun MainActivity.buildCategoryRows(
                         count = -1
                     )
                 )
-                if (!isTv) {
-                    result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
-                }
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
             } else {
                 result.add(
                     CategoryFilter(
@@ -796,9 +816,7 @@ internal fun MainActivity.buildCategoryRows(
                         count = -1
                     )
                 )
-                if (!isTv) {
-                    result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
-                }
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
             }
         }
         // Pinned (favourite) categories always come first - above dynamic clusters,
@@ -1649,4 +1667,4 @@ internal fun MainActivity.formatTime(ms: Long): String {
 
 /** Bumped whenever buildCategoryRows' output changes shape - see the rows fingerprint.
  *  2: utility rows (collapse rail / classic layout) became un-hideable. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 2
+private const val CATEGORY_ROWS_LOGIC_VERSION = 3

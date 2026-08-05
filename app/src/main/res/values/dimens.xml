@@ -84,6 +84,9 @@
          tab bar itself is wrap_content around them - so the row's height is a function of
          tab_text, not a fixed bar the labels happen to sit inside. -->
     <dimen name="tab_padding_vertical">12dp</dimen>
+    <!-- Extra gap before the first (Live TV) tab, TV tier only (see values-sw540dp) - zero
+         here, the brand's own translationX already sets the phone spacing. -->
+    <dimen name="tab_live_start_gap">0dp</dimen>
     <dimen name="poster_title_text">10sp</dimen>
     <dimen name="poster_title_outline_width">0.7dp</dimen>
     <dimen name="poster_badge_text">8sp</dimen>
@@ -167,6 +170,9 @@
          tier (padding minus the 14dp target): base padding 20dp -> -6dp. translationX
          moves only the icon - the tabs keep their laid-out position. -->
     <dimen name="toolbar_brand_translate_x">-6dp</dimen>
+    <!-- Post-layout vertical nudge for the brand icon, TV tier only (see values-sw540dp) -
+         zero here since the phone brand already sits flush against the row's top edge. -->
+    <dimen name="toolbar_brand_translate_y">0dp</dimen>
     <dimen name="toolbar_padding_horizontal">20dp</dimen>
     <!-- Gap between the three toolbar cluster buttons (search/settings/refresh) and the air
          after the last one. Was a 4dp literal on settings/refresh with nothing on the right;

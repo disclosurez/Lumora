@@ -67,7 +67,8 @@
                     android:contentDescription="@string/app_name"
                     android:src="@drawable/ic_toolbar_brand"
                     android:tint="@color/text_primary"
-                    android:translationX="@dimen/toolbar_brand_translate_x" />
+                    android:translationX="@dimen/toolbar_brand_translate_x"
+                    android:translationY="@dimen/toolbar_brand_translate_y" />
 
                 <!-- Tab scroller: Home | Live | Series | Films | Discover (+ Downloads on
                      phones) with D-pad focus (pill segmented control). weight=1 makes it
@@ -116,6 +117,7 @@
                 android:id="@+id/tabLive"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/tab_live_start_gap"
                 android:layout_marginEnd="3dp"
                 android:background="@drawable/bg_tab_item"
                 android:clickable="true"
@@ -943,6 +945,7 @@
                          disabled both flags; without them here too, its parent clipped what
                          it had allowed through. -->
                     <LinearLayout
+                        android:id="@+id/liveGuideColumn"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:clipChildren="false"
