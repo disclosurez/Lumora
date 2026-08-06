@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.3
+
+### Playback
+- **Streams the device can't decode can be handed to another player.** Hardware without a Dolby licence has no AC3/E-AC3 decoder, so those channels played with picture and no sound and nothing said why. There's now an **Open in** button in the player controls, and Lumora offers the hand-off by itself when it detects the audio can't be decoded, when playback errors out with no other version to fall back on, or when a stream keeps buffering with nowhere left to fail over to. Position, title and stream headers travel with it; downloads are handed over as a readable content URI.
+- Pick a default player (VLC, MX Player, Just Player…) or be asked each time, in **Settings → Playback Settings**. The offer can be turned off there too.
+- **LEFT no longer flies the side menu out** while you're moving along the player's controls bar.
+
+### Discover
+- **Titles match your library properly.** "The Odyssey" no longer resolves to "NF - Troy The Odyssey" — matching is exact against a de-decorated name, with sequel markers excluded, instead of accepting any entry that happened to contain the title.
+- **Every copy is found, not just the first.** A series held on both Jellyfin and an IPTV provider showed only one of them, and the other was unreachable — including the case where Jellyfin had the season the IPTV copy was missing.
+- **Tiles say where a title comes from** — Jellyfin, IPTV, or both — and the info dialog names the actual sources.
+- Opening a series from Discover now carries its version chips, so you can switch source without leaving the page, and its **seasons and episodes are selectable** (the D-pad landed nowhere before).
+
+### Browsing
+- **Portrait phones hide the category rail by default**, with a wider rail and longer names when you open it — category names were cutting off to near-identical prefixes.
+- **Settings and Refresh joined the tab bar** instead of sitting in a separate cluster.
+- **Back out of a film or series returns you to its poster**, at the scroll position you left, rather than to the top of the tab.
+
 ## 3.2
 
 ### Category sidebar
