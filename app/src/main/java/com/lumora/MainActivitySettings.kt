@@ -787,6 +787,8 @@ internal fun MainActivity.showProviderSettings() {
     dialogView.findViewById<View>(R.id.settingsDecoderMode).setOnClickListener {
         val settings = decoderManager.getSettings()
         val items = arrayOf(
+            "External player: ${externalPlayerSummary(this)}",
+            "Suggest external player on problems: ${if (prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)) "ON" else "OFF"}",
             "Decoder: ${settings.decoderMode.label}",
             "Buffer: ${settings.bufferMode.label}",
             "Surface: ${settings.surfaceMode.label}",
@@ -796,10 +798,16 @@ internal fun MainActivity.showProviderSettings() {
             .setTitle("Playback Settings")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> { val m = decoderManager.cycleDecoderMode(); Toast.makeText(this@showProviderSettings, "Decoder: ${m.label}", Toast.LENGTH_SHORT).show() }
-                    1 -> { val m = decoderManager.cycleBufferMode(); Toast.makeText(this@showProviderSettings, "Buffer: ${m.label}", Toast.LENGTH_SHORT).show() }
-                    2 -> { /* cycle surface mode */ Toast.makeText(this@showProviderSettings, "Surface mode changed", Toast.LENGTH_SHORT).show() }
-                    3 -> { val s = settings.copy(enableFfmpeg = !settings.enableFfmpeg); decoderManager.save(s); Toast.makeText(this@showProviderSettings, "FFmpeg: ${if (s.enableFfmpeg) "ON" else "OFF"}", Toast.LENGTH_SHORT).show() }
+                    0 -> chooseDefaultExternalPlayer()
+                    1 -> {
+                        val on = !prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)
+                        prefs.edit().putBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, on).apply()
+                        Toast.makeText(this@showProviderSettings, "Suggest external player: ${if (on) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> { val m = decoderManager.cycleDecoderMode(); Toast.makeText(this@showProviderSettings, "Decoder: ${m.label}", Toast.LENGTH_SHORT).show() }
+                    3 -> { val m = decoderManager.cycleBufferMode(); Toast.makeText(this@showProviderSettings, "Buffer: ${m.label}", Toast.LENGTH_SHORT).show() }
+                    4 -> { /* cycle surface mode */ Toast.makeText(this@showProviderSettings, "Surface mode changed", Toast.LENGTH_SHORT).show() }
+                    5 -> { val s = settings.copy(enableFfmpeg = !settings.enableFfmpeg); decoderManager.save(s); Toast.makeText(this@showProviderSettings, "FFmpeg: ${if (s.enableFfmpeg) "ON" else "OFF"}", Toast.LENGTH_SHORT).show() }
                 }
             }
             .setPositiveButton("Close", null)

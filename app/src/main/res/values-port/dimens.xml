@@ -6,7 +6,14 @@
     <!-- Portrait phone screens are typically 360-430dp wide - the TV-sized 240dp sidebar
          plus a 144dp fixed guide column left near nothing for actual content, causing
          cutoff/overlap. Scale everything down to fit a phone-width screen. -->
-    <dimen name="category_sidebar_width">140dp</dimen>
+    <!-- 140dp left ~80dp of text per row (star + row padding + margins eat 60 of it), which
+         at 10sp is ~14 characters - most provider category names ellipsised to a prefix.
+         The rail is hidden by default in portrait now (see isSidebarCollapsed), so the space
+         it costs the content is only spent while the user is actually picking a category:
+         widen it, tighten the row padding, and let a name wrap to a third line. -->
+    <dimen name="category_sidebar_width">176dp</dimen>
+    <dimen name="category_row_padding_horizontal">6dp</dimen>
+    <integer name="category_row_max_lines">3</integer>
     <dimen name="live_preview_width">140dp</dimen>
     <dimen name="live_preview_height">79dp</dimen>
     <dimen name="guide_channel_column_width">150dp</dimen>

@@ -66,6 +66,9 @@
     <!-- Floor only - the row is wrap_content and normally taller than this on its own. -->
     <dimen name="guide_row_min_height">34dp</dimen>
     <dimen name="category_row_padding_horizontal">10dp</dimen>
+    <!-- How far a long category name may wrap before it ellipsises. Portrait phones get a
+         third line (values-port) - the rail is narrowest exactly where names are longest. -->
+    <integer name="category_row_max_lines">2</integer>
 
     <!-- Toolbar / tab bar / poster grid. Padding shrinks on TV as the type grows: the tabs
          are a fixed-width row of five, so 36dp of padding either side of much larger labels

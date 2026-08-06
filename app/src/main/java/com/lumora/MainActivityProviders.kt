@@ -53,10 +53,38 @@ internal fun MainActivity.hasProviderEnabled(): Boolean =
  *  refresh stay visible so the user can always get back to configuring one. */
 internal fun MainActivity.updateTopChromeVisibility() {
     val enabled = hasProviderEnabled() || enabledStreamSearchPlugin() != null
-    binding.tabBar.visibility = if (enabled) View.VISIBLE else View.GONE
-    binding.btnSearch.visibility = if (enabled) View.VISIBLE else View.GONE
     if (!enabled) binding.homeSearchBar.visibility = View.GONE
+    // Every tab/search visibility rule now lives in applySimpleModeUi() - it recomputes the
+    // same "is there anything to browse" flag, and it must have the last word anyway.
     applySimpleModeUi()
+}
+
+/** Blanket show/hide of the scroller's browsing items - the tabs plus the Search pill.
+ *  Settings and Refresh sit in the same scroller now (so the chrome reads as one bar), so
+ *  hiding the scroller would take them with it, and "no provider" is exactly the state
+ *  where Settings must stay reachable. Showing is only lifting the blanket hide: the
+ *  per-item rules (Downloads is phone-only, Catch Up needs an archive, simple mode shows
+ *  Live + Catch Up alone) are re-applied by the caller straight after. */
+internal fun MainActivity.setBrowseTabsVisible(visible: Boolean) {
+    val vis = if (visible) View.VISIBLE else View.GONE
+    for (tab in listOf(
+        binding.tabHome, binding.tabLive, binding.tabCatchup, binding.tabSeries,
+        binding.tabFilms, binding.tabDiscover, binding.tabDownloads, binding.btnSearch,
+    )) {
+        tab.visibility = vis
+    }
+}
+
+/** Settings' LEFT target, which depends on what is actually on screen to its left:
+ *  Downloads (phone), else Search, else nothing left of it at all. An explicit
+ *  nextFocusLeftId pointing at a GONE view resolves to nothing and eats the press, so it
+ *  can't be left to the XML default. */
+internal fun MainActivity.updateChromeFocusChain() {
+    binding.btnSettings.nextFocusLeftId = when {
+        binding.tabDownloads.visibility == View.VISIBLE -> R.id.tabDownloads
+        binding.btnSearch.visibility == View.VISIBLE -> R.id.btnSearch
+        else -> R.id.btnSettings
+    }
 }
 
 /** Simple mode is "TV only": Live TV plus Catch Up (the same channels shifted back in
@@ -119,12 +147,16 @@ internal fun MainActivity.applySimpleModeUi() {
         // offers an archive. With no archive channels the bar has a single tab in it and
         // is worth no space, so it goes away exactly as it used to.
         val catchupAvailable = catchupChannels().isNotEmpty()
-        binding.tabBar.visibility = if (chromeUp && catchupAvailable) View.VISIBLE else View.GONE
-        for (tab in listOf(binding.tabHome, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
-            tab.visibility = View.GONE
+        // One tab is worth no bar: with no archive channels every browsing item goes,
+        // leaving just Settings/Refresh - the same screen the old "hide the tab bar"
+        // produced, now that those two live inside the scroller.
+        val showTabs = chromeUp && catchupAvailable
+        setBrowseTabsVisible(showTabs)
+        if (showTabs) {
+            for (tab in listOf(binding.tabHome, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
+                tab.visibility = View.GONE
+            }
         }
-        binding.tabLive.visibility = View.VISIBLE
-        binding.tabCatchup.visibility = if (catchupAvailable) View.VISIBLE else View.GONE
         // Live TV is the leftmost tab here, so its LEFT has nowhere to go but itself -
         // Downloads (its normal-mode target) is GONE and would eat the press.
         binding.tabLive.nextFocusLeftId = R.id.tabLive
@@ -140,21 +172,24 @@ internal fun MainActivity.applySimpleModeUi() {
             if (!showingCatchup) selectTab(0)
         }
     } else {
-        for (tab in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover)) {
-            tab.visibility = View.VISIBLE
+        setBrowseTabsVisible(chromeUp)
+        if (chromeUp) {
+            // Downloads is phone-only and Catch Up needs an archive - the blanket show
+            // above put both back, so re-apply their own rules.
+            if (isTv) binding.tabDownloads.visibility = View.GONE
+            updateCatchupTabVisibility()
         }
         // Back to the full-row chain: Live -> Series ... Home -> Catch Up -> Discover.
         binding.tabLive.nextFocusLeftId = R.id.tabDownloads
         binding.tabLive.nextFocusRightId = R.id.tabSeries
         binding.tabCatchup.nextFocusLeftId = R.id.tabHome
         binding.tabCatchup.nextFocusRightId = R.id.tabDiscover
-        updateCatchupTabVisibility()
-        binding.tabBar.visibility = if (chromeUp) View.VISIBLE else View.GONE
         // Search's LEFT joins the merged chrome row at its last tab. Downloads is
         // phone-only and GONE on TV, so Discover is the row's rightmost always-visible
         // tab on both devices.
         binding.btnSearch.nextFocusLeftId = R.id.tabDiscover
     }
+    updateChromeFocusChain()
 }
 
 /** Re-runs the provider load so the VOD gate takes effect - VOD is skipped at fetch

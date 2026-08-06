@@ -7,7 +7,8 @@
      to its padding again and the focus stroke still renders whole. Keep these >= 6% of the
      row's width/height if the type scale or padding changes.
 
-     maxLines is 2, not 1: the sidebar gives ~168dp of text at 14sp bold - about 21 characters -
+     maxLines is category_row_max_lines (2, 3 on a portrait phone), not 1: the sidebar gives
+     ~168dp of text at 14sp bold - about 21 characters -
      and provider category names ("SWEDEN TV 4 PLAY PPV VIP", "4K DOCUMENTARY/MUSIC/STAND-UP")
      routinely run past that, leaving rows that ellipsise down to near-identical prefixes.
      Wrapping roughly doubles what is readable without taking a single dp off the poster grid,
@@ -63,7 +64,7 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:fontFamily="@font/inter_medium"
-            android:maxLines="2"
+            android:maxLines="@integer/category_row_max_lines"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/category_row_text" />
     </LinearLayout>

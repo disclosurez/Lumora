@@ -377,6 +377,9 @@ internal fun MainActivity.inflateVersionChip(parent: ViewGroup, label: String): 
  *  keyed by the group's representative and a sibling isn't in it. */
 internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Channel>? = null) {
     isContentDetailVisible = true
+    // What Back should land on when this screen closes. Set before anything else so a
+    // detail re-opened on a sibling version (the chips further down) updates it too.
+    detailReturnItemId = item.id
     binding.mainContent.visibility = View.GONE
     binding.contentDetailLayout.visibility = View.VISIBLE
     applyStatus()
@@ -876,7 +879,26 @@ internal fun MainActivity.hideContentDetail() {
     nowShowingDetailId = null
     binding.contentDetailLayout.visibility = View.GONE
     binding.mainContent.visibility = View.VISIBLE
-    restoreTabFocus()
+    // Back out of a series/film and you should be standing where you left: on that poster,
+    // in that shelf, at that scroll position. The list underneath was only hidden, never
+    // rebuilt, so the view is still there to focus - restoreTabFocus() (which lands on the
+    // Series/Films tab at the top of the screen) is the fallback for when it genuinely isn't,
+    // e.g. a detail opened from search or Discover over a list that never held it.
+    val target = detailReturnItemId?.let { id -> binding.mainContent.findItemViewByChannelId(id) }
+    detailReturnItemId = null
+    if (target != null) target.post { target.requestFocus() } else restoreTabFocus()
+}
+
+/** Depth-first search for the poster tagged with [channelId] - see PosterGridAdapter.bind.
+ *  Only laid-out views are reachable this way, which is exactly the intent: a recycled item
+ *  has no view to focus and the caller falls back. */
+internal fun View.findItemViewByChannelId(channelId: String): View? {
+    if (tag == channelId && isFocusable) return this
+    if (this !is ViewGroup) return null
+    for (index in 0 until childCount) {
+        getChildAt(index).findItemViewByChannelId(channelId)?.let { return it }
+    }
+    return null
 }
 
 /**
@@ -998,7 +1020,9 @@ internal fun MainActivity.setupToolbar() {
     // sidebar (persisted pref flips back), then refocuses the row the user had selected
     // so the D-pad doesn't land them at the rail's top with their category nowhere.
     binding.sidebarExpandButton.setOnClickListener {
-        prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false).apply()
+        // Portrait's auto-hide is transient state, not the pref - see isSidebarCollapsed().
+        if (isPortraitPhone()) portraitSidebarExpanded = true
+        else prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false).apply()
         // The button is only ever visible on a categorized tab with a collapsed rail, so
         // "wants sidebar" is true by construction.
         applySidebarVisibility(tabWantsSidebar = true)

@@ -1,6 +1,7 @@
 package com.lumora
 
 import android.app.AlertDialog
+import android.content.res.Configuration
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.updateLayoutParams
 import android.view.View
@@ -303,9 +304,18 @@ internal fun MainActivity.submitCategories(categories: List<CategoryFilter>) {
     }
 }
 
-/** Whether the category rail is collapsed on this device: a persisted pref. */
+/** Phone (not TV) held in portrait - the one case where the rail is hidden by default
+ *  rather than by the user's persisted choice. */
+internal fun MainActivity.isPortraitPhone(): Boolean =
+    !isTv && resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
+/** Whether the category rail is collapsed on this device: a persisted pref, except on a
+ *  portrait phone, where the rail auto-hides and only the transient (unpersisted)
+ *  [MainActivity.portraitSidebarExpanded] can bring it back. Keeping portrait out of the
+ *  pref means hiding/showing it there never rewrites what landscape and TV see. */
 internal fun MainActivity.isSidebarCollapsed(): Boolean =
-    prefs.getBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false)
+    if (isPortraitPhone()) !portraitSidebarExpanded
+    else prefs.getBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, false)
 
 /** Base (XML) paddingTop of each content view, recorded the first time this device
  *  touches it - so the reserve added below can be undone exactly rather than guessed. */
@@ -324,6 +334,7 @@ private val contentBasePaddingTop = mutableMapOf<View, Int>()
  *  ruler + guide together), not liveContent alone - liveContent already sits below the
  *  ruler, so padding it left the ruler itself, and the pill riding above it, untouched. */
 internal fun MainActivity.applySidebarVisibility(tabWantsSidebar: Boolean) {
+    lastTabWantsSidebar = tabWantsSidebar
     val collapsed = isSidebarCollapsed()
     binding.categorySidebar.visibility = if (tabWantsSidebar && !collapsed) View.VISIBLE else View.GONE
     binding.sidebarExpandButton.visibility = if (tabWantsSidebar && collapsed) View.VISIBLE else View.GONE
@@ -348,7 +359,8 @@ internal fun MainActivity.applySidebarVisibility(tabWantsSidebar: Boolean) {
  *  Landing on the button (rather than the content's first row) keeps the content's
  *  scroll position untouched - focusing a scrolled-off item would yank the list to it. */
 internal fun MainActivity.collapseCategorySidebar() {
-    prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, true).apply()
+    if (isPortraitPhone()) portraitSidebarExpanded = false
+    else prefs.edit().putBoolean(PREF_CATEGORY_SIDEBAR_COLLAPSED, true).apply()
     applySidebarVisibility(tabWantsSidebar = true)
     binding.sidebarExpandButton.requestFocus()
     // Names the way back at the one moment the user is guaranteed to be looking at this
@@ -874,8 +886,11 @@ internal fun MainActivity.buildCategoryRows(
 /** Column count for the single-category poster grid, sized off the RecyclerView's actual
  *  width where possible (it's already laid out by the time a category gets picked). */
 internal fun MainActivity.gridSpanCount(recyclerView: RecyclerView): Int {
+    // The rail only costs the grid width while it is on screen - a portrait phone hides it
+    // by default, so subtracting it there would under-count columns before first layout.
+    val railPx = if (isSidebarCollapsed()) 0 else resources.getDimensionPixelSize(R.dimen.category_sidebar_width)
     val widthPx = recyclerView.width.takeIf { it > 0 }
-        ?: (resources.displayMetrics.widthPixels - resources.getDimensionPixelSize(R.dimen.category_sidebar_width))
+        ?: (resources.displayMetrics.widthPixels - railPx)
     val widthDp = widthPx / resources.displayMetrics.density
     // Both bounds come from resources so each device class tunes its own grid: the
     // minimum column width drops on a portrait phone (which would otherwise fit only one

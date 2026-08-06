@@ -35,6 +35,18 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/vnd.android.package-archive" />
         </intent>
+        <!-- External playback (player/ExternalPlayer.kt): without this, package visibility on
+             API 30+ hides every installed video player, so the resolve comes back empty and
+             the app would report "no player installed" on a device with VLC on it. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+        <package android:name="org.videolan.vlc" />
+        <package android:name="com.mxtech.videoplayer.pro" />
+        <package android:name="com.mxtech.videoplayer.ad" />
+        <package android:name="com.brouken.player" />
+        <package android:name="is.xyz.mpv" />
     </queries>
 
     <!-- largeHeap: merged catalogues run to six figures of Channel objects across several

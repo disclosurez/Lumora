@@ -140,6 +140,9 @@ private class ShelfPosterAdapter(
 
         fun bind(channel: Channel) {
             current = channel
+            // See PosterGridAdapter.bind - the id is what returns focus here after the
+            // detail screen closes.
+            itemView.tag = channel.id
             // VOD titles carry source/quality decoration ("4K-AMZ - ", "(US)") that reads
             // as noise on a poster - strip it for display; live names keep their country tag.
             titleText.text = if (channel.mediaType == MediaType.MOVIE || channel.mediaType == MediaType.SERIES) {

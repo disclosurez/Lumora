@@ -187,6 +187,9 @@ internal fun MainActivity.setupPlayerControls() {
         }
     }
 
+    // Hand-off to another video app - the answer for audio this device has no decoder for.
+    setupExternalPlayerButton(binding.btnExternalPlayer)
+
     // Diagnostics
     binding.btnDiagnostics.setOnClickListener {
         val snapshot = playerDiagnostics.getSnapshot()
@@ -378,9 +381,20 @@ internal fun MainActivity.setupPlayerControls() {
                 if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
                     retryJellyfinPlayback()
                 } else {
+                    // Every internal recovery is spent: version failover found nothing better
+                    // and Jellyfin's re-resolve (if any) failed too. Another player on the
+                    // device is the last thing left to try, so offer it rather than leaving
+                    // the user on a dead screen with a two-word toast.
                     Toast.makeText(this@setupPlayerControls, "Playback error", Toast.LENGTH_SHORT).show()
+                    suggestExternalPlayer("Lumora couldn't play this stream (${error.errorCodeName}).")
                 }
             }
+        }
+        override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            // Where "plays with no sound" is caught: the media has audio and this device can
+            // decode none of it (AC3/E-AC3 on hardware without a Dolby licence, typically).
+            // Nothing in ExoPlayer treats that as an error, so it has to be noticed here.
+            checkForUndecodableAudio(tracks)
         }
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updatePlayPauseIcon()
@@ -985,7 +999,11 @@ internal fun MainActivity.attemptBufferFailover() {
     if (nowPlayingChannel?.mediaType != MediaType.LIVE) return
     if (withinFailoverGrace()) { resetStallTracking(); return }
     resetStallTracking()
-    tryNextQualityVersion("Stream buffering, switching version…")
+    // Out of versions to fall back on means the app has nothing left to try on its own -
+    // constant rebuffering with no alternative is exactly when another player is worth a go.
+    if (!tryNextQualityVersion("Stream buffering, switching version…")) {
+        suggestExternalPlayer("This stream keeps buffering and there's no other version to fall back on.")
+    }
 }
 
 /** Whether the current stream is still too young to judge. Every automatic failover is a
@@ -1000,6 +1018,7 @@ internal fun MainActivity.withinFailoverGrace(): Boolean =
 internal fun MainActivity.beginStreamAttempt() {
     currentStreamStartMs = System.currentTimeMillis()
     currentStreamPlayed = false
+    externalPlayerSuggestedForStream = false
 }
 
 // ── Black-frame auto-failover ──────────────────

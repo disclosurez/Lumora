@@ -4,4 +4,7 @@
          the app-specific external dir, not the shared public Downloads folder, so the
          download doesn't need WRITE_EXTERNAL_STORAGE (which isn't granted past API 28). -->
     <external-files-path name="downloads" path="Download/" />
+    <!-- VodDownloader's setDestinationInExternalFilesDir(context, "downloads", ...) - what an
+         external player is handed when a finished download is opened outside the app. -->
+    <external-files-path name="vod_downloads" path="downloads/" />
 </paths>

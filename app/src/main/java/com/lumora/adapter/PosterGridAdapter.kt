@@ -122,6 +122,9 @@ class PosterGridAdapter(
 
         fun bind(channel: Channel) {
             current = channel
+            // Tagged with the channel id so closing the detail screen can find this exact
+            // poster again and put focus back on it (MainActivity.hideContentDetail).
+            itemView.tag = channel.id
             // VOD titles carry source/quality decoration ("4K-AMZ - ", "(US)") that reads
             // as noise on a poster - strip it for display; live names keep their country tag.
             titleText.text = if (channel.mediaType == MediaType.MOVIE || channel.mediaType == MediaType.SERIES) {

@@ -17,7 +17,8 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
-        <!-- One chrome row: left group (brand + tab scroller) | search/settings/refresh.
+        <!-- One chrome row: brand + a single scroller holding every chrome item - the tabs,
+             Search, then Settings/Refresh at the end.
              Height is wrap_content, not a fixed toolbar_height: the tallest child (the
              tabs) decides how tall the bar is, so it tracks the content instead of holding
              a constant box. clipChildren false on the row so the tabs' 1.06x focus scale
@@ -547,85 +548,68 @@
                     android:background="@drawable/tab_indicator"
                     android:visibility="gone" />
             </LinearLayout>
-        </LinearLayout>
-        </HorizontalScrollView>
+
+            <!-- Settings / Refresh: the row's utility pair, last in the same scroller as the
+                 tabs so the chrome reads as one bar rather than a bar plus a detached button
+                 cluster. They keep their old placement (right end, Settings then Refresh)
+                 and stay icon-only - a label each would push the real tabs off a phone's
+                 window for two actions nobody hunts for by name. Vertical padding matches
+                 the tabs (tab_padding_vertical) so they sit in the same band; horizontal
+                 padding stays chrome_button_padding_h so a bare icon doesn't render as a
+                 wide empty capsule. marginStart = chrome_cluster_gap on Settings keeps the
+                 pair distinct from the last tab. Because they now live inside the scroller,
+                 nothing may hide the scroller to hide "the tabs" - see setBrowseTabsVisible(). -->
+            <LinearLayout
+                android:id="@+id/btnSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/chrome_cluster_gap"
+                android:background="@drawable/bg_tab_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:layerType="none"
+                android:nextFocusLeft="@id/btnSearch"
+                android:nextFocusRight="@id/btnRefresh"
+                android:orientation="vertical"
+                android:paddingHorizontal="@dimen/chrome_button_padding_h"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
+                android:stateListAnimator="@animator/focus_scale_flat">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_settings"
+                    android:tint="@color/text_secondary" />
             </LinearLayout>
 
-            <!-- Settings / Refresh: fixed at the right end of the chrome row - deliberately
-                 OUTSIDE the tab scroller, so they stay visible and reachable when the tab
-                 bar is hidden (simple mode, search open, no provider). marginStart =
-                 chrome_cluster_gap keeps them clear of the scroller's last item (Search).
-                 Compact icon buttons, not tab pills: a pill is padded to hold icon+label,
-                 and that padding around a bare icon rendered as wide empty capsules. They
-                 keep the tab language where it matters - bg_tab_item (same focus ring as
-                 the tabs), tab-band height (chrome_button_height), focus_scale_flat, and
-                 gravity="top" so their top edge sits on the same y as the tab band's.
-                 clipChildren false so the 1.06x focus scale isn't sliced by this
-                 wrapper's bounds. -->
             <LinearLayout
+                android:id="@+id/btnRefresh"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_marginStart="@dimen/chrome_cluster_gap"
-                android:clipChildren="false"
-                android:clipToPadding="false"
-                android:gravity="top"
-                android:orientation="horizontal">
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/toolbar_button_gap"
+                android:background="@drawable/bg_tab_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:layerType="none"
+                android:nextFocusLeft="@id/btnSettings"
+                android:nextFocusRight="@id/btnRefresh"
+                android:orientation="vertical"
+                android:paddingHorizontal="@dimen/chrome_button_padding_h"
+                android:paddingTop="@dimen/tab_padding_vertical"
+                android:paddingBottom="@dimen/tab_padding_vertical"
+                android:stateListAnimator="@animator/focus_scale_flat">
 
-                <!-- Settings button: icon-only, tab-band height, tight symmetric padding
-                     (chrome_button_padding_h) so it reads as a clean icon button rather
-                     than an empty pill. -->
-                <LinearLayout
-                    android:id="@+id/btnSettings"
-                    android:layout_width="wrap_content"
-                    android:layout_height="@dimen/chrome_button_height"
-                    android:layout_marginStart="@dimen/toolbar_button_gap"
-                    android:background="@drawable/bg_tab_item"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:layerType="none"
-                    android:nextFocusLeft="@id/btnSearch"
-                    android:nextFocusRight="@id/btnRefresh"
-                    android:orientation="vertical"
-                    android:paddingHorizontal="@dimen/chrome_button_padding_h"
-                    android:stateListAnimator="@animator/focus_scale_flat">
-
-                    <ImageView
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:src="@drawable/ic_settings"
-                        android:tint="@color/text_secondary" />
-                </LinearLayout>
-
-                <!-- Refresh button: same compact icon-button treatment as Settings. No
-                     start margin - it hugs Settings so the pair reads as one unit (the air
-                     to the scroller comes from the wrapper's chrome_cluster_gap). Padding
-                     is symmetric, matching Settings - the earlier asymmetric inner/outer
-                     padding read as a lopsided pill. marginEnd mirrors toolbar_button_gap
-                     so the cluster gets the same air after the last button that it has
-                     between buttons - with the row's own end padding on top, the refresh
-                     glyph no longer hugs the screen edge. -->
-                <LinearLayout
-                    android:id="@+id/btnRefresh"
-                    android:layout_width="wrap_content"
-                    android:layout_height="@dimen/chrome_button_height"
-                    android:layout_marginEnd="@dimen/toolbar_button_gap"
-                    android:background="@drawable/bg_tab_item"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:layerType="none"
-                    android:nextFocusLeft="@id/btnSettings"
-                    android:orientation="vertical"
-                    android:paddingHorizontal="@dimen/chrome_button_padding_h"
-                    android:stateListAnimator="@animator/focus_scale_flat">
-
-                    <ImageView
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:src="@drawable/ic_refresh"
-                        android:tint="@color/text_secondary" />
-                </LinearLayout>
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_refresh"
+                    android:tint="@color/text_secondary" />
+            </LinearLayout>
+        </LinearLayout>
+        </HorizontalScrollView>
             </LinearLayout>
         </LinearLayout>
 
@@ -2052,9 +2036,32 @@
                                 android:focusable="true"
                                 android:nextFocusUp="@id/seekBar"
                                 android:nextFocusLeft="@id/btnSleepTimer"
-                                android:nextFocusRight="@id/btnDiagnostics"
+                                android:nextFocusRight="@id/btnExternalPlayer"
                                 android:paddingHorizontal="4dp"
                                 android:stateListAnimator="@animator/focus_scale" />
+
+                            <!-- Hands the stream to VLC/MX Player/whatever is installed, at the
+                                 current position (see MainActivityExternalPlayer.kt). Sits next
+                                 to Diagnostics because both are "this isn't playing right"
+                                 tools. Long-press sets the default player. -->
+                            <TextView
+                                android:id="@+id/btnExternalPlayer"
+                                android:layout_width="wrap_content"
+                                android:layout_height="30dp"
+                                android:layout_marginEnd="4dp"
+                                android:background="@drawable/bg_toolbar_button"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
+                                android:nextFocusLeft="@id/btnCast"
+                                android:nextFocusRight="@id/btnDiagnostics"
+                                android:paddingHorizontal="8dp"
+                                android:stateListAnimator="@animator/focus_scale"
+                                android:text="@string/open_in_external_player_short"
+                                android:textAllCaps="true"
+                                android:textColor="@color/text_primary"
+                                android:textSize="@dimen/text_tiny" />
 
                             <TextView
                                 android:id="@+id/btnDiagnostics"
@@ -2066,7 +2073,7 @@
                                 android:focusable="true"
                                 android:gravity="center"
                                 android:nextFocusUp="@id/seekBar"
-                                android:nextFocusLeft="@id/btnCast"
+                                android:nextFocusLeft="@id/btnExternalPlayer"
                                 android:nextFocusRight="@id/btnRecord"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"

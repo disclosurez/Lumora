@@ -37,6 +37,21 @@ class PlayerManager(
     private val listeners = CopyOnWriteArrayList<Player.Listener>()
     private var released = false
 
+    /**
+     * What the player was last asked to play, as it was finally resolved (Stalker commands,
+     * Jellyfin negotiation and plugin resolves all rewrite the URL before it gets here).
+     * Kept so the stream can be handed to an external player - see ExternalPlayer - which
+     * otherwise has no way to know what the app is actually playing.
+     */
+    data class ResolvedStream(
+        val url: String,
+        val userAgent: String?,
+        val headers: Map<String, String>?,
+    )
+
+    var lastResolvedStream: ResolvedStream? = null
+        private set
+
     val isPlaying: Boolean
         get() = player.isPlaying
 
@@ -106,6 +121,7 @@ class PlayerManager(
         audio: String? = null,
         preferAudioLanguage: Boolean = false
     ) {
+        lastResolvedStream = ResolvedStream(url, userAgent, headers)
         val dataSourceFactory = buildDataSourceFactory(userAgent, headers)
 
         val mediaItemBuilder = MediaItem.Builder()

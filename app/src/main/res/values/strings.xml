@@ -150,6 +150,8 @@
     <string name="speed_default">1.0x</string>
     <string name="sleep_timer_button">Sleep</string>
     <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Open in</string>
+    <string name="external_player">External player</string>
     <string name="rec">REC</string>
     <string name="versions">Versions</string>
     <string name="fit">Fit</string>

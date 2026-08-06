@@ -169,6 +169,10 @@ internal val PLAYBACK_LANGUAGES = listOf(
     "ro" to "Romanian", "cs" to "Czech", "hu" to "Hungarian"
 )
 internal const val PREF_PARENTAL_PIN = "parental_pin"
+/** Package of the video app external playback always uses; absent = ask each time. */
+internal const val PREF_EXTERNAL_PLAYER_PACKAGE = "external_player_package"
+/** Whether the app may offer to hand a stream over when it cannot play it properly. */
+internal const val PREF_SUGGEST_EXTERNAL_PLAYER = "suggest_external_player"
 internal const val PREF_ASPECT_MODE = "player_aspect_mode"
 internal const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
 internal const val PREF_SIMPLE_MODE = "simple_mode"
@@ -451,6 +455,9 @@ class MainActivity : AppCompatActivity() {
     internal var currentEpisodeQueueIndex: Int = -1
     internal var isPlayerVisible = false
     internal var isContentDetailVisible = false
+    /** Channel id of the item whose detail screen is open, so closing it can return focus to
+     *  the poster it was opened from rather than to the tab bar. */
+    internal var detailReturnItemId: String? = null
     internal var nowShowingDetailId: String? = null
     /** Category drill-down inside the player side menu (Live/Series/Films section rows). */
     internal lateinit var sideMenuCategoryAdapter: SideMenuCategoryAdapter
@@ -499,6 +506,14 @@ class MainActivity : AppCompatActivity() {
     internal val catchupDayAdapter = com.lumora.adapter.CatchupAdapter { row -> onCatchupDayClick(row) }
     internal val catchupProgrammeAdapter = com.lumora.adapter.CatchupAdapter { row -> playCatchup(row) }
     internal val isTv by lazy { isTvDevice(this) }
+    /** Phone portrait auto-hides the category rail (see isSidebarCollapsed): the screen is
+     *  too narrow to carry the rail plus a usable content column. Manually re-expanding it
+     *  flips this for the current portrait session only - it is deliberately not persisted,
+     *  and resets on every rotation back into portrait, so portrait always opens hidden. */
+    internal var portraitSidebarExpanded = false
+    /** Last tabWantsSidebar passed to applySidebarVisibility, so a rotation can re-apply the
+     *  rail's visibility without re-deriving the tab's category state. */
+    internal var lastTabWantsSidebar = false
     // Edge-swipe-to-back tracking (phone only - see dispatchTouchEvent). Only armed when
     // the gesture *starts* within EDGE_SWIPE_ZONE_DP of the left edge, so it can't be
     // confused with the horizontal shelf/episode-row scrolling used throughout the UI.
@@ -530,6 +545,10 @@ class MainActivity : AppCompatActivity() {
      *  catalog/filters it was derived from. */
     internal var categoryChildrenCache: Map<String, List<CategoryFilter>> = emptyMap()
     internal var nowPlayingChannel: Channel? = null
+    /** One external-player offer per stream: the undecodable-audio check and the error path
+     *  can both fire for the same tune, and two dialogs for one problem is worse than none.
+     *  Reset by beginStreamAttempt(). */
+    internal var externalPlayerSuggestedForStream = false
     internal var resumePromptShown = false
     /** Set right before an auto-advanced episode starts so its STATE_READY does not throw a
      *  "Resume playback?" dialog at the top of a brand-new episode; consumed and cleared in
@@ -967,6 +986,18 @@ class MainActivity : AppCompatActivity() {
         } else if (isPlayerVisible) {
             showControls()
         }
+    }
+
+    /** The Activity handles orientation changes itself (configChanges in the manifest), so
+     *  nothing rebuilds on rotate - the rail's visibility has to be re-applied by hand.
+     *  Rotating into portrait also drops any manual re-expand, so portrait re-hides. */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (isTv) return
+        if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            portraitSidebarExpanded = false
+        }
+        applySidebarVisibility(lastTabWantsSidebar)
     }
 
     override fun onDestroy() {
