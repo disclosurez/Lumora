@@ -210,6 +210,50 @@ internal fun MainActivity.dubCheckBoxRow(title: String, subtitle: String, key: S
     return checkBox
 }
 
+/** Whether the Settings rail is collapsed on this device: a persisted pref, except on a
+ *  portrait phone, where the rail auto-hides and only the transient (unpersisted)
+ *  [MainActivity.portraitSettingsRailExpanded] can bring it back - mirrors the category
+ *  rail's isSidebarCollapsed() exactly. */
+internal fun MainActivity.isSettingsRailCollapsed(): Boolean =
+    if (isPortraitPhone()) !portraitSettingsRailExpanded
+    else prefs.getBoolean(PREF_SETTINGS_RAIL_COLLAPSED, false)
+
+/** Single place that decides the Settings rail's visibility: collapses the rail + divider
+ *  and shows the floating re-expand pill in their place (the content ScrollView already
+ *  fills the freed width via its layout_weight, so nothing else moves). The settings tree
+ *  is inflated fresh on every open and survives rotation in place, so this is applied at
+ *  inflation time in showProviderSettings() and re-applied from onConfigurationChanged.
+ *  Like the category rail, the pill's footprint is reserved as extra top padding on the
+ *  content scroll, so the pill floats over empty space rather than the pane's first row. */
+internal fun MainActivity.applySettingsRailVisibility() {
+    val view = activeSettingsOverlay?.view ?: return
+    val collapsed = isSettingsRailCollapsed()
+    view.findViewById<View>(R.id.settingsNavRail).visibility = if (collapsed) View.GONE else View.VISIBLE
+    view.findViewById<View>(R.id.settingsNavDivider).visibility = if (collapsed) View.GONE else View.VISIBLE
+    view.findViewById<View>(R.id.settingsExpandRailButton).visibility = if (collapsed) View.VISIBLE else View.GONE
+    val contentScroll = view.findViewById<View>(R.id.settingsContentScroll)
+    val reservePx = (56 * resources.displayMetrics.density).toInt()
+    contentScroll.setPadding(
+        contentScroll.paddingLeft,
+        if (collapsed) reservePx else 0,
+        contentScroll.paddingRight,
+        contentScroll.paddingBottom
+    )
+}
+
+/** Collapses the Settings rail from its Collapse row: the state persists (or flips the
+ *  portrait transient), the rail hides, and focus moves to the re-expand pill since the
+ *  focused row is about to disappear - mirrors collapseCategorySidebar(). */
+internal fun MainActivity.collapseSettingsRail() {
+    if (isPortraitPhone()) portraitSettingsRailExpanded = false
+    else prefs.edit().putBoolean(PREF_SETTINGS_RAIL_COLLAPSED, true).apply()
+    applySettingsRailVisibility()
+    activeSettingsOverlay?.view?.findViewById<View>(R.id.settingsExpandRailButton)?.requestFocus()
+    // Names the way back at the one moment the user is guaranteed to be looking at this
+    // corner of the screen - an accidental collapse otherwise reads as a dead end.
+    Toast.makeText(this, R.string.settings_hidden_hint, Toast.LENGTH_SHORT).show()
+}
+
 /** Applies a Typeface to a span range independent of the TextView's own typeface - lets a
  *  single two-line TextView carry a medium title over a regular caption. (TypefaceSpan's
  *  Typeface constructor is API 28+, so this hand-rolled span keeps minSdk 25 happy.) */
@@ -975,7 +1019,11 @@ internal fun MainActivity.showProviderSettings() {
         R.id.navGeneral to R.id.paneGeneral,
         R.id.navAbout to R.id.paneAbout
     ).map { (navId, paneId) -> dialogView.findViewById<View>(navId) to dialogView.findViewById<View>(paneId) }
+    // Last section chosen - the rail's re-expand pill refocuses it (mirrors the category
+    // rail refocusing the previously selected row).
+    var activeSection = 0
     fun selectSection(index: Int) {
+        activeSection = index
         navRows.forEachIndexed { i, (row, pane) ->
             row.isSelected = i == index
             pane.visibility = if (i == index) View.VISIBLE else View.GONE
@@ -989,9 +1037,36 @@ internal fun MainActivity.showProviderSettings() {
         // after a plugin candidate is added) - without this the D-pad's focus is left on
         // whatever view triggered the jump, which has often just been removed from the
         // tree by the same re-render, leaving nothing focused and the remote stuck.
-        navRows[index].first.requestFocus()
+        // With the rail collapsed the row is gone - leave focus where it is (the expand
+        // pill) rather than requesting focus on a GONE view, which silently does nothing.
+        if (!isSettingsRailCollapsed()) navRows[index].first.requestFocus()
     }
     navRows.forEachIndexed { i, (row, _) -> row.setOnClickListener { selectSection(i) } }
+
+    // Collapse/expand of the rail itself, mirroring the category sidebar: a "Collapse" row
+    // at the bottom of the rail hides it, and the floating pill that replaces it brings it
+    // back and refocuses the section that was selected.
+    dialogView.findViewById<View>(R.id.navCollapseRail).setOnClickListener { collapseSettingsRail() }
+    val settingsExpandRailButton = dialogView.findViewById<View>(R.id.settingsExpandRailButton)
+    settingsExpandRailButton.setOnClickListener {
+        // Portrait's auto-hide is transient state, not the pref - see isSettingsRailCollapsed().
+        if (isPortraitPhone()) portraitSettingsRailExpanded = true
+        else prefs.edit().putBoolean(PREF_SETTINGS_RAIL_COLLAPSED, false).apply()
+        applySettingsRailVisibility()
+        // Rows aren't laid out the instant the rail becomes visible again - retry once on
+        // the next frame (same double-post pattern as the category rail's re-expand).
+        val row = navRows[activeSection].first
+        settingsExpandRailButton.post {
+            if (!row.isShown || !row.requestFocus()) {
+                settingsExpandRailButton.post { row.requestFocus() }
+            }
+        }
+    }
+    // Single canonical apply point: the tree is inflated fresh on every open, so the
+    // collapsed state (persisted pref, or a portrait phone's transient auto-hide) is
+    // applied here, before the first selectSection so nothing requests focus on a row
+    // that is about to disappear. Re-applied on rotation from onConfigurationChanged.
+    applySettingsRailVisibility()
     selectSection(0)
 
     // A TV box has nowhere meaningful to browse a downloaded file (same reasoning

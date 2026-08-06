@@ -229,6 +229,10 @@ internal const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
  *  collapsed across launches. */
 internal const val COLLAPSE_CATEGORIES_TOGGLE_ID = "__collapse_categories__"
 internal const val PREF_CATEGORY_SIDEBAR_COLLAPSED = "category_sidebar_collapsed"
+/** Persisted collapse state for the Settings nav rail (landscape/TV). Portrait phones use
+ *  the transient [MainActivity.portraitSettingsRailExpanded] instead - see
+ *  isSettingsRailCollapsed() in MainActivitySettings.kt. */
+internal const val PREF_SETTINGS_RAIL_COLLAPSED = "settings_nav_rail_collapsed"
 /** Rows that act on the rail itself rather than filtering it. They must never be hideable:
  *  hiding one is unrecoverable, since the only way to unhide a row is the context menu on
  *  that same row. The hidden-id filter in buildCategoryRows skips these too, so anyone who
@@ -511,6 +515,11 @@ class MainActivity : AppCompatActivity() {
      *  flips this for the current portrait session only - it is deliberately not persisted,
      *  and resets on every rotation back into portrait, so portrait always opens hidden. */
     internal var portraitSidebarExpanded = false
+    /** Same transient for the Settings nav rail: a portrait phone auto-hides it (see
+     *  isSettingsRailCollapsed()), and manually re-expanding flips this for the current
+     *  portrait session only - deliberately not persisted, and reset on every rotation
+     *  back into portrait, mirroring [portraitSidebarExpanded]. */
+    internal var portraitSettingsRailExpanded = false
     /** Last tabWantsSidebar passed to applySidebarVisibility, so a rotation can re-apply the
      *  rail's visibility without re-deriving the tab's category state. */
     internal var lastTabWantsSidebar = false
@@ -1003,8 +1012,11 @@ class MainActivity : AppCompatActivity() {
         if (isTv) return
         if (newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
             portraitSidebarExpanded = false
+            // Same auto-rehide as the category rail: portrait always opens collapsed.
+            portraitSettingsRailExpanded = false
         }
         applySidebarVisibility(lastTabWantsSidebar)
+        applySettingsRailVisibility()
     }
 
     override fun onDestroy() {

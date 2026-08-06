@@ -125,6 +125,25 @@
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/about" />
                 </LinearLayout>
 
+                <!-- Collapse row - the last row in the rail, mirroring the category
+                     sidebar's collapse toggle. Collapses the whole rail (see
+                     collapseSettingsRail() in showProviderSettings()); the floating
+                     settingsExpandRailButton pill is the way back. Not part of the
+                     navRows/pane mapping - it selects no section. -->
+                <LinearLayout
+                    android:id="@+id/navCollapseRail"
+                    style="@style/Widget.Lumora.SettingsNavRow"
+                    android:background="@drawable/nav_rail_item_glass">
+                    <ImageView
+                        android:layout_width="@dimen/settings_nav_icon_size"
+                        android:layout_height="@dimen/settings_nav_icon_size"
+                        android:src="@drawable/ic_arrow_left"
+                        android:tint="@color/nav_icon_tint" />
+                    <TextView
+                        style="@style/Widget.Lumora.SettingsNavLabel"
+                        android:text="@string/settings_nav_collapse" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
     </LinearLayout>
@@ -142,6 +161,7 @@
          focused item's rounded-corner highlight look cut off / squared-off on whichever
          edge got clipped, differing by position - i.e. looked like it "changed shape". -->
     <ScrollView
+        android:id="@+id/settingsContentScroll"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
@@ -1636,5 +1656,47 @@
     </LinearLayout>
 
 </LinearLayout>
+
+    <!-- Settings rail re-expand affordance: when the rail is collapsed, this is the only
+         way back to the sections, so it is a labelled pill rather than a bare icon - same
+         treatment sidebarExpandButton gives the collapsed category rail. Anchored top-start
+         where the rail's own top-left corner was (and where the eye looks for navigation),
+         drawn last so it overlays the content. Visibility is driven by
+         applySettingsRailVisibility() alongside the rail's own, never by hand. Focusable so
+         a D-pad user on the content's first row can reach it with one LEFT press. -->
+    <LinearLayout
+        android:id="@+id/settingsExpandRailButton"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:layout_gravity="start|top"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/bg_sidebar_expand_pill"
+        android:clickable="true"
+        android:contentDescription="@string/show_settings"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="12dp"
+        android:stateListAnimator="@animator/focus_scale_flat"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_body_s"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron_right"
+            android:tint="@color/text_primary" />
+    </LinearLayout>
 
 </FrameLayout>
