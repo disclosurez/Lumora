@@ -53,6 +53,25 @@
                 android:paddingHorizontal="@dimen/settings_gap_m"
                 android:paddingBottom="@dimen/settings_gap">
 
+                <!-- Collapse row - first in the rail, directly under the "Settings" title,
+                     so the way out sits where the eye already is rather than below ten
+                     rows of scroll. Collapses the whole rail (see collapseSettingsRail());
+                     the floating settingsExpandRailButton pill is the way back. Not part
+                     of the navRows/pane mapping - it selects no section. -->
+                <LinearLayout
+                    android:id="@+id/navCollapseRail"
+                    style="@style/Widget.Lumora.SettingsNavRow"
+                    android:background="@drawable/nav_rail_item_glass">
+                    <ImageView
+                        android:layout_width="@dimen/settings_nav_icon_size"
+                        android:layout_height="@dimen/settings_nav_icon_size"
+                        android:src="@drawable/ic_arrow_left"
+                        android:tint="@color/nav_icon_tint" />
+                    <TextView
+                        style="@style/Widget.Lumora.SettingsNavLabel"
+                        android:text="@string/settings_nav_collapse" />
+                </LinearLayout>
+
                 <LinearLayout android:id="@+id/navGeneral" style="@style/Widget.Lumora.SettingsNavRow" android:tag="0" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_settings" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/general" />
@@ -123,25 +142,6 @@
                 <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="9" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_about" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/about" />
-                </LinearLayout>
-
-                <!-- Collapse row - the last row in the rail, mirroring the category
-                     sidebar's collapse toggle. Collapses the whole rail (see
-                     collapseSettingsRail() in showProviderSettings()); the floating
-                     settingsExpandRailButton pill is the way back. Not part of the
-                     navRows/pane mapping - it selects no section. -->
-                <LinearLayout
-                    android:id="@+id/navCollapseRail"
-                    style="@style/Widget.Lumora.SettingsNavRow"
-                    android:background="@drawable/nav_rail_item_glass">
-                    <ImageView
-                        android:layout_width="@dimen/settings_nav_icon_size"
-                        android:layout_height="@dimen/settings_nav_icon_size"
-                        android:src="@drawable/ic_arrow_left"
-                        android:tint="@color/nav_icon_tint" />
-                    <TextView
-                        style="@style/Widget.Lumora.SettingsNavLabel"
-                        android:text="@string/settings_nav_collapse" />
                 </LinearLayout>
 
             </LinearLayout>

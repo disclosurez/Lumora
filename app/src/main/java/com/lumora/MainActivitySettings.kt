@@ -225,8 +225,12 @@ internal fun MainActivity.isSettingsRailCollapsed(): Boolean =
  *  inflation time in showProviderSettings() and re-applied from onConfigurationChanged.
  *  Like the category rail, the pill's footprint is reserved as extra top padding on the
  *  content scroll, so the pill floats over empty space rather than the pane's first row. */
-internal fun MainActivity.applySettingsRailVisibility() {
-    val view = activeSettingsOverlay?.view ?: return
+internal fun MainActivity.applySettingsRailVisibility(root: View? = null) {
+    // showProviderSettings() applies this at inflation time, which is before the tree is
+    // reachable as activeSettingsOverlay (that field is only assigned just before show()) -
+    // so it passes its dialogView in explicitly. Without the parameter the open-time call
+    // hit the null overlay and returned, and the rail only ever collapsed on rotation.
+    val view = root ?: activeSettingsOverlay?.view ?: return
     val collapsed = isSettingsRailCollapsed()
     view.findViewById<View>(R.id.settingsNavRail).visibility = if (collapsed) View.GONE else View.VISIBLE
     view.findViewById<View>(R.id.settingsNavDivider).visibility = if (collapsed) View.GONE else View.VISIBLE
@@ -268,6 +272,11 @@ internal fun MainActivity.showProviderSettings() {
     // Close Search if it's open - the two share the weighted content slot and would otherwise
     // render stacked on top of each other (see showSearchDialog).
     activeSearchOverlay?.dismiss()
+    // Every open of Settings on a portrait phone starts with the rail hidden, the same way
+    // rotating into portrait re-hides the category rail: the panes need the full width to
+    // be readable, and the tree is inflated fresh here anyway, so an expand from a previous
+    // visit is not carried into this one.
+    if (isPortraitPhone()) portraitSettingsRailExpanded = false
     val dialogView = layoutInflater.inflate(R.layout.activity_settings, null)
     // Deliberately no width cap here. Settings used to be pinned to 660dp and centred on
     // TV, which left a wide band of the tab background down both sides - it read as a
@@ -1044,7 +1053,7 @@ internal fun MainActivity.showProviderSettings() {
     navRows.forEachIndexed { i, (row, _) -> row.setOnClickListener { selectSection(i) } }
 
     // Collapse/expand of the rail itself, mirroring the category sidebar: a "Collapse" row
-    // at the bottom of the rail hides it, and the floating pill that replaces it brings it
+    // at the top of the rail hides it, and the floating pill that replaces it brings it
     // back and refocuses the section that was selected.
     dialogView.findViewById<View>(R.id.navCollapseRail).setOnClickListener { collapseSettingsRail() }
     val settingsExpandRailButton = dialogView.findViewById<View>(R.id.settingsExpandRailButton)
@@ -1066,7 +1075,8 @@ internal fun MainActivity.showProviderSettings() {
     // collapsed state (persisted pref, or a portrait phone's transient auto-hide) is
     // applied here, before the first selectSection so nothing requests focus on a row
     // that is about to disappear. Re-applied on rotation from onConfigurationChanged.
-    applySettingsRailVisibility()
+    // dialogView is passed because activeSettingsOverlay is not assigned until show().
+    applySettingsRailVisibility(dialogView)
     selectSection(0)
 
     // A TV box has nowhere meaningful to browse a downloaded file (same reasoning
