@@ -1,6 +1,6 @@
 # Lumora
 
-**Lumora** is a fast, lightweight IPTV client for Android, Android TV, and Fire TV. It speaks **Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin** — any number of them running at the same time — and merges Live TV, Movies, and Series from all of them into one clean, D-pad-friendly interface.
+**Lumora** is a fast, lightweight IPTV client for Android, Android TV, Fire TV, and — uniquely — **Android Auto, where it plays video on the car screen while parked**. It speaks **Xtream Codes, M3U/M3U8 playlists, Stalker Portal, and Jellyfin** — any number of them running at the same time — and merges Live TV, Movies, and Series from all of them into one clean, D-pad-friendly interface.
 
 It's a native XML/Views app with **no Jetpack Compose anywhere**, and that's deliberate: on the budget TV boxes and streaming sticks these apps actually run on, heavier UI frameworks pin the CPU and cost you frames mid-playback. Everything here is built to stay smooth on hardware that has nothing to spare.
 
@@ -15,6 +15,7 @@ https://discord.gg/cNKYGhQWvq
 ## Highlights
 
 - **Similar to TiVimate or Sparkle TV, without paying for the features.** Multiple playlists, the EPG guide, DVR recording, catch-up, favourites and multi-provider support are the things those players put behind a premium subscription or one-off unlock. In Lumora they're all just included, free.
+- **Video on the car screen, over Android Auto — parked only.** Lumora shows up in the Android Auto launcher (wireless or wired) and plays your catalogue on the head unit itself, which almost no other player does. It is **not a driving feature and cannot be one**: Android Auto removes this class of app from the screen the moment the vehicle moves, so what you get is video while parked or on a passenger display, and nothing at all while driving. Every session opens on a warning that says exactly that. See [Android Auto](#android-auto-parked-only).
 - **Optional Jellyfin support, properly done.** Point it at your own Jellyfin server and its films and series merge into the same shelves as your IPTV catalogue (same title from both = one card). Resume points, watched marks and favourites sync both ways with the server, and files your stick can't decode are converted by the server on the fly rather than opening to a black screen.
 - **Run every subscription at once.** Any number of Xtream Codes, M3U and Stalker Portal providers active together, merged into one catalogue instead of switching between playlists.
 - **Live TV that tidies itself up.** Duplicate feeds of the same channel collapse into one entry at the best available quality (4K → FHD → HD → SD), with instant fallback to any other copy mid-playback; Sports, News, Music and Cinema surface at the top automatically whatever your provider filed them under.
@@ -82,6 +83,20 @@ a server, and everything below is inert if you don't.
 - Google Cast support
 - Android TV **TV Input Framework** integration (live channels surface in the system TV app) and **Watch Next** row support
 
+### Android Auto (parked only)
+
+> **Do not watch video while driving.** Watching video while driving is unlawful in most jurisdictions and dangerous everywhere. This feature exists for a stationary car or a passenger display.
+
+Lumora appears in the Android Auto launcher — wireless or wired — and renders video onto the head unit's own screen, rather than sending audio only.
+
+- **Real video on the car display**, not a media-browser audio shell: the projected surface backs a virtual display, so the car screen is a proper window with the picture and its title, and the Android Auto templates are only chrome drawn over it
+- **Parked use is enforced by the car, not by an honour system.** Android Auto pulls apps of this class off the screen as soon as the vehicle is in motion — the same thing it does to every other sideloaded video app. Lumora does no speed detection of its own and you should not treat it as a safety control; the host is what stops the picture
+- **Every session opens on a disclaimer** stating the parked-only limit, with the full "as is", no-warranty, no-liability notice in *Settings → Playback Settings*
+- **Your existing catalogue, no phone setup needed** — channels come from Lumora's on-disk cache, so a car session works even if the app hasn't been opened on the phone this boot. Only streams playable from a URL alone are offered; Stalker commands, plugin tokens and Jellyfin's negotiated streams need the phone app to resolve them first
+- **Sideload only.** Declaring the car category for something that isn't navigation is against Google Play's policy for cars, so this build cannot ship on Play. You must also enable **Unknown sources** in Android Auto's developer settings before Lumora appears in the car launcher at all
+
+Lumora is not affiliated with, endorsed by, or certified by Google. Android and Android Auto are trademarks of Google LLC.
+
 ### Other
 - QR-code pairing — configure a provider on your phone, scan to push it to the TV instantly
 - Parental controls with PIN-gated adult content filtering
@@ -112,6 +127,8 @@ Anything else on Android 7.1 (SDK 25) or newer should work; those are just the d
 ## Installation
 
 Grab the latest signed APK from the [Releases](https://github.com/disclosurez/lumora/releases) page and sideload it. Lumora checks GitHub Releases on launch and will prompt you when a new version is available.
+
+To use it in the car, also switch on **Unknown sources** in Android Auto's developer settings (Android Auto → Settings → tap *Version* ten times → ⋮ → Developer settings → Unknown sources). Lumora is sideloaded, so the car launcher hides it until that's on.
 
 On first launch, you'll be asked to add a provider — this is your own Xtream Codes / M3U / Stalker Portal IPTV subscription, or your own Jellyfin server. Lumora has no content of its own and cannot supply one for you.
 
