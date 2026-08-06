@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.4
+
+### Android Auto
+- **Lumora now appears on the car screen** and plays video there — for a parked car or a passenger display. Android Auto pulls this class of app off screen the moment the vehicle moves, as it does with every sideloaded video app, so this is playback while parked and nothing at all while driving. Every session opens on a disclaimer saying so, with the full "as is", no-warranty notice in **Settings → Playback Settings**.
+- Channels come from the on-disk cache, so a car session works even if the app hasn't been opened. Only streams playable from a URL alone are listed — Stalker, plugin and Jellyfin streams need the phone app to resolve them.
+- Requires **Unknown sources** in Android Auto's developer settings; this build cannot ship on Google Play.
+
+### Settings
+- **The Settings nav rail collapses**, like the category sidebar — a Collapse row at the bottom of the rail hides it, and a labelled pill brings it back at the section you were on. Portrait phones open with it hidden, so the settings panes get the full width.
+
 ## 3.3
 
 ### Playback
