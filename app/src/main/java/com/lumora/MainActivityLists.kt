@@ -438,6 +438,15 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     // fixed elsewhere via restoreTabFocus()). Landing on Play once it loads is more
     // useful than the back button, so this gets overridden below once it's known visible.
     binding.detailBackButton.requestFocus()
+    // ...and again once the frame has settled, because a screen opened from a dismissing
+    // dialog can have that first request cancelled by the dialog's window teardown. Only
+    // when nothing else claimed focus in the meantime, so it can't steal from the Play
+    // button (or a season chip) that legitimately took it while content was loading.
+    binding.contentDetailLayout.post {
+        if (isContentDetailVisible && binding.contentDetailLayout.findFocus() == null) {
+            binding.detailBackButton.requestFocus()
+        }
+    }
 
     val isSeries = item.mediaType == MediaType.SERIES
     titleText.text = item.name

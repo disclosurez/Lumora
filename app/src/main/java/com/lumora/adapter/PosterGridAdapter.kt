@@ -25,6 +25,11 @@ import kotlinx.coroutines.launch
  *  for global search results (which mix Live/Film/Series, hence [showTypeBadge]). */
 class PosterGridAdapter(
     private val showTypeBadge: Boolean = false,
+    /** Optional per-item badge, as label + background colour, overriding the media-type
+     *  badge. Discover uses it to mark which of the user's sources already carries a title -
+     *  the answer changes what the tile is *for* (open the copy you own vs go find a
+     *  stream), so it belongs on the poster rather than one dialog deeper. */
+    private val badgeFor: ((Channel) -> Pair<String, Int>?)? = null,
     /** Long-press on a poster - favourites the item (see MainActivity.toggleFavoriteVodItem).
      *  Declared before [onItemClick] so the click handler stays the trailing lambda every
      *  call site passes it as. */
@@ -131,7 +136,12 @@ class PosterGridAdapter(
                 cleanVodTitle(channel.name)
             } else channel.name
 
-            if (showTypeBadge) {
+            val custom = badgeFor?.invoke(channel)
+            if (custom != null) {
+                typeBadge.visibility = View.VISIBLE
+                typeBadge.text = custom.first
+                typeBadge.backgroundTintList = ContextCompat.getColorStateList(itemView.context, custom.second)
+            } else if (showTypeBadge) {
                 typeBadge.visibility = View.VISIBLE
                 val (label, colorRes) = when (channel.mediaType) {
                     MediaType.LIVE -> "Live" to R.color.live_red

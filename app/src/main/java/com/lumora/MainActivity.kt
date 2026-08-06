@@ -719,8 +719,15 @@ class MainActivity : AppCompatActivity() {
         onItemLongClick = { item -> toggleFavoriteVodItem(item) }
     ) { item -> playItem(item) }
     internal val tmdbClient = com.lumora.data.remote.tmdb.TmdbClient()
-    internal val discoverGridAdapter = com.lumora.adapter.PosterGridAdapter { item -> onDiscoverItemClick(item) }
+    /** Discover tile id -> short badge naming the sources that already carry the title.
+     *  Filled by loadDiscover() off the main thread; empty means "not in your library". */
+    internal var discoverLibrarySources: Map<String, String> = emptyMap()
+    internal val discoverGridAdapter = com.lumora.adapter.PosterGridAdapter(
+        badgeFor = { item -> discoverLibrarySources[item.id]?.let { it to R.color.primary } }
+    ) { item -> onDiscoverItemClick(item) }
     internal var discoverSearchJob: Job? = null
+    /** Badge pass for the Discover grid - cancelled when a new search replaces the tiles. */
+    internal var discoverBadgeJob: Job? = null
     internal var providerLoadJob: Job? = null
     internal val categoryAdapter = CategoryAdapter(
         onCategoryClick = { category -> onCategorySelected(category) },
@@ -1360,6 +1367,16 @@ class MainActivity : AppCompatActivity() {
         // is the adapter's job - the focused row sees the key before this runs.
         if (isPlayerVisible) {
             if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT && !isPlayerSideMenuOpen()) {
+                // Only from the bare video. With the controls bar up and focus inside it,
+                // LEFT belongs to the button row - and at its left end the press falls
+                // through to here, which flew the whole side menu out from under a user who
+                // was just walking along the buttons. Swallow it there instead: the row's
+                // own nextFocusLeft chain has already had its say, so there is nowhere left
+                // to go, and the menu is still one BACK (hiding the controls) away.
+                if (binding.controlsOverlay.visibility == View.VISIBLE && binding.controlsOverlay.hasFocus()) {
+                    showControls()
+                    return true
+                }
                 openSideMenu()
                 return true
             }

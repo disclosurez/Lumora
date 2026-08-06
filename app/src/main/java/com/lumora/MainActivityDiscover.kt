@@ -14,6 +14,7 @@ import com.lumora.model.ContentShelf
 import com.lumora.model.MediaType
 import com.lumora.plugin.js.PluginScript
 import com.lumora.parser.XtreamClient
+import com.lumora.util.cleanVodTitle
 import com.lumora.util.isAdultCategory
 import kotlinx.coroutines.*
 import java.util.Locale
@@ -121,10 +122,16 @@ internal fun MainActivity.loadDiscover(query: String?) {
         // Drop anything that isn't already in the library; with a plugin enabled the
         // plugin can play every title, so nothing gets filtered.
         val pluginEnabled = enabledStreamSearchPlugin() != null
+        // With a plugin enabled every title is playable, so nothing has to be matched before
+        // the grid can be shown - and matching is the one slow step here. Only the no-plugin
+        // filter waits for it.
         val visible = if (pluginEnabled) results else withContext(Dispatchers.Default) {
-            results.filter { findCatalogMatch(it) != null }
+            results.filter { findCatalogMatches(it).isNotEmpty() }
         }
         discoverGridAdapter.replaceAll(visible)
+        // Source badges are decoration on tiles that are already on screen, so they are
+        // worked out afterwards and painted in when ready. Nothing waits on them.
+        loadDiscoverLibraryBadges(visible)
         setDiscoverStatus(
             when {
                 visible.isNotEmpty() -> null
@@ -132,6 +139,30 @@ internal fun MainActivity.loadDiscover(query: String?) {
                 else -> "Enable a stream plugin to browse titles outside your library."
             }
         )
+    }
+}
+
+/** Works out which of the user's sources already carry each visible Discover title, then
+ *  repaints the grid so the tiles show it. Deliberately off the load path: it walks the whole
+ *  catalogue once per tile, and the grid is useful long before the badges land. */
+internal fun MainActivity.loadDiscoverLibraryBadges(items: List<Channel>) {
+    discoverBadgeJob?.cancel()
+    discoverBadgeJob = scope.launch {
+        val badges = withContext(Dispatchers.Default) {
+            items.mapNotNull { item ->
+                val versions = catalogVersionsFor(findCatalogMatches(item))
+                if (versions.isEmpty()) return@mapNotNull null
+                val jellyfin = versions.any { it.isJellyfin }
+                val iptv = versions.any { !it.isJellyfin }
+                item.id to when {
+                    jellyfin && iptv -> "Jellyfin + IPTV"
+                    jellyfin -> "Jellyfin"
+                    else -> "IPTV"
+                }
+            }.toMap()
+        }
+        discoverLibrarySources = badges
+        if (badges.isNotEmpty()) discoverGridAdapter.notifyItemRangeChanged(0, discoverGridAdapter.itemCount)
     }
 }
 
@@ -143,7 +174,11 @@ internal fun MainActivity.setDiscoverStatus(text: String?) {
 /** Discover pick opens an info screen: overview + poster, then either play a matching catalog
  *  item (if this title is already served by a provider) or find a torrent stream for it. */
 internal fun MainActivity.onDiscoverItemClick(item: Channel) {
-    val match = findCatalogMatch(item)
+    // Every copy, not the best one: the dialog names each source it found, and the detail
+    // screen needs the whole set so its version chips can switch between them.
+    val matches = findCatalogMatches(item)
+    val versions = catalogVersionsFor(matches)
+    val match = versions.firstOrNull()
 
     val density = resources.displayMetrics.density
     val pad = (20 * density).toInt()
@@ -178,8 +213,16 @@ internal fun MainActivity.onDiscoverItemClick(item: Channel) {
         })
         addView(label(meta))
         item.description?.let { addView(label(it)) }
-        match?.let {
-            addView(label("✓ Available in your ${if (it.isJellyfin) "Jellyfin" else "provider"} library"))
+        // Name the sources rather than saying "provider": with a Jellyfin server and one or
+        // more IPTV panels merged into one catalogue, "which of my sources actually has
+        // this" is the whole question this line exists to answer - and the copies differ
+        // (the Jellyfin one may carry the season the IPTV one is missing).
+        if (versions.isNotEmpty()) {
+            val sources = versions.mapNotNull { providerNameFor(it) }.distinct()
+            addView(label(
+                if (sources.isEmpty()) "✓ In your library"
+                else "✓ In your library · ${sources.joinToString(", ")}"
+            ))
         }
     }
     val buttonRow = LinearLayout(this).apply {
@@ -204,24 +247,36 @@ internal fun MainActivity.onDiscoverItemClick(item: Channel) {
     val scroll = ScrollView(this).apply { addView(body) }
 
     val dialog = AlertDialog.Builder(this).setView(scroll).create()
+    // Whatever a button does, it happens on the frame *after* the dialog is gone. Dismissing
+    // a dialog tears its window down and re-runs focus resolution on the Activity behind it,
+    // which lands on whatever was focused before (the Discover tile - by then hidden inside
+    // the GONE mainContent) and silently overrides the focus the incoming screen just asked
+    // for. That is what left the series detail with no focused view at all: seasons and
+    // episodes were on screen and the D-pad did nothing.
+    fun afterDismiss(action: () -> Unit) {
+        dialog.dismiss()
+        binding.root.post(action)
+    }
     // Prefer the already-owned copy; the torrent path is offered too, but only when a
     // stream-search plugin is actually enabled to serve it.
     if (match != null) {
         buttonRow.addView(actionButton("Play") {
-            dialog.dismiss()
-            showContentDetail(match)
+            // The group goes with it, so the detail screen opens on the best copy with the
+            // others as switchable chips - the same thing opening the series from the
+            // library gives you. Without it a match that is a *member* of a duplicate group
+            // (rather than its representative) resolved to no group at all, and the other
+            // provider's copy was unreachable from Discover.
+            afterDismiss { showContentDetail(match, versions.takeIf { it.size > 1 }) }
         })
     }
     if (enabledStreamSearchPlugin() != null) {
         buttonRow.addView(actionButton("Find stream") {
-            dialog.dismiss()
-            startDiscoverStreamSearch(item)
+            afterDismiss { startDiscoverStreamSearch(item) }
         })
     }
     if (tmdbClient.hasKey()) {
         buttonRow.addView(actionButton("Trailer") {
-            dialog.dismiss()
-            showTrailerForDiscoverItem(item)
+            afterDismiss { showTrailerForDiscoverItem(item) }
         })
     }
     buttonRow.addView(actionButton("Close") { dialog.dismiss() })
@@ -243,17 +298,98 @@ internal fun MainActivity.startDiscoverStreamSearch(item: Channel) {
     else showStreamSearchDialog(plugin, item)
 }
 
-/** Finds an already-configured provider item matching a Discover (TMDB) title, if any. */
-internal fun MainActivity.findCatalogMatch(item: Channel): Channel? {
+/** Finds an already-configured provider item matching a Discover (TMDB) title, if any.
+ *
+ *  Ranked, not first-hit. A provider catalogue is full of titles that *contain* another
+ *  title - searching "The Odyssey" turned up "Troy - The Odyssey" purely because that
+ *  entry happened to come first in the merged list, and the exact match sitting further
+ *  down never got a look in. So every candidate is scored and the best one wins:
+ *
+ *    0. the whole title, exactly
+ *    1. the title plus trailing decoration ("The Odyssey Extended Cut")
+ *    2. the title as whole words somewhere else in the name ("Troy - The Odyssey")
+ *
+ *  Containment is deliberately word-bounded now: the old bare `contains` also matched the
+ *  target inside a longer word. Ties break on a matching year first, then on how much extra
+ *  text the candidate carries - the least-decorated name is the likeliest to be the film
+ *  itself rather than a spin-off. */
+internal fun MainActivity.findCatalogMatch(item: Channel): Channel? = findCatalogMatches(item).firstOrNull()
+
+/** Every copy of a Discover title the library holds, best first.
+ *
+ *  Plural on purpose. A title is routinely carried by more than one source - a Jellyfin
+ *  server and an IPTV panel, or two panels - and they are not interchangeable: the Jellyfin
+ *  copy may have the season the IPTV one is missing. Returning one arbitrary winner is what
+ *  hid an owned Jellyfin series behind a thinner IPTV entry with the same name.
+ *
+ *  Jellyfin sorts first among equally good matches: it is the user's own library, so its
+ *  episode list and watch state are the authoritative ones.
+ *
+ *  Matching is deliberately strict: the title, optionally with trailing junk, and nothing
+ *  else. An earlier version also accepted the target appearing as whole words *anywhere* in
+ *  the name, to cope with catalogue prefixes ("NF - The Odyssey") - but that also matched
+ *  "NF - Troy The Odyssey", a different film, and reported it as owned. Provider decoration
+ *  is stripped with cleanVodTitle() instead, which is what the prefix case actually needed,
+ *  so a title containing another title no longer matches at all. */
+internal fun MainActivity.findCatalogMatches(item: Channel): List<Channel> {
     val target = normalizeMatchTitle(item.name)
-    if (target.isBlank()) return null
-    return allChannels.firstOrNull { c ->
-        c.mediaType == item.mediaType && run {
-            val name = normalizeMatchTitle(c.name)
-            (name == target || name.startsWith("$target ") || name.contains(target)) &&
-                (item.year == null || c.year == null || c.year == item.year)
+    if (target.isBlank()) return emptyList()
+    // Cheap gate before the expensive one. Normalising and cleaning a title runs the best
+    // part of a dozen regexes, and a merged catalogue runs to six figures of channels -
+    // doing that for every candidate of every result is minutes of work, which is what left
+    // Discover sitting on "Loading trending…". Cleaning only ever *removes* text, so any
+    // real match must still contain the target's longest word verbatim; a plain substring
+    // test rejects almost everything for the price of an indexOf.
+    val probe = target.split(' ').maxByOrNull { it.length }.orEmpty()
+    val scored = mutableListOf<Pair<Int, Channel>>()
+    for (candidate in allChannels) {
+        if (candidate.mediaType != item.mediaType) continue
+        if (probe.isNotEmpty() && !candidate.name.contains(probe, ignoreCase = true)) continue
+        // A year both sides agree on is a hard filter, exactly as before: two films can
+        // share a title, and the year is the only thing that tells them apart.
+        if (item.year != null && candidate.year != null && candidate.year != item.year) continue
+        // cleanVodTitle first: catalogue names carry source/quality decoration ("NF - ",
+        // "4K-AMZ - ", "[MULTI]") that has nothing to do with the title, and stripping it is
+        // what lets an exact comparison work at all.
+        val name = normalizeMatchTitle(cleanVodTitle(candidate.name))
+        val rank = when {
+            name == target -> 0
+            name.startsWith("$target ") && !looksLikeSequelSuffix(name.removePrefix("$target ")) -> 1
+            else -> continue
         }
+        val yearBonus = if (item.year != null && candidate.year == item.year) 0 else 100
+        val extra = (name.length - target.length).coerceIn(0, 99)
+        val sourceBonus = if (candidate.isJellyfin) 0 else 200
+        scored += (rank * 10_000 + yearBonus + sourceBonus + extra) to candidate
     }
+    return scored.sortedBy { it.first }.map { it.second }.distinctBy { it.id.ifBlank { it.url } }
+}
+
+/** The full set of copies to offer for [match] - the matches Discover found, plus whatever
+ *  the duplicate-grouping pass already knows about (which is keyed by the group's
+ *  representative, so a match that is a *member* of a group finds nothing by direct lookup
+ *  and has to be searched for). Deduped, Jellyfin first. */
+internal fun MainActivity.catalogVersionsFor(matches: List<Channel>): List<Channel> {
+    val versions = if (matches.firstOrNull()?.mediaType == MediaType.SERIES) seriesVersions else filmVersions
+    val out = LinkedHashMap<String, Channel>()
+    for (match in matches) {
+        val key = match.id.ifBlank { match.url }
+        out.putIfAbsent(key, match)
+        val group = versions[match.id] ?: versions.values.firstOrNull { g -> g.any { it.id == match.id } }
+        group?.forEach { out.putIfAbsent(it.id.ifBlank { it.url }, it) }
+    }
+    return out.values.sortedBy { if (it.isJellyfin) 0 else 1 }
+}
+
+/** Trailing text that makes a title a *different* film rather than a decorated copy of the
+ *  same one: "The Odyssey 2", "The Odyssey Part II". A 4-digit year is not a sequel marker -
+ *  "The Odyssey 2026" is the same film with its year appended, which catalogues do. */
+private fun looksLikeSequelSuffix(remainder: String): Boolean {
+    val first = remainder.substringBefore(' ')
+    if (first == "part" || first == "chapter") return true
+    if (first in setOf("ii", "iii", "iv", "v", "vi")) return true
+    val number = first.toIntOrNull() ?: return false
+    return number < 1900
 }
 
 internal fun MainActivity.normalizeMatchTitle(title: String): String =
