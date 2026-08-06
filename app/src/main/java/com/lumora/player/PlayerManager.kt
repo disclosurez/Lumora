@@ -399,6 +399,15 @@ class PlayerManager(
         player.setVideoTextureView(textureView)
     }
 
+    /**
+     * Render into a raw [android.view.Surface]. The Android Auto host hands its navigation
+     * template's drawing surface over directly - there is no View to attach - so this is the
+     * only way the car session can show a picture (see auto/CarPlayback.kt).
+     */
+    fun setVideoSurface(surface: android.view.Surface?) {
+        if (surface == null) player.clearVideoSurface() else player.setVideoSurface(surface)
+    }
+
     /** Toggle play/pause. */
     fun togglePlayPause() {
         if (player.isPlaying) player.pause() else player.play()

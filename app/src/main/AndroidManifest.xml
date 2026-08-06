@@ -23,6 +23,15 @@
     <!-- Cast -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Android Auto (auto/LumoraCarAppService.kt). NAVIGATION_TEMPLATES + ACCESS_SURFACE are
+         what the Car App Library requires to draw a navigation template and be handed its
+         drawing surface - the surface the player renders video into, there being no video app
+         category on Android Auto. CAR_SPEED backs the parked-only gate; it is optional at
+         runtime, and the gate falls back to the user's setting when the host won't report. -->
+    <uses-permission android:name="androidx.car.app.MAP_TEMPLATES" />
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
+
+
     <!-- Self-update: AppUpdateInstaller hands the downloaded APK to the system installer
          via ACTION_VIEW. Without this permission the install is refused outright; without
          the <queries> declaration below, targetSdk 36's package-visibility rules mean the
@@ -60,6 +69,7 @@
         android:banner="@mipmap/banner_tv"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:appCategory="game"
         android:largeHeap="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
@@ -76,6 +86,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.CAR_LAUNCHER" />
+            </intent-filter>
+            <!-- Android TV's launcher, in its own filter so the car-facing one above stays
+                 identical to a known-listed car app's. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
@@ -114,6 +131,32 @@
             android:name=".torrent.TorrentForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- The media browse service (auto/LumoraMediaService.kt) is intentionally not
+             declared. Advertising a MediaBrowserService is what made Android Auto file
+             Lumora as a media app - listed, but audio-only, with the car service never
+             bound. The class is still there for a future Assistant/Wear integration. -->
+
+        <!-- Android Auto. minCarApiLevel and the POI service below are the entire car
+             registration - deliberately no com.google.android.gms.car.application descriptor,
+             which is how a *media* app announces itself and got Lumora listed as audio-only.
+             POI rather than NAVIGATION: this host lists sideloaded POI apps and not navigation
+             ones, and POI is handed the same drawing surface, which is all the video path
+             needs (see auto/CarPlayerScreen.kt). -->
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
+        <service
+            android:name=".auto.LumoraCarAppService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
 
         <!-- TV Input Framework -->
         <service

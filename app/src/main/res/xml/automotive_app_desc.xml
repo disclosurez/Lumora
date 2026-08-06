@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Declares what Lumora is to the Android Auto host. "template" is the Car App Library
+     category: the app draws through Screens/Templates rather than projecting its phone UI.
+     Video is not a category Android Auto offers, so the app registers as a navigation
+     template app - that is the one category granted a real drawing Surface (for a map), and
+     that Surface is what the player renders into. See auto/LumoraCarAppService.kt. -->
+<automotiveApp>
+    <!-- Both, and the order matters less than the fact that only one of them works here.
+         Tested on Android Auto 17.2: with "media" declared the app is listed (as a media app,
+         which is audio-only by category). With "template" alone it is not listed at all -
+         this host does not surface sideloaded navigation-template apps, whatever the manifest
+         says, so removing "media" removes the app from the car entirely rather than promoting
+         the template registration.
+         So "media" is all that is declared: it is what gets the app listed, and video comes
+         from the projected Activity instead (see MainActivity's CAR_LAUNCHER/APP_MAPS filter
+         in the manifest), which is how sideloaded car video apps actually do it. -->
+    <uses name="media" />
+</automotiveApp>

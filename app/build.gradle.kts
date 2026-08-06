@@ -160,6 +160,12 @@ dependencies {
     implementation("androidx.mediarouter:mediarouter:1.7.0")
     implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
 
+    // Media session / browse tree - what Android Auto's media category binds to (auto/).
+    implementation("androidx.media3:media3-session:1.4.1")
+
+    // Android Auto (see auto/ - CarAppService).
+    implementation("androidx.car.app:app:1.7.0")
+
     // Android TV
     implementation("androidx.tvprovider:tvprovider:1.1.0")
     implementation("androidx.leanback:leanback:1.2.0-alpha02")

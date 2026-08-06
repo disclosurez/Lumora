@@ -792,7 +792,8 @@ internal fun MainActivity.showProviderSettings() {
             "Decoder: ${settings.decoderMode.label}",
             "Buffer: ${settings.bufferMode.label}",
             "Surface: ${settings.surfaceMode.label}",
-            "FFmpeg: ${if (settings.enableFfmpeg) "ON" else "OFF"}"
+            "FFmpeg: ${if (settings.enableFfmpeg) "ON" else "OFF"}",
+            "Legal & safety notice"
         )
         AlertDialog.Builder(this@showProviderSettings)
             .setTitle("Playback Settings")
@@ -808,6 +809,7 @@ internal fun MainActivity.showProviderSettings() {
                     3 -> { val m = decoderManager.cycleBufferMode(); Toast.makeText(this@showProviderSettings, "Buffer: ${m.label}", Toast.LENGTH_SHORT).show() }
                     4 -> { /* cycle surface mode */ Toast.makeText(this@showProviderSettings, "Surface mode changed", Toast.LENGTH_SHORT).show() }
                     5 -> { val s = settings.copy(enableFfmpeg = !settings.enableFfmpeg); decoderManager.save(s); Toast.makeText(this@showProviderSettings, "FFmpeg: ${if (s.enableFfmpeg) "ON" else "OFF"}", Toast.LENGTH_SHORT).show() }
+                    6 -> showLegalNotice()
                 }
             }
             .setPositiveButton("Close", null)
@@ -1263,5 +1265,15 @@ internal fun MainActivity.showSetPinDialog(label: TextView) {
                 .show()
         }
         .setNegativeButton("Cancel", null)
+        .show()
+}
+
+/** The full disclaimer. The car screen shows a condensed version at the start of every
+ *  session (see auto/CarDisclaimerScreen.kt); this is the readable-at-leisure copy. */
+internal fun MainActivity.showLegalNotice() {
+    AlertDialog.Builder(this)
+        .setTitle(R.string.legal_notice_title)
+        .setMessage(R.string.legal_notice)
+        .setPositiveButton("Close", null)
         .show()
 }

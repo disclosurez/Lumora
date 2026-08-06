@@ -152,6 +152,13 @@
     <string name="diag">Diag</string>
     <string name="open_in_external_player_short">Open in</string>
     <string name="external_player">External player</string>
+
+    <!-- Shown on the car screen at the start of every session, and in Settings on the phone.
+         Kept short enough that a head unit will not truncate it mid-sentence. -->
+    <string name="car_disclaimer">Do not watch video while driving.\n\nVideo plays only while Lumora can confirm the car is stopped. On any motion, the picture turns off and sound continues.\n\nProvided \"as is\", with no warranty and no liability for any loss, damage, penalty or failure of these controls. Use lawfully.</string>
+
+    <string name="legal_notice_title">Legal &amp; safety notice</string>
+    <string name="legal_notice">Lumora is provided free of charge, \"as is\" and without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose and non-infringement.\n\nTo the fullest extent permitted by law, the authors and contributors accept no liability for any claim, damages, loss or other liability arising from or in connection with the app or its use, including but not limited to: loss of or damage to data or devices, service interruption, application crashes or errors, charges incurred by your network or content providers, or any penalty, fine or prosecution resulting from your use of the app.\n\nDriving: video playback in a vehicle is intended for a stationary vehicle or a passenger display only. Watching video while driving is unlawful in most jurisdictions. Lumora attempts to detect motion and disable video automatically, but this detection depends on hardware, permissions and signals outside the app\'s control and may fail or be unavailable. You must not rely on it. The driver remains solely responsible for compliance with all applicable road traffic laws.\n\nContent: Lumora is a player. It hosts, provides and indexes no content of its own. All streams, catalogues and metadata come from services and providers you configure yourself, and you are solely responsible for holding the rights or subscriptions necessary to access them, and for complying with the terms of those services and the laws of your country.\n\nDistribution: this app is not distributed through Google Play and is not affiliated with, endorsed by or certified by Google. Android, Android Auto and Google Cast are trademarks of Google LLC.</string>
     <string name="rec">REC</string>
     <string name="versions">Versions</string>
     <string name="fit">Fit</string>
