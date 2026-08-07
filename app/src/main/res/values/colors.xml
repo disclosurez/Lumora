@@ -3,17 +3,12 @@
     <!-- Canvas / background -->
     <color name="canvas">#FF0B0F17</color>
     <color name="canvas_elevated">#FF111827</color>
-    <color name="dark_background">#FF0B0F17</color>
 
     <!-- Surfaces -->
     <color name="surface">#FF161B26</color>
     <color name="surface_elevated">#FF1C2230</color>
     <color name="surface_emphasis">#FF232A3B</color>
     <color name="surface_accent">#FF2A3347</color>
-    <color name="dark_surface">#FF161B26</color>
-    <color name="dark_surface_2">#FF1C2230</color>
-    <color name="dark_card">#FF1C2230</color>
-    <color name="dark_card_selected">#FF232A3B</color>
 
     <!-- Brand / accent (indigo family) -->
     <color name="primary">#FF6366F1</color>
@@ -30,7 +25,6 @@
     <color name="text_primary">#FFF1F5F9</color>
     <color name="text_secondary">#FF9CA3AF</color>
     <color name="text_tertiary">#FF6B7280</color>
-    <color name="text_disabled">#FF4B5563</color>
     <color name="text_on_primary">#FF0B0F17</color>
     <color name="text_muted">#FF9CA3AF</color>
 
@@ -42,13 +36,11 @@
 
     <!-- States -->
     <color name="divider">#14F1F5F9</color>
-    <color name="outline">#1AF1F5F9</color>
     <color name="overlay">#B30B0F17</color>
     <color name="ripple">#336366F1</color>
 
     <!-- Borders -->
     <color name="color_border">#14FFFFFF</color>
-    <color name="color_border_focus">#24FFFFFF</color>
     <color name="color_border_faint">#0AFFFFFF</color>
 
     <!-- Glass surfaces -->

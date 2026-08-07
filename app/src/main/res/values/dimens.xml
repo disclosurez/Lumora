@@ -19,7 +19,6 @@
     <dimen name="settings_nav_icon_size">26dp</dimen>
     <dimen name="settings_nav_rail_width">220dp</dimen>
     <dimen name="settings_type_card_height">46dp</dimen>
-    <dimen name="settings_input_min_height">0dp</dimen>
     <!-- Overrides the content pane's uniform 24dp padding on the end edge only, so it must
          restate that 24dp as the non-TV baseline rather than being a 0dp "no inset". -->
     <dimen name="settings_content_inset">24dp</dimen>
@@ -77,10 +76,6 @@
          and the three icons +20%. Each has its own token now rather than sharing a step of
          the general type scale, so the toolbar can be tuned without moving everything else
          that happened to sit on the same step. -->
-    <dimen name="toolbar_title_text">18sp</dimen>
-    <dimen name="toolbar_search_text">13sp</dimen>
-    <dimen name="toolbar_search_icon_size">22dp</dimen>
-    <dimen name="toolbar_icon_size">29dp</dimen>
     <dimen name="tab_text">13sp</dimen>
     <dimen name="tab_padding_horizontal">36dp</dimen>
     <!-- Tab pills are wrap_content in height with this above and below the label, and the
@@ -164,7 +159,6 @@
          per tier (see the sw540dp and values-port overrides). The search pill used
          match_parent, which overshot to the whole scroller height and read as oversized
          next to the tabs. -->
-    <dimen name="chrome_button_height">62dp</dimen>
     <!-- The brand mark in the chrome row. Was a 40dp literal; now a dimen so portrait
          phones (values-port) can collapse it and give the tab scroller more width. -->
     <dimen name="toolbar_brand_size">40dp</dimen>
@@ -198,9 +192,6 @@
          as compact icon buttons - the tab-band height and focus ring carry the tab
          language instead. -->
     <dimen name="chrome_button_padding_h">10dp</dimen>
-    <!-- The search pill's own horizontal padding, shrunk from the 14dp literal so its content
-         sits as close to the settings button as the settings button sits to refresh. -->
-    <dimen name="toolbar_search_padding_horizontal">10dp</dimen>
 
     <!-- Minimum width one poster column may occupy; the grid fits as many as will go (then
          clamps to poster_grid_max_span). Portrait phones use a smaller value so a narrow

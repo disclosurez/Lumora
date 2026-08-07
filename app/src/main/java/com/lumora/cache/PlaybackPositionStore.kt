@@ -8,6 +8,8 @@ import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 private const val TAG = "PlaybackPositionStore"
 private const val FILE_NAME = "playback_positions.json"
@@ -33,6 +35,13 @@ object PlaybackPositionStore {
     private val debounceHandler = Handler(Looper.getMainLooper())
     private var pendingSaveRunnable: Runnable? = null
 
+    // Serializes all disk writes (rebuild JSONObject + atomic temp-write/rename) off the main
+    // thread so a large persist can't jank the UI on TV hardware. Single-threaded so two
+    // persists can never race the shared .tmp file.
+    private val writeExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "PlaybackPositionWriter") }
+
+    // ConcurrentHashMap: the background writer persists this map while the main thread keeps
+    // mutating it, so iteration on either side must not throw ConcurrentModificationException.
     private var cache: MutableMap<String, PlaybackPosition>? = null
 
     fun get(context: Context, key: String): PlaybackPosition? = ensureLoaded(context)[key]
@@ -53,12 +62,14 @@ object PlaybackPositionStore {
 
     private fun flushToDisk(context: Context) {
         val map = cache ?: return
-        persist(context, map)
+        // Debounce stays on the main looper (scheduling is cheap); the JSON rebuild + file
+        // write itself runs on the background writer.
+        writeExecutor.execute { persist(context, map) }
     }
 
     fun clear(context: Context, key: String) {
         val map = ensureLoaded(context)
-        if (map.remove(key) != null) persist(context, map)
+        if (map.remove(key) != null) writeExecutor.execute { persist(context, map) }
     }
 
     /** In-progress (not near-complete) items with a resumable channel snapshot, most
@@ -77,8 +88,13 @@ object PlaybackPositionStore {
             .mapNotNull { it.value.channel }
 
     fun clearAll(context: Context) {
-        cache = mutableMapOf()
-        runCatching { File(context.filesDir, FILE_NAME).delete() }
+        cache = ConcurrentHashMap()
+        // Route the disk wipe through the same single-thread executor as every other write:
+        // a persist queued before this captured the OLD map reference and must run first and
+        // be overwritten by this delete - deleting the file inline while a queued persist was
+        // still pending let that persist rewrite the old data afterwards, resurrecting
+        // "cleared" history on the next load. FIFO ordering makes the wipe stick.
+        writeExecutor.execute { runCatching { File(context.filesDir, FILE_NAME).delete() } }
     }
 
     /** Most recently-completed episode snapshot per series, only for series with no
@@ -124,10 +140,10 @@ object PlaybackPositionStore {
         val loaded: MutableMap<String, PlaybackPosition> = try {
             val file = File(context.filesDir, FILE_NAME)
             if (!file.exists()) {
-                mutableMapOf()
+                ConcurrentHashMap()
             } else {
                 val obj = JSONObject(file.readText())
-                val map = mutableMapOf<String, PlaybackPosition>()
+                val map = ConcurrentHashMap<String, PlaybackPosition>()
                 obj.keys().forEach { key ->
                     val entry = obj.getJSONObject(key)
                     val channel = entry.optJSONObject("channel")?.let { c ->

@@ -11,6 +11,7 @@ import com.lumora.plugin.TorrentResult
 import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.QuickJSContext
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -49,17 +50,30 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
      * uncaught here: an exception from a `Handler.post` runnable is fatal to the whole app
      * (there's nothing upstream to catch it, unlike the old synchronous-call behavior where
      * [JsPluginEngine]'s own `runScript` would catch it and just fail that one plugin run).
+     *
+     * [finished] is the run's completion flag (see `runScript`): once a run has completed or
+     * timed out, its executor thread may still be executing a wedged script, and any report
+     * callbacks it makes after that must be dropped - otherwise "Found N" keeps appending
+     * after the dialog has already shown "Plugin timed out".
      */
-    private fun <T> onMain(callback: (T) -> Unit): (T) -> Unit = { value ->
-        fun dispatch() {
-            runCatching { callback(value) }.onFailure { PluginLog.w(TAG, "UI callback threw: ${it.message}") }
+    private fun <T> onMain(
+        callback: (T) -> Unit,
+        finished: AtomicBoolean = AtomicBoolean(false),
+    ): (T) -> Unit = { value ->
+        // Check before posting so a late executor-thread report never even reaches the queue.
+        if (!finished.get()) {
+            fun dispatch() {
+                // Re-check at dispatch time: the flag can be set between the post and now.
+                if (finished.get()) return
+                runCatching { callback(value) }.onFailure { PluginLog.w(TAG, "UI callback threw: ${it.message}") }
+            }
+            // Looper itself is an unmocked Android stub under this project's plain JVM unit tests
+            // (no Robolectric) - treat that as "just call it directly" (which is what a test wants
+            // anyway: a synchronous, same-thread callback) rather than let it blow up runDiscovery/
+            // runSearch outright.
+            val isMainThread = runCatching { Looper.myLooper() == Looper.getMainLooper() }.getOrDefault(true)
+            if (isMainThread) dispatch() else mainHandler.post { dispatch() }
         }
-        // Looper itself is an unmocked Android stub under this project's plain JVM unit tests
-        // (no Robolectric) - treat that as "just call it directly" (which is what a test wants
-        // anyway: a synchronous, same-thread callback) rather than let it blow up runDiscovery/
-        // runSearch outright.
-        val isMainThread = runCatching { Looper.myLooper() == Looper.getMainLooper() }.getOrDefault(true)
-        if (isMainThread) dispatch() else mainHandler.post { dispatch() }
     }
 
     suspend fun runDiscovery(
@@ -68,8 +82,11 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         onCandidate: (DiscoveredProvider) -> Unit = {},
     ): DiscoveryResult {
         PluginLog.i(TAG, "discover() start")
-        val mainProgress = onMain(onProgress)
-        val mainCandidate = onMain(onCandidate)
+        // Set once the run has completed or timed out; onMain drops any report that arrives
+        // after it, since a timed-out script keeps executing on its executor thread.
+        val finished = AtomicBoolean(false)
+        val mainProgress = onMain(onProgress, finished)
+        val mainCandidate = onMain(onCandidate, finished)
         // Discovery diagnostics are logged at INFO, not DEBUG: the reddit scanner's own
         // host.log() lines (oauth status, post/paste counts, per-paste results, token state) are
         // the whole story when a scan finds nothing, and the tested Fire TV drops DEBUG from its
@@ -83,7 +100,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
             },
             onLog = { PluginLog.i(TAG, "script: $it") },
         )
-        val result = when (val outcome = runScript(JsPluginContract.DISCOVERY_TIMEOUT_MS, host) { context ->
+        val result = when (val outcome = runScript(JsPluginContract.DISCOVERY_TIMEOUT_MS, host, finished) { context ->
             context.evaluate("$source\ndiscover(host);")
         }) {
             // discover()'s return value is its specific reason ("No credentials found in
@@ -107,8 +124,9 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         onResult: (TorrentResult) -> Unit = {},
     ): SearchResult {
         PluginLog.i(TAG, "search() start: query=\"$query\" year=$year season=$season episode=$episode")
-        val mainProgress = onMain(onProgress)
-        val mainResult = onMain(onResult)
+        val finished = AtomicBoolean(false)
+        val mainProgress = onMain(onProgress, finished)
+        val mainResult = onMain(onResult, finished)
         val host = JsHostImpl(
             client = httpClient,
             query = query,
@@ -122,7 +140,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
             },
             onLog = { PluginLog.d(TAG, "script: $it") },
         )
-        val result = when (val outcome = runScript(JsPluginContract.SEARCH_TIMEOUT_MS, host) { context ->
+        val result = when (val outcome = runScript(JsPluginContract.SEARCH_TIMEOUT_MS, host, finished) { context ->
             context.evaluate("$source\nsearch(host, host.query, host.year, host.season, host.episode);")
         }) {
             is ScriptOutcome.Success -> SearchResult.Finished(outcome.result as? String)
@@ -217,28 +235,36 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
     private suspend fun runScript(
         timeoutMs: Long,
         host: JsHostImpl,
+        finished: AtomicBoolean = AtomicBoolean(false),
         body: (QuickJSContext) -> Any?,
     ): ScriptOutcome {
         val executor = Executors.newSingleThreadExecutor()
-        return withTimeoutOrNull(timeoutMs) {
-            suspendCancellableCoroutine { cont ->
-                executor.execute {
-                    val outcome: ScriptOutcome = try {
-                        val context = QuickJSContext.create()
-                        try {
-                            host.install(context)
-                            ScriptOutcome.Success(body(context))
-                        } finally {
-                            context.destroy()
+        return try {
+            withTimeoutOrNull(timeoutMs) {
+                suspendCancellableCoroutine { cont ->
+                    executor.execute {
+                        val outcome: ScriptOutcome = try {
+                            val context = QuickJSContext.create()
+                            try {
+                                host.install(context)
+                                ScriptOutcome.Success(body(context))
+                            } finally {
+                                context.destroy()
+                            }
+                        } catch (e: Exception) {
+                            ScriptOutcome.Failure(shortMessage(e))
                         }
-                    } catch (e: Exception) {
-                        ScriptOutcome.Failure(shortMessage(e))
+                        runCatching { cont.resume(outcome) }
+                        executor.shutdown()
                     }
-                    runCatching { cont.resume(outcome) }
-                    executor.shutdown()
                 }
-            }
-        } ?: ScriptOutcome.TimedOut
+            } ?: ScriptOutcome.TimedOut
+        } finally {
+            // Whether the script finished or timed out, the run is over from the caller's
+            // perspective: flag it so onMain drops any callback the (still-running, in the
+            // timeout case) executor thread reports afterwards.
+            finished.set(true)
+        }
     }
 
     /** QuickJSException appends a JS stack trace after the message on its own lines - keep only the first. */

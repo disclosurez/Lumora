@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.*
 import com.lumora.BaseApplication
 import com.lumora.data.local.LumoraDatabase
+import com.lumora.data.local.entity.EpgProgramEntity
 import com.lumora.data.parser.XmltvParser
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -26,6 +27,14 @@ class EpgSyncWorker(
 
         if (sources.isEmpty()) return Result.success()
 
+        // XMLTV programme rows carry the feed's raw tvg-id, but the guide reads by app
+        // channel id (MainActivityEpg.resolveEpgPrograms → epgProgramDao().upcomingFor). Rows
+        // persisted under the raw id would be dead disk weight, and a raw id colliding with an
+        // app id would clobber rows the Xtream in-app path wrote. Load the mapping once per run
+        // (single query, no N+1 per source) and map every programme onto the app channel ids
+        // whose tvg-id matches.
+        val tvgIdToChannelIds = buildTvgIdMapping(db)
+
         var allSuccess = true
         for (source in sources) {
             try {
@@ -35,20 +44,57 @@ class EpgSyncWorker(
                     .header("Accept", "application/xml, text/xml, */*")
                     .build()
 
+                // .use() guarantees the response body is always closed, even when the
+                // parse below throws or the body is absent.
                 val response = BaseApplication.instance.okHttpClient.newCall(request).execute()
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "HTTP ${response.code} for ${source.name}")
-                    allSuccess = false
-                    continue
+                response.use {
+                    if (!it.isSuccessful) {
+                        Log.w(TAG, "HTTP ${it.code} for ${source.name}")
+                        allSuccess = false
+                        return@use
+                    }
+
+                    val body = it.body ?: return@use
+                    val result = XmltvParser.parse(body.byteStream())
+
+                    Log.d(TAG, "Parsed ${result.channels.size} channels, ${result.programmes.size} programs from ${source.name}")
+
+                    // Map raw tvg-ids onto app channel ids, skipping programmes with no
+                    // matching app channel. Persist mirrors MainActivityEpg.persistEpgPrograms:
+                    // replace (delete stale rows per affected app channel, then upsert) rather
+                    // than merge, so a re-fetch is the source's current truth.
+                    val rows = mutableListOf<EpgProgramEntity>()
+                    var mapped = 0
+                    var skipped = 0
+                    for (programme in result.programmes) {
+                        val ids = tvgIdToChannelIds[programme.channel]
+                        if (ids.isNullOrEmpty()) {
+                            skipped++
+                            continue
+                        }
+                        mapped++
+                        for (channelId in ids) {
+                            rows.add(
+                                EpgProgramEntity(
+                                    channelId = channelId,
+                                    startTimestamp = programme.startTimestamp,
+                                    stopTimestamp = programme.stopTimestamp,
+                                    title = programme.title
+                                )
+                            )
+                        }
+                    }
+                    Log.d(TAG, "EPG mapping: $mapped programmes mapped, $skipped skipped (no matching app channel) for ${source.name}")
+
+                    if (rows.isNotEmpty()) {
+                        for (channelId in rows.map { it.channelId }.distinct()) {
+                            db.epgProgramDao().deleteForChannel(channelId)
+                        }
+                        db.epgProgramDao().upsertAll(rows)
+                    }
+
+                    db.epgSourceDao().markRefreshed(source.id, System.currentTimeMillis())
                 }
-
-                val body = response.body ?: continue
-                val result = XmltvParser.parse(body.byteStream())
-
-                Log.d(TAG, "Parsed ${result.channels.size} channels, ${result.programmes.size} programs from ${source.name}")
-
-                db.epgSourceDao().markRefreshed(source.id, System.currentTimeMillis())
-
             } catch (e: Exception) {
                 Log.w(TAG, "EPG sync error for ${source.name}: ${e.message}")
                 allSuccess = false
@@ -56,6 +102,18 @@ class EpgSyncWorker(
         }
 
         return if (allSuccess) Result.success() else Result.retry()
+    }
+
+    /** Loads every channel once and indexes it by tvg-id → app channel ids, so XMLTV rows can
+     *  be persisted under the ids the guide actually reads. Blank tvg-ids can't match anything. */
+    private suspend fun buildTvgIdMapping(db: LumoraDatabase): Map<String, Set<String>> {
+        val map = HashMap<String, MutableSet<String>>()
+        for (channel in db.channelDao().getAll()) {
+            channel.tvgId?.takeIf { it.isNotBlank() }?.let { tvgId ->
+                map.getOrPut(tvgId) { mutableSetOf() }.add(channel.id)
+            }
+        }
+        return map
     }
 
     companion object {

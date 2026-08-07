@@ -253,8 +253,13 @@ internal fun MainActivity.toggleProgramReminder(channel: Channel, program: Xtrea
         ReminderScheduler.cancel(this, reminder)
         Toast.makeText(this, "Reminder cancelled", Toast.LENGTH_SHORT).show()
     } else {
-        ReminderScheduler.schedule(this, reminder)
-        Toast.makeText(this, "Reminder set for \"${program.title}\"", Toast.LENGTH_SHORT).show()
+        val scheduled = ReminderScheduler.schedule(this, reminder)
+        Toast.makeText(
+            this,
+            if (scheduled) "Reminder set for \"${program.title}\""
+            else "Program starts too soon - reminder not set",
+            Toast.LENGTH_SHORT
+        ).show()
     }
     liveAdapter.notifyDataSetChanged()
 }
@@ -1112,8 +1117,9 @@ internal fun MainActivity.onCategorySelected(category: CategoryFilter) {
                 }
                 currentList[parentIdx] = currentList[parentIdx].copy(expanded = false)
             }
-            categoryAdapter.submitList(currentList)
-            categoryAdapter.setSelected(selectedRowId)
+            // setSelected must run after the diff commits, or it highlights against the
+            // pre-diff list and can notify a stale index.
+            categoryAdapter.submitList(currentList) { categoryAdapter.setSelected(selectedRowId) }
             scope.launch { applyCategoryFilter() }
         } else {
             // Was collapsed -> expanding. The children were already computed by the
@@ -1128,8 +1134,9 @@ internal fun MainActivity.onCategorySelected(category: CategoryFilter) {
                     currentList[parentIdx] = currentList[parentIdx].copy(expanded = true)
                     currentList.addAll(parentIdx + 1, children)
                 }
-                categoryAdapter.submitList(currentList)
-                categoryAdapter.setSelected(selectedRowId)
+                // setSelected must run after the diff commits, or it highlights against the
+                // pre-diff list and can notify a stale index.
+                categoryAdapter.submitList(currentList) { categoryAdapter.setSelected(selectedRowId) }
                 scope.launch { applyCategoryFilter() }
             } else {
                 // No cached children (first build hasn't run, or the row postdates it) -

@@ -68,27 +68,6 @@ class SleepTimer(private val player: Player) {
         currentPreset = Preset.OFF
     }
 
-    /**
-     * Add 15 more minutes to the current timer.
-     */
-    fun addTime() {
-        if (currentPreset == Preset.OFF) return
-        stopTimer()
-        val newDuration = remainingMillis + 15 * 60 * 1000L
-        timer = object : CountDownTimer(newDuration, 1000) {
-            override fun onTick(millisUntilFinished: Long) {
-                remainingMillis = millisUntilFinished
-                onTickCallback?.invoke(getRemainingDisplay())
-            }
-
-            override fun onFinish() {
-                remainingMillis = 0
-                player.stop()
-                onSleep?.invoke()
-            }
-        }.start()
-    }
-
     fun isActive(): Boolean = timer != null
 
     fun getRemainingDisplay(): String {

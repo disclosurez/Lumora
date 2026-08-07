@@ -105,11 +105,6 @@ internal fun MainActivity.selectDiscover() {
     applyStatus()
 }
 
-internal fun MainActivity.runDiscoverSearch() {
-    val query = binding.discoverSearchInput.text?.toString()?.trim().orEmpty()
-    loadDiscover(query.takeIf { it.isNotEmpty() })
-}
-
 /** Loads trending (null query) or search results into the Discover grid. */
 internal fun MainActivity.loadDiscover(query: String?) {
     if (!tmdbClient.hasKey()) return
@@ -297,23 +292,6 @@ internal fun MainActivity.startDiscoverStreamSearch(item: Channel) {
     if (item.mediaType == MediaType.SERIES) showSeriesEpisodePicker(plugin, item)
     else showStreamSearchDialog(plugin, item)
 }
-
-/** Finds an already-configured provider item matching a Discover (TMDB) title, if any.
- *
- *  Ranked, not first-hit. A provider catalogue is full of titles that *contain* another
- *  title - searching "The Odyssey" turned up "Troy - The Odyssey" purely because that
- *  entry happened to come first in the merged list, and the exact match sitting further
- *  down never got a look in. So every candidate is scored and the best one wins:
- *
- *    0. the whole title, exactly
- *    1. the title plus trailing decoration ("The Odyssey Extended Cut")
- *    2. the title as whole words somewhere else in the name ("Troy - The Odyssey")
- *
- *  Containment is deliberately word-bounded now: the old bare `contains` also matched the
- *  target inside a longer word. Ties break on a matching year first, then on how much extra
- *  text the candidate carries - the least-decorated name is the likeliest to be the film
- *  itself rather than a spin-off. */
-internal fun MainActivity.findCatalogMatch(item: Channel): Channel? = findCatalogMatches(item).firstOrNull()
 
 /** Every copy of a Discover title the library holds, best first.
  *

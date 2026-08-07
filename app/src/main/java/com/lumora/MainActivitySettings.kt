@@ -814,7 +814,14 @@ internal fun MainActivity.showProviderSettings() {
                 Toast.makeText(this@showProviderSettings, "No backup file found at ${file.absolutePath}", Toast.LENGTH_LONG).show()
             } else {
                 scope.launch {
-                    val result = withContext(Dispatchers.IO) { backupManager.importFrom(Uri.fromFile(file)) }
+                    // Import is an explicit user action, so existing data isn't a decision
+                    // point - auto-confirm on the first pass's conflict result (see the
+                    // same pattern in MainActivity.REQUEST_IMPORT_BACKUP) so the import
+                    // actually applies instead of silently reporting 0 imported.
+                    var result = withContext(Dispatchers.IO) { backupManager.importFrom(Uri.fromFile(file)) }
+                    if (result.conflicts > 0 && result.providersImported == 0 && result.epgSourcesImported == 0) {
+                        result = withContext(Dispatchers.IO) { backupManager.importFrom(Uri.fromFile(file), confirmed = true) }
+                    }
                     Toast.makeText(
                         this@showProviderSettings,
                         "Imported: ${result.providersImported} providers, ${result.epgSourcesImported} EPG sources, ${result.customGroupsImported} groups",

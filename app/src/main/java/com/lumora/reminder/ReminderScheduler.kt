@@ -23,9 +23,19 @@ object ReminderScheduler {
 
     fun isScheduled(context: Context, key: String): Boolean = ReminderStore.get(context, key) != null
 
-    fun schedule(context: Context, reminder: ProgramReminder) {
+    /**
+     * Schedules a reminder and arms its alarm. Returns true when the reminder was stored and
+     * armed. Returns false when the trigger time (5 minutes before the program) has already
+     * passed: such a reminder can never fire, so it must not be persisted - otherwise it would
+     * linger forever, stored but never armed. Callers can use the result to tell the user the
+     * reminder couldn't be set.
+     */
+    fun schedule(context: Context, reminder: ProgramReminder): Boolean {
+        val triggerAtMillis = (reminder.startTimestamp - LEAD_TIME_MINUTES * 60) * 1000
+        if (triggerAtMillis <= System.currentTimeMillis()) return false
         ReminderStore.add(context, reminder)
         armAlarm(context, reminder)
+        return true
     }
 
     fun cancel(context: Context, reminder: ProgramReminder) {
@@ -43,6 +53,9 @@ object ReminderScheduler {
 
     private fun armAlarm(context: Context, reminder: ProgramReminder) {
         val triggerAtMillis = (reminder.startTimestamp - LEAD_TIME_MINUTES * 60) * 1000
+        // Defensive backstop: schedule() validates before persisting and rescheduleAll() prunes
+        // expired reminders first, so a past trigger here is unexpected - skip rather than fire
+        // an immediate alarm.
         if (triggerAtMillis <= System.currentTimeMillis()) return
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntentFor(context, reminder))

@@ -1,11 +1,6 @@
 package com.lumora.player.playback
 
 import android.content.Context
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.RenderersFactory
-import androidx.media3.exoplayer.mediacodec.MediaCodecRenderer
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 
 /**
  * Manages decoder mode, buffer mode, and surface mode preferences.
@@ -71,17 +66,6 @@ class DecoderModeManager(private val context: Context) {
     fun getSettings(): PlaybackSettings = currentSettings
 
     /**
-     * Retry count for the current buffer mode, for whoever builds the MediaSource.Factory -
-     * ExoPlayer itself has no runtime retry-count setter, this has to go through
-     * DefaultLoadErrorHandlingPolicy(minLoadableRetryCount) at MediaSource-creation time.
-     */
-    fun loadRetryCount(): Int = when (currentSettings.bufferMode) {
-        BufferMode.LOW_LATENCY -> 1
-        BufferMode.HIGH_QUALITY -> Int.MAX_VALUE
-        BufferMode.DEFAULT -> 3
-    }
-
-    /**
      * Cycle decoder mode: AUTO -> HARDWARE -> SOFTWARE -> AUTO.
      */
     fun cycleDecoderMode(): DecoderMode {
@@ -99,23 +83,5 @@ class DecoderModeManager(private val context: Context) {
         val next = modes[(modes.indexOf(currentSettings.bufferMode) + 1) % modes.size]
         save(currentSettings.copy(bufferMode = next))
         return next
-    }
-
-    /**
-     * Returns true if the current decoder/surface settings cannot be applied at runtime
-     * and require a player rebuild to take effect. Decoder mode and surface mode are
-     * selected at ExoPlayer construction time; changes after the fact are ignored.
-     */
-    fun needsPlayerRebuild(): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedDecoder = prefs.getString(KEY_DECODER_MODE, "AUTO")
-        val savedSurface = prefs.getString(KEY_SURFACE_MODE, "AUTO")
-        return savedDecoder != currentSettings.decoderMode.name || savedSurface != currentSettings.surfaceMode.name
-    }
-
-    /** Log and return a summary of current decoder settings as a formatted string. */
-    fun logCurrentSettings(): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return "Decoder: ${prefs.getString("decoder_mode", "auto")}, Buffer: ${prefs.getString("buffer_mode", "default")}, Surface: ${prefs.getString("surface_mode", "auto")}, FFmpeg: ${prefs.getBoolean("enable_ffmpeg", true)}"
     }
 }

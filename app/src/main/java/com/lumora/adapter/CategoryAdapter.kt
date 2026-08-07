@@ -37,10 +37,16 @@ class CategoryAdapter(
         val oldId = selectedId
         if (oldId == id) return
         selectedId = id
-        val oldIdx = currentList.indexOfFirst { it.id == oldId }
-        if (oldIdx >= 0) notifyItemChanged(oldIdx)
-        val newIdx = currentList.indexOfFirst { it.id == id }
-        if (newIdx >= 0 && newIdx != oldIdx) notifyItemChanged(newIdx)
+        // Snapshot the list once and only notify positions that actually exist in it.
+        // indexOfFirst already returns -1 for a missing id, but the explicit bounds check
+        // keeps a notify off a stale/raced index even if the AsyncListDiffer's commit lands
+        // in between - notifyItemChanged with an index outside currentList.indices would
+        // crash the RecyclerView or mis-highlight a neighbour row.
+        val list = currentList
+        val oldIdx = list.indexOfFirst { it.id == oldId }
+        if (oldIdx in list.indices) notifyItemChanged(oldIdx)
+        val newIdx = list.indexOfFirst { it.id == id }
+        if (newIdx in list.indices && newIdx != oldIdx) notifyItemChanged(newIdx)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {

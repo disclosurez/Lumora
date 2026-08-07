@@ -81,6 +81,9 @@ object XmltvParser {
 
                             while (!done) {
                                 when (parser.next()) {
+                                    // Truncated/closed feed: stop spinning instead of looping
+                                    // forever on END_DOCUMENT with a null name.
+                                    XmlPullParser.END_DOCUMENT -> done = true
                                     XmlPullParser.START_TAG -> {
                                         when (parser.name) {
                                             "display-name" -> {
@@ -120,6 +123,9 @@ object XmltvParser {
 
                             while (!done) {
                                 when (parser.next()) {
+                                    // Truncated/closed feed: stop spinning instead of looping
+                                    // forever on END_DOCUMENT with a null name.
+                                    XmlPullParser.END_DOCUMENT -> done = true
                                     XmlPullParser.START_TAG -> {
                                         when (parser.name) {
                                             "title" -> {
@@ -154,6 +160,10 @@ object XmltvParser {
                                                 var depth = 1
                                                 while (depth > 0) {
                                                     when (parser.next()) {
+                                                        // Truncated/closed feed: bail out of the
+                                                        // depth walk instead of spinning on
+                                                        // END_DOCUMENT forever.
+                                                        XmlPullParser.END_DOCUMENT -> break
                                                         XmlPullParser.START_TAG -> {
                                                             if (parser.name == "value") {
                                                                 if (parser.next() == XmlPullParser.TEXT) {
@@ -171,6 +181,7 @@ object XmltvParser {
                                                 var depth = 1
                                                 while (depth > 0) {
                                                     when (parser.next()) {
+                                                        XmlPullParser.END_DOCUMENT -> break
                                                         XmlPullParser.START_TAG -> {
                                                             depth++
                                                         }
@@ -185,6 +196,7 @@ object XmltvParser {
                                                 var depth = 1
                                                 while (depth > 0) {
                                                     when (parser.next()) {
+                                                        XmlPullParser.END_DOCUMENT -> break
                                                         XmlPullParser.START_TAG -> depth++
                                                         XmlPullParser.TEXT -> {
                                                             credits.add("director" to parser.text)
@@ -197,6 +209,7 @@ object XmltvParser {
                                                 var depth = 1
                                                 while (depth > 0) {
                                                     when (parser.next()) {
+                                                        XmlPullParser.END_DOCUMENT -> break
                                                         XmlPullParser.START_TAG -> depth++
                                                         XmlPullParser.TEXT -> {
                                                             credits.add("presenter" to parser.text)

@@ -726,13 +726,16 @@ internal fun MainActivity.stalkerProviderStub(config: IptvProviderConfig): Provi
 
 internal suspend fun MainActivity.resolveStalkerPlayUrl(channel: Channel): String? {
     val config = stalkerConfigFor(channel) ?: return null
+    // A non-Stalker channel has no base64 play command - guard instead of crashing on a
+    // force-unwrap. Callers already treat null as "no resolvable URL".
+    val cmd = channel.stalkerCmd ?: return null
     val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
     return withContext(Dispatchers.IO) {
         // A series episode passes its number so create_link picks the right one within the
         // season it shares a cmd with; a film passes none.
         stalker.resolvePlayUrl(
             stalkerProviderStub(config),
-            channel.stalkerCmd!!,
+            cmd,
             episode = channel.episodeNum?.takeIf { channel.mediaType == MediaType.SERIES }
         )
     }

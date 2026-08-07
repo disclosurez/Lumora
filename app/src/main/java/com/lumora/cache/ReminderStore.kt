@@ -22,50 +22,83 @@ data class ProgramReminder(
 /** Scheduled EPG reminders, persisted so they survive app restarts and can be re-armed after reboot. */
 object ReminderStore {
 
-    @Synchronized
-    fun getAll(context: Context): List<ProgramReminder> = load(context)
+    // In-memory mirror of the persisted list, keyed by ProgramReminder.key. Every public
+    // method is @Synchronized, so the map is only ever touched under the object lock.
+    private val cache = mutableMapOf<String, ProgramReminder>()
+    // The file is read once, lazily, on first access; writes go through save(), which
+    // rewrites both the file and the map. Without this, get() re-read the file (a full
+    // readText() + JSONArray parse) on every call - the guide calls isReminderSet() per
+    // programme block per row, so scrolling the guide meant dozens of file reads on the
+    // main thread per pass.
+    @Volatile
+    private var loaded = false
 
     @Synchronized
-    fun get(context: Context, key: String): ProgramReminder? = load(context).firstOrNull { it.key == key }
+    fun getAll(context: Context): List<ProgramReminder> {
+        ensureLoaded(context)
+        return cache.values.toList()
+    }
+
+    @Synchronized
+    fun get(context: Context, key: String): ProgramReminder? {
+        ensureLoaded(context)
+        return cache[key]
+    }
 
     @Synchronized
     fun add(context: Context, reminder: ProgramReminder) {
-        val list = load(context).filterNot { it.key == reminder.key }.toMutableList()
-        list.add(reminder)
-        save(context, list)
+        ensureLoaded(context)
+        // remove-then-put keeps LinkedHashMap insertion order in line with the old
+        // filterNot { it.key == key }.add() behaviour: a re-added key lands at the end.
+        cache.remove(reminder.key)
+        cache[reminder.key] = reminder
+        save(context, cache.values.toList())
     }
 
     @Synchronized
     fun remove(context: Context, key: String) {
-        save(context, load(context).filterNot { it.key == key })
+        ensureLoaded(context)
+        if (cache.remove(key) != null) {
+            save(context, cache.values.toList())
+        }
     }
 
     /** Drops reminders whose program has already started - nothing left to schedule for them. */
     @Synchronized
     fun pruneExpired(context: Context, nowSeconds: Long) {
-        val all = load(context)
-        val remaining = all.filter { it.startTimestamp > nowSeconds }
-        if (remaining.size != all.size) save(context, remaining)
+        ensureLoaded(context)
+        val before = cache.size
+        val it = cache.entries.iterator()
+        while (it.hasNext()) {
+            if (it.next().value.startTimestamp <= nowSeconds) it.remove()
+        }
+        if (cache.size != before) save(context, cache.values.toList())
     }
 
     @Synchronized
-    private fun load(context: Context): List<ProgramReminder> = try {
-        val file = File(context.filesDir, FILE_NAME)
-        if (!file.exists()) emptyList() else {
-            val arr = JSONArray(file.readText())
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                ProgramReminder(
-                    channelId = obj.getString("channelId"),
-                    channelName = obj.optString("channelName", ""),
-                    programTitle = obj.optString("programTitle", ""),
-                    startTimestamp = obj.getLong("startTimestamp")
-                )
+    private fun ensureLoaded(context: Context) {
+        if (loaded) return
+        cache.clear()
+        try {
+            val file = File(context.filesDir, FILE_NAME)
+            if (file.exists()) {
+                val arr = JSONArray(file.readText())
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val reminder = ProgramReminder(
+                        channelId = obj.getString("channelId"),
+                        channelName = obj.optString("channelName", ""),
+                        programTitle = obj.optString("programTitle", ""),
+                        startTimestamp = obj.getLong("startTimestamp")
+                    )
+                    cache[reminder.key] = reminder
+                }
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load: ${e.message}")
+        } finally {
+            loaded = true
         }
-    } catch (e: Exception) {
-        Log.w(TAG, "Failed to load: ${e.message}")
-        emptyList()
     }
 
     @Synchronized

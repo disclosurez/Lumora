@@ -61,7 +61,10 @@ object VodDownloader {
                 else -> DownloadStatus.QUEUED
             }
             val localPath = if (newStatus == DownloadStatus.COMPLETE) {
-                Uri.parse(it.getString(localUriIdx))?.path
+                // Cursor.getString() returns null for a NULL column, and Uri.parse(null) throws
+                // NPE before the ?. can help. Read into a val and only parse when non-null;
+                // a missing local URI means "not downloaded" - no file to point at.
+                it.getString(localUriIdx)?.let { rawUri -> Uri.parse(rawUri).path }
             } else null
 
             val updated = record.copy(status = newStatus, progressPercent = progress, localFilePath = localPath ?: record.localFilePath)

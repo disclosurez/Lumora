@@ -34,12 +34,6 @@ class OutlineTextView @JvmOverloads constructor(
         a.recycle()
     }
 
-    fun setOutline(widthPx: Float, color: Int) {
-        outlineWidth = widthPx
-        outlineColor = color
-        invalidate()
-    }
-
     override fun onDraw(canvas: Canvas) {
         if (outlineWidth > 0f) {
             val textColors = textColors

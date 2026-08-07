@@ -37,7 +37,11 @@ class CarPlayback(private val context: Context) {
      * Live channels that can be played from a URL alone. Stalker commands, plugin tokens and
      * Jellyfin's negotiated streams all need a round trip through code that lives in the
      * Activity, so they are left out rather than offered as rows that fail on tap.
+     *
+     * Synchronized: Media-browse callbacks now load this on background threads, and concurrent
+     * calls must not double-read the disk cache or interleave writes to [channels].
      */
+    @Synchronized
     fun loadCatalog(): List<Channel> {
         val cached = ChannelCache.load(context).orEmpty()
         channels = cached.filter {
@@ -95,18 +99,6 @@ class CarPlayback(private val context: Context) {
 
     /** Detach, when the car screen goes away. */
     fun setSurface(surface: Surface?) = player.setVideoSurface(surface)
-
-    /**
-     * Drops the video track while keeping the audio one - what the parked check uses when the
-     * car starts moving. Cheaper and far less disruptive than stopping playback: the stream
-     * keeps running and the sound continues uninterrupted.
-     */
-    fun setVideoEnabled(enabled: Boolean) {
-        val exo = player.getExoPlayer()
-        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, !enabled)
-            .build()
-    }
 
     fun addListener(listener: Player.Listener) = player.addListener(listener)
 

@@ -16,9 +16,4 @@ object JellyfinSession {
         serverHost = runCatching { URI(serverBase).host }.getOrNull()
         accessToken = token
     }
-
-    fun clear() {
-        serverHost = null
-        accessToken = null
-    }
 }

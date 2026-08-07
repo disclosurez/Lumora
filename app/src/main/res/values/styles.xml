@@ -14,16 +14,6 @@
         <item name="android:layout_marginBottom">@dimen/settings_gap_xs</item>
     </style>
 
-    <style name="Widget.Lumora.SettingsNavIcon" parent="@android:style/Widget">
-        <item name="android:layout_width">@dimen/settings_nav_icon_size</item>
-        <item name="android:layout_height">@dimen/settings_nav_icon_size</item>
-        <item name="android:gravity">center</item>
-        <item name="android:background">@drawable/shape_square_chip</item>
-        <item name="android:textColor">@android:color/white</item>
-        <item name="android:fontFamily">@font/inter_semibold</item>
-        <item name="android:textSize">@dimen/settings_text_caption</item>
-    </style>
-
     <style name="Widget.Lumora.SettingsNavLabel" parent="@android:style/Widget">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
@@ -50,37 +40,6 @@
         <item name="android:paddingBottom">@dimen/settings_gap_l</item>
     </style>
 
-    <!-- Typography system -->
-    <style name="TextAppearance.Lumora.Title" parent="@android:style/TextAppearance">
-        <item name="android:textSize">20sp</item>
-        <item name="android:fontFamily">@font/inter_semibold</item>
-        <item name="android:textColor">@color/text_primary</item>
-    </style>
-
-    <style name="TextAppearance.Lumora.Subtitle" parent="@android:style/TextAppearance">
-        <item name="android:textSize">16sp</item>
-        <item name="android:fontFamily">@font/inter_medium</item>
-        <item name="android:textColor">@color/text_secondary</item>
-    </style>
-
-    <style name="TextAppearance.Lumora.Body" parent="@android:style/TextAppearance">
-        <item name="android:textSize">14sp</item>
-        <item name="android:fontFamily">@font/inter_regular</item>
-        <item name="android:textColor">@color/text_primary</item>
-    </style>
-
-    <style name="TextAppearance.Lumora.Caption" parent="@android:style/TextAppearance">
-        <item name="android:textSize">12sp</item>
-        <item name="android:fontFamily">@font/inter_medium</item>
-        <item name="android:textColor">@color/text_muted</item>
-    </style>
-
-    <style name="TextAppearance.Lumora.Micro" parent="@android:style/TextAppearance">
-        <item name="android:textSize">10sp</item>
-        <item name="android:fontFamily">@font/inter_regular</item>
-        <item name="android:textColor">@color/text_tertiary</item>
-    </style>
-
     <!-- Component styles -->
     <style name="Widget.Lumora.PrimaryButton" parent="@android:style/Widget">
         <item name="android:background">@drawable/bg_play_button</item>
@@ -100,28 +59,6 @@
         <item name="android:gravity">center</item>
         <item name="android:paddingStart">20dp</item>
         <item name="android:paddingEnd">20dp</item>
-        <item name="android:paddingTop">6dp</item>
-        <item name="android:paddingBottom">6dp</item>
-    </style>
-
-    <style name="Widget.Lumora.Tab" parent="@android:style/Widget">
-        <item name="android:background">@drawable/bg_tab_item</item>
-        <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:fontFamily">@font/inter_medium</item>
-        <item name="android:gravity">center</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingBottom">8dp</item>
-    </style>
-
-    <style name="Widget.Lumora.Chip" parent="@android:style/Widget">
-        <item name="android:background">@drawable/bg_season_chip</item>
-        <item name="android:textColor">@color/text_primary</item>
-        <item name="android:fontFamily">@font/inter_medium</item>
-        <item name="android:gravity">center</item>
-        <item name="android:paddingStart">14dp</item>
-        <item name="android:paddingEnd">14dp</item>
         <item name="android:paddingTop">6dp</item>
         <item name="android:paddingBottom">6dp</item>
     </style>

@@ -56,7 +56,6 @@
     <dimen name="settings_nav_icon_size">22dp</dimen>
     <dimen name="settings_nav_rail_width">190dp</dimen>
     <dimen name="settings_type_card_height">40dp</dimen>
-    <dimen name="settings_input_min_height">34dp</dimen>
 
     <!-- ~30% off every gap in the settings layout (see values/dimens.xml for what these are
          and why they exist). This is what actually takes the panes off the scroll. -->
@@ -119,10 +118,6 @@
          18dp (down from 22dp) since the chrome row gained a 12dp gap before the button
          cluster - the tabs must still fit next to the search/settings/refresh buttons
          without the last tab clipping or the scroller scrolling on a 1080p panel. -->
-    <dimen name="toolbar_title_text">23sp</dimen>
-    <dimen name="toolbar_search_text">17sp</dimen>
-    <dimen name="toolbar_search_icon_size">22dp</dimen>
-    <dimen name="toolbar_icon_size">29dp</dimen>
     <dimen name="tab_text">16sp</dimen>
     <!-- Six tabs fitted the 960dp row at 18dp; the seventh (Catch Up) put it ~150dp
          over, which is what pushed Search off the end and - before the scroller clipped
@@ -181,7 +176,6 @@
          label line). The search pill previously used match_parent, which overshot to the
          scroller's full height and read oversized next to the tabs. If the tab internals
          change, recalibrate this to the tab item's rendered height. -->
-    <dimen name="chrome_button_height">51dp</dimen>
     <!-- TV tier: tight edge for the icon-only settings/refresh pair - 18dp tab padding
          around a 20dp icon rendered the measured 56dp-wide empty capsules. 10dp hugs the
          icon while staying a reachable remote target inside the 51dp-tall band. -->
@@ -200,7 +194,6 @@
     <!-- Same 10dp as phone: the search pill's content is centred in its own box and the
          surrounding gaps are what carry the extra TV air, so growing this too would push the
          pill's label away from its icon rather than the cluster apart. -->
-    <dimen name="toolbar_search_padding_horizontal">10dp</dimen>
 
     <!-- Search doesn't need the whole panel: a centred 820dp column holds the keyboard and a
          two-up results grid without either running to the bezels. -->

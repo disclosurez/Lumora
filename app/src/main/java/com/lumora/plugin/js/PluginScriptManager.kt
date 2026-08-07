@@ -85,7 +85,18 @@ class PluginScriptManager(
 
     fun getDiscoveredScripts(): List<PluginScript> = scripts
 
-    fun readSource(script: PluginScript): String = File(userScriptsDir(), script.fileName).readText()
+    fun readSource(script: PluginScript): String {
+        // The file may be missing on disk even though the script is listed: it was removed
+        // out from under the app, or a backup restore dropped the script dir. Callers run on
+        // the UI thread (MainActivityPlugins.showStreamSearchDialog) and in coroutines
+        // (runDiscovery, showPlayerFor), so an unguarded readText() crash there. An empty
+        // source is a harmless no-op: the engine evaluates it and reports a script error
+        // ("discover is not defined"), never a crash.
+        return runCatching { File(userScriptsDir(), script.fileName).readText() }.getOrElse {
+            PluginLog.w(TAG, "readSource failed for ${script.fileName}: ${it.message}")
+            ""
+        }
+    }
 
     fun isEnabled(scriptId: String): Boolean = scriptId in enabledScriptIds()
 
@@ -202,6 +213,7 @@ class PluginScriptManager(
         pluginPrefs.getStringSet(PREF_ENABLED_SCRIPTS, emptySet()) ?: emptySet()
 
     companion object {
+        private const val TAG = "PluginScriptManager"
         private const val PREF_ENABLED_SCRIPTS = "plugin_enabled_scripts"
         /** Excluded from Auto Backup - see the pluginPrefs kdoc. */
         private const val PLUGIN_PREFS_FILE = "plugin_prefs"

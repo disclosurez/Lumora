@@ -1,115 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Lumora</string>
-    <string name="search_hint">Search…</string>
     <string name="settings">Settings</string>
     <string name="m3u_url">M3U/M3U8 Playlist URL</string>
     <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
-    <string name="xtream_server">Xtream Server URL</string>
     <string name="xtream_username">Username</string>
     <string name="xtream_password">Password</string>
     <string name="user_agent">User-Agent (optional)</string>
     <string name="user_agent_hint">VLC/3.0.18</string>
-    <string name="provider_type">Provider Type</string>
-    <string name="provider_m3u">M3U Playlist</string>
-    <string name="provider_xtream">Xtream Codes</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="loading">Loading&#8230;</string>
-    <string name="no_channels">No channels found</string>
-    <string name="error_loading">Failed to load playlist</string>
-    <string name="error_playing">Failed to play</string>
-    <string name="enter_url_first">Enter a playlist URL in Settings</string>
-    <string name="channels">Channels</string>
-    <string name="now_playing">Now Playing</string>
-
-    <string name="qr_pairing">QR Pairing</string>
-    <string name="scan_qr_phone">Scan with phone camera</string>
-    <string name="stop_pairing">Stop Pairing</string>
-    <string name="provider_name">Provider Name</string>
     <string name="live_badge">Live</string>
 
     <!-- Provider types -->
-    <string name="provider_stalker">Stalker Portal</string>
-    <string name="provider_jellyfin">Jellyfin</string>
     <string name="stalker_mac">MAC Address</string>
     <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
-    <string name="stalker_serial">Serial Number</string>
 
     <!-- Player -->
-    <string name="playback_speed">Playback Speed</string>
-    <string name="sleep_timer">Sleep Timer</string>
-    <string name="player_diagnostics">Diagnostics</string>
-    <string name="cast_to_tv">Cast to TV</string>
-    <string name="stop_casting">Stop Casting</string>
-    <string name="external_subtitles">External Subtitles</string>
-
     <!-- Recording -->
-    <string name="recordings">Recordings</string>
-    <string name="schedule_recording">Schedule Recording</string>
-    <string name="recording_scheduled">Recording scheduled</string>
-    <string name="no_recordings">No recordings</string>
     <string name="recording_storage">Recording Storage</string>
-    <string name="max_simultaneous">Max simultaneous recordings</string>
-    <string name="retention_days">Retention (days)</string>
-    <string name="record_program">Record program</string>
-    <string name="recording_in_progress">Recording…</string>
 
     <!-- Backup & Restore -->
     <string name="backup_restore">Backup &amp; Restore</string>
     <string name="export_backup">Export backup</string>
     <string name="import_backup">Import backup</string>
-    <string name="backup_exported">Backup exported</string>
-    <string name="backup_imported">Backup imported</string>
 
     <!-- EPG -->
     <string name="epg_sources">EPG Sources</string>
     <string name="add_epg_source">Add EPG source</string>
-    <string name="epg_source_url">XMLTV URL</string>
-    <string name="epg_source_name">Source name</string>
-    <string name="manual_epg_match">Manual EPG match</string>
 
     <!-- Content Management -->
-    <string name="custom_groups">Custom Groups</string>
-    <string name="create_group">Create group</string>
-    <string name="add_to_group">Add to group</string>
-    <string name="remove_from_group">Remove from group</string>
-    <string name="mark_as_watched">Mark as watched</string>
-    <string name="watch_history">Watch History</string>
-
     <!-- VOD -->
-    <string name="continue_watching">Continue Watching</string>
-    <string name="recently_watched">Recently Watched</string>
-
     <!-- Quality -->
-    <string name="quality_auto">Auto</string>
-    <string name="quality_4k">4K</string>
-    <string name="quality_fhd">1080p</string>
-    <string name="quality_hd">HD</string>
-    <string name="quality_sd">SD</string>
-
     <!-- Errors -->
-    <string name="drm_not_supported">DRM is not supported on this device</string>
-    <string name="stream_not_found">Stream not found. Check the URL</string>
-    <string name="recording_failed_storage">Recording failed: no storage space</string>
-    <string name="recording_failed_network">Recording failed: network error</string>
-
     <!-- Numeric Input -->
-    <string name="numeric_input_hint">Enter channel number</string>
-
     <!-- Up Next / Auto-Advance -->
     <string name="up_next">Up Next</string>
     <string name="play_now">Play Now</string>
 
     <!-- Incremental Search -->
-    <string name="search_more_results">Show more results</string>
-    <string name="search_no_more_results">No more results</string>
-
     <!-- A/V Sync -->
     <string name="av_offset">A/V sync offset</string>
-    <string name="av_offset_global">Global offset</string>
-    <string name="av_offset_per_channel">Channel offset</string>
-    <string name="av_offset_reset">Reset to global</string>
 
     <!-- activity_main.xml -->
     <string name="search">Search</string>
@@ -126,7 +58,6 @@
     <string name="catchup_loading">Loading guide…</string>
     <string name="catchup_no_guide">No guide data for this day — showing hourly blocks.</string>
     <string name="catchup_nothing_aired">Nothing has aired on this day yet.</string>
-    <string name="catchup_no_channels">No channels with catch-up. Your provider reports no archive for any channel.</string>
     <string name="catchup_no_provider">Can\'t play this — the provider it came from is no longer configured.</string>
     <string name="catchup_hour_block">Hourly block</string>
     <plurals name="catchup_days_kept">
@@ -151,7 +82,6 @@
     <string name="sleep_timer_button">Sleep</string>
     <string name="diag">Diag</string>
     <string name="open_in_external_player_short">Open in</string>
-    <string name="external_player">External player</string>
 
     <!-- Shown on the car screen at the start of every session, and in Settings on the phone.
          Kept short enough that a head unit will not truncate it mid-sentence. -->
@@ -246,9 +176,6 @@
     <string name="type_to_search">Type to search</string>
 
     <!-- dialog_qr_pairing.xml -->
-    <string name="pair_with_phone">Pair with Phone</string>
-    <string name="select_provider_then_scan_qr">Select provider type, then scan QR</string>
-    <string name="m3u_url_option">M3U/M3U8 URL</string>
     <string name="stop">Stop</string>
     <string name="close">Close</string>
 

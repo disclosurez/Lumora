@@ -20,8 +20,15 @@ class StreamHttpServer(
 
     override fun serve(session: IHTTPSession): Response {
         val range = session.headers["range"]
+        // A zero-byte file has no byte range to serve - short-circuit before parseRange so the
+        // empty 0..-1 coerce range can't throw, and answer with an empty body.
+        if (fileSize <= 0) {
+            return newFixedLengthResponse(Response.Status.OK, MIME, "")
+        }
         val (start, end) = parseRange(range, fileSize)
-        val length = end - start + 1
+        // start..end is always valid after parseRange, but keep length non-negative so an
+        // unexpected input can never produce a bogus negative-length stream.
+        val length = (end - start + 1).coerceAtLeast(0L)
 
         // Pull the download head to the seek point before handing back the stream.
         gate.prioritizeFrom(start, 8)
@@ -38,6 +45,9 @@ class StreamHttpServer(
 
     /** Parses a single "bytes=start-end" range; defaults to the whole file. */
     private fun parseRange(header: String?, total: Long): Pair<Long, Long> {
+        // Zero-byte (or single-byte) files: coerceIn(0, total - 1) would be an empty range and
+        // throw for total == 0, so clamp to the whole (possibly empty) file up front.
+        if (total <= 1) return 0L to 0L
         if (header == null || !header.startsWith("bytes=")) return 0L to (total - 1)
         val spec = header.removePrefix("bytes=").substringBefore(",")
         val dash = spec.indexOf('-')

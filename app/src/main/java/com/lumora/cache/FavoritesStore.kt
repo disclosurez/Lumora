@@ -28,8 +28,6 @@ object FavoritesStore {
         changed
     }
 
-    fun isFavoriteChannel(context: Context, id: String): Boolean = id in getFavoriteChannelIds(context)
-
     fun toggleFavoriteChannel(context: Context, id: String): Boolean = toggle(context, KEY_FAVORITE_CHANNELS, id)
 
     fun getFavoriteChannelIds(context: Context): Set<String> = readSet(context, KEY_FAVORITE_CHANNELS)

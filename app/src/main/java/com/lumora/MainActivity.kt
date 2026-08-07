@@ -133,8 +133,6 @@ import com.lumora.data.remote.jellyfin.JellyfinProvider
 import com.lumora.player.playback.PlayerDiagnostics
 import com.lumora.data.update.AppUpdateChecker
 import com.lumora.data.update.AppUpdateInstaller
-import com.lumora.data.domain.CombinedM3uProfile
-import com.lumora.data.domain.CombinedM3uRepository
 import com.lumora.player.playback.AvOffsetManager
 import com.lumora.player.playback.PlayerErrorClassifier
 import kotlinx.coroutines.*
@@ -208,7 +206,6 @@ internal const val EPG_MIN_COVERAGE_SECONDS = 4 * 60 * 60L
  *  already fetched along with the rest. An unreachable host is now identified in seconds by
  *  isRetryable()/hostUnreachable, so this only has to be an outer backstop. */
 internal const val PROVIDER_FETCH_TIMEOUT_MS = 360_000L
-private const val SEARCH_BATCH_SIZE = 50
 
 // Free-TV/IPTV: a community-maintained list of publicly available free-to-air streams.
 // Used by the empty state's "Try the Demo" so the app can be exercised before any
@@ -443,7 +440,6 @@ class MainActivity : AppCompatActivity() {
     /** The version group [detailReturnItem] was opened with, so re-opening its detail page shows
      *  the same set of alternate versions/episodes rather than re-deriving a narrower one. */
     internal var detailReturnGroup: List<Channel>? = null
-    private var animeCatalog: AnimeCatalogClient? = null
     /** Section membership from the last anime catalog fetch (Trending Now, Action, ...), used to
      *  build the Series sidebar's Anime parent and its child rows. A title belongs to several
      *  sections at once, so these are ids into the tab's channel list, not separate channels. */
@@ -1396,6 +1392,10 @@ class MainActivity : AppCompatActivity() {
                 when (keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> return true
                     android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        // Resolved once, before the branches - the old code re-called the
+                        // helper and force-unwrapped it, an NPE footgun if focus moved
+                        // between the two calls.
+                        val sectionTab = focusedSideMenuSectionTab()
                         when {
                             // Already inside the column - nothing further right, so swallow
                             // it rather than close the menu out from under the user.
@@ -1403,12 +1403,11 @@ class MainActivity : AppCompatActivity() {
                             // The right-pointing chevron on a section row is an "opens
                             // rightwards" promise - RIGHT there flies that column out (or
                             // steps into it when it's already open).
-                            focusedSideMenuSectionTab() != null -> {
-                                val tab = focusedSideMenuSectionTab()!!
-                                if (sideMenuCategoriesExpanded && sideMenuExpandedTab == tab) {
+                            sectionTab != null -> {
+                                if (sideMenuCategoriesExpanded && sideMenuExpandedTab == sectionTab) {
                                     focusSideMenuCategoryList()
                                 } else {
-                                    expandSideMenuCategories(tab)
+                                    expandSideMenuCategories(sectionTab)
                                 }
                             }
                             else -> closeSideMenu()
@@ -1516,7 +1515,16 @@ class MainActivity : AppCompatActivity() {
             }
             REQUEST_IMPORT_BACKUP -> {
                 scope.launch {
-                    val result = pendingBackupManager?.importFrom(uri)
+                    var result = pendingBackupManager?.importFrom(uri)
+                    // The user explicitly chose Import, so "conflicts" are not a decision
+                    // point - importFrom(confirmed=false) returned without applying anything
+                    // over existing data, so re-run with confirmed=true to actually restore.
+                    // Without this the toast reported success while 0 rows were imported.
+                    if (result != null && result.conflicts > 0 &&
+                        result.providersImported == 0 && result.epgSourcesImported == 0
+                    ) {
+                        result = pendingBackupManager?.importFrom(uri, confirmed = true)
+                    }
                     val msg = result?.let { "Imported: ${it.providersImported} providers, ${it.epgSourcesImported} EPG sources, ${it.customGroupsImported} groups" } ?: "Import failed"
                     Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
                     pendingBackupManager = null

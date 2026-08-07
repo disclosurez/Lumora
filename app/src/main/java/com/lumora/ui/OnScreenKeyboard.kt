@@ -226,7 +226,4 @@ class OnScreenKeyboard @JvmOverloads constructor(
      *  "1": a letter is the overwhelmingly likely first key, and G is the closest to all
      *  of them (average D-pad distance to any letter is a fraction of the trip from "1"). */
     fun firstKey(): View? = layerRows.getOrNull(1)?.getChildAt(4)
-
-    /** Convenience for hosts that want to focus the start key directly. */
-    fun focusInitialKey(): Boolean = firstKey()?.let { it.isShown && it.requestFocus() } ?: false
 }

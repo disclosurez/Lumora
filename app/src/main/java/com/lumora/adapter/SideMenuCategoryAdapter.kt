@@ -181,8 +181,14 @@ class SideMenuCategoryAdapter(
                 if (current !== category) return@launch
                 if (!EpgListCache.markInFlight(channelId)) {
                     // The guide (or another row) is already fetching this channel - wait for
-                    // that result rather than issuing a duplicate request.
-                    while (current === category && !EpgListCache.has(channelId)) delay(200)
+                    // that result rather than issuing a duplicate request. Bounded: a claim
+                    // released without anything cached (a cancelled fetch) must not poll
+                    // forever, so after the budget the row just falls back to its empty line.
+                    var waits = 0
+                    while (current === category && !EpgListCache.has(channelId) && waits < EPG_WAIT_MAX_POLLS) {
+                        delay(EPG_POLL_DELAY_MS)
+                        waits++
+                    }
                     if (current === category) renderNow(EpgListCache.get(channelId))
                     return@launch
                 }
@@ -222,3 +228,9 @@ class SideMenuCategoryAdapter(
 
 /** Matches the guide's debounce: a row scrolled past inside this window never fetches. */
 private const val EPG_LOAD_DEBOUNCE_MS = 250L
+
+/** Poll interval while waiting on another fetch's in-flight claim. */
+private const val EPG_POLL_DELAY_MS = 200L
+
+/** Cap on those polls (~10s total): a claim released without a result must not spin forever. */
+private const val EPG_WAIT_MAX_POLLS = 50

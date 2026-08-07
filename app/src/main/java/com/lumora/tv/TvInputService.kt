@@ -43,8 +43,11 @@ class TvInputService : TvInputService() {
     inner class TvSessionImpl(context: Context) : Session(context) {
 
         private var currentSurface: Surface? = null
+        private var tuneJob: Job? = null
 
         override fun onRelease() {
+            tuneJob?.cancel()
+            tuneJob = null
             player?.release()
             player = null
         }
@@ -65,7 +68,12 @@ class TvInputService : TvInputService() {
             // Signal tuning in progress so the user sees buffering indicator
             notifyVideoUnavailable(UNAVAILABLE_BUFFERING)
 
-            scope.launch {
+            // Serialize tunes: cancel any in-flight lookup before starting the next, so two
+            // rapid onTune calls can never build two players concurrently. playChannel runs on
+            // the main dispatcher with no suspension points, so an already-started build can't
+            // be interrupted mid-way either.
+            tuneJob?.cancel()
+            tuneJob = scope.launch {
                 val db = LumoraDatabase.getInstance(this@TvInputService)
                 val channel = withContext(Dispatchers.IO) {
                     // Try direct ID lookup first, then fall back to tvgId lookup
@@ -76,7 +84,6 @@ class TvInputService : TvInputService() {
                     playChannel(channel)
                 } else {
                     notifyVideoUnavailable(0)
-                    return@launch
                 }
             }
 
@@ -88,6 +95,16 @@ class TvInputService : TvInputService() {
         }
 
         private fun playChannel(channel: ChannelEntity) {
+            val surface = currentSurface
+            if (surface == null) {
+                // No rendering surface yet - building a player here would leak it (nothing can
+                // attach or release it until the next tune). Drop any existing one and let the
+                // framework re-tune when the surface is ready.
+                player?.release()
+                player = null
+                notifyVideoUnavailable(0)
+                return
+            }
             player?.release()
             player = ExoPlayer.Builder(this@TvInputService).build().apply {
                 addListener(object : Player.Listener {
@@ -104,7 +121,6 @@ class TvInputService : TvInputService() {
                     }
                 })
 
-                val surface = currentSurface ?: return@apply
                 setVideoSurface(surface)
 
                 val mediaItem = MediaItem.Builder()

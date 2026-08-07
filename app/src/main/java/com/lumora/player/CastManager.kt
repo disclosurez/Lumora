@@ -33,7 +33,7 @@ class CastManager(private val context: Context) {
         try {
             castContext = CastContext.getSharedInstance(context)
             val sessionManager = castContext?.sessionManager
-            sessionListener = object : SessionManagerListener<CastSession> {
+            val listener = object : SessionManagerListener<CastSession> {
                 override fun onSessionStarted(session: CastSession, sessionId: String) {
                     castSession = session
                     onCastSessionConnected?.invoke(session)
@@ -55,7 +55,11 @@ class CastManager(private val context: Context) {
                 override fun onSessionResuming(session: CastSession, sessionId: String) {}
                 override fun onSessionResumeFailed(session: CastSession, error: Int) {}
             }
-            sessionManager?.addSessionManagerListener(sessionListener!!, CastSession::class.java)
+            sessionListener = listener
+            // Guard against a partial init: CastContext may be present while its sessionManager
+            // is null, and the listener must never be !!-forced at a call site that could run
+            // without one being registered.
+            sessionManager?.addSessionManagerListener(listener, CastSession::class.java)
         } catch (e: Exception) {
             // Google Play Services may not be available
         }
@@ -126,9 +130,11 @@ class CastManager(private val context: Context) {
 
     fun release() {
         try {
-            castContext?.sessionManager?.removeSessionManagerListener(
-                sessionListener!!, CastSession::class.java
-            )
+            castContext?.sessionManager?.let { manager ->
+                sessionListener?.let { listener ->
+                    manager.removeSessionManagerListener(listener, CastSession::class.java)
+                }
+            }
         } catch (_: Exception) {}
         castSession = null
         castContext = null

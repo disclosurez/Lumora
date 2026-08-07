@@ -26,6 +26,8 @@ private const val TAG = "QrPairing"
 private const val PAIRING_TIMEOUT_MS = 5 * 60 * 1000L
 private const val QR_SIZE = 512
 private const val MAX_BODY = 24 * 1024
+/** How long a client may sit silent before its connection is dropped. */
+private const val READ_TIMEOUT_MS = 5_000
 
 /**
  * HTTP server + QR code generator for phone-based IPTV provider setup.
@@ -157,8 +159,18 @@ class QrPairingManager(private val context: Context) {
 
     private suspend fun handleClient(client: java.net.Socket) {
         client.use { c ->
+            // Drop silent clients: without a read timeout, a client that connects and sends
+            // nothing pins this coroutine (and its IO-dispatcher thread) forever, and a few
+            // such clients exhaust the shared dispatcher. The socket timeout bounds readLine
+            // below (and every subsequent header read).
+            runCatching { c.soTimeout = READ_TIMEOUT_MS }
             val reader = BufferedReader(InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))
-            val requestLine = reader.readLine() ?: return
+            val requestLine = try {
+                reader.readLine()
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.d(TAG, "Pairing client timed out before sending a request")
+                return
+            } ?: return
             val parts = requestLine.split(' ')
             if (parts.size < 2) return
 

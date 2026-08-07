@@ -173,7 +173,11 @@ class TorrentEngine(private val context: android.content.Context) {
     }
 
     private fun startSession() {
-        session.start()
+        // Native session calls are wrapped in runCatching like every other native call in this
+        // class: a throw here would take the whole start() down, and the settings in particular
+        // are advisory - the session can still run without them.
+        runCatching { session.start() }
+            .onFailure { Log.w(TAG, "Failed to start libtorrent session: ${it.message}") }
 
         val name = runCatching {
             NetworkInterface.getNetworkInterfaces().toList()
@@ -188,17 +192,19 @@ class TorrentEngine(private val context: android.content.Context) {
         // Booleans go through setBoolean, not setInteger: libtorrent encodes the setting's type in
         // its name bits and silently discards the wrong setter. Without announce_to_all_*,
         // libtorrent announces to only one tracker per tier.
-        session.applySettings(
-            SettingsPack()
-                .setBoolean(settings_pack.bool_types.enable_dht.swigValue(), true)
-                .listenInterfaces(interfaces)
-                .setBoolean(settings_pack.bool_types.announce_to_all_trackers.swigValue(), true)
-                .setBoolean(settings_pack.bool_types.announce_to_all_tiers.swigValue(), true)
-                .setString(settings_pack.string_types.dht_bootstrap_nodes.swigValue(), DHT_BOOTSTRAP)
-                .setBoolean(settings_pack.bool_types.enable_lsd.swigValue(), true)
-                .setBoolean(settings_pack.bool_types.enable_upnp.swigValue(), true)
-                .setBoolean(settings_pack.bool_types.enable_natpmp.swigValue(), true)
-        )
+        runCatching {
+            session.applySettings(
+                SettingsPack()
+                    .setBoolean(settings_pack.bool_types.enable_dht.swigValue(), true)
+                    .listenInterfaces(interfaces)
+                    .setBoolean(settings_pack.bool_types.announce_to_all_trackers.swigValue(), true)
+                    .setBoolean(settings_pack.bool_types.announce_to_all_tiers.swigValue(), true)
+                    .setString(settings_pack.string_types.dht_bootstrap_nodes.swigValue(), DHT_BOOTSTRAP)
+                    .setBoolean(settings_pack.bool_types.enable_lsd.swigValue(), true)
+                    .setBoolean(settings_pack.bool_types.enable_upnp.swigValue(), true)
+                    .setBoolean(settings_pack.bool_types.enable_natpmp.swigValue(), true)
+            )
+        }.onFailure { Log.w(TAG, "Failed to apply session settings: ${it.message}") }
 
         // Block until sockets actually bind. If the wildcard form binds nothing (it has, on some
         // devices), fall back to binding by interface name - a socket that still runs the DHT the

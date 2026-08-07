@@ -16,6 +16,7 @@ import com.lumora.parser.XtreamClient
 import com.lumora.util.normalizeServerUrl
 import com.lumora.data.remote.stalker.StalkerProvider
 import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
 
 // ── Provider loading, per-provider content gates & backend fetches ──
 //
@@ -533,6 +534,8 @@ internal suspend fun MainActivity.fetchStalkerChannels(config: IptvProviderConfi
                 tag(films).filter { providerAllowsMovies(config) } +
                 tag(series).filter { providerAllowsSeries(config) }
         )
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         FetchResult.Failure(e.message?.take(60) ?: "error")
     }
@@ -578,6 +581,8 @@ internal suspend fun MainActivity.fetchM3uChannels(config: IptvProviderConfig): 
         // final), but it's what names the provider a duplicate came from on the detail
         // screen's version chips - without it every M3U copy is an anonymous "Version N".
         FetchResult.Success(channels.map { it.copy(streamUserAgent = config.userAgent, sourceProviderId = config.id) })
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         FetchResult.Failure(e.message?.take(60) ?: "error")
     }
@@ -640,8 +645,18 @@ internal suspend fun MainActivity.fetchXtreamChannels(config: IptvProviderConfig
             series = seriesDeferred?.await()?.map { withCategory(it, seriesCatNames, "uncat_series") } ?: emptyList()
         }
 
+        // Persist the subscription expiry so Settings' "Active until / Expired" line can
+        // display - xtream_exp_date / xtream_is_trial were never written anywhere before,
+        // so the Settings read always came back empty. putString(key, null) removes the
+        // key, which drops a stale expiry when the account stops reporting one.
+        prefs.edit()
+            .putString("xtream_exp_date", auth.expDateSeconds?.toString())
+            .putBoolean("xtream_is_trial", auth.isTrial)
+            .apply()
         onExpiry(formatSubscriptionStatus(auth.expDateSeconds, auth.isTrial))
         FetchResult.Success(live + films + series)
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         FetchResult.Failure(e.message?.take(60) ?: "error")
     }

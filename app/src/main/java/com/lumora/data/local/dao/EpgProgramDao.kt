@@ -32,9 +32,6 @@ interface EpgProgramDao {
     @Query("DELETE FROM epg_programs WHERE stopTimestamp < :beforeSeconds")
     suspend fun pruneEndedBefore(beforeSeconds: Long): Int
 
-    @Query("DELETE FROM epg_programs")
-    suspend fun clear()
-
     @Query("SELECT COUNT(*) FROM epg_programs")
     suspend fun count(): Int
 }

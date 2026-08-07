@@ -1,7 +1,6 @@
 package com.lumora.player.playback
 
 import com.lumora.model.Provider
-import com.lumora.model.ProviderType
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -13,24 +12,6 @@ import java.util.Locale
  * Stalker: uses create_link with offset parameter
  */
 object CatchUpUrlBuilder {
-
-    /**
-     * Build a catch-up URL for an Xtream provider.
-     */
-    fun buildXtreamCatchUpUrl(
-        provider: Provider,
-        streamId: String,
-        containerExtension: String,
-        startTimestamp: Long,
-        durationSeconds: Int = 7200 // default 2 hours
-    ): String? {
-        val base = provider.serverUrl ?: return null
-        val user = URLEncoder.encode(provider.username.orEmpty(), "UTF-8")
-        val pass = URLEncoder.encode(provider.password.orEmpty(), "UTF-8")
-        // Xtream catch-up: /live/username/password/streamid.ext?start=123&duration=456
-        return "$base/live/$user/$pass/$streamId.$containerExtension" +
-                "?start=$startTimestamp&duration=$durationSeconds"
-    }
 
     /**
      * The `/timeshift/` form, which is what Xtream panels actually serve archive playback
@@ -58,19 +39,5 @@ object CatchUpUrlBuilder {
         val stamp = SimpleDateFormat("yyyy-MM-dd:HH-mm", Locale.US)
             .format(Date(startTimestampSeconds * 1000L))
         return "$base/timeshift/$user/$pass/${durationMinutes.coerceAtLeast(1)}/$stamp/$streamId.ts"
-    }
-
-    /**
-     * Build a catch-up URL for Stalker providers that support timeshift.
-     */
-    fun buildStalkerCatchUpUrl(
-        serverUrl: String,
-        channelCmd: String,
-        startTimestamp: Long,
-        durationSeconds: Int
-    ): String {
-        val base = serverUrl.trimEnd('/')
-        return "$base/stalker_portal/${channelCmd.trimStart('/')}" +
-                "?utc_start=$startTimestamp&duration=$durationSeconds"
     }
 }

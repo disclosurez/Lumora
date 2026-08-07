@@ -16,7 +16,14 @@ import androidx.media3.session.MediaSession
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.lumora.model.Channel
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Lumora as a media app: the browse tree Android Auto (and Assistant, and Wear, and anything
@@ -39,10 +46,12 @@ class LumoraMediaService : MediaLibraryService() {
     private lateinit var player: ExoPlayer
     private lateinit var session: MediaLibrarySession
     private val catalog by lazy { CarPlayback(this) }
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** mediaId -> channel, filled as the tree is browsed so playback can resolve an id back
-     *  to a real stream (a controller sends back the id alone, never the URI). */
-    private val byMediaId = HashMap<String, Channel>()
+     *  to a real stream (a controller sends back the id alone, never the URI). Concurrent map:
+     *  browse callbacks populate it on background threads now. */
+    private val byMediaId = ConcurrentHashMap<String, Channel>()
 
     override fun onCreate() {
         super.onCreate()
@@ -85,7 +94,23 @@ class LumoraMediaService : MediaLibraryService() {
     override fun onDestroy() {
         session.release()
         player.release()
+        ioScope.cancel()
         super.onDestroy()
+    }
+
+    /** Runs a callback's heavy work (catalog disk read + list scans) off the service main
+     *  thread and completes the returned future when it's done. The Media framework consumes
+     *  the future on its own executor, so no main-thread delivery is needed. */
+    private fun <T> asyncIo(block: () -> T): ListenableFuture<T> {
+        val future: SettableFuture<T> = SettableFuture.create()
+        ioScope.launch {
+            try {
+                future.set(block())
+            } catch (e: Exception) {
+                future.setException(e)
+            }
+        }
+        return future
     }
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
@@ -95,8 +120,10 @@ class LumoraMediaService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> {
-            if (catalog.channels.isEmpty()) catalog.loadCatalog()
-            return Futures.immediateFuture(LibraryResult.ofItem(browsableItem(ROOT, "Lumora"), params))
+            return asyncIo {
+                if (catalog.channels.isEmpty()) catalog.loadCatalog()
+                LibraryResult.ofItem(browsableItem(ROOT, "Lumora"), params)
+            }
         }
 
         override fun onGetChildren(
@@ -107,21 +134,23 @@ class LumoraMediaService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-            if (catalog.channels.isEmpty()) catalog.loadCatalog()
-            val children = when {
-                parentId == ROOT -> rootChildren()
-                parentId == FAVOURITES -> catalog.favourites().map(::playableItem)
-                parentId == RECENT -> catalog.recents().map(::playableItem)
-                parentId.startsWith(CATEGORY_PREFIX) -> {
-                    val name = parentId.removePrefix(CATEGORY_PREFIX)
-                    catalog.categories()[name].orEmpty().map(::playableItem)
+            return asyncIo {
+                if (catalog.channels.isEmpty()) catalog.loadCatalog()
+                val children = when {
+                    parentId == ROOT -> rootChildren()
+                    parentId == FAVOURITES -> catalog.favourites().map(::playableItem)
+                    parentId == RECENT -> catalog.recents().map(::playableItem)
+                    parentId.startsWith(CATEGORY_PREFIX) -> {
+                        val name = parentId.removePrefix(CATEGORY_PREFIX)
+                        catalog.categories()[name].orEmpty().map(::playableItem)
+                    }
+                    else -> emptyList()
                 }
-                else -> emptyList()
+                // The car host pages its lists; handing back everything at once is what makes a
+                // 4000-channel category hang the browser.
+                val paged = children.drop(page * pageSize).take(pageSize)
+                LibraryResult.ofItemList(ImmutableList.copyOf(paged), params)
             }
-            // The car host pages its lists; handing back everything at once is what makes a
-            // 4000-channel category hang the browser.
-            val paged = children.drop(page * pageSize).take(pageSize)
-            return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.copyOf(paged), params))
         }
 
         override fun onGetItem(
@@ -144,8 +173,10 @@ class LumoraMediaService : MediaLibraryService() {
             query: String,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<Void>> {
-            if (catalog.channels.isEmpty()) catalog.loadCatalog()
-            session.notifySearchResultChanged(browser, query, matches(query).size, params)
+            asyncIo {
+                if (catalog.channels.isEmpty()) catalog.loadCatalog()
+                session.notifySearchResultChanged(browser, query, matches(query).size, params)
+            }
             return Futures.immediateFuture(LibraryResult.ofVoid())
         }
 
@@ -157,8 +188,10 @@ class LumoraMediaService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-            val results = matches(query).map(::playableItem).drop(page * pageSize).take(pageSize)
-            return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.copyOf(results), params))
+            return asyncIo {
+                val results = matches(query).map(::playableItem).drop(page * pageSize).take(pageSize)
+                LibraryResult.ofItemList(ImmutableList.copyOf(results), params)
+            }
         }
 
         /**
@@ -171,12 +204,14 @@ class LumoraMediaService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
-            if (catalog.channels.isEmpty()) catalog.loadCatalog()
-            val resolved = mediaItems.mapNotNull { item ->
-                val channel = byMediaId[item.mediaId] ?: return@mapNotNull null
-                item.buildUpon().setUri(channel.url).build()
-            }.toMutableList()
-            return Futures.immediateFuture(resolved)
+            return asyncIo {
+                if (catalog.channels.isEmpty()) catalog.loadCatalog()
+                val resolved = mediaItems.mapNotNull { item ->
+                    val channel = byMediaId[item.mediaId] ?: return@mapNotNull null
+                    item.buildUpon().setUri(channel.url).build()
+                }.toMutableList()
+                resolved
+            }
         }
     }
 

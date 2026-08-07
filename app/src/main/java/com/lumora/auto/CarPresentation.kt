@@ -25,8 +25,16 @@ import android.widget.TextView
  */
 class CarPresentation(context: Context, display: Display) : Presentation(context, display) {
 
-    lateinit var videoSurface: SurfaceView
-        private set
+    /** Created eagerly (not lateinit) so reading it is safe immediately after construction -
+     *  the car screen attaches the player's video surface right after show(), before this
+     *  Presentation's onCreate() may have run, and a lateinit read there crashed on rapid
+     *  surface handoff. A SurfaceView simply renders once its window exists, like any
+     *  Activity's, so creating it early is harmless. */
+    val videoSurface: SurfaceView = SurfaceView(context).apply {
+        layoutParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
 
     private lateinit var titleLabel: TextView
 
@@ -35,11 +43,6 @@ class CarPresentation(context: Context, display: Display) : Presentation(context
         val root = FrameLayout(context).apply {
             setBackgroundColor(Color.BLACK)
             layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        }
-        videoSurface = SurfaceView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
@@ -59,12 +62,5 @@ class CarPresentation(context: Context, display: Display) : Presentation(context
     /** What is playing, and - when the car is moving - why there is no picture. */
     fun setStatus(text: String) {
         if (::titleLabel.isInitialized) titleLabel.text = text
-    }
-
-    /** Blank the picture without stopping the stream, for the parked-only gate. */
-    fun setVideoVisible(visible: Boolean) {
-        if (::videoSurface.isInitialized) {
-            videoSurface.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
-        }
     }
 }

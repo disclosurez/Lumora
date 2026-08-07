@@ -153,6 +153,9 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         val recordingId = intent.getStringExtra("recording_id") ?: return
         val action = intent.getStringExtra("action") ?: return
 
+        // Keep the broadcast alive until the DB write is done: returning immediately without
+        // goAsync() lets the process be killed before the status update lands.
+        val pendingResult = goAsync()
         scope.launch {
             try {
                 val db = LumoraDatabase.getInstance(context)
@@ -176,6 +179,8 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Recording alarm failed: ${e.message}")
+            } finally {
+                pendingResult.finish()
             }
         }
     }

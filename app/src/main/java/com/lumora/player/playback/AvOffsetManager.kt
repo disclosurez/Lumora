@@ -2,7 +2,6 @@ package com.lumora.player.playback
 
 import android.content.Context
 import androidx.media3.common.PlaybackParameters
-import androidx.media3.exoplayer.ExoPlayer
 
 /**
  * Manages A/V sync offset preferences.
@@ -41,18 +40,6 @@ class AvOffsetManager(private val context: Context) {
         } else null
     }
 
-    fun savePerChannel(channelId: String, offsetMs: Int) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putInt(perChannelKey(channelId), offsetMs)
-            .apply()
-    }
-
-    fun removePerChannel(channelId: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .remove(perChannelKey(channelId))
-            .apply()
-    }
-
     /** Resolve the effective offset for a channel: per-channel override or global default. */
     fun effectiveOffset(channelId: String): Int {
         return loadPerChannel(channelId) ?: currentOffset
@@ -73,22 +60,6 @@ class AvOffsetManager(private val context: Context) {
         if (offsetMs == 0) return current
         // Return the current speed/pitch (offset is stored for reference)
         return PlaybackParameters(current.speed, current.pitch)
-    }
-
-    /**
-     * Apply the effective A/V offset to an ExoPlayer instance.
-     * Positive offsetMs delays audio (audio plays later than video).
-     * Negative offsetMs advances audio (audio plays earlier than video).
-     */
-    fun applyToPlayer(player: ExoPlayer, channelId: String?) {
-        player.setPlaybackParameters(
-            buildPlaybackParameters(player.playbackParameters, channelId)
-        )
-    }
-
-    /** Remove the A/V offset from a player, resetting PlaybackParameters to default. */
-    fun removeFromPlayer(player: ExoPlayer) {
-        player.setPlaybackParameters(PlaybackParameters.DEFAULT)
     }
 
     /** Get the effective offset in milliseconds. */

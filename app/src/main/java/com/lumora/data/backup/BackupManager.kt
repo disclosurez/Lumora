@@ -101,7 +101,14 @@ class BackupManager(private val context: Context) {
             val finalData = data.copy(checksum = checksum)
             val finalJson = gson.toJson(finalData)
 
-            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+            val stream = context.contentResolver.openOutputStream(uri)
+            if (stream == null) {
+                // SAF refused the URI (no provider, no permission) - nothing was written,
+                // so this must not report success.
+                Log.e(TAG, "Export failed: could not open output stream for $uri")
+                return@withContext false
+            }
+            stream.use { outputStream ->
                 OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
                     writer.write(finalJson)
                     writer.flush()

@@ -102,23 +102,4 @@ class PlayerErrorClassifier {
         return Classification(ErrorCategory.UNKNOWN, RecoveryAction.NOTIFY_USER,
             "Playback error: ${error.message?.take(80)}")
     }
-
-    /**
-     * Determine the probable format from a URL extension.
-     */
-    fun detectFormat(url: String?): String {
-        val ext = url?.substringAfterLast('.', "")?.lowercase() ?: ""
-        return when (ext) {
-            "m3u8", "m3u" -> "hls"
-            "mpd" -> "dash"
-            "ts" -> "mpegts"
-            "mp4" -> "mp4"
-            "mkv" -> "mkv"
-            "avi" -> "avi"
-            "flv" -> "flv"
-            "rtmp" -> "rtmp"
-            "rtsp" -> "rtsp"
-            else -> "hls" // default to HLS
-        }
-    }
 }

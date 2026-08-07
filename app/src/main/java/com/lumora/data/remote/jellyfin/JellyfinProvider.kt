@@ -32,9 +32,6 @@ class JellyfinProvider(private val client: OkHttpClient) {
     private var userId: String? = null
     private var serverBase: String? = null
 
-    val currentAccessToken: String? get() = accessToken
-    val currentUserId: String? get() = userId
-
     /** Set by startQuickConnect() on failure so callers can show *why* instead of a generic
      *  message - e.g. distinguishing "server unreachable" from "Quick Connect disabled on
      *  server", which look identical from the Pair<String,String>? return alone. */

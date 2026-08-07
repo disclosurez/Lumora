@@ -27,20 +27,41 @@ class CatalogSyncWorker(
     private val TAG = "CatalogSync"
 
     override suspend fun doWork(): Result {
-        val providerId = inputData.getString("provider_id") ?: return Result.failure()
         val db = LumoraDatabase.getInstance(applicationContext)
+        val providerId = inputData.getString("provider_id")
+
+        // No provider_id: a bulk request (BackgroundWorkEnabler.syncAllNow enqueues without
+        // input data) - sync every provider in the database instead of failing. One slow or
+        // dead provider is contained by the per-provider try/catch below.
+        if (providerId == null) {
+            val providers = db.providerDao().getAll()
+            if (providers.isEmpty()) return Result.success()
+            var allSuccess = true
+            for (entity in providers) {
+                try {
+                    if (syncProvider(db, entity)) {
+                        db.providerDao().updateLastSync(entity.id, System.currentTimeMillis())
+                    } else {
+                        allSuccess = false
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Sync failed for ${entity.name}: ${e.message}")
+                    allSuccess = false
+                }
+            }
+            // Mirror the single-provider path's attempt cap: without it a permanently dead
+            // provider retries forever (exponential backoff up to ~5h), and each retry
+            // re-syncs every provider and re-stamps their lastSyncAt.
+            if (allSuccess) return Result.success()
+            return if (runAttemptCount < 3) Result.retry() else Result.failure()
+        }
+
         val providerEntity = db.providerDao().getById(providerId) ?: return Result.failure()
 
         Log.d(TAG, "Starting sync for provider: ${providerEntity.name}")
 
         return try {
-            val provider = providerEntity.toModel()
-            val result = when (provider.type) {
-                ProviderType.XTREAM -> syncXtream(provider, db, providerEntity)
-                else -> syncM3u(provider, db, providerEntity)
-            }
-
-            if (result) {
+            if (syncProvider(db, providerEntity)) {
                 db.providerDao().updateLastSync(providerId, System.currentTimeMillis())
                 Result.success()
             } else {
@@ -49,6 +70,14 @@ class CatalogSyncWorker(
         } catch (e: Exception) {
             Log.w(TAG, "Sync failed: ${e.message}")
             if (runAttemptCount < 3) Result.retry() else Result.failure()
+        }
+    }
+
+    private suspend fun syncProvider(db: LumoraDatabase, entity: ProviderEntity): Boolean {
+        val provider = entity.toModel()
+        return when (provider.type) {
+            ProviderType.XTREAM -> syncXtream(provider, db, entity)
+            else -> syncM3u(provider, db, entity)
         }
     }
 
