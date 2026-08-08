@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.5
+
+### Films & Series
+- **Episodes fill in their own details.** Providers that return nothing but "Episode 4" now get the episode title, plot and still image from TMDB, filled in a beat after the season appears. Films and shows get the same treatment for a missing plot, backdrop, release date, genre, director and cast. Only blanks are filled — a provider that sends real metadata is describing the copy actually being played, so it always wins.
+- **Series categories group like films do.** A panel naming its categories "SERIES | ACTION", "SERIES | COMEDY" had every one of them collapse into a single "Series" row, which then skipped the genre buckets entirely. Categories like "APPLE+ DOCU-SERIES" also sit under their brand now instead of claiming a row of their own.
+- **Near-empty categories sink to the bottom** of the Films and Series rails, so a long tail of them stops burying the ones worth browsing.
+- **Marking a season watched leaves the screen where it was.** It used to rebuild the tab behind the open detail page, moving the selection somewhere arbitrary.
+
+### Fixes
+- **Fixed a crash loop on channels with no EPG data.** Caching the "no programmes" result threw, taking the app down on launch — a fresh provider with no guide data could not get past the Live tab.
+- **Adding a provider now shows the catalogue.** Closing Settings before the first fetch landed left the app stuck on the "no provider" screen until it was restarted, and the tab bar stayed hidden after a successful save.
+- **Discover no longer matches a title to a longer, unrelated one** — "The Last House" was claiming "The Last House on the Left" and reporting it as owned.
+- **Poster and programme titles stay readable when they wrap.** Long titles shrank to unreadable at TV distance rather than ellipsizing.
+
 ## 3.4
 
 ### Android Auto
