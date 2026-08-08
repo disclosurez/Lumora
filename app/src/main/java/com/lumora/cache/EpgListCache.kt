@@ -10,22 +10,26 @@ object EpgListCache {
     // ConcurrentHashMap: guide fetches can put/remove from background scopes, and a plain
     // HashMap mutated off the main thread would throw ConcurrentModificationException or lose
     // entries. Iteration here is weakly consistent, so the eviction scan never races a write.
-    private val cache = ConcurrentHashMap<String, List<XtreamClient.EpgProgram>?>()
+    // Values are non-null: a channel known to have no EPG is stored as an empty list, not as
+    // a null. ConcurrentHashMap rejects null values outright, so `cache[id] = null` - which is
+    // exactly what put() did for a channel whose fetch came back empty or threw - raised an
+    // NPE from putVal() on the main thread and took the process down. Every reader already
+    // treats empty and absent-data the same way (see renderPrograms/renderNow), and an empty
+    // list still makes has() true, which is what stops the guide refetching it forever.
+    private val cache = ConcurrentHashMap<String, List<XtreamClient.EpgProgram>>()
     private val lastAccess = ConcurrentHashMap<String, Long>()
     private val inFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     fun get(channelId: String): List<XtreamClient.EpgProgram>? {
-        val programs = cache[channelId]
-        if (programs != null || cache.containsKey(channelId)) {
-            lastAccess[channelId] = System.currentTimeMillis()
-        }
+        val programs = cache[channelId] ?: return null
+        lastAccess[channelId] = System.currentTimeMillis()
         return programs
     }
 
     fun has(channelId: String): Boolean = cache.containsKey(channelId)
 
     fun put(channelId: String, programs: List<XtreamClient.EpgProgram>?) {
-        cache[channelId] = programs
+        cache[channelId] = programs ?: emptyList()
         lastAccess[channelId] = System.currentTimeMillis()
         inFlight.remove(channelId)
         evictIfNeeded()
