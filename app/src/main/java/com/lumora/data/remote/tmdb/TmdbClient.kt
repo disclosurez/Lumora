@@ -101,6 +101,91 @@ class TmdbClient {
         out
     }
 
+    /**
+     * Episodes of one season, keyed by episode number, for filling in what a provider left
+     * blank on its own episode rows (title, plot, still image).
+     *
+     * Cached per (show, season) for the process: the detail screen re-reads a season every
+     * time the user chips back and forth between them, and this answer never changes within
+     * a session. A season that TMDB has nothing for caches as empty, so a miss is asked once.
+     */
+    suspend fun tvEpisodes(tvId: Int, seasonNumber: Int): Map<Int, TvEpisode> {
+        val cacheKey = "$tvId:$seasonNumber"
+        episodeCache[cacheKey]?.let { return it }
+        val parsed = withContext(Dispatchers.IO) {
+            val body = fetchBody("/tv/$tvId/season/$seasonNumber", "language=en-US")
+                ?: return@withContext emptyMap<Int, TvEpisode>()
+            val arr = JSONObject(body).optJSONArray("episodes") ?: return@withContext emptyMap()
+            val out = LinkedHashMap<Int, TvEpisode>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val number = o.optInt("episode_number", -1)
+                if (number < 0) continue
+                out[number] = TvEpisode(
+                    number = number,
+                    name = o.optString("name").takeIf { it.isNotBlank() },
+                    overview = o.optString("overview").takeIf { it.isNotBlank() },
+                    // A 300px-wide still is what the episode row's thumbnail slot actually
+                    // renders at - the poster sizes would be wasted bytes per row.
+                    stillUrl = o.optString("still_path").takeIf { it.isNotBlank() }?.let { "$STILL$it" }
+                )
+            }
+            out
+        }
+        episodeCache[cacheKey] = parsed
+        return parsed
+    }
+
+    /**
+     * Full detail for one title - overview, backdrop, release date, genres and the credit
+     * lines - for filling in what a provider left blank on the detail screen. Works for both
+     * a film ([mediaType] "movie") and a show ("tv").
+     *
+     * One request, not three: `append_to_response=credits` returns the cast/crew in the same
+     * body, which matters on a TV stick opening this on every detail screen. Cached per title
+     * for the process, same reasoning as [tvEpisodes].
+     */
+    suspend fun titleDetails(mediaType: String, id: Int): TitleDetails? {
+        val cacheKey = "$mediaType:$id"
+        titleCache[cacheKey]?.let { return it.value }
+        val parsed = withContext(Dispatchers.IO) {
+            val body = fetchBody("/$mediaType/$id", "language=en-US&append_to_response=credits")
+                ?: return@withContext null
+            val o = JSONObject(body)
+            val genres = o.optJSONArray("genres")?.let { arr ->
+                (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("name")?.takeIf(String::isNotBlank) }
+            }.orEmpty()
+            val credits = o.optJSONObject("credits")
+            val director = credits?.optJSONArray("crew")?.let { crew ->
+                (0 until crew.length()).mapNotNull { crew.optJSONObject(it) }
+                    .firstOrNull { it.optString("job") == "Director" }
+                    ?.optString("name")?.takeIf(String::isNotBlank)
+            }
+            // Top-billed only: the full cast list runs to dozens of names and the detail
+            // screen gives this one line.
+            val cast = credits?.optJSONArray("cast")?.let { arr ->
+                (0 until minOf(arr.length(), CAST_LIMIT)).mapNotNull {
+                    arr.optJSONObject(it)?.optString("name")?.takeIf(String::isNotBlank)
+                }
+            }.orEmpty()
+            TitleDetails(
+                overview = o.optString("overview").takeIf { it.isNotBlank() },
+                backdropUrl = o.optString("backdrop_path").takeIf { it.isNotBlank() }?.let { "$BACKDROP$it" },
+                posterUrl = o.optString("poster_path").takeIf { it.isNotBlank() }?.let { "$IMG$it" },
+                releaseDate = o.optString("release_date").ifBlank { o.optString("first_air_date") }
+                    .takeIf { it.isNotBlank() },
+                genre = genres.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                director = director,
+                cast = cast.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                rating = o.optDouble("vote_average", 0.0).takeIf { it > 0 }?.let { "%.1f".format(it) }
+            )
+        }
+        // Boxed so a title TMDB has nothing for is still a cache hit rather than a re-request
+        // on every reopen of that detail screen.
+        titleCache[cacheKey] = Boxed(parsed)
+        return parsed
+    }
+
     /** Tries each configured key in turn, so a dead/rate-limited key falls back to the next. */
     private suspend fun get(path: String, params: String): List<Channel> =
         fetchBody(path, params)?.let { parse(it) } ?: emptyList()
@@ -165,6 +250,34 @@ class TmdbClient {
 
     data class TvSeason(val number: Int, val episodeCount: Int, val name: String)
 
+    /** One TMDB episode's fillable fields; every one is optional because TMDB itself
+     *  routinely has a name but no still, or a still but no overview. */
+    data class TvEpisode(
+        val number: Int,
+        val name: String?,
+        val overview: String?,
+        val stillUrl: String?
+    )
+
+    /** Everything the detail screen can fill in from TMDB; all optional. */
+    data class TitleDetails(
+        val overview: String?,
+        val backdropUrl: String?,
+        val posterUrl: String?,
+        val releaseDate: String?,
+        val genre: String?,
+        val director: String?,
+        val cast: String?,
+        val rating: String?
+    )
+
+    /** ConcurrentHashMap rejects null values, so a "TMDB knows nothing about this" result
+     *  has to be wrapped to be cacheable at all. */
+    private class Boxed(val value: TitleDetails?)
+
+    private val episodeCache = java.util.concurrent.ConcurrentHashMap<String, Map<Int, TvEpisode>>()
+    private val titleCache = java.util.concurrent.ConcurrentHashMap<String, Boxed>()
+
     companion object {
         /** TMDB v3 API keys, tried in order (fallback on failure). Empty list = Discover disabled. */
         val KEYS = listOf(
@@ -176,5 +289,7 @@ class TmdbClient {
         private const val BASE = "https://api.themoviedb.org/3"
         private const val IMG = "https://image.tmdb.org/t/p/w342"
         private const val BACKDROP = "https://image.tmdb.org/t/p/w780"
+        private const val STILL = "https://image.tmdb.org/t/p/w300"
+        private const val CAST_LIMIT = 8
     }
 }

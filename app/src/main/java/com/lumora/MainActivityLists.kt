@@ -25,6 +25,7 @@ import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.anime.AnimeCatalogClient
 import com.lumora.parser.XtreamClient
+import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
@@ -563,7 +564,11 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         clearUpNextMemo()
         refreshSeriesShelvesIfShowing()
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
-        if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
+        // preserveUi: the plain form ends in selectTab(), which clears the selected
+        // category, tears the sidebar down and rebuilds the pane from scratch - all
+        // behind this detail screen, which then had its season chip yanked out from
+        // under the user's cursor and landed focus somewhere arbitrary on close.
+        if (!showingHome && activeTab != 0) scope.launch { classifyAndShow(preserveUi = true) }
     }
 
     itemAdapter = EpisodeAdapter(
@@ -604,7 +609,8 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             clearUpNextMemo()
             refreshSeriesShelvesIfShowing()
             if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
-            if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
+            // preserveUi for the same reason as toggleSeasonWatched above.
+            if (!showingHome && activeTab != 0) scope.launch { classifyAndShow(preserveUi = true) }
             refreshSeasonChipStates(detailSeasons)
             playButtonRefresh?.invoke()
         }
@@ -635,6 +641,107 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         if (!details.backdropUrl.isNullOrBlank()) loadDetailImage(details.backdropUrl, backdrop)
     }
 
+    /**
+     * Fills the blanks in a film's / show's own detail block from TMDB - plot, backdrop,
+     * release date, genre, director, cast - then re-applies it.
+     *
+     * Same rule and shape as the per-episode enrichment: provider data always wins, TMDB
+     * only supplies what came back empty, and it runs after the provider's own details are
+     * already on screen so nothing waits on it. Plenty of panels return a film with no
+     * overview and no backdrop at all, which left the detail screen as a title and a Play
+     * button.
+     */
+    fun enrichDetailsFromTmdb(details: XtreamClient.ContentDetails?, isSeries: Boolean, requestedItemId: String) {
+        if (!tmdbClient.hasKey()) return
+        val needs = details == null ||
+            details.plot.isNullOrBlank() || details.backdropUrl.isNullOrBlank() ||
+            details.releaseDate.isNullOrBlank() || details.genre.isNullOrBlank() ||
+            details.director.isNullOrBlank() || details.cast.isNullOrBlank()
+        if (!needs) return
+        scope.launch {
+            val resolved = tmdbClient.resolveId(cleanVodTitle(item.name), item.year, isSeries) ?: return@launch
+            val tmdb = tmdbClient.titleDetails(resolved.first, resolved.second) ?: return@launch
+            // The user can have moved to another title while the two calls ran - applying
+            // then would write one film's plot onto another's screen.
+            if (nowShowingDetailId != requestedItemId) return@launch
+            applyDetails(
+                XtreamClient.ContentDetails(
+                    plot = details?.plot?.takeIf { it.isNotBlank() } ?: tmdb.overview,
+                    genre = details?.genre?.takeIf { it.isNotBlank() } ?: tmdb.genre,
+                    director = details?.director?.takeIf { it.isNotBlank() } ?: tmdb.director,
+                    cast = details?.cast?.takeIf { it.isNotBlank() } ?: tmdb.cast,
+                    rating = details?.rating?.takeIf { it.isNotBlank() } ?: tmdb.rating,
+                    backdropUrl = details?.backdropUrl?.takeIf { it.isNotBlank() } ?: tmdb.backdropUrl,
+                    releaseDate = details?.releaseDate?.takeIf { it.isNotBlank() } ?: tmdb.releaseDate
+                )
+            )
+        }
+    }
+
+    // TMDB episode enrichment state, per open detail screen. The show's TMDB id is resolved
+    // at most once and shared by every season (held as a Deferred rather than a plain field
+    // so two quick season switches await one search instead of racing two).
+    var tmdbTvIdJob: Deferred<Int?>? = null
+    var seasonEnrichToken = 0
+
+    /**
+     * Fills in what the provider left blank on this season's episode rows - title, plot,
+     * still image - from TMDB, then re-submits the season.
+     *
+     * Only ever fills blanks: a provider that ships real episode metadata is the better
+     * source (it describes the copy actually being played), and TMDB is the fallback for
+     * the many panels that return nothing but "Episode 4". Runs after the season is already
+     * on screen rather than inside loadSeriesContent, so the list paints at provider speed
+     * and enrichment lands underneath it; and only for the season being looked at, so
+     * opening a 12-season show costs one request, not twelve.
+     *
+     * The enriched copies go to the adapter alone, never back into `seasons`: only
+     * name/description/posterUrl change, and every other consumer of that list keys off
+     * id/url/episodeNum, which are untouched.
+     */
+    fun enrichSeasonFromTmdb(seasons: List<Pair<String, List<Channel>>>, index: Int) {
+        if (!tmdbClient.hasKey()) return
+        val (label, episodes) = seasons.getOrNull(index) ?: return
+        if (episodes.none { needsEpisodeMetadata(it, item.name) }) return
+        // Bumped per season switch: a slow response for the season the user has already
+        // chipped away from must not overwrite the one now on screen.
+        val token = ++seasonEnrichToken
+        scope.launch {
+            val idJob = tmdbTvIdJob ?: async {
+                tmdbClient.resolveId(cleanVodTitle(item.name), item.year, isSeries = true)
+                    ?.takeIf { it.first == "tv" }?.second
+            }.also { tmdbTvIdJob = it }
+            val tvId = idJob.await() ?: return@launch
+            // Season label is the provider's ("Season 3", "S3", a Jellyfin custom name);
+            // its number is what TMDB indexes by, and position is the fallback for a label
+            // carrying no digits at all.
+            val seasonNumber = Regex("""\d+""").find(label)?.value?.toIntOrNull() ?: (index + 1)
+            val meta = tmdbClient.tvEpisodes(tvId, seasonNumber)
+            if (meta.isEmpty() || token != seasonEnrichToken) return@launch
+            var changed = false
+            val merged = episodes.map { ep ->
+                val m = ep.episodeNum?.let { meta[it] } ?: return@map ep
+                val name = if (isPlaceholderEpisodeTitle(ep, item.name) && !m.name.isNullOrBlank()) {
+                    // Keep the "S01E04 · " prefix the rest of the app parses back out
+                    // (Up Next, search, watch history all read it off `name`).
+                    val prefix = EPISODE_NAME_PREFIX_REGEX.find(ep.name)?.value.orEmpty()
+                    prefix + m.name
+                } else {
+                    ep.name
+                }
+                val description = ep.description?.takeIf { it.isNotBlank() } ?: m.overview
+                val poster = ep.posterUrl?.takeIf { it.isNotBlank() } ?: m.stillUrl
+                if (name == ep.name && description == ep.description && poster == ep.posterUrl) {
+                    ep
+                } else {
+                    changed = true
+                    ep.copy(name = name, description = description, posterUrl = poster)
+                }
+            }
+            if (changed && token == seasonEnrichToken) itemAdapter.submitList(merged)
+        }
+    }
+
     fun showSeason(seasons: List<Pair<String, List<Channel>>>, index: Int) {
         for (i in 0 until seasonRow.childCount) {
             val cell = seasonRow.getChildAt(i) as? ViewGroup ?: continue
@@ -655,6 +762,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         selectedSeasonChip = (seasonRow.getChildAt(index) as? ViewGroup)
             ?.findViewById<View>(R.id.seasonChipLabel)
         itemAdapter.submitList(seasons[index].second)
+        enrichSeasonFromTmdb(seasons, index)
     }
 
     // Series had no equivalent of the film branch's Play button below - the only
@@ -745,6 +853,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 detailSeasons = seasons
                 if (nowShowingDetailId != requestedItemId) return@launch
                 applyDetails(details)
+                enrichDetailsFromTmdb(details, isSeries = true, requestedItemId = requestedItemId)
                 if (seasons.all { it.second.isEmpty() }) {
                     statusText.text = "No episodes found"
                 } else {
@@ -828,6 +937,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 }
                 if (nowShowingDetailId != requestedItemId) return@launch
                 applyDetails(details)
+                enrichDetailsFromTmdb(details, isSeries = false, requestedItemId = requestedItemId)
                 val versions = filmVersions[item.id] ?: listOf(item)
                 statusText.visibility = View.GONE
 
@@ -881,6 +991,36 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     }
     nowShowingDetailId = item.id
 }
+
+/** The "S01E04 · " marker both Xtream and Jellyfin bake onto an episode name. */
+private val EPISODE_NAME_PREFIX_REGEX = Regex("""^S\d+E\d+ · """)
+/** What a provider with no episode titles actually sends: nothing, or the word itself
+ *  ("Episode", "Episode 4", "Ep 4"). Anything else is a real title and is left alone. */
+private val PLACEHOLDER_EPISODE_TITLE_REGEX = Regex("""^(?:episode|ep|bölüm|folge)\s*\d*$""", RegexOption.IGNORE_CASE)
+
+/** The episode's title with everything the row already strips for display removed - the
+ *  "S01E04 · " marker and, for the providers that bake it in, the series name. */
+private fun bareEpisodeTitle(episode: Channel, seriesName: String): String {
+    var title = episode.name.replaceFirst(EPISODE_NAME_PREFIX_REGEX, "")
+    if (seriesName.isNotBlank()) {
+        title = title.replaceFirst(
+            Regex("^" + Regex.escape(seriesName) + """\s*-\s*S\d+E\d+\s*-\s*""", RegexOption.IGNORE_CASE),
+            ""
+        )
+    }
+    return title.trim()
+}
+
+private fun isPlaceholderEpisodeTitle(episode: Channel, seriesName: String): Boolean {
+    val title = bareEpisodeTitle(episode, seriesName)
+    return title.isBlank() || PLACEHOLDER_EPISODE_TITLE_REGEX.matches(title)
+}
+
+/** True when TMDB has something worth asking for: a missing title, plot, or still. */
+private fun needsEpisodeMetadata(episode: Channel, seriesName: String): Boolean =
+    episode.description.isNullOrBlank() ||
+        episode.posterUrl.isNullOrBlank() ||
+        isPlaceholderEpisodeTitle(episode, seriesName)
 
 internal fun MainActivity.hideContentDetail() {
     isContentDetailVisible = false
