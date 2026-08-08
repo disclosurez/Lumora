@@ -1200,9 +1200,15 @@ internal fun MainActivity.showProviderSettings() {
         // allChannels: disabling one drops its items, but a provider whose channels are
         // still in memory from a cache load would otherwise keep the chrome up with
         // nothing enabled behind it.
+        // Saving a provider starts its fetch and leaves Settings open; closing before that
+        // fetch lands used to read as "returned nothing" and put the empty state up, which
+        // is the screen the user then sat on. An in-flight load has not returned anything
+        // yet - let the tab render empty under the "Loading..." status and let the load's
+        // own classifyAndShow fill it in.
+        val loadInFlight = providerLoadJob?.isActive == true
         if (!hasProviderEnabled() && !hasPlugin) {
             showEmptyState()
-        } else if (allChannels.isEmpty() && !hasPlugin) {
+        } else if (allChannels.isEmpty() && !hasPlugin && !loadInFlight) {
             // Enabled, but it returned nothing (fetch failed, or an empty catalogue).
             showEmptyState()
         } else {
@@ -1287,6 +1293,11 @@ internal fun MainActivity.showProviderSettings() {
         
         closeIptvForm()
         renderIptvProviderList()
+        // The tab bar and search are gated on there being an enabled provider, and saving
+        // the first one is what changes that answer. Nothing recomputed it until Settings
+        // was dismissed, so the toolbar behind the dialog kept showing the no-provider
+        // chrome (Settings + Refresh alone) after a successful save.
+        updateTopChromeVisibility()
         Toast.makeText(this, "Provider saved. Loading...", Toast.LENGTH_SHORT).show()
         loadAllConfiguredProviders(forceRefresh = true)
     }

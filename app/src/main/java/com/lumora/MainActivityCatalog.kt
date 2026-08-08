@@ -91,6 +91,13 @@ internal suspend fun MainActivity.classifyAndShow(preserveUi: Boolean = false) {
             // put it back before their own refresh.
             if (showingHome) {
                 binding.contentRow.visibility = View.GONE
+                // Home's own panes, not just the shelf data: whatever hid them is the
+                // reason this refresh is happening (the empty state and the settings
+                // overlay both set them GONE), and nothing else on this path puts them
+                // back - so the first catalog to land after a provider was added
+                // replaced the empty state with a blank screen.
+                binding.homeContent.visibility = View.VISIBLE
+                binding.homeSearchBar.visibility = if (hasProviderEnabled()) View.VISIBLE else View.GONE
                 homeShelfAdapter.submitList(buildHomeShelves())
             } else if (showingDiscover) {
                 // Discover owns the slot and has no catalog chrome to refresh - the

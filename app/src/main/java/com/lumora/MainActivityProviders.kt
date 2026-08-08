@@ -227,6 +227,18 @@ internal fun MainActivity.loadSavedProvider() {
     loadAllConfiguredProviders()
 }
 
+/** Whether a finished catalog load should refresh in place rather than run the full
+ *  first-paint render.
+ *
+ *  [MainActivity.uiPainted] alone is not the question. A load kicked off from Settings sets it
+ *  on the way past (the live-partial paint marks it even though the settings overlay
+ *  suppressed the render), so adding the very first provider then closing Settings before the
+ *  fetch landed left the app on the "no provider" empty state: the surgical refresh has no
+ *  path that takes that screen down. If the empty state is what the user is looking at, the
+ *  catalog that just arrived is first content, whatever the flag says. */
+internal fun MainActivity.shouldPreserveUiOnLoad(): Boolean =
+    uiPainted && binding.emptyState.visibility != View.VISIBLE
+
 /** Reacts to a provider being switched on or off in Settings.
  *
  *  Switching one *off* needs no network at all: its items are already in memory and
@@ -456,7 +468,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
             if (!fallback.isNullOrEmpty()) {
                 allChannels = fallback
                 filmsSeriesDeriveJob?.cancel()
-                classifyAndShow(preserveUi = uiPainted)
+                classifyAndShow(preserveUi = shouldPreserveUiOnLoad())
             }
             setStatus("", visible = false)
             if (errors.isNotEmpty()) {
@@ -467,7 +479,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
 
         allChannels = combined
         filmsSeriesDeriveJob?.cancel()
-        classifyAndShow(preserveUi = uiPainted)
+        classifyAndShow(preserveUi = shouldPreserveUiOnLoad())
         persistCatalog(allChannels)
         // Only a load that actually produced a catalog resets the TTL - stamping it on a
         // total failure would leave the app sitting on an empty catalog for 12 hours.
