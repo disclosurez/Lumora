@@ -86,6 +86,10 @@
          here, the brand's own translationX already sets the phone spacing. -->
     <dimen name="tab_live_start_gap">0dp</dimen>
     <dimen name="poster_title_text">10sp</dimen>
+    <!-- Floor for the auto-sized poster/EPG titles. A hard 8sp meant any title that wrapped
+         to three or four lines shrank to unreadable at TV viewing distance; keeping the floor
+         close to the ceiling costs an ellipsis on the longest titles instead. -->
+    <dimen name="poster_title_text_min">9sp</dimen>
     <dimen name="poster_title_outline_width">0.7dp</dimen>
     <dimen name="poster_badge_text">8sp</dimen>
     <dimen name="poster_image_height">110dp</dimen>

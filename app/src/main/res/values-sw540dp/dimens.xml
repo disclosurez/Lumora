@@ -126,7 +126,10 @@
     <dimen name="tab_padding_vertical">13dp</dimen>
     <!-- Nudges the Live TV tab a tiny bit right, away from the brand mark, at TV scale. -->
     <dimen name="tab_live_start_gap">6dp</dimen>
-    <dimen name="poster_title_text">13sp</dimen>
+    <dimen name="poster_title_text">14sp</dimen>
+    <!-- See the base bucket: TV is where the 8sp floor hurt most, so it sits only two steps
+         under the ceiling here. -->
+    <dimen name="poster_title_text_min">12sp</dimen>
     <dimen name="poster_title_outline_width">0.9dp</dimen>
     <dimen name="poster_badge_text">10sp</dimen>
     <!-- Five columns instead of six makes each card wider, so the fixed-height poster has to

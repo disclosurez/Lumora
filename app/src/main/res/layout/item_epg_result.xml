@@ -77,7 +77,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:autoSizeMaxTextSize="@dimen/poster_title_text"
-            android:autoSizeMinTextSize="8sp"
+            android:autoSizeMinTextSize="@dimen/poster_title_text_min"
             android:autoSizeStepGranularity="1sp"
             android:autoSizeTextType="uniform"
             android:breakStrategy="simple"
