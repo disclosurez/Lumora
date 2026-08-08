@@ -189,6 +189,7 @@ internal fun MainActivity.setupPlayerControls() {
 
     // Hand-off to another video app - the answer for audio this device has no decoder for.
     setupExternalPlayerButton(binding.btnExternalPlayer)
+    relinkPlayerButtonRowFocus()
 
     // Diagnostics
     binding.btnDiagnostics.setOnClickListener {
@@ -857,6 +858,27 @@ internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = nu
         next.streamUserAgent,
         preferAudioLanguage = next.mediaType != MediaType.LIVE
     )
+}
+
+/** Rebuilds the track-button row's left/right focus chain across only the buttons that are
+ *  actually visible right now.
+ *
+ *  The XML chain is static and links straight through buttons that get hidden at runtime:
+ *  btnCast is GONE on TV (the TV is a Cast receiver, not a sender) and btnChapters is GONE
+ *  unless a Jellyfin item has chapters. From API 26 FocusFinder walks a GONE link onward to
+ *  that view's own nextFocus target, so the chain self-heals; on API 25 and below (Fire TV
+ *  7.1) it hands the GONE view straight back and requestFocus() on it fails - RIGHT out of
+ *  Sleep did nothing at all and every button past it (External, Diag, Rec, Versions, Fit,
+ *  Audio, Subs) was unreachable on those sticks. */
+internal fun MainActivity.relinkPlayerButtonRowFocus() {
+    val row = binding.playerTrackButtons
+    val visible = (0 until row.childCount)
+        .map { row.getChildAt(it) }
+        .filter { it.visibility == View.VISIBLE && it.isFocusable && it.id != View.NO_ID }
+    visible.forEachIndexed { index, view ->
+        view.nextFocusLeftId = visible.getOrNull(index - 1)?.id ?: View.NO_ID
+        view.nextFocusRightId = visible.getOrNull(index + 1)?.id ?: View.NO_ID
+    }
 }
 
 /** Lets the user manually pick a specific version of whatever's playing - the auto-picked

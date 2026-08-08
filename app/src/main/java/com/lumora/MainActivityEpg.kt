@@ -391,6 +391,9 @@ internal fun MainActivity.showControls() {
     // don't let both render at once.
     if (upNextActive) binding.upNextOverlay.visibility = View.GONE
     binding.controlsOverlay.visibility = View.VISIBLE
+    // Cheap re-link (~10 children) each reveal, so the row is never navigated with a chain
+    // left stale by a button that changed visibility since setup.
+    relinkPlayerButtonRowFocus()
     // Becoming visible doesn't hand D-pad focus to anything by itself - without an
     // explicit request nothing in the overlay is reachable at all, since no view had
     // focus while it was hidden.

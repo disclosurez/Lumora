@@ -310,6 +310,8 @@ internal fun MainActivity.loadJellyfinPlaybackExtras(itemId: String) {
 
 internal fun MainActivity.updateChaptersButtonVisibility() {
     binding.btnChapters.visibility = if (jellyfinChapters.size > 1) View.VISIBLE else View.GONE
+    // Row's focus chain must skip it while it's hidden - see relinkPlayerButtonRowFocus.
+    relinkPlayerButtonRowFocus()
 }
 
 /** Chapter picker - jumps straight to a chapter's start. Only reachable when the item
