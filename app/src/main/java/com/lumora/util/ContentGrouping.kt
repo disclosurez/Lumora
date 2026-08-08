@@ -346,11 +346,23 @@ fun normalizeLiveChannelName(name: String): String = stripDecorativeTags(name).l
 // "VOD | MULTI-LANG - NEW RELEASES", "EN - ACTION MOVIES", "4K-D+ - HORROR". Only these known
 // decoration tokens are stripped (not arbitrary leading words), so real leading brands survive
 // intact: NETFLIX, DISNEY, OSN, TOP, etc. are never touched.
+//
+// The content-type words ("SERIES | ACTION", "MOVIES - HORROR") belong here for the same
+// reason "VOD" does: inside the Series tab every category is series, so the word carries no
+// information. Leaving it on was what made Series behave differently from Films - panels
+// prefix series categories far more consistently than film ones, and
+// groupSeriesFilmCategories strips type words only off the END of a name, so every
+// "SERIES | <genre>" category reduced to the same "Series" prefix and collapsed into one
+// giant cluster (which, being a cluster, then skipped genre bucketing entirely).
 private val VOD_LEADING_TAGS = setOf(
     "en", "uk", "us", "usa", "ca", "au", "ar", "fr", "de", "es", "it", "pt", "pt-br", "br",
     "nl", "tr", "gr", "ru", "pl", "ro", "se", "no", "dk", "fi", "in", "pk", "mx", "lat",
     "latino", "eu", "multi", "multi-lang", "multilang", "multi-sub", "multi-subs", "multisub",
-    "multisubs", "vod", "vip", "4k", "4k-d+", "d+", "uhd", "fhd", "hd", "sd", "hevc", "raw", "h265", "h264"
+    "multisubs", "vod", "vip", "4k", "4k-d+", "d+", "uhd", "fhd", "hd", "sd", "hevc", "raw", "h265", "h264",
+    // Content-type words - only ever stripped when followed by a delimiter, so a category
+    // named just "Series" or "Movies" keeps its name (the regex needs "<tag><delim>").
+    "series", "serie", "séries", "srs", "show", "shows", "tvshow", "tvshows", "tv",
+    "movies", "movie", "films", "film"
 )
 // A leading "<tag><delimiter>" segment: a token (letters/digits/+, internal dashes allowed so
 // "MULTI-LANG"/"4K-D+" stay whole) then a delimiter - a pipe/colon, or a dash that is *spaced*
@@ -648,7 +660,8 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
         "workout", "collections", "biblical", "christmas", "westerns",
         "animation", "stand-up", "dolby audio", "dolby", "hevc", "imax",
         "multisubs", "multi-subs", "bluray", "audio",
-        "docu-movies", "docu-movie", "sub", "eng",
+        "docu-movies", "docu-movie", "docu", "docus", "doc", "docs", "sub", "eng",
+        "mini", "miniseries", "docuseries",
         // Abbreviations
         "eps", "ep", "min", "mins", "hr", "hrs", "chan", "sec",
         "dub", "dubbed", "subbed", "uncut", "uncensored",
@@ -663,6 +676,15 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
         "imdb", "top"
     )
 
+    // A hyphen-joined compound counts as a type word when every part is one - panels
+    // coin these freely ("DOCUS-SERIES", "DOCU-SERIES", "MOVIES-4K") and listing each
+    // spelling by hand never keeps up. Without it "APPLE+ DOCUS-SERIES" kept the compound
+    // in its stem, produced the two-word prefix "Apple+ Docus-series" instead of "Apple+",
+    // and so sat next to the Apple+ cluster as its own row rather than inside it.
+    fun isTypeWord(word: String): Boolean =
+        word in suffixWords ||
+            ('-' in word && word.split('-').filter { it.isNotBlank() }.all { it in suffixWords })
+
     data class Entry(val id: String, val rawName: String, val prefix: String)
 
     // Build entries with cleaned prefixes
@@ -674,7 +696,7 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
         val stem = words.toMutableList()
         while (stem.isNotEmpty()) {
             val last = stem.last().lowercase().trimEnd('+', '-')
-            if (last in suffixWords) {
+            if (isTypeWord(last)) {
                 stem.removeAt(stem.lastIndex)
             } else {
                 // Check if word is quality-like (all non-alpha, or digits+alpha, or

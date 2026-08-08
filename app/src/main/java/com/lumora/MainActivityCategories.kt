@@ -704,7 +704,17 @@ internal fun MainActivity.buildCategoryRows(
             .let { units ->
                 if (tab != 0) units.sortedWith(
                     compareBy(
-                        { if (isAdultCategory(it.first.name)) 1 else 0 },
+                        // Films/Series only: a category with a handful of titles in it is
+                        // never what someone is scrolling the rail for, and a long tail of
+                        // them buried the real categories. Thin ones sink below the rest,
+                        // adult ones stay below everything (0 = normal, 1 = thin, 2 = adult).
+                        {
+                            when {
+                                isAdultCategory(it.first.name) -> 2
+                                it.first.count in 0 until SMALL_VOD_CATEGORY_THRESHOLD -> 1
+                                else -> 0
+                            }
+                        },
                         { if (it.first.isParent) 0 else 1 },
                         // Categories by size, biggest first - the rows right after the
                         // Jellyfin/anime blocks are the ones people actually browse, so
@@ -1688,5 +1698,13 @@ internal fun MainActivity.formatTime(ms: Long): String {
 }
 
 /** Bumped whenever buildCategoryRows' output changes shape - see the rows fingerprint.
- *  2: utility rows (collapse rail / classic layout) became un-hideable. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 4
+ *  2: utility rows (collapse rail / classic layout) became un-hideable.
+ *  5: leading content-type tags peeled off Films/Series category labels, and thin
+ *     (< SMALL_VOD_CATEGORY_THRESHOLD) categories sorted to the bottom of the rail.
+ *  6: hyphen-joined type words ("DOCUS-SERIES") strip off a category stem, so they
+ *     cluster under their brand instead of forming their own row. */
+private const val CATEGORY_ROWS_LOGIC_VERSION = 6
+
+/** Films/Series rail: a category with fewer titles than this sorts below the full ones.
+ *  Counts are per-row, so a merged/clustered parent is judged on its members' total. */
+private const val SMALL_VOD_CATEGORY_THRESHOLD = 20
