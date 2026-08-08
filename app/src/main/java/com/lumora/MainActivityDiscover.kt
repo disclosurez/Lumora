@@ -332,7 +332,7 @@ internal fun MainActivity.findCatalogMatches(item: Channel): List<Channel> {
         val name = normalizeMatchTitle(cleanVodTitle(candidate.name))
         val rank = when {
             name == target -> 0
-            name.startsWith("$target ") && !looksLikeSequelSuffix(name.removePrefix("$target ")) -> 1
+            name.startsWith("$target ") && isIgnorableTitleSuffix(name.removePrefix("$target ")) -> 1
             else -> continue
         }
         val yearBonus = if (item.year != null && candidate.year == item.year) 0 else 100
@@ -359,15 +359,29 @@ internal fun MainActivity.catalogVersionsFor(matches: List<Channel>): List<Chann
     return out.values.sortedBy { if (it.isJellyfin) 0 else 1 }
 }
 
-/** Trailing text that makes a title a *different* film rather than a decorated copy of the
- *  same one: "The Odyssey 2", "The Odyssey Part II". A 4-digit year is not a sequel marker -
- *  "The Odyssey 2026" is the same film with its year appended, which catalogues do. */
-private fun looksLikeSequelSuffix(remainder: String): Boolean {
-    val first = remainder.substringBefore(' ')
-    if (first == "part" || first == "chapter") return true
-    if (first in setOf("ii", "iii", "iv", "v", "vi")) return true
-    val number = first.toIntOrNull() ?: return false
-    return number < 1900
+/** Tokens a catalogue appends to a title without changing which film it is: a bare release
+ *  year, and the edition/quality/language decoration cleanVodTitle didn't already strip. */
+private val IGNORABLE_TITLE_SUFFIX_WORDS = setOf(
+    "hd", "fhd", "uhd", "sd", "4k", "8k", "3d", "hdr", "sdr", "hevc", "h264", "h265", "raw",
+    "imax", "remastered", "restored", "extended", "uncut", "unrated", "dc", "directors", "cut",
+    "multi", "multisub", "multisubs", "sub", "subs", "subbed", "dub", "dubbed", "eng", "vip",
+    "atmos", "dts", "dolby", "bluray", "web", "webdl", "webrip"
+)
+
+/** True when everything trailing the target title is decoration rather than more title.
+ *
+ *  Deliberately an allowlist. This used to be the inverse - accept any remainder that didn't
+ *  look like a sequel marker ("2", "Part II") - which meant a target that is a *prefix* of a
+ *  longer, unrelated film matched it: Discover's "The Last House" reported the provider's
+ *  "The Last House on the Left" as the same film. Whole words the list doesn't know are
+ *  title words, so they reject the match. */
+private fun isIgnorableTitleSuffix(remainder: String): Boolean {
+    val tokens = remainder.split(' ').filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return false
+    return tokens.all { token ->
+        val year = token.toIntOrNull()
+        if (year != null) year in 1900..2100 else token in IGNORABLE_TITLE_SUFFIX_WORDS
+    }
 }
 
 internal fun MainActivity.normalizeMatchTitle(title: String): String =
