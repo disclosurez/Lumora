@@ -242,6 +242,11 @@ fun isNonEnglishTitle(name: String): Boolean = nonEnglishTitleMemo.memoize(name)
 // (plural) - \b word-boundary matching means the singular-only pattern never matched it.
 private val ADULT_KEYWORD_REGEX = Regex("""(?i)\b(xxx|adults?|porn|hentai|erotica?|18\+)\b""")
 
+// "Adult Swim" is a late-night animation block, not adult content, but "adult" matches it on
+// a word boundary either side of the hyphen. Categories named after it were sorted to the
+// bottom of the rail, hidden by parental control, and had their playback positions dropped.
+private val ADULT_SWIM_REGEX = Regex("""(?i)\badult[\s-]?swim\b""")
+
 /** Flags a category/group as adult content, for parental-control filtering. Checks category name first, falls back to the channel's own name/group. */
 fun isAdultCategory(categoryName: String?, group: String? = null): Boolean {
     val cn = categoryName ?: ""
@@ -250,7 +255,8 @@ fun isAdultCategory(categoryName: String?, group: String? = null): Boolean {
     // Called once per item on every derive pass, but a catalogue has a few hundred distinct
     // category/group pairs across tens of thousands of items - the memo hit rate is ~100%.
     return adultCategoryMemo.memoize("$cn\u0000$g") {
-        ADULT_KEYWORD_REGEX.containsMatchIn(cn) || ADULT_KEYWORD_REGEX.containsMatchIn(g)
+        ADULT_KEYWORD_REGEX.containsMatchIn(ADULT_SWIM_REGEX.replace(cn, " ")) ||
+            ADULT_KEYWORD_REGEX.containsMatchIn(ADULT_SWIM_REGEX.replace(g, " "))
     }
 }
 
@@ -640,9 +646,12 @@ fun groupCategories(leaves: List<CategoryFilter>): List<CategoryGroup> {
 
 /**
  * Groups Series/Films categories into clusters that share a common prefix.
- * Provider categories often follow a "Brand Type" pattern (e.g. "NETFLIX MOVIES",
- * "NETFLIX KIDS"), so stripping recognised type suffixes and clustering by the
- * remaining prefix naturally groups content by service without any hardcoded names.
+ * Provider categories often follow a "Brand Type" pattern, so stripping recognised type
+ * suffixes and clustering by the remaining prefix naturally groups content by service
+ * without any hardcoded names.
+ *
+ * Quality tiers of one category are merged first, via [groupCategories], so a category and
+ * its 4K/HDR twin are one expandable row rather than two rows of the same titles.
  *
  * Categories that don't share a prefix with anything else are returned as-is.
  * Clusters are marked with [isCluster] = true so callers can float them to the top.
@@ -658,7 +667,7 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
         "thriller", "sci-fi", "romance", "reality", "variety",
         "musical", "concert", "concerts", "boxing", "ufc", "wwe",
         "workout", "collections", "biblical", "christmas", "westerns",
-        "animation", "stand-up", "dolby audio", "dolby", "hevc", "imax",
+        "animation", "stand-up", "dolby audio", "dolby", "vision", "hevc", "imax",
         "multisubs", "multi-subs", "bluray", "audio",
         "docu-movies", "docu-movie", "docu", "docus", "doc", "docs", "sub", "eng",
         "mini", "miniseries", "docuseries",
@@ -678,49 +687,48 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
 
     // A hyphen-joined compound counts as a type word when every part is one - panels
     // coin these freely ("DOCUS-SERIES", "DOCU-SERIES", "MOVIES-4K") and listing each
-    // spelling by hand never keeps up. Without it "APPLE+ DOCUS-SERIES" kept the compound
-    // in its stem, produced the two-word prefix "Apple+ Docus-series" instead of "Apple+",
-    // and so sat next to the Apple+ cluster as its own row rather than inside it.
+    // spelling by hand never keeps up. Without it the compound stayed in the stem and
+    // produced a two-word prefix, so the category sat next to its own brand's cluster
+    // as a separate row instead of inside it.
     fun isTypeWord(word: String): Boolean =
         word in suffixWords ||
             ('-' in word && word.split('-').filter { it.isNotBlank() }.all { it in suffixWords })
 
-    data class Entry(val id: String, val rawName: String, val prefix: String)
-
-    // Build entries with cleaned prefixes
-    val entries = leaves.mapNotNull { leaf ->
-        val id = leaf.id ?: return@mapNotNull null
-        val normalized = deSuperscript(leaf.name)
-        val words = normalized.split(WHITESPACE_REGEX).filter { it.isNotBlank() }
-        // Strip any suffix words from the end (including unrecognized superscript leftovers)
+    // The prefix of one category name: type/quality words come off the end, and what's left
+    // keeps the casing the source wrote it in - a re-capitalised label reads as a different
+    // naming scheme from the provider's own rows sitting next to it. The first word is never
+    // stripped, so a name made entirely of tag-shaped words still yields its own first word
+    // rather than falling through to a re-cased fallback.
+    fun prefixOf(name: String): String {
+        val words = deSuperscript(name).split(WHITESPACE_REGEX).filter { it.isNotBlank() }
+        if (words.isEmpty()) return name
         val stem = words.toMutableList()
-        while (stem.isNotEmpty()) {
+        while (stem.size > 1) {
             val last = stem.last().lowercase().trimEnd('+', '-')
-            if (isTypeWord(last)) {
+            // Quality-like: carries a digit, is short enough to be an abbreviation, or holds
+            // characters outside basic Latin left over from an unrecognised superscript tag.
+            val hasOnlyBasicLatin = last.all { it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '+' }
+            val isQualityTag = last.any { it.isDigit() } || last.length <= 3
+            if (isTypeWord(last) || !hasOnlyBasicLatin || isQualityTag) {
                 stem.removeAt(stem.lastIndex)
             } else {
-                // Check if word is quality-like (all non-alpha, or digits+alpha, or
-                // contains characters outside basic Latin after deSuperscript).
-                val hasOnlyBasicLatin = last.all { it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '+' }
-                val isQualityTag = last.any { it.isDigit() } || last.length <= 3
-                if (!hasOnlyBasicLatin || isQualityTag) {
-                    stem.removeAt(stem.lastIndex)
-                } else {
-                    break // real word, stop stripping
-                }
+                break // real word, stop stripping
             }
         }
-        // If stem is empty (all words were suffixes), use first word as prefix
-        val prefix = if (stem.isEmpty()) {
-            words.firstOrNull()?.replaceFirstChar { it.uppercase() } ?: leaf.name
-        } else if (stem.size >= 2) {
-            // Multi-word stem: use first 2 words as prefix
-            stem.take(2).joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
-        } else {
-            // Single-word stem: require 3+ matches to cluster (avoids generic words)
-            stem.first().replaceFirstChar { it.uppercase() }
-        }
-        Entry(id, leaf.name, prefix)
+        return if (stem.size >= 2) stem.take(2).joinToString(" ") else stem.first()
+    }
+
+    // Quality tiers of one category collapse first, so clustering sees one entry per real
+    // category instead of one per tier - and a category whose tiers don't cluster with
+    // anything still comes back as a single expandable row rather than two sibling rows
+    // holding the same titles at different qualities.
+    val tiers = groupCategories(leaves)
+    data class Entry(val index: Int, val group: CategoryGroup, val prefix: String)
+    // Prefix comes off a member's own name, not the merged group's label: a merged label is
+    // re-cased for the Live rail, and a cluster named from it would sit among the provider's
+    // own rows in a different case from all of them.
+    val entries = tiers.mapIndexed { index, group ->
+        Entry(index, group, prefixOf(group.members.firstOrNull()?.name ?: group.label))
     }
 
     // Group by prefix, with different cluster-size thresholds:
@@ -733,27 +741,29 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
         }
 
     // Build result: clustered entries first (marked isCluster), then the rest as-is
-    val clusteredIds = prefixGroups.values.flatten().map { it.id }.toSet()
-    // O(1) lookup instead of a linear leaves.firstOrNull per entry - this runs on every
-    // category/shelf rebuild and the quadratic scan dominated once catalogs grew.
-    val leavesById = leaves.associateBy { it.id }
+    val clusteredIndices = prefixGroups.values.flatten().mapTo(HashSet()) { it.index }
     val result = mutableListOf<CategoryGroup>()
 
     for ((_, groupEntries) in prefixGroups) {
-        val label = groupEntries.first().prefix
-        val members = groupEntries.mapNotNull { entry ->
-            leavesById[entry.id]
-        }
+        val members = groupEntries.flatMap { it.group.members }
         if (members.isNotEmpty()) {
-            result.add(CategoryGroup(label, members, isCluster = true))
+            result.add(CategoryGroup(groupEntries.first().prefix, members, isCluster = true))
         }
     }
 
-    // Remaining leaves that weren't clustered
-    for (leaf in leaves) {
-        if (leaf.id != null && leaf.id !in clusteredIds) {
-            result.add(CategoryGroup(leaf.name, listOf(leaf)))
-        }
+    // Everything that didn't cluster, tier merges included. A merged one is labelled with
+    // its shortest member's own name - the base category without its quality suffix - rather
+    // than the re-cased label groupCategories derives for the Live tab.
+    for (entry in entries) {
+        if (entry.index in clusteredIndices) continue
+        val group = entry.group
+        result.add(
+            if (group.members.size > 1) {
+                CategoryGroup(group.members.minByOrNull { it.name.length }?.name ?: group.label, group.members)
+            } else {
+                group
+            }
+        )
     }
 
     return result

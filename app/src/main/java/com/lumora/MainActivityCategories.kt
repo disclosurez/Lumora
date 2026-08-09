@@ -599,6 +599,9 @@ internal fun MainActivity.buildCategoryRows(
         // left over cascades below, same priority order as before this existed. The
         // classic pref (Live TV only) bypasses this and shows the old flat/grouped list.
         val dynamicBuckets = if (tab == 0) LIVE_DYNAMIC_BUCKETS else VOD_DYNAMIC_BUCKETS
+        // Categories promoted into a bucket row of their own (see below) - held out of the
+        // cascade so they aren't listed twice.
+        val promotedToBucket = mutableSetOf<String>()
         val (bucketRows, allUnitsEnhanced) = if (!useClassicLayout && categorize) {
             fun bucketFor(name: String): String? {
                 val lower = name.lowercase()
@@ -614,7 +617,20 @@ internal fun MainActivity.buildCategoryRows(
             // Brand rows are exempt for the same reason: they're a row in their own
             // right, listed above the buckets, not something to fold into a genre.
             allUnits.forEach { unit ->
-                if (unit.first.pinned || (tab != 0 && unit.first.isDynamic)) return@forEach
+                if (unit.first.pinned) return@forEach
+                if (tab != 0 && unit.first.isDynamic) {
+                    // The cluster row itself stays out of the buckets, but the categories
+                    // inside it are exactly what a genre bucket should be offering - without
+                    // this, everything a service cluster absorbed was reachable only by that
+                    // service, and the genre rows were left with whatever no brand claimed.
+                    unit.second.forEach inner@{ child ->
+                        if (child.pinned) return@inner
+                        bucketFor(child.name)?.let {
+                            bucketed.getOrPut(it) { mutableListOf() }.add(child to emptyList())
+                        }
+                    }
+                    return@forEach
+                }
                 bucketFor(unit.first.name)?.let { bucketed.getOrPut(it) { mutableListOf() }.add(unit) }
             }
             // Index channels by filterKey once, then resolve every bucket member's channel
@@ -642,6 +658,25 @@ internal fun MainActivity.buildCategoryRows(
                         if (byName.isNotEmpty()) byName else byKey
                     }
                 }.toSet()
+                // A bucket holding one category is that category with a different name on it:
+                // the wrapper costs a level to open and leaves the category itself listed
+                // again further down. Promote the member into the bucket's slot instead.
+                val single = members.singleOrNull()
+                    ?.takeIf { tab != 0 && !it.first.pinned && !it.first.isDynamic }
+                if (single != null) {
+                    val (row, rawMembers) = single
+                    row.id?.let { promotedToBucket.add(it) }
+                    val promoted = row.copy(name = label, isDynamic = true)
+                    return@mapNotNull if (!promoted.isParent) {
+                        listOf(promoted)
+                    } else {
+                        // Its children are registered here rather than by expandUnit, which
+                        // only ever sees the rows still left in the cascade.
+                        val children = rawMembers.sortedBy { it.name.lowercase() }.map { it.copy(isChild = true) }
+                        promoted.id?.let { childrenByParent[it] = children }
+                        if (promoted.expanded) listOf(promoted) + children else listOf(promoted)
+                    }
+                }
                 val parent = CategoryFilter(
                     id = bucketId,
                     name = label,
@@ -692,8 +727,9 @@ internal fun MainActivity.buildCategoryRows(
         // so an expanded parent's own children stay adjacent to it (sorting the already-
         // flattened rows would scatter them back in with unrelated leaves by name).
         // Channels in dynamic buckets should also appear in their original provider
-        // categories below the buckets - don't filter out bucketed units here.
-        val leftoverUnits = allUnitsEnhanced
+        // categories below the buckets - don't filter out bucketed units here, except the
+        // ones a bucket promoted into a row of their own.
+        val leftoverUnits = allUnitsEnhanced.filterNot { it.first.id in promotedToBucket }
         // Series/Films: clustered service categories go above the genre buckets -
         // they're the rows people go looking for by name - and the provider's own
         // categories below both. Splitting them out here rather than
@@ -726,7 +762,52 @@ internal fun MainActivity.buildCategoryRows(
                 else units
             }
         val brandRows = serviceUnits.sortedBy { it.first.name.lowercase() }.flatMap(::expandUnit)
-        val cascadeRows = remainderUnits.flatMap(::expandUnit)
+        // Films/Series: the sub-threshold tail folds into one expandable row instead of
+        // taking a dozen lines of rail for a handful of titles each. Pinned categories are
+        // exempt (a pin asks for a row of its own) and so are adult ones, which stay below
+        // everything where the hide/parental machinery expects to find them.
+        val (thinUnits, mainUnits) = if (tab != 0 && categorize) {
+            remainderUnits.partition {
+                !it.first.pinned && !isAdultCategory(it.first.name) &&
+                    it.first.count in 1 until SMALL_VOD_CATEGORY_THRESHOLD
+            }
+        } else {
+            emptyList<Pair<CategoryFilter, List<CategoryFilter>>>() to remainderUnits
+        }
+        // Two rows folded into one collapsed row saves nothing, so the fold needs a third.
+        val otherRows = if (thinUnits.size < 3 || OTHER_CATEGORY_ID in hiddenIds) {
+            emptyList()
+        } else {
+            val members = thinUnits.map { it.first }
+            val otherExpanded = expanded.contains(OTHER_CATEGORY_ID)
+            val children = members.map { it.copy(isChild = true, isParent = false, expanded = false) }
+                .sortedWith(compareBy({ -it.count }, { it.name.lowercase() }))
+            childrenByParent[OTHER_CATEGORY_ID] = children
+            val parent = CategoryFilter(
+                id = OTHER_CATEGORY_ID,
+                name = "Other",
+                count = members.sumOf { it.count },
+                pinned = pinned.contains(OTHER_CATEGORY_ID),
+                // The two resolution branches are either/or downstream, so channel ids are
+                // only carried when every member resolves that way - a mixed union would
+                // silently drop whatever the other branch was holding.
+                matchIds = members.flatMap { it.matchIds }.toSet(),
+                isParent = true,
+                expanded = otherExpanded,
+                channelIds = if (members.all { it.channelIds.isNotEmpty() }) {
+                    members.flatMap { it.channelIds }.toSet()
+                } else {
+                    emptySet()
+                },
+                isDynamic = true
+            )
+            if (otherExpanded) listOf(parent) + children else listOf(parent)
+        }
+        val cascadeRows = if (otherRows.isEmpty()) {
+            remainderUnits.flatMap(::expandUnit)
+        } else {
+            mainUnits.flatMap(::expandUnit) + otherRows
+        }
 
         val (pinnedRows, unpinnedRows) = cascadeRows.partition { it.pinned }
         val allRow = CategoryFilter(id = null, name = "All", count = list.size)
@@ -1702,8 +1783,11 @@ internal fun MainActivity.formatTime(ms: Long): String {
  *  5: leading content-type tags peeled off Films/Series category labels, and thin
  *     (< SMALL_VOD_CATEGORY_THRESHOLD) categories sorted to the bottom of the rail.
  *  6: hyphen-joined type words ("DOCUS-SERIES") strip off a category stem, so they
- *     cluster under their brand instead of forming their own row. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 6
+ *     cluster under their brand instead of forming their own row.
+ *  7: quality tiers merge before clustering, cluster children feed the genre buckets, a
+ *     bucket over one category promotes it instead of wrapping it, and the thin tail
+ *     folds into one "Other" row. */
+private const val CATEGORY_ROWS_LOGIC_VERSION = 7
 
 /** Films/Series rail: a category with fewer titles than this sorts below the full ones.
  *  Counts are per-row, so a merged/clustered parent is judged on its members' total. */

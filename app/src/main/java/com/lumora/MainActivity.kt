@@ -243,6 +243,10 @@ internal const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
  *  rather than derived from the channels' own category name, because anime titles carry a
  *  single "Anime" category and the sections they belong to overlap. */
 internal const val ANIME_CATEGORY_ID = "__anime__"
+/** Films/Series sidebar row collecting every category too thin to be worth its own row, so
+ *  the long tail of near-empty categories costs one line instead of a dozen. Expandable -
+ *  the categories themselves are its children. */
+internal const val OTHER_CATEGORY_ID = "__other__"
 // Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema),
 // each vacuuming up every matching provider category *and* brand cluster
 // regardless of where it lives in the raw catalog; everything left over cascades
