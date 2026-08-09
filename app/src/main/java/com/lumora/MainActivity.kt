@@ -661,6 +661,9 @@ class MainActivity : AppCompatActivity() {
     internal var pendingSearchRestore: String? = null
 
     internal val mainHandler = Handler(Looper.getMainLooper())
+    /** Toolbar clock tick - see startToolbarClock(). Re-arms itself so the next tick stays
+     *  on the minute boundary even after a drifted or delayed post. */
+    internal val clockTickRunnable = Runnable { updateToolbarClock(); scheduleNextClockTick() }
     internal val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     internal var pendingBackupManager: BackupManager? = null
     /** First-paint flag for the progressive render path (paint Live ASAP once, then surgical
@@ -953,12 +956,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Resync on return: the clock may have been stopped across a long background stint,
+        // and the time (or the 12/24h setting) can have changed while it was.
+        startToolbarClock()
         if (isPlayerVisible && playerManager.playbackState == Player.STATE_READY) playerManager.play()
         else if (activeTab == 0) showLivePreviewPane()
     }
 
     override fun onPause() {
         super.onPause()
+        stopToolbarClock()
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
         // Entering PiP also triggers onPause() - don't pause playback or we'd defeat the point of PiP.
         if (!inPip) {

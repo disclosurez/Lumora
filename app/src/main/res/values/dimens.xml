@@ -77,6 +77,9 @@
          the general type scale, so the toolbar can be tuned without moving everything else
          that happened to sit on the same step. -->
     <dimen name="tab_text">13sp</dimen>
+    <!-- Toolbar clock: a deliberate step under tab_text - it's ambient information, not a
+         control, so it must not compete with the tab labels for the eye. -->
+    <dimen name="toolbar_clock_text">11sp</dimen>
     <dimen name="tab_padding_horizontal">36dp</dimen>
     <!-- Tab pills are wrap_content in height with this above and below the label, and the
          tab bar itself is wrap_content around them - so the row's height is a function of

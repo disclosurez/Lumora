@@ -1159,7 +1159,33 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
 
 // ── Toolbar ────────────────────────────────────
 
+/** Toolbar clock. Ticks once a minute, aligned to the wall-clock minute boundary rather
+ *  than a fixed 60s period from whenever it started - otherwise the displayed minute flips
+ *  up to 59s late. Only runs while the Activity is resumed (see onResume/onPause): the row
+ *  is inside mainContent, which is GONE during playback, so a ticking handler in the
+ *  background would be pure wakeups for a view nobody can see. */
+internal fun MainActivity.updateToolbarClock() {
+    binding.toolbarClock.text = android.text.format.DateFormat.getTimeFormat(this)
+        .format(java.util.Date())
+}
+
+internal fun MainActivity.startToolbarClock() {
+    updateToolbarClock()
+    scheduleNextClockTick()
+}
+
+internal fun MainActivity.scheduleNextClockTick() {
+    mainHandler.removeCallbacks(clockTickRunnable)
+    val msIntoMinute = System.currentTimeMillis() % 60_000L
+    mainHandler.postDelayed(clockTickRunnable, 60_000L - msIntoMinute)
+}
+
+internal fun MainActivity.stopToolbarClock() {
+    mainHandler.removeCallbacks(clockTickRunnable)
+}
+
 internal fun MainActivity.setupToolbar() {
+    startToolbarClock()
     binding.btnSettings.setOnClickListener { showProviderSettings() }
     binding.btnRefresh.setOnClickListener { reloadCurrentProvider() }
     binding.btnSearch.setOnClickListener { showSearchDialog() }

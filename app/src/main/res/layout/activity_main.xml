@@ -17,6 +17,23 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
+        <!-- Local clock, pinned to the top-right corner above the Settings/Refresh cluster.
+             Its own row rather than a member of the chrome row: everything in that row lives
+             inside the tab scroller, so a clock placed there would scroll away with the tabs
+             on a narrow window. Decorative - never focusable, so the D-pad can't land on it.
+             Text is set from code (updateToolbarClock) in the device's 12/24h format. -->
+        <TextView
+            android:id="@+id/toolbarClock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:fontFamily="@font/inter_medium"
+            android:maxLines="1"
+            android:paddingTop="6dp"
+            android:paddingEnd="@dimen/toolbar_padding_horizontal"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/toolbar_clock_text" />
+
         <!-- One chrome row: brand + a single scroller holding every chrome item - the tabs,
              Search, then Settings/Refresh at the end.
              Height is wrap_content, not a fixed toolbar_height: the tallest child (the

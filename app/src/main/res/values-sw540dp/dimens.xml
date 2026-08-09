@@ -119,6 +119,8 @@
          cluster - the tabs must still fit next to the search/settings/refresh buttons
          without the last tab clipping or the scroller scrolling on a 1080p panel. -->
     <dimen name="tab_text">16sp</dimen>
+    <!-- Same one-step-under-the-tabs relationship as the phone tier, at TV viewing distance. -->
+    <dimen name="toolbar_clock_text">14sp</dimen>
     <!-- Six tabs fitted the 960dp row at 18dp; the seventh (Catch Up) put it ~150dp
          over, which is what pushed Search off the end and - before the scroller clipped
          its own overflow - straight under the Settings/Refresh cluster. -->
