@@ -1147,22 +1147,29 @@ internal fun MainActivity.checkForPreviewBlackFrame() {
     mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
 }
 
-/** Live channels are never resumable; movies/episodes are, once far enough in. */
+/** Live channels are never resumable; movies/episodes are, once far enough in.
+ *
+ *  Called on every STATE_READY, and a mid-playback rebuffer is another BUFFERING ->
+ *  READY pair - so the question has to be answered once per stream, not once per READY.
+ *  A stream that started with no saved position keeps writing one as it plays, and
+ *  without the flag being settled here the first rebuffer would offer to resume the
+ *  position playback just wrote. */
 internal fun MainActivity.maybeShowResumePrompt() {
+    if (resumePromptShown) return
+    val channel = nowPlayingChannel ?: return
     // An auto-advanced episode should just start from its beginning - no resume
     // question. Consume the suppression either way so it never leaks into a later,
     // user-initiated play.
     if (skipResumePrompt) {
         skipResumePrompt = false
+        resumePromptShown = true
         return
     }
-    if (resumePromptShown) return
-    val channel = nowPlayingChannel ?: return
+    resumePromptShown = true
     if (channel.mediaType == MediaType.LIVE) return
     val key = channel.id.ifBlank { channel.url }
     val saved = PlaybackPositionStore.get(this, key) ?: return
     if (saved.isNearComplete || saved.positionMs < 5000) return
-    resumePromptShown = true
 
     playerManager.pause()
     AlertDialog.Builder(this)
