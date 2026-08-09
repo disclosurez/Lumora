@@ -659,7 +659,11 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             details.director.isNullOrBlank() || details.cast.isNullOrBlank()
         if (!needs) return
         scope.launch {
-            val resolved = tmdbClient.resolveId(cleanVodTitle(item.name), item.year, isSeries) ?: return@launch
+            // Panel-supplied TMDB id first - a title search resolves an ambiguous name
+            // ("Run", "Fearless", "Deep Cover") to the wrong film's plot and backdrop.
+            val resolved = item.tmdbTypeAndId()
+                ?: tmdbClient.resolveId(cleanVodTitle(item.name), item.tmdbYear(), isSeries)
+                ?: return@launch
             val tmdb = tmdbClient.titleDetails(resolved.first, resolved.second) ?: return@launch
             // The user can have moved to another title while the two calls ran - applying
             // then would write one film's plot onto another's screen.
@@ -708,8 +712,9 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         val token = ++seasonEnrichToken
         scope.launch {
             val idJob = tmdbTvIdJob ?: async {
-                tmdbClient.resolveId(cleanVodTitle(item.name), item.year, isSeries = true)
-                    ?.takeIf { it.first == "tv" }?.second
+                item.tmdbTypeAndId()?.takeIf { it.first == "tv" }?.second
+                    ?: tmdbClient.resolveId(cleanVodTitle(item.name), item.tmdbYear(), isSeries = true)
+                        ?.takeIf { it.first == "tv" }?.second
             }.also { tmdbTvIdJob = it }
             val tvId = idJob.await() ?: return@launch
             // Season label is the provider's ("Season 3", "S3", a Jellyfin custom name);

@@ -71,20 +71,76 @@ class TmdbClient {
             .replace(Regex("\\s+"), " ")
             .trim()
             .ifBlank { title }
-        val all = search(cleaned)
-        android.util.Log.d("TmdbClient", "resolveId('$title' -> '$cleaned'): ${all.size} results")
-        val byTypeAndYear = all.filter { (it.mediaType == MediaType.SERIES) == isSeries && (year == null || it.year == year) }
-        val byTypeOnly = all.filter { (it.mediaType == MediaType.SERIES) == isSeries }
-        val id = (byTypeAndYear.firstOrNull() ?: byTypeOnly.firstOrNull())?.id
-        if (id == null) {
-            android.util.Log.d("TmdbClient", "resolveId('$cleaned'): no type/year match among ${all.size} results")
-            return null
+        // TMDB's search does no fuzzy matching on trailing junk: a panel's per-season series
+        // entry ("Breaking Bad S05", "Peaky Blinders - Season 1", "Dark 3rd Season") returns
+        // literally zero results, which is why series resolved to nothing while films - which
+        // carry no such suffix - matched fine. So try progressively shorter forms, and only
+        // fall back to the next one when the previous found nothing.
+        for (candidate in searchCandidates(cleaned, isSeries)) {
+            // Multi-search first (one request, and what movies have always used), then the
+            // typed endpoint: /search/tv finds shows that multi's cross-type popularity
+            // ranking pushes off page one entirely.
+            val hit = pickMatch(search(candidate), isSeries, year, candidate)
+                ?: pickMatch(searchTyped(candidate, isSeries), isSeries, year, candidate)
+            if (hit != null) {
+                val parts = hit.id.split(":")
+                if (parts.size != 3) return null
+                val tmdbId = parts[2].toIntOrNull() ?: return null
+                android.util.Log.d("TmdbClient", "resolveId('$title' -> '$candidate'): ${hit.name} = ${parts[1]}/$tmdbId")
+                return parts[1] to tmdbId
+            }
         }
-        val parts = id.split(":")
-        if (parts.size != 3) return null
-        val tmdbId = parts[2].toIntOrNull() ?: return null
-        return parts[1] to tmdbId
+        android.util.Log.d("TmdbClient", "resolveId('$title' -> '$cleaned', series=$isSeries): no match")
+        return null
     }
+
+    /** Search terms to try for [cleaned], longest first: as given, then (for a series) without
+     *  a trailing season/complete marker, then without a trailing year. Each step is only
+     *  reached when the fuller form found nothing, so "1923" or "Yellowstone 2018" still match
+     *  themselves before anything is trimmed off them. */
+    private fun searchCandidates(cleaned: String, isSeries: Boolean): List<String> {
+        val out = ArrayList<String>(3)
+        out.add(cleaned)
+        if (isSeries) {
+            // Repeated because both markers can stack: "Vikings S06 Complete".
+            var stripped = cleaned
+            while (true) {
+                val next = SEASON_SUFFIX_REGEX.replace(stripped, "").trim(' ', '-', ':', '_')
+                if (next == stripped || next.isBlank()) break
+                stripped = next
+            }
+            if (stripped != cleaned) out.add(stripped)
+        }
+        val noYear = TRAILING_YEAR_REGEX.replace(out.last(), "").trim()
+        if (noYear.isNotBlank() && noYear != out.last()) out.add(noYear)
+        return out
+    }
+
+    /** Best result of the wanted type: an exact title match (with the year too, when known)
+     *  beats a merely popular one - "Alone Season 10" otherwise resolves to "Alone Together". */
+    private fun pickMatch(results: List<Channel>, isSeries: Boolean, year: String?, title: String): Channel? {
+        val typed = results.filter { (it.mediaType == MediaType.SERIES) == isSeries }
+        if (typed.isEmpty()) return null
+        val wanted = normalizeTitle(title)
+        return typed.firstOrNull { normalizeTitle(it.name) == wanted && year != null && it.year == year }
+            ?: typed.firstOrNull { normalizeTitle(it.name) == wanted }
+            ?: typed.firstOrNull { year != null && it.year == year }
+            ?: typed.first()
+    }
+
+    private fun normalizeTitle(s: String): String =
+        s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
+
+    /** Type-specific search. These endpoints don't return a `media_type` field at all, so the
+     *  type is supplied to the parser - without it every result is dropped as "non-playable". */
+    private suspend fun searchTyped(query: String, isSeries: Boolean): List<Channel> =
+        withContext(Dispatchers.IO) {
+            val q = java.net.URLEncoder.encode(query, "UTF-8")
+            val path = if (isSeries) "/search/tv" else "/search/movie"
+            val body = fetchBody(path, "include_adult=false&language=en-US&query=$q")
+                ?: return@withContext emptyList()
+            parse(body, forcedType = if (isSeries) "tv" else "movie")
+        }
 
     /** Seasons of a TV show (season 0 / specials dropped), for the episode picker. */
     suspend fun tvSeasons(tvId: Int): List<TvSeason> = withContext(Dispatchers.IO) {
@@ -213,12 +269,13 @@ class TmdbClient {
         null
     }
 
-    private fun parse(body: String): List<Channel> {
+    private fun parse(body: String, forcedType: String? = null): List<Channel> {
         val results = JSONObject(body).optJSONArray("results") ?: return emptyList()
         val out = ArrayList<Channel>(results.length())
         for (i in 0 until results.length()) {
             val o = results.optJSONObject(i) ?: continue
-            val type = o.optString("media_type")
+            // /search/tv and /search/movie omit media_type entirely - the caller knows it.
+            val type = o.optString("media_type").ifBlank { forcedType ?: "" }
             val mediaType = when (type) {
                 "movie" -> MediaType.MOVIE
                 "tv" -> MediaType.SERIES
@@ -285,6 +342,13 @@ class TmdbClient {
             "1865f43a0549ca50d341dd9ab8b29f49",
             "f562845c2beca65e1028ff2e31ccaff1"
         ).filter { it.isNotBlank() }
+
+        /** Trailing "S05" / "Season 2" / "S01E03" / "3rd Season" / "Complete Series" - how
+         *  panels name a series entry, and poison to TMDB's exact-ish search. */
+        private val SEASON_SUFFIX_REGEX = Regex(
+            """(?i)[\s\-:_]*\b(s(?:eason)?\s*\d{1,3}(?:\s*e\s*\d{1,3})?|\d{1,2}(?:st|nd|rd|th)\s+season|complete(?:\s+series)?)\s*$"""
+        )
+        private val TRAILING_YEAR_REGEX = Regex("""\s*\(?(?:19|20)\d{2}\)?\s*$""")
 
         private const val BASE = "https://api.themoviedb.org/3"
         private const val IMG = "https://image.tmdb.org/t/p/w342"

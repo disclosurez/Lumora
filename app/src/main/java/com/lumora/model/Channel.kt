@@ -76,5 +76,15 @@ data class Channel(
     val tvArchive: Boolean = false,
     // Xtream `tv_archive_duration`: how many days back the panel kept, typically 3-7. Bounds
     // the Catch Up day picker; 0 means "no archive" even if tvArchive somehow says otherwise.
-    val tvArchiveDays: Int = 0
+    val tvArchiveDays: Int = 0,
+    // TMDB id straight from the panel (Xtream `tmdb` on both get_vod_streams and get_series),
+    // when it sends one. Every TMDB lookup - trailer, plot/backdrop fill, episode fill - would
+    // otherwise have to guess the title back from a name like "4K-AMZ - Elle (2026) (CA)" and
+    // search for it, which silently resolves to the wrong film whenever the title is ambiguous
+    // ("Run", "Fearless", "Deep Cover") and finds nothing at all when a tag survives the strip.
+    val tmdbId: String? = null,
+    // YouTube key for the panel's own trailer (Xtream `trailer` on VOD, `youtube_trailer` on
+    // series). Playable as-is - no TMDB round trip, and it exists for plenty of titles TMDB
+    // itself has no video for.
+    val trailerKey: String? = null
 )

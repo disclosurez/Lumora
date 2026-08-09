@@ -309,6 +309,23 @@ class XtreamClient(private val client: OkHttpClient) {
         }
 
     /**
+     * The bare YouTube video id out of whatever a panel put in its trailer field. Most send the
+     * id alone, but a full watch/youtu.be/embed URL turns up too, and that can't be pasted into
+     * the embed player as-is. Anything else (an id-looking string of the wrong length, a Vimeo
+     * link) is passed through only when it has no "/" - a URL we can't read a key out of is
+     * dropped rather than played as a broken embed.
+     */
+    private fun youtubeKey(raw: String): String? {
+        val s = raw.trim()
+        if (s.isBlank()) return null
+        if ("/" !in s) return s.takeIf { "." !in it }
+        val afterHost = s.substringAfter("youtu.be/", "")
+            .ifBlank { s.substringAfter("/embed/", "") }
+            .ifBlank { s.substringAfter("v=", "") }
+        return afterHost.takeWhile { it != '&' && it != '?' && it != '/' }.takeIf { it.isNotBlank() }
+    }
+
+    /**
      * A stream's category id. Prefers the singular `category_id`, but some panels leave it null and
      * only populate a plural `category_ids` array; fall back to the first entry there. Only the
      * first is used because across the live providers surveyed no stream ever belonged to more than
@@ -365,7 +382,12 @@ class XtreamClient(private val client: OkHttpClient) {
             // A panel that advertises the archive but reports 0 days kept has nothing to
             // play back, so it doesn't count as catch-up capable.
             tvArchive = hasArchive && archiveDays > 0,
-            tvArchiveDays = archiveDays
+            tvArchiveDays = archiveDays,
+            // Panels send the TMDB id and a YouTube trailer key on the bulk VOD list itself.
+            // Both were being thrown away and then guessed back from the title via a TMDB
+            // search - see Channel.tmdbId. "0" is how a panel spells "I don't have one".
+            tmdbId = obj.optString("tmdb", "").takeIf { it.isNotBlank() && it != "0" },
+            trailerKey = youtubeKey(obj.optString("trailer", ""))
         )
     }
 
@@ -394,7 +416,12 @@ class XtreamClient(private val client: OkHttpClient) {
             mediaType = MediaType.SERIES,
             rating = rating.ifBlank { null },
             year = year.ifBlank { null },
-            releaseDate = releaseDate.ifBlank { null }
+            releaseDate = releaseDate.ifBlank { null },
+            // Same as VOD, except the series list spells the trailer field `youtube_trailer`.
+            tmdbId = obj.optString("tmdb", "").takeIf { it.isNotBlank() && it != "0" },
+            trailerKey = youtubeKey(
+                obj.optString("youtube_trailer", "").ifBlank { obj.optString("trailer", "") }
+            )
         )
     }
 

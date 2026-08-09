@@ -20,6 +20,8 @@ import com.lumora.model.Provider
 import com.lumora.model.IptvProviderConfig
 import com.lumora.data.IptvProviderStore
 import com.lumora.plugin.DiscoveredProvider
+import com.lumora.util.cleanVodTitle
+import com.lumora.util.extractYearFromName
 import com.lumora.plugin.DiscoveryResult
 import com.lumora.plugin.ResolveResult
 import com.lumora.plugin.SearchResult
@@ -45,6 +47,22 @@ internal fun MainActivity.tmdbTypeAndId(id: String): Pair<String, Int>? {
     if (parts.size != 3 || parts[0] != "tmdb") return null
     return parts[1] to (parts[2].toIntOrNull() ?: return null)
 }
+
+/** The panel-supplied TMDB id as a `(mediaType, id)` pair, or null when it sent none. Live
+ *  items are excluded - a channel is not a TMDB title, whatever id happens to be attached. */
+internal fun Channel.tmdbTypeAndId(): Pair<String, Int>? {
+    if (mediaType == MediaType.LIVE) return null
+    val id = tmdbId?.toIntOrNull()?.takeIf { it > 0 } ?: return null
+    return (if (mediaType == MediaType.SERIES) "tv" else "movie") to id
+}
+
+/** Release year for TMDB matching. Panels routinely omit the `year` field on the bulk lists
+ *  while still putting "(2026)" in the name, and a year is what separates the right "Run" or
+ *  "Fearless" from the popular one - so fall back to the release date, then to the name. */
+internal fun Channel.tmdbYear(): String? =
+    year?.takeIf { it.isNotBlank() }
+        ?: releaseDate?.take(4)?.takeIf { it.length == 4 }
+        ?: extractYearFromName(name)
 
 /** Looks up and plays a TMDB trailer for a Discover item (id already carries the TMDB id). */
 internal fun MainActivity.showTrailerForDiscoverItem(item: Channel) {
@@ -78,10 +96,22 @@ internal fun MainActivity.wireTrailerButton(item: Channel) {
         android.util.Log.d("TrailerPlayer", "wireTrailerButton: no TMDB key configured")
         return
     }
+    // The panel's own trailer key, when it sent one: no network at all, and it covers plenty
+    // of titles TMDB itself has no video for.
+    item.trailerKey?.takeIf { it.isNotBlank() }?.let { key ->
+        button.visibility = View.VISIBLE
+        button.setOnClickListener { showTrailerPlayer(key) }
+        return
+    }
     scope.launch {
         try {
-            val direct = tmdbTypeAndId(item.id)
-            val resolved = direct ?: tmdbClient.resolveId(item.name, item.year, item.mediaType == MediaType.SERIES)
+            // The panel's TMDB id beats any title search - see Channel.tmdbId.
+            val direct = tmdbTypeAndId(item.id) ?: item.tmdbTypeAndId()
+            // cleanVodTitle first, same as the detail screen's TMDB metadata fill - this
+            // path used the raw catalog name, so a title the plot/backdrop lookup resolved
+            // fine could still fail here and silently drop the button.
+            val resolved = direct
+                ?: tmdbClient.resolveId(cleanVodTitle(item.name), item.tmdbYear(), item.mediaType == MediaType.SERIES)
             android.util.Log.d("TrailerPlayer", "wireTrailerButton('${item.name}', year=${item.year}): resolved=$resolved (direct=${direct != null})")
             val (type, id) = resolved ?: return@launch
             val key = tmdbClient.trailerKey(type, id)

@@ -16,7 +16,7 @@ private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
 private const val FIELD_SEP = ''
 /** Fields written per line. Append-only: new fields go at the end so older files stay
  *  readable. */
-private const val FIELD_COUNT = 24
+private const val FIELD_COUNT = 26
 /** Fields a line must have to be usable. Held at the pre-Catch-Up count on purpose - a
  *  cache written by an older build is still perfectly good, and every field added since
  *  is read with getOrElse. Raising this to FIELD_COUNT dropped every line of an existing
@@ -81,7 +81,12 @@ object ChannelCache {
                 // Catch Up needs these on cold start - the tab is built from the cached
                 // catalogue, before any provider refetch has run.
                 sb.append(if (ch.tvArchive) "1" else "0").append(FIELD_SEP)
-                sb.append(ch.tvArchiveDays.toString()).append('\n')
+                sb.append(ch.tvArchiveDays.toString()).append(FIELD_SEP)
+                // TMDB id / trailer key from the panel - the detail screen's TMDB fill and the
+                // Trailer button both run off the cached catalogue on a cold start, and without
+                // these they fall back to guessing the title.
+                sb.append(clean(ch.tmdbId)).append(FIELD_SEP)
+                sb.append(clean(ch.trailerKey)).append('\n')
                 out.append(sb)
             }
             }
@@ -152,7 +157,9 @@ object ChannelCache {
                             avOffsetMs = f.getOrElse(20) { "0" }.toIntOrNull() ?: 0,
                             stalkerCmd = f.getOrElse(21) { "" }.ifEmpty { null },
                             tvArchive = f.getOrElse(22) { "0" } == "1",
-                            tvArchiveDays = f.getOrElse(23) { "0" }.toIntOrNull() ?: 0
+                            tvArchiveDays = f.getOrElse(23) { "0" }.toIntOrNull() ?: 0,
+                            tmdbId = f.getOrElse(24) { "" }.ifEmpty { null },
+                            trailerKey = f.getOrElse(25) { "" }.ifEmpty { null }
                         )
                     )
                 }
