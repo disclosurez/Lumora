@@ -859,7 +859,12 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 } else {
                     statusText.visibility = View.GONE
                     itemsList.visibility = View.VISIBLE
-                    if (seasons.size > 1) {
+                    // Built for a single-season show too, not just multi-season ones. The
+                    // row was the only place the whole-season watched check lives, so a
+                    // one-season show had no way to tick the season off at all - only
+                    // episode-by-episode. One chip is also the honest label for what the
+                    // list below is showing.
+                    if (seasons.isNotEmpty()) {
                         seasonScroll.visibility = View.VISIBLE
                         seasons.forEachIndexed { index, (label, _) ->
                             val cell = layoutInflater.inflate(R.layout.item_season_chip, seasonRow, false) as ViewGroup
