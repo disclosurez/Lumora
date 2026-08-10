@@ -3,7 +3,6 @@ package com.lumora.cache
 import android.content.Context
 import android.util.Log
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 
 private const val TAG = "RecentlyPlayedStore"

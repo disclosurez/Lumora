@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.*
 import com.lumora.BaseApplication
 import com.lumora.data.local.LumoraDatabase
+import com.lumora.cache.ChannelCache
 import com.lumora.data.local.entity.EpgProgramEntity
 import com.lumora.data.parser.XmltvParser
 import okhttp3.Request
@@ -33,7 +34,7 @@ class EpgSyncWorker(
         // app id would clobber rows the Xtream in-app path wrote. Load the mapping once per run
         // (single query, no N+1 per source) and map every programme onto the app channel ids
         // whose tvg-id matches.
-        val tvgIdToChannelIds = buildTvgIdMapping(db)
+        val tvgIdToChannelIds = buildTvgIdMapping()
 
         var allSuccess = true
         for (source in sources) {
@@ -104,11 +105,17 @@ class EpgSyncWorker(
         return if (allSuccess) Result.success() else Result.retry()
     }
 
-    /** Loads every channel once and indexes it by tvg-id → app channel ids, so XMLTV rows can
-     *  be persisted under the ids the guide actually reads. Blank tvg-ids can't match anything. */
-    private suspend fun buildTvgIdMapping(db: LumoraDatabase): Map<String, Set<String>> {
+    /** Indexes every known channel by tvg-id → app channel ids, so XMLTV rows can be persisted
+     *  under the ids the guide actually reads. Blank tvg-ids can't match anything.
+     *
+     *  Reads [ChannelCache], not Room. This used to query the Room `channels` table, which
+     *  only the catalog sync worker ever wrote and nothing ever scheduled - so it was empty on
+     *  every install, the mapping matched nothing, and every single programme was dropped as
+     *  "no matching app channel". The cache is the merged catalogue the UI actually browses,
+     *  so it is the one carrying the ids the guide reads by. */
+    private fun buildTvgIdMapping(): Map<String, Set<String>> {
         val map = HashMap<String, MutableSet<String>>()
-        for (channel in db.channelDao().getAll()) {
+        for (channel in ChannelCache.load(applicationContext).orEmpty()) {
             channel.tvgId?.takeIf { it.isNotBlank() }?.let { tvgId ->
                 map.getOrPut(tvgId) { mutableSetOf() }.add(channel.id)
             }
@@ -133,13 +140,21 @@ class EpgSyncWorker(
                 .enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
         }
 
-        fun schedulePeriodic(context: Context, intervalHours: Long = 24) {
+        /** Re-download interval, matched to [com.lumora.EPG_DISK_TTL_MS]. The guide treats a
+         *  stored programme older than that as stale and refuses to paint it, and the only
+         *  other refill path is Xtream's per-channel short EPG - so an XMLTV-only channel
+         *  (M3U/Stalker) went blank once the disk copy aged out. Syncing on the same 6h
+         *  period keeps the stored guide inside the window that the reader accepts. */
+        const val DEFAULT_INTERVAL_HOURS = 6L
+
+        fun schedulePeriodic(context: Context, intervalHours: Long = DEFAULT_INTERVAL_HOURS) {
             val request = PeriodicWorkRequestBuilder<EpgSyncWorker>(intervalHours, TimeUnit.HOURS)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build()
                 )
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
                 .build()
 
             WorkManager.getInstance(context)

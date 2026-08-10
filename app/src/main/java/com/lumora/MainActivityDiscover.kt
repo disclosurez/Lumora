@@ -475,7 +475,6 @@ internal fun MainActivity.onHomeItemClick(channel: Channel) {
                 showContentDetail(channel)
             }
         }
-        else -> {}
     }
 }
 
@@ -627,7 +626,7 @@ internal fun MainActivity.buildUpNextSeriesTiles(): List<Channel> {
     if (pending.isNotEmpty()) fetchUpNextSeries(pending)
     // Trail order = most recently completed first; present the memoized tiles in that
     // order (LinkedHashMap insertion order is fetch-completion order, which is arbitrary).
-    return trails.mapNotNull { t -> upNextTiles[t.categoryId]?.takeIf { it != null } }
+    return trails.mapNotNull { t -> upNextTiles[t.categoryId] }
 }
 
 /** Fetches the episode lists for up to [MAX_UP_NEXT_SERIES] series (one network call
@@ -687,7 +686,6 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
     // entries follow, minus anything the server already covered (same item, one card).
     val localContinue = PlaybackPositionStore.getAllInProgress(this)
     val serverContinue = jellyfinResumeItems
-    val serverIds = serverContinue.map { it.id }.toSet()
     // Up-next series tiles: series whose watched trail ends at a completed episode have
     // no in-progress entry, so they'd otherwise drop out of Continue Watching entirely.
     // buildUpNextSeriesTiles returns what's already resolved and kicks the async fetch

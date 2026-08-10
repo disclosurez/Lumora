@@ -38,8 +38,6 @@ import kotlinx.coroutines.*
 // ── Category rail, tabs & side-menu drill-down ──
 //
 // Extracted from MainActivity.kt; see that file's header.
-internal fun MainActivity.activeFullList(): List<Channel> = fullListForTab(activeTab)
-
 internal fun MainActivity.fullListForTab(tab: Int): List<Channel> = when (tab) {
     0 -> liveChannels
     1 -> seriesList
@@ -643,7 +641,7 @@ internal fun MainActivity.buildCategoryRows(
             val rows = dynamicBuckets.mapNotNull { (label, _) ->
                 val members = bucketed[label] ?: return@mapNotNull null
                 val bucketId = "$DYNAMIC_BUCKET_ID_PREFIX$label"
-                val expanded = expanded.contains(bucketId)
+                val isExpanded = expanded.contains(bucketId)
                 val channelIds = members.flatMap { (row, _) ->
                     if (row.channelIds.isNotEmpty()) {
                         row.channelIds
@@ -684,7 +682,7 @@ internal fun MainActivity.buildCategoryRows(
                     pinned = pinned.contains(bucketId),
                     channelIds = channelIds,
                     isParent = true,
-                    expanded = expanded,
+                    expanded = isExpanded,
                     isDynamic = true
                 )
                 // Channel sort — reserved for future use.
@@ -693,7 +691,7 @@ internal fun MainActivity.buildCategoryRows(
                 val children = members.map { it.first.copy(isChild = true, isParent = false, expanded = false) }
                     .sortedBy { it.name.lowercase() }
                 childrenByParent[bucketId] = children
-                if (expanded) listOf(parent) + children else listOf(parent)
+                if (isExpanded) listOf(parent) + children else listOf(parent)
             }.flatten()
             // Brand-row channels from a bucket should also be reachable from that
             // bucket's classic provider categories. For each classic leaf inside a
@@ -704,7 +702,7 @@ internal fun MainActivity.buildCategoryRows(
                 for ((label, _) in dynamicBuckets) {
                     val bucketMembers = bucketed[label] ?: continue
                     val brandIds = bucketMembers.filter { (row, _) -> row.channelIds.isNotEmpty() }
-                        .flatMap { (row, _) -> row.channelIds ?: emptySet() }.toSet()
+                        .flatMap { (row, _) -> row.channelIds }.toSet()
                     if (brandIds.isEmpty()) continue
                     for ((row, _) in bucketMembers.filter { (row, _) -> row.channelIds.isNullOrEmpty() }) {
                         row.id?.let { id -> bucketExtra.getOrPut(id) { mutableSetOf() }.addAll(brandIds) }
@@ -714,7 +712,7 @@ internal fun MainActivity.buildCategoryRows(
                     allUnits.map { unit ->
                         val (row, children) = unit
                         val extra = bucketExtra[row.id] ?: return@map unit
-                        row.copy(channelIds = (row.channelIds ?: emptySet()) + extra) to children
+                        row.copy(channelIds = row.channelIds + extra) to children
                     }
                 } else allUnits
             } else allUnits
@@ -881,7 +879,7 @@ internal fun MainActivity.buildCategoryRows(
                         channelIds = ids
                     )
                 }
-                val expanded = expanded.contains(ANIME_CATEGORY_ID)
+                val isExpanded = expanded.contains(ANIME_CATEGORY_ID)
                 val parent = CategoryFilter(
                     id = ANIME_CATEGORY_ID,
                     name = "Anime",
@@ -889,7 +887,7 @@ internal fun MainActivity.buildCategoryRows(
                     pinned = pinned.contains(ANIME_CATEGORY_ID),
                     channelIds = animeIds,
                     isParent = children.isNotEmpty(),
-                    expanded = expanded && children.isNotEmpty(),
+                    expanded = isExpanded && children.isNotEmpty(),
                     isDynamic = true
                 )
                 if (children.isNotEmpty()) childrenByParent[ANIME_CATEGORY_ID] = children

@@ -1,7 +1,6 @@
 package com.lumora.player
 
 import android.content.Context
-import android.widget.Toast
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.google.android.gms.cast.MediaInfo
@@ -64,8 +63,6 @@ class CastManager(private val context: Context) {
             // Google Play Services may not be available
         }
     }
-
-    fun isConnected(): Boolean = castSession?.isConnected == true
 
     /**
      * Determine MIME type from a stream URL extension.

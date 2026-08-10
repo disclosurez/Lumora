@@ -39,9 +39,7 @@ internal fun MainActivity.formatSubscriptionStatus(expDateSeconds: Long?, isTria
  */
 internal suspend fun MainActivity.classifyAndShow(preserveUi: Boolean = false) {
     val snapshot = allChannels
-    val hideNonEnglish = prefs.getBoolean(PREF_HIDE_NON_ENGLISH, true)
-    val hideAdult = prefs.getBoolean(PREF_HIDE_ADULT, true)
-    val derived = withContext(Dispatchers.Default) { computeDerivedContent(snapshot, hideNonEnglish, hideAdult) }
+    val derived = withContext(Dispatchers.Default) { computeDerivedContent(snapshot) }
 
     liveChannels = derived.liveChannels
     liveVersions = derived.liveVersions
@@ -289,7 +287,9 @@ internal fun MainActivity.renderLivePartial() {
     }
 }
 
-internal fun MainActivity.computeDerivedContent(allChannels: List<Channel>, hideNonEnglish: Boolean, hideAdult: Boolean): MainActivity.DerivedContent {
+// No hideNonEnglish/hideAdult parameters: both halves read those prefs themselves (the
+// derive-cache fingerprint depends on them), so the arguments were passed in and ignored.
+internal fun MainActivity.computeDerivedContent(allChannels: List<Channel>): MainActivity.DerivedContent {
     deriveLiveHalf(allChannels)
     val result = deriveFilmsSeriesHalf(allChannels)
     filmList = result.filmList
@@ -528,7 +528,8 @@ internal fun MainActivity.shelvesFromCategoryRows(rows: List<CategoryFilter>, li
         }
         if (items.isEmpty()) continue
         val shelf = ContentShelf(title = row.name, items = items, pinned = row.pinned, categoryId = row.id)
-        val key = row.id ?: row.name
+        // Non-null: rows with a null id were skipped at the top of the loop.
+        val key = row.id
         val existing = merged[key]
         merged[key] = if (existing == null) shelf else existing.copy(items = existing.items + items)
     }

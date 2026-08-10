@@ -132,7 +132,6 @@ internal fun MainActivity.isTypeAllowed(ch: Channel, configs: List<IptvProviderC
         MediaType.LIVE -> if (ch.isJellyfin) jellyfinAllowsLive() else owner?.let { providerAllowsLive(it) } ?: true
         MediaType.MOVIE -> if (ch.isJellyfin) jellyfinAllowsMovies() else owner?.let { providerAllowsMovies(it) } ?: true
         MediaType.SERIES -> if (ch.isJellyfin) jellyfinAllowsSeries() else owner?.let { providerAllowsSeries(it) } ?: true
-        else -> true
     }
 }
 
@@ -586,7 +585,6 @@ internal suspend fun MainActivity.fetchM3uChannels(config: IptvProviderConfig): 
                 MediaType.LIVE -> providerAllowsLive(config)
                 MediaType.MOVIE -> providerAllowsMovies(config)
                 MediaType.SERIES -> providerAllowsSeries(config)
-                else -> true
             }
         }
         // sourceProviderId isn't needed for playback here (an M3U item's url is already

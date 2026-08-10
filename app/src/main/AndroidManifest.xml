@@ -132,10 +132,11 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- The media browse service (auto/LumoraMediaService.kt) is intentionally not
-             declared. Advertising a MediaBrowserService is what made Android Auto file
-             Lumora as a media app - listed, but audio-only, with the car service never
-             bound. The class is still there for a future Assistant/Wear integration. -->
+        <!-- No MediaBrowserService is declared, and no class implements one. Advertising one
+             is what made Android Auto file Lumora as a media app - listed, but audio-only,
+             with the car service never bound. The undeclared implementation that used to sit
+             in auto/ was unreachable code and is gone; a future Assistant/Wear integration
+             would need its own service anyway. -->
 
         <!-- Android Auto. minCarApiLevel and the POI service below are the entire car
              registration - deliberately no com.google.android.gms.car.application descriptor,
@@ -158,18 +159,12 @@
             </intent-filter>
         </service>
 
-        <!-- TV Input Framework -->
-        <service
-            android:name=".tv.TvInputService"
-            android:exported="true"
-            android:permission="android.permission.BIND_TV_INPUT">
-            <intent-filter>
-                <action android:name="android.media.tv.TvInputService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.media.tv.input"
-                android:resource="@xml/tv_input_service" />
-        </service>
+        <!-- No TV Input Framework service. Lumora advertised one, but nothing ever wrote a
+             row into TvContract.Channels, so the system input selector had an empty Lumora
+             input that could never be tuned - and the session's tune lookup read the Room
+             `channels` table, which only the (equally unscheduled) catalog sync worker ever
+             filled. Both sides were stubs, so the input is gone rather than left advertising
+             a source that cannot play. -->
 
         <!-- Cast -->
         <meta-data

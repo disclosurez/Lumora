@@ -41,9 +41,7 @@ object XmltvParser {
 
     data class XmltvResult(
         val channels: List<XmltvChannel>,
-        val programmes: List<XmltvProgramme>,
-        val sourceEtag: String? = null,
-        val sourceLastModified: String? = null
+        val programmes: List<XmltvProgramme>
     )
 
     private val dateFormats = listOf(
@@ -66,13 +64,11 @@ object XmltvParser {
         parser.setInput(inputStream, "UTF-8")
 
         var eventType = parser.eventType
-        var currentTag = ""
 
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
                 XmlPullParser.START_TAG -> {
-                    currentTag = parser.name
-                    when (currentTag) {
+                    when (parser.name) {
                         "channel" -> {
                             val id = parser.getAttributeValue(null, "id") ?: ""
                             var displayName = ""

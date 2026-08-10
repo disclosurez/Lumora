@@ -63,7 +63,10 @@ internal fun MainActivity.showAddEpgSourceDialog() {
                         url = url
                     )
                 )
-                Toast.makeText(this@showAddEpgSourceDialog, "EPG source added", Toast.LENGTH_SHORT).show()
+                // Fetch it now rather than leaving the new source dark until the next 6h
+                // periodic run — adding a source and seeing no guide for hours reads as broken.
+                com.lumora.data.sync.EpgSyncWorker.enqueue(this@showAddEpgSourceDialog)
+                Toast.makeText(this@showAddEpgSourceDialog, "EPG source added — downloading guide", Toast.LENGTH_SHORT).show()
             }
         }
         .setNegativeButton("Cancel", null)
@@ -842,17 +845,15 @@ internal fun MainActivity.showProviderSettings() {
         Toast.makeText(this, "Recording storage: ${filesDir}/recordings", Toast.LENGTH_SHORT).show()
     }
 
-    // Decoder mode settings button
-    val decoderManager = com.lumora.player.playback.DecoderModeManager(this)
+    // Playback settings. Only entries that change something belong here — the Decoder /
+    // Buffer / Surface / FFmpeg rows this dialog used to carry wrote prefs no part of the
+    // playback stack ever read (Surface didn't even write one, it toasted "Surface mode
+    // changed" and returned), so every one of them was a control that reported success and
+    // did nothing.
     dialogView.findViewById<View>(R.id.settingsDecoderMode).setOnClickListener {
-        val settings = decoderManager.getSettings()
         val items = arrayOf(
             "External player: ${externalPlayerSummary(this)}",
             "Suggest external player on problems: ${if (prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)) "ON" else "OFF"}",
-            "Decoder: ${settings.decoderMode.label}",
-            "Buffer: ${settings.bufferMode.label}",
-            "Surface: ${settings.surfaceMode.label}",
-            "FFmpeg: ${if (settings.enableFfmpeg) "ON" else "OFF"}",
             "Legal & safety notice"
         )
         AlertDialog.Builder(this@showProviderSettings)
@@ -865,11 +866,7 @@ internal fun MainActivity.showProviderSettings() {
                         prefs.edit().putBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, on).apply()
                         Toast.makeText(this@showProviderSettings, "Suggest external player: ${if (on) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
                     }
-                    2 -> { val m = decoderManager.cycleDecoderMode(); Toast.makeText(this@showProviderSettings, "Decoder: ${m.label}", Toast.LENGTH_SHORT).show() }
-                    3 -> { val m = decoderManager.cycleBufferMode(); Toast.makeText(this@showProviderSettings, "Buffer: ${m.label}", Toast.LENGTH_SHORT).show() }
-                    4 -> { /* cycle surface mode */ Toast.makeText(this@showProviderSettings, "Surface mode changed", Toast.LENGTH_SHORT).show() }
-                    5 -> { val s = settings.copy(enableFfmpeg = !settings.enableFfmpeg); decoderManager.save(s); Toast.makeText(this@showProviderSettings, "FFmpeg: ${if (s.enableFfmpeg) "ON" else "OFF"}", Toast.LENGTH_SHORT).show() }
-                    6 -> showLegalNotice()
+                    2 -> showLegalNotice()
                 }
             }
             .setPositiveButton("Close", null)

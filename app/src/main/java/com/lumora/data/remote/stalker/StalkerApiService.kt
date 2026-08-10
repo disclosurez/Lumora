@@ -10,7 +10,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import com.lumora.model.MediaType
-import com.lumora.model.Provider
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -238,7 +237,7 @@ class StalkerApiService(private val client: OkHttpClient) {
     /**
      * Fetch VOD list from the Stalker portal.
      */
-    suspend fun getVodList(serverUrl: String, mac: String): List<ChannelEntry> {
+    suspend fun getVodList(mac: String): List<ChannelEntry> {
         val token = authToken ?: return emptyList()
         return fetchOrderedList(mac, token, "vod", maxPages = VOD_MAX_PAGES, categories = fetchCategories("vod", mac, token))
     }
@@ -246,7 +245,7 @@ class StalkerApiService(private val client: OkHttpClient) {
     /**
      * Fetch series list from the Stalker portal.
      */
-    suspend fun getSeriesList(serverUrl: String, mac: String): List<ChannelEntry> {
+    suspend fun getSeriesList(mac: String): List<ChannelEntry> {
         val token = authToken ?: return emptyList()
         return fetchOrderedList(mac, token, "series", maxPages = VOD_MAX_PAGES, categories = fetchCategories("series", mac, token))
     }

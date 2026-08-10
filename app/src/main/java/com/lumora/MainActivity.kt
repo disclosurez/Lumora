@@ -1,7 +1,6 @@
 package com.lumora
 
 import android.Manifest
-import android.animation.AnimatorInflater
 import android.app.AlertDialog
 import android.app.Dialog
 import android.app.DownloadManager
@@ -10,20 +9,13 @@ import android.content.pm.PackageManager
 import androidx.activity.OnBackPressedCallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
-import androidx.core.view.updateLayoutParams
 import androidx.core.view.WindowInsetsCompat
-import android.net.Uri
 import android.os.Build
-import java.io.File
 import android.util.Rational
-import android.util.TypedValue
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Typeface
-import android.view.PixelCopy
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
@@ -33,112 +25,52 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
-import android.webkit.ConsoleMessage
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.text.Spanned
-import android.text.SpannableStringBuilder
 import android.text.TextPaint
-import android.text.style.AbsoluteSizeSpan
-import android.text.style.ForegroundColorSpan
 import android.text.style.MetricAffectingSpan
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.lumora.adapter.CategoryAdapter
-import com.lumora.adapter.DYNAMIC_BUCKET_ID_PREFIX
 import com.lumora.adapter.DownloadAdapter
-import com.lumora.adapter.EpisodeAdapter
 import com.lumora.adapter.LiveGuideAdapter
 import com.lumora.adapter.PosterGridAdapter
-import com.lumora.adapter.SearchEpgResult
 import com.lumora.adapter.SearchResultItem
-import com.lumora.adapter.SearchResultsAdapter
 import com.lumora.adapter.ShelfAdapter
 import com.lumora.adapter.SideMenuCategoryAdapter
-import com.lumora.download.DownloadRecord
-import com.lumora.download.DownloadStatus
-import com.lumora.download.DownloadStore
-import com.lumora.download.VodDownloader
-import com.lumora.cache.ChannelCache
-import com.lumora.cache.DerivedCache
-import com.lumora.cache.EpgListCache
-import com.lumora.cache.ProgramReminder
 import com.lumora.cache.ReminderStore
-import com.lumora.reminder.ReminderScheduler
 import com.lumora.cache.FavoritesStore
-import com.lumora.cache.PlaybackPositionStore
-import com.lumora.cache.RecentlyPlayedStore
 import com.lumora.model.CategoryFilter
 import com.lumora.databinding.ActivityMainBinding
 import com.lumora.model.Channel
 import com.lumora.model.ContentShelf
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
-import com.lumora.model.ProviderType
 import com.lumora.model.IptvProviderConfig
-import com.lumora.data.IptvProviderStore
 import com.lumora.pairing.QrPairingManager
 import com.lumora.plugin.DiscoveredProvider
-import com.lumora.plugin.DiscoveryResult
-import com.lumora.plugin.PluginSubtitle
-import com.lumora.plugin.ResolveResult
-import com.lumora.plugin.SearchResult
 import com.lumora.plugin.js.JsPluginEngine
 import com.lumora.plugin.js.PluginScript
 import com.lumora.plugin.js.PluginScriptManager
-import com.lumora.plugin.js.PluginStore
 import com.lumora.plugin.js.PluginStoreManager
-import com.lumora.plugin.js.StoreScript
 import com.lumora.torrent.TorrentEngine
 import com.lumora.torrent.TorrentForegroundService
 import com.lumora.anime.AnimeCatalogClient
-import com.lumora.plugin.TorrentResult
-import com.lumora.parser.M3uParser
-import com.lumora.parser.XtreamClient
 import com.lumora.player.PlayerManager
 import com.lumora.player.PlayerTrackController
-import com.lumora.player.VideoAspectFrameLayout
-import com.lumora.util.extractLeadingTag
-import com.lumora.util.deriveBrandCategories
-import com.lumora.util.groupCategories
-import com.lumora.util.groupSeriesFilmCategories
-import com.lumora.util.CategoryGroup
-import com.lumora.util.newestByDate
-import com.lumora.util.cleanVodCategoryLabel
-import com.lumora.util.isAdultCategory
 import com.lumora.util.isTvDevice
-import com.lumora.util.normalizeServerUrl
-import com.lumora.util.groupDuplicateMovies
 import com.lumora.util.groupDuplicateSeries
-import com.lumora.util.groupLiveQualityVersions
-import com.lumora.util.isNonEnglishTitle
-import com.lumora.util.withResolvedYear
 import com.lumora.data.local.LumoraDatabase
-import com.lumora.data.local.entity.EpgProgramEntity
-import com.lumora.data.local.entity.EpgSourceEntity
+import com.lumora.data.sync.EpgSyncWorker
 import com.lumora.data.backup.BackupManager
-import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
 import com.lumora.player.playback.PlayerDiagnostics
 import com.lumora.data.update.AppUpdateChecker
 import com.lumora.data.update.AppUpdateInstaller
 import com.lumora.player.playback.AvOffsetManager
-import com.lumora.player.playback.PlayerErrorClassifier
 import kotlinx.coroutines.*
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.util.Locale
 
 internal const val PREF_HIDE_NON_ENGLISH = "hide_non_english_vod"
 internal const val PREF_HIDE_ADULT = "hide_adult_categories"
@@ -808,8 +740,13 @@ class MainActivity : AppCompatActivity() {
         playerManager.getExoPlayer().addAnalyticsListener(playerDiagnostics.getAnalyticsListener())
         database = LumoraDatabase.getInstance(this)
 
-        // Initialize background sync
-        com.lumora.data.sync.BackgroundWorkEnabler.initialize(this)
+        // Periodic XMLTV EPG re-download. Nothing scheduled this before — the call here went to
+        // a BackgroundWorkEnabler.initialize() that was an empty stub whose comment claimed
+        // BaseApplication did the scheduling, which it didn't — so EpgSyncWorker never ran and
+        // XMLTV sources were fetched exactly never. Unique periodic work with an UPDATE policy,
+        // so re-asserting it on every start is free; WorkManager keeps the timer across process
+        // death.
+        EpgSyncWorker.schedulePeriodic(this)
 
         setupChannelList()
         setupTabs()

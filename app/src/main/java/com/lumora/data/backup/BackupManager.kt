@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
@@ -167,21 +166,6 @@ class BackupManager(private val context: Context) {
     private suspend fun countExistingData(): Int {
         val db = LumoraDatabase.getInstance(context)
         return db.providerDao().getAll().size
-    }
-
-    /**
-     * Preview what would be imported without applying.
-     */
-    suspend fun previewImport(uri: Uri): BackupData? = withContext(Dispatchers.IO) {
-        try {
-            val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).readText()
-            } ?: return@withContext null
-
-            gson.fromJson(json, BackupData::class.java)
-        } catch (e: Exception) {
-            null
-        }
     }
 
     private suspend fun collectBackupData(db: LumoraDatabase): BackupData {

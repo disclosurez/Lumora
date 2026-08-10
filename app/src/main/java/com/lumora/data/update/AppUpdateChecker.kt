@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 /**

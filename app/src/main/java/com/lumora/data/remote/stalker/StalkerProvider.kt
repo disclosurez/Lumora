@@ -49,8 +49,8 @@ class StalkerProvider(private val httpClient: OkHttpClient) {
         val mac = provider.userAgent ?: return Result.failure(Exception("No MAC address"))
         ensureAuthenticated(serverUrl, mac).onFailure { return Result.failure(it) }
         return try {
-            val vodEntries = api.getVodList(serverUrl, mac)
-            val seriesEntries = api.getSeriesList(serverUrl, mac)
+            val vodEntries = api.getVodList(mac)
+            val seriesEntries = api.getSeriesList(mac)
             val films = vodEntries.map { e ->
                 Channel(
                     id = e.id, name = e.name, url = e.url,
@@ -111,9 +111,5 @@ class StalkerProvider(private val httpClient: OkHttpClient) {
                 )
             }
         }
-    }
-
-    companion object {
-        const val TYPE = "stalker"
     }
 }

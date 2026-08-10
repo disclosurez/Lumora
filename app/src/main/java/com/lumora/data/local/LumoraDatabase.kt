@@ -10,15 +10,12 @@ import com.lumora.data.local.dao.*
 import com.lumora.data.local.entity.*
 
 @Database(
-    version = 2,
+    version = 3,
     exportSchema = true,
     entities = [
         ProviderEntity::class,
-        ChannelEntity::class,
-        CategoryEntity::class,
         RecordingEntity::class,
         RecordingStorageEntity::class,
-        DownloadEntity::class,
         EpgSourceEntity::class,
         WatchHistoryEntity::class,
         CustomGroupEntity::class,
@@ -28,10 +25,7 @@ import com.lumora.data.local.entity.*
 )
 abstract class LumoraDatabase : RoomDatabase() {
     abstract fun providerDao(): ProviderDao
-    abstract fun channelDao(): ChannelDao
-    abstract fun categoryDao(): CategoryDao
     abstract fun recordingDao(): RecordingDao
-    abstract fun downloadDao(): DownloadDao
     abstract fun epgSourceDao(): EpgSourceDao
     abstract fun watchHistoryDao(): WatchHistoryDao
     abstract fun customGroupDao(): CustomGroupDao
@@ -59,6 +53,19 @@ abstract class LumoraDatabase : RoomDatabase() {
             }
         }
 
+        /** v3 drops `channels`, `categories` and `downloads`. All three were write-only tables
+         *  filled by the catalog sync worker, which nothing ever scheduled - the browsable
+         *  catalogue lives in [com.lumora.cache.ChannelCache] and downloads in
+         *  `download/DownloadStore`, so no reader ever went near them. Dropping loses nothing
+         *  because nothing was ever written. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `channels`")
+                db.execSQL("DROP TABLE IF EXISTS `categories`")
+                db.execSQL("DROP TABLE IF EXISTS `downloads`")
+            }
+        }
+
         fun getInstance(context: Context): LumoraDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -66,7 +73,7 @@ abstract class LumoraDatabase : RoomDatabase() {
                     LumoraDatabase::class.java,
                     "lumora.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

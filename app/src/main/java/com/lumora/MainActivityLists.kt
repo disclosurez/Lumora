@@ -1093,6 +1093,10 @@ internal fun MainActivity.showEpgSourceListDialog() {
                     .show()
             }
             .setPositiveButton("Add", { _, _ -> showAddEpgSourceDialog() })
+            .setNeutralButton("Refresh now") { _, _ ->
+                com.lumora.data.sync.EpgSyncWorker.enqueue(this@showEpgSourceListDialog)
+                Toast.makeText(this@showEpgSourceListDialog, "Downloading EPG…", Toast.LENGTH_SHORT).show()
+            }
             .setNegativeButton("Close", null)
             .show()
     }

@@ -31,7 +31,7 @@ class StreamHttpServer(
         val length = (end - start + 1).coerceAtLeast(0L)
 
         // Pull the download head to the seek point before handing back the stream.
-        gate.prioritizeFrom(start, 8)
+        gate.prioritizeFrom(start)
         val body: InputStream = GatedInputStream(file, gate, start, length)
 
         val status = if (range == null) Response.Status.OK else Response.Status.PARTIAL_CONTENT

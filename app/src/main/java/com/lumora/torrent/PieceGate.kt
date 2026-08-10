@@ -31,10 +31,9 @@ class PieceGate(
     /**
      * Centres the download window on [posInFile]: enables the pieces from here to [AHEAD_PIECES]
      * beyond it (with tight deadlines for order), and demotes pieces well behind the read head
-     * back to IGNORE so they stop occupying bandwidth. [count] is advisory - the window size is
-     * [AHEAD_PIECES].
+     * back to IGNORE so they stop occupying bandwidth. The window size is always [AHEAD_PIECES].
      */
-    fun prioritizeFrom(posInFile: Long, count: Int) = synchronized(nativeLock) {
+    fun prioritizeFrom(posInFile: Long) = synchronized(nativeLock) {
         if (!handle.isValid) return
         val start = pieceOf(posInFile)
         val end = (start + AHEAD_PIECES).coerceAtMost(lastPiece)
@@ -58,7 +57,7 @@ class PieceGate(
     /** Blocks until the piece covering [posInFile] is downloaded, keeping the window primed. */
     fun awaitByte(posInFile: Long) {
         val piece = pieceOf(posInFile)
-        prioritizeFrom(posInFile, 0)
+        prioritizeFrom(posInFile)
         while (true) {
             val have = synchronized(nativeLock) {
                 if (!handle.isValid) throw IllegalStateException("Stream stopped")

@@ -165,7 +165,7 @@ internal fun MainActivity.setupPlayerControls() {
     } else {
         castManager = com.lumora.player.CastManager(this).apply {
             init()
-            onCastSessionConnected = { session ->
+            onCastSessionConnected = { _ ->
                 val channel = nowPlayingChannel
                 if (channel != null) {
                     if (castChannel(channel, channel.name)) {

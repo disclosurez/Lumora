@@ -26,7 +26,6 @@
     <color name="text_secondary">#FF9CA3AF</color>
     <color name="text_tertiary">#FF6B7280</color>
     <color name="text_on_primary">#FF0B0F17</color>
-    <color name="text_muted">#FF9CA3AF</color>
 
     <!-- Semantic accents -->
     <color name="live_red">#FFEF4444</color>

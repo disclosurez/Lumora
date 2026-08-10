@@ -13,7 +13,4 @@ interface ProviderDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(provider: ProviderEntity)
-
-    @Query("UPDATE providers SET lastSyncAt = :timestamp WHERE id = :id")
-    suspend fun updateLastSync(id: String, timestamp: Long)
 }

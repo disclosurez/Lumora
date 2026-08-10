@@ -176,7 +176,6 @@
     <string name="type_to_search">Type to search</string>
 
     <!-- dialog_qr_pairing.xml -->
-    <string name="stop">Stop</string>
     <string name="close">Close</string>
 
     <!-- item_iptv_provider_row.xml -->

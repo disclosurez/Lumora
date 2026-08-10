@@ -304,7 +304,7 @@ class XtreamClient(private val client: OkHttpClient) {
             val arr = json.optJSONArray("series") ?: json.optJSONArray("items") ?: return@withContext emptyList()
             (0 until arr.length()).mapNotNull { i ->
                 val obj = arr.optJSONObject(i) ?: return@mapNotNull null
-                parseSeriesItem(obj, provider)
+                parseSeriesItem(obj)
             }
         }
 
@@ -391,7 +391,7 @@ class XtreamClient(private val client: OkHttpClient) {
         )
     }
 
-    private fun parseSeriesItem(obj: JSONObject, provider: Provider): Channel? {
+    private fun parseSeriesItem(obj: JSONObject): Channel? {
         val seriesId = obj.optString("series_id", "")
         if (seriesId.isBlank()) return null
         val name = obj.optString("name", "Unknown")

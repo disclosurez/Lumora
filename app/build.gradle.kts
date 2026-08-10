@@ -149,9 +149,6 @@ dependencies {
     implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-35")
     implementation("org.libtorrent4j:libtorrent4j-android-x86_64:2.1.0-35")
 
-    // Security - credential encryption
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
-
     // Cast
     implementation("androidx.mediarouter:mediarouter:1.7.0")
     implementation("com.google.android.gms:play-services-cast-framework:21.5.0")

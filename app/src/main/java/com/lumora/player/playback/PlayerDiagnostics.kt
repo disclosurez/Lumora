@@ -18,13 +18,11 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
         val audioDecoder: String = "N/A",
         val videoFormat: String = "N/A",
         val audioFormat: String = "N/A",
-        val bandwidthEstimate: String = "N/A",
         val stallCount: Int = 0,
         val totalStallDuration: Long = 0,
         val renderSurface: String = "N/A",
         val playbackState: String = "IDLE",
-        val isUsingMediaCodec: Boolean = false,
-        val ffmpegAvailable: Boolean = false
+        val isUsingMediaCodec: Boolean = false
     )
 
     private var videoDecoderName: String = "N/A"
@@ -97,15 +95,11 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
     fun getSnapshot(): DiagnosticSnapshot {
         val tracks = player.currentTracks
         var hasVideo = false
-        var hasAudio = false
 
         for (group in tracks.groups) {
             for (i in 0 until group.length) {
                 val format = group.getTrackFormat(i)
-                when (format.sampleMimeType?.substringBefore("/")) {
-                    "video" -> hasVideo = true
-                    "audio" -> hasAudio = true
-                }
+                if (format.sampleMimeType?.startsWith("video/") == true) hasVideo = true
             }
         }
 
@@ -118,8 +112,7 @@ class PlayerDiagnostics(private val player: ExoPlayer) {
             totalStallDuration = totalStallDurationMs,
             playbackState = stateToString(player.playbackState),
             isUsingMediaCodec = videoDecoderName.contains("MediaCodec", ignoreCase = true),
-            renderSurface = if (hasVideo) "SurfaceView" else "N/A",
-            ffmpegAvailable = videoDecoderName.contains("FFmpeg", ignoreCase = true)
+            renderSurface = if (hasVideo) "SurfaceView" else "N/A"
         )
     }
 
