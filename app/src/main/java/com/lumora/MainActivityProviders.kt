@@ -412,6 +412,18 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
         // remove/toggle that left one stale provider behind therefore read as the whole app
         // freezing for minutes. Each is still individually bounded by the same timeout and
         // reported as failed on its own if it can't answer in time.
+        // Jellyfin fetches alongside the IPTV providers rather than after all of them. It used
+        // to run sequentially once awaitAll() returned, so its connect didn't even begin until
+        // the slowest IPTV provider finished - up to PROVIDER_FETCH_TIMEOUT_MS of waiting
+        // before the first Jellyfin byte moved, which is most of "Jellyfin takes a while".
+        // Started here so it overlaps; awaited below with the rest.
+        val jellyfinDeferred = if (hasJellyfinConfigured() && isJellyfinEnabled()) {
+            // Bounded like every other provider. Unbounded, one unresponsive server held the
+            // whole load open indefinitely, and because the loader cancelAndJoins the previous
+            // run before starting a new one, every retry queued behind that stuck fetch
+            // instead of replacing it.
+            async { withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) { fetchJellyfinChannels() } ?: FetchResult.Failure("Jellyfin: timed out") }
+        } else null
         val fetchResults = enabledConfigs.map { config ->
             async {
                 val result = withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
@@ -443,9 +455,9 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 is FetchResult.Failure -> errors += "${config.name}: ${result.message}"
             }
         }
-        if (hasJellyfinConfigured() && isJellyfinEnabled()) {
-            setStatus("Connecting to Jellyfin...", visible = true)
-            when (val result = fetchJellyfinChannels()) {
+        if (jellyfinDeferred != null) {
+            if (!uiPainted) setStatus("Connecting to Jellyfin...", visible = true)
+            when (val result = jellyfinDeferred.await()) {
                 is FetchResult.Success -> combined += result.channels
                 is FetchResult.Failure -> errors += result.message
             }

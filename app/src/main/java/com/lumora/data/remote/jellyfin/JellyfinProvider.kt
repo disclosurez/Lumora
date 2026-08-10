@@ -10,6 +10,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.security.MessageDigest
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -20,12 +21,36 @@ private const val PAGE_SIZE = 500
  *  forever. Well past any realistic personal library. */
 private const val MAX_ITEMS = 50_000
 
+/** Whole-call bound for every Jellyfin request.
+ *
+ *  The shared client sets only connect/read/write timeouts, and those are *per phase*: a
+ *  server that hands back one byte before each read timeout expires keeps a call alive
+ *  indefinitely, and a paging crawl multiplies whatever each call costs by the page count.
+ *  That is the "Jellyfin loads forever" case - nothing was bounding total call time.
+ *
+ *  It also has to be a call timeout specifically, not a coroutine one: these calls are
+ *  blocking `execute()`, so cancelling the coroutine around them (withTimeout, or the
+ *  cancelAndJoin the loader does before starting a retry) cannot unblock a thread parked in
+ *  a socket read. OkHttp's call timeout is enforced by a watchdog that closes the socket,
+ *  which is what actually makes the blocking call return - and therefore what makes a retry
+ *  possible at all rather than queued behind the stuck attempt.
+ *
+ *  Generous rather than tight: one page is up to 500 items of catalogue JSON, and this has
+ *  to be survivable over a slow WAN link. */
+private const val CALL_TIMEOUT_SECONDS = 30L
+
 /**
  * Jellyfin media server provider integration.
  * Fetches live TV, movies, series, and episodes from a Jellyfin server via its REST API.
  * Supports password-based auth and Quick Connect.
  */
-class JellyfinProvider(private val client: OkHttpClient) {
+class JellyfinProvider(baseClient: OkHttpClient) {
+
+    /** Shares the base client's connection pool, dispatcher and cache - newBuilder() only
+     *  layers the call timeout on top, so this costs nothing beyond the wrapper. */
+    private val client: OkHttpClient = baseClient.newBuilder()
+        .callTimeout(CALL_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     private val mutex = Mutex()
     private var accessToken: String? = null
@@ -211,12 +236,15 @@ class JellyfinProvider(private val client: OkHttpClient) {
     /** Reconnects using a previously-saved session token (e.g. from Quick Connect, which
      *  never yields a password to re-authenticate with) - no network call, just restores
      *  state so getLiveTvChannels()/getMovies()/etc. work. */
-    fun restoreSession(serverUrl: String, token: String, userId: String) = kotlinx.coroutines.runBlocking {
+    fun restoreSession(serverUrl: String, token: String, userId: String) {
         val base = serverUrl.trimEnd('/')
-        mutex.withLock {
-            this@JellyfinProvider.accessToken = token
-            this@JellyfinProvider.userId = userId
-            this@JellyfinProvider.serverBase = base
+        // Was a runBlocking purely to take the coroutine Mutex, on whatever thread the caller
+        // happened to be (the connect path runs on Main). @Synchronized guards the same three
+        // fields without parking a thread on a suspending primitive.
+        synchronized(this) {
+            this.accessToken = token
+            this.userId = userId
+            this.serverBase = base
         }
         JellyfinSession.update(base, token)
     }
@@ -272,10 +300,13 @@ class JellyfinProvider(private val client: OkHttpClient) {
                 .header("User-Agent", "Lumora/1.0")
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return false
-            val body = response.body?.string() ?: return false
-            JSONObject(body).optBoolean("Authenticated", false)
+            // use{}: this runs in a poll loop, and the non-2xx path (an expired or revoked
+            // secret answers 404 every time round) left a connection unclosed on each pass.
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use false
+                val body = response.body?.string() ?: return@use false
+                JSONObject(body).optBoolean("Authenticated", false)
+            }
         } catch (e: Exception) {
             false
         }
@@ -335,6 +366,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
         return try {
             val url = "$base/LiveTv/Channels?userId=$userId&ImageTypeLimit=1&EnableImageTypes=Primary"
             fetchAllItems(url, token).mapNotNull { parseLiveTvItem(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation is not a fetch failure. Folded into the empty-list fallback below
+            // it would report a cancelled or timed-out load as a library that simply has
+            // nothing in it - and would hide the between-pages cancellation check that stops
+            // an abandoned crawl from running to completion.
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -366,6 +403,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
                     "&Fields=$mediaItemFields,ParentIndexNumber,IndexNumber" +
                     "&ImageTypeLimit=1&EnableImageTypes=Primary"
             fetchAllItems(url, token).mapNotNull { parseMediaItem(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation is not a fetch failure. Folded into the empty-list fallback below
+            // it would report a cancelled or timed-out load as a library that simply has
+            // nothing in it - and would hide the between-pages cancellation check that stops
+            // an abandoned crawl from running to completion.
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -388,6 +431,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
                     indexNumber = json.optInt("IndexNumber", -1).takeIf { it >= 0 }
                 )
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation is not a fetch failure. Folded into the empty-list fallback below
+            // it would report a cancelled or timed-out load as a library that simply has
+            // nothing in it - and would hide the between-pages cancellation check that stops
+            // an abandoned crawl from running to completion.
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -404,6 +453,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
                     "&Fields=$mediaItemFields,ParentIndexNumber,IndexNumber&Recursive=true" +
                     "&MediaTypes=Video&Limit=$limit&ImageTypeLimit=1"
             fetchItems(url, token).first.mapNotNull { parseMediaItem(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation is not a fetch failure. Folded into the empty-list fallback below
+            // it would report a cancelled or timed-out load as a library that simply has
+            // nothing in it - and would hide the between-pages cancellation check that stops
+            // an abandoned crawl from running to completion.
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -419,6 +474,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
                     "&Fields=$mediaItemFields,ParentIndexNumber,IndexNumber" +
                     "&Limit=$limit&ImageTypeLimit=1"
             fetchItems(url, token).first.mapNotNull { parseMediaItem(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation is not a fetch failure. Folded into the empty-list fallback below
+            // it would report a cancelled or timed-out load as a library that simply has
+            // nothing in it - and would hide the between-pages cancellation check that stops
+            // an abandoned crawl from running to completion.
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -525,6 +586,12 @@ class JellyfinProvider(private val client: OkHttpClient) {
                     "&recursive=true&fields=$mediaItemFields" +
                     "&ImageTypeLimit=1"
             fetchAllItems(url, token).mapNotNull { parseMediaItem(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation is not a fetch failure. Folded into the empty-list fallback below
+            // it would report a cancelled or timed-out load as a library that simply has
+            // nothing in it - and would hide the between-pages cancellation check that stops
+            // an abandoned crawl from running to completion.
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -541,6 +608,11 @@ class JellyfinProvider(private val client: OkHttpClient) {
         val all = mutableListOf<JSONObject>()
         var startIndex = 0
         while (startIndex < MAX_ITEMS) {
+            // The only cancellation point in the crawl: fetchItems blocks in execute(), so a
+            // cancelled loader (provider toggled, a retry starting) can't take effect inside
+            // a page - without this the loop would carry on fetching every remaining page of
+            // a catalogue nobody is waiting for any more.
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
             val separator = if (url.contains('?')) "&" else "?"
             val paged = "$url${separator}StartIndex=$startIndex&Limit=$PAGE_SIZE"
             val (items, total) = fetchItems(paged, token)
@@ -559,15 +631,20 @@ class JellyfinProvider(private val client: OkHttpClient) {
             .header("User-Agent", "Lumora/1.0")
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) return emptyList<JSONObject>() to null
+        // use{}, because the early return on a non-2xx left the body unread and unclosed -
+        // a leaked connection that is never returned to the pool and only reclaimed later by
+        // OkHttp's GC-triggered sweep. With maxIdleConnections=4 on the shared pool, a run of
+        // those starves every other caller into fresh TCP+TLS handshakes.
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use emptyList<JSONObject>() to null
 
-        val body = response.body?.string() ?: return emptyList<JSONObject>() to null
-        val json = JSONObject(body)
-        val items = json.optJSONArray("Items") ?: return emptyList<JSONObject>() to null
-        val total = json.optInt("TotalRecordCount", -1).takeIf { it >= 0 }
+            val body = response.body?.string() ?: return@use emptyList<JSONObject>() to null
+            val json = JSONObject(body)
+            val items = json.optJSONArray("Items") ?: return@use emptyList<JSONObject>() to null
+            val total = json.optInt("TotalRecordCount", -1).takeIf { it >= 0 }
 
-        return (0 until items.length()).map { items.getJSONObject(it) } to total
+            (0 until items.length()).map { items.getJSONObject(it) } to total
+        }
     }
 
     /** GET one JSON object (an item, not a list). */

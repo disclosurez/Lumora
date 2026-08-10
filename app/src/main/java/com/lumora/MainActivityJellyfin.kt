@@ -75,20 +75,25 @@ internal suspend fun MainActivity.fetchJellyfinChannels(): FetchResult {
         }
         val stub = jellyfinProviderStub(url)
         val items: List<Channel> = withContext(Dispatchers.IO) {
-            // Live is only crawled when its type is on - every other type's fetch skips
-            // the network call entirely when gated, and live should too.
-            val liveItems = if (jellyfinAllowsLive()) {
-                jellyfin.getLiveTvChannels().map { JellyfinProvider.toChannel(it, stub) }
-            } else emptyList()
-            // Content-type gates: off types are not crawled at all - no movies/series
-            // fetch, no user-state import to seed their resume rows.
-            if (!jellyfinAllowsMovies() && !jellyfinAllowsSeries()) {
-                liveItems
-            } else {
-                val movies = if (jellyfinAllowsMovies()) jellyfin.getMovies() else emptyList()
-                val series = if (jellyfinAllowsSeries()) jellyfin.getSeries() else emptyList()
+            // The three crawls run together rather than one after another. Each is a
+            // paginated walk of a whole library (500 items a page, sequential within
+            // itself), so serially they added up to the sum of all three - and the live
+            // one is the unpredictable member of the set: /LiveTv/Channels on a server
+            // whose tuner is unreachable can sit there long past the point the movie and
+            // series libraries have both answered.
+            //
+            // Each gate is still checked before anything is started: an off type is not
+            // crawled at all, and never was.
+            coroutineScope {
+                val liveDeferred = if (jellyfinAllowsLive()) async { jellyfin.getLiveTvChannels() } else null
+                val moviesDeferred = if (jellyfinAllowsMovies()) async { jellyfin.getMovies() } else null
+                val seriesDeferred = if (jellyfinAllowsSeries()) async { jellyfin.getSeries() } else null
+                val liveItems = liveDeferred?.await().orEmpty()
+                val movies = moviesDeferred?.await().orEmpty()
+                val series = seriesDeferred?.await().orEmpty()
+                // No-op on empty, so the gate check the old shape needed here is gone.
                 importJellyfinUserState(movies + series)
-                liveItems +
+                liveItems.map { JellyfinProvider.toChannel(it, stub) } +
                     movies.map { JellyfinProvider.toChannel(it, stub) } +
                     series.map { JellyfinProvider.toChannel(it, stub) }
             }
@@ -96,6 +101,12 @@ internal suspend fun MainActivity.fetchJellyfinChannels(): FetchResult {
         jellyfinClient = jellyfin
         refreshJellyfinRows(jellyfin, stub)
         FetchResult.Success(items)
+    } catch (e: CancellationException) {
+        // Not a fetch failure - the loader was cancelled (provider toggled, a newer load
+        // started, the timeout fired). Swallowing it here would both report "Jellyfin: Job
+        // was cancelled" as a provider error and leave this coroutine looking like it
+        // completed normally while its parent is cancelled.
+        throw e
     } catch (e: Exception) {
         FetchResult.Failure("Jellyfin: ${e.message?.take(60)}")
     }
@@ -167,8 +178,14 @@ internal fun MainActivity.importJellyfinUserState(
  *  positions for the items in them - these are the partly-watched titles, so they carry
  *  the positions worth having even when the catalog fetch didn't include them. */
 internal suspend fun MainActivity.refreshJellyfinRows(jellyfin: JellyfinProvider, stub: Provider) {
+    // `a to b` builds the pair by evaluating a then b - two serial round trips, for two
+    // independent endpoints. Run together instead.
     val (resume, nextUp) = withContext(Dispatchers.IO) {
-        jellyfin.getResumeItems() to jellyfin.getNextUp()
+        coroutineScope {
+            val resumeDeferred = async { jellyfin.getResumeItems() }
+            val nextUpDeferred = async { jellyfin.getNextUp() }
+            resumeDeferred.await() to nextUpDeferred.await()
+        }
     }
     importJellyfinUserState(resume)
     jellyfinResumeItems = resume.map { JellyfinProvider.toChannel(it, stub, prefixSeriesName = true) }
