@@ -91,19 +91,32 @@ class CategoryAdapter(
             // explicitly - nextFocus ids can silently fail across the RecyclerView's
             // focus-search scope (see the repo's D-pad pattern).
             itemView.setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    // A GONE star can't take focus, so surface it (if pinnable) first; the
-                    // focus listeners keep it consistent from here.
-                    updateStarVisibility()
-                    if (star.visibility == View.VISIBLE) star.requestFocus()
-                    true
-                } else false
+                when {
+                    event.action != KeyEvent.ACTION_DOWN -> false
+                    keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        // A GONE star can't take focus, so surface it (if pinnable) first; the
+                        // focus listeners keep it consistent from here.
+                        updateStarVisibility()
+                        if (star.visibility == View.VISIBLE) star.requestFocus()
+                        true
+                    }
+                    keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> moveDown()
+                    else -> false
+                }
             }
             star.setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    itemView.requestFocus()
-                    true
-                } else false
+                when {
+                    event.action != KeyEvent.ACTION_DOWN -> false
+                    keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        itemView.requestFocus()
+                        true
+                    }
+                    // The star sits inside the row, so a DOWN landing on it escapes the rail
+                    // exactly the way one on the row does - same handler, and it steps to the
+                    // next row rather than that row's own star.
+                    keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> moveDown()
+                    else -> false
+                }
             }
         }
 
@@ -153,6 +166,36 @@ class CategoryAdapter(
                 star.context.getColor(if (category.pinned) R.color.text_primary else R.color.text_secondary)
             )
             updateStarVisibility()
+        }
+
+        /** DOWN to the next rail row, performed here rather than left to the framework.
+         *
+         *  At the last row there is nothing below inside the RecyclerView, so focus search
+         *  fails, escapes to the window, and lands on whatever is geometrically below - a
+         *  channel in the list to the right. Pressing down at the bottom of the rail
+         *  therefore jumped into the channels. The same escape is possible one row early
+         *  whenever the next row hasn't been laid out yet.
+         *
+         *  Returns true either way: the key belongs to the rail whether or not there is
+         *  anywhere left to go. Leaving the rail is RIGHT's job (into the content) or UP's
+         *  at the top (into the toolbar) - neither of which this touches. */
+        private fun moveDown(): Boolean {
+            val pos = bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION) return true
+            val next = pos + 1
+            if (next >= itemCount) return true
+            val rv = itemView.parent as? RecyclerView ?: return true
+            val target = rv.layoutManager?.findViewByPosition(next)
+            if (target != null) {
+                target.requestFocus()
+            } else {
+                // Not laid out yet (a long rail scrolled past the viewport) - scroll it in,
+                // then focus once it exists. Same double-step the sidebar's own re-focus
+                // path uses after making the rail visible.
+                rv.scrollToPosition(next)
+                rv.post { rv.layoutManager?.findViewByPosition(next)?.requestFocus() }
+            }
+            return true
         }
 
         /** Reveals the star only while the row or the star itself has focus. Rows that
