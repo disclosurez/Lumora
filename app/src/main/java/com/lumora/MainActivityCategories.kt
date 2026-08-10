@@ -27,6 +27,7 @@ import com.lumora.anime.AnimeCatalogClient
 import com.lumora.parser.XtreamClient
 import com.lumora.util.deriveBrandCategories
 import com.lumora.util.groupCategories
+import com.lumora.util.normalizeLiveChannelKey
 import com.lumora.util.groupSeriesFilmCategories
 import com.lumora.util.CategoryGroup
 import com.lumora.util.newestByDate
@@ -638,24 +639,62 @@ internal fun MainActivity.buildCategoryRows(
             // one member's ids is irrelevant - the set of ids is unchanged (each channel
             // has exactly one filterKey, so no duplication is possible across matchIds).
             val filterKeyIndex = list.groupBy { it.filterKey() }.mapValues { (_, chs) -> chs.map { it.id } }
+            // The channels one bucket member stands for, however it identifies them: a brand
+            // row carries explicit channelIds, a category row carries filterKeys to resolve.
+            fun memberChannelIds(row: CategoryFilter): List<String> {
+                if (row.channelIds.isNotEmpty()) return row.channelIds.toList()
+                val byKey = row.matchIds.flatMap { filterKeyIndex[it].orEmpty() }
+                // Backup: match by categoryName in case filterKey is unreachable
+                val byName = if (byKey.isEmpty() && row.name.isNotBlank()) {
+                    list.filter { ch ->
+                        ch.categoryName?.let { it.equals(row.name, ignoreCase = true) } == true
+                    }.map { it.id }
+                } else emptyList()
+                return if (byName.isNotEmpty()) byName else byKey
+            }
+            /** Folds bucket members that name the same thing into one row.
+             *
+             *  A bucket collects rows of two kinds, and they can name the same thing: the
+             *  provider's own category ("News"), and a brand cluster the app synthesised from
+             *  channel names ("News", from every channel whose first word it is). Nothing had
+             *  ever compared the two, and because a synthesised row renders uppercase while a
+             *  provider category renders as written, the pair showed up under News as "NEWS"
+             *  and "News" - visibly two rows of the same channels.
+             *
+             *  Merged on the same key groupCategories uses, so spelling drift and quality
+             *  tiers fold together here exactly as they do there. The survivor keeps the
+             *  first member's label - units arrive categories-first, so the provider's own
+             *  wording wins over a synthesised one - and takes the union of both members'
+             *  channels, which the row is already able to express: a row carrying both
+             *  channelIds and matchIds selects on either (see applyCategoryFilter). */
+            fun mergeSameNamedMembers(
+                members: List<Pair<CategoryFilter, List<CategoryFilter>>>
+            ): List<Pair<CategoryFilter, List<CategoryFilter>>> {
+                if (members.size < 2) return members
+                val byName = LinkedHashMap<String, Pair<CategoryFilter, List<CategoryFilter>>>()
+                for (unit in members) {
+                    val key = normalizeLiveChannelKey(unit.first.name).ifBlank { unit.first.id ?: unit.first.name }
+                    val existing = byName[key]
+                    if (existing == null) {
+                        byName[key] = unit
+                        continue
+                    }
+                    val ids = (memberChannelIds(existing.first) + memberChannelIds(unit.first)).toSet()
+                    byName[key] = existing.first.copy(
+                        channelIds = ids,
+                        matchIds = existing.first.matchIds + unit.first.matchIds,
+                        // Counts can't be added - the two rows overlap by definition, and a
+                        // brand row's channels are usually a subset of the category's.
+                        count = ids.size
+                    ) to (existing.second + unit.second)
+                }
+                return byName.values.toList()
+            }
             val rows = dynamicBuckets.mapNotNull { (label, _) ->
-                val members = bucketed[label] ?: return@mapNotNull null
+                val members = mergeSameNamedMembers(bucketed[label] ?: return@mapNotNull null)
                 val bucketId = "$DYNAMIC_BUCKET_ID_PREFIX$label"
                 val isExpanded = expanded.contains(bucketId)
-                val channelIds = members.flatMap { (row, _) ->
-                    if (row.channelIds.isNotEmpty()) {
-                        row.channelIds
-                    } else {
-                        val byKey = row.matchIds.flatMap { filterKeyIndex[it].orEmpty() }
-                        // Backup: match by categoryName in case filterKey is unreachable
-                        val byName = if (byKey.isEmpty() && row.name.isNotBlank()) {
-                            list.filter { ch ->
-                                ch.categoryName?.let { it.equals(row.name, ignoreCase = true) } == true
-                            }.map { it.id }
-                        } else emptyList()
-                        if (byName.isNotEmpty()) byName else byKey
-                    }
-                }.toSet()
+                val channelIds = members.flatMap { (row, _) -> memberChannelIds(row) }.toSet()
                 // A bucket holding one category is that category with a different name on it:
                 // the wrapper costs a level to open and leaves the category itself listed
                 // again further down. Promote the member into the bucket's slot instead.
@@ -669,8 +708,12 @@ internal fun MainActivity.buildCategoryRows(
                         listOf(promoted)
                     } else {
                         // Its children are registered here rather than by expandUnit, which
-                        // only ever sees the rows still left in the cascade.
-                        val children = rawMembers.sortedBy { it.name.lowercase() }.map { it.copy(isChild = true) }
+                        // only ever sees the rows still left in the cascade. Same
+                        // biggest-first order as the multi-member buckets below - this row
+                        // is one of those, just wearing the bucket's name.
+                        val children = rawMembers
+                            .sortedWith(compareByDescending<CategoryFilter> { it.count }.thenBy { it.name.lowercase() })
+                            .map { it.copy(isChild = true) }
                         promoted.id?.let { childrenByParent[it] = children }
                         if (promoted.expanded) listOf(promoted) + children else listOf(promoted)
                     }
@@ -685,11 +728,14 @@ internal fun MainActivity.buildCategoryRows(
                     expanded = isExpanded,
                     isDynamic = true
                 )
-                // Channel sort — reserved for future use.
+                // Biggest category first, alphabetical between equals. Inside a genre the
+                // question is "where is most of this content", and alphabetical order
+                // answered a different one - a two-channel category opened the row while the
+                // one holding hundreds sat further down.
                 // Built even while collapsed, and cached, so expanding is a splice
                 // rather than a full rescan of the tab.
                 val children = members.map { it.first.copy(isChild = true, isParent = false, expanded = false) }
-                    .sortedBy { it.name.lowercase() }
+                    .sortedWith(compareByDescending<CategoryFilter> { it.count }.thenBy { it.name.lowercase() })
                 childrenByParent[bucketId] = children
                 if (isExpanded) listOf(parent) + children else listOf(parent)
             }.flatten()
@@ -1785,7 +1831,7 @@ internal fun MainActivity.formatTime(ms: Long): String {
  *  7: quality tiers merge before clustering, cluster children feed the genre buckets, a
  *     bucket over one category promotes it instead of wrapping it, and the thin tail
  *     folds into one "Other" row. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 7
+private const val CATEGORY_ROWS_LOGIC_VERSION = 9
 
 /** Films/Series rail: a category with fewer titles than this sorts below the full ones.
  *  Counts are per-row, so a merged/clustered parent is judged on its members' total. */
