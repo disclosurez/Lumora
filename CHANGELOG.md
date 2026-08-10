@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.7
+
+### Player
+- **Rewind and fast-forward can be reached with the D-pad again.** Pressing left from play/pause did nothing at all: the key was claimed to stop the side menu flying out from under the button row, and it was claimed before the row's own focus chain was ever consulted, so the move it was meant to allow could never happen. Right was unaffected, which is why only the left half of the row was stuck.
+- **The remote's fast-forward and rewind keys work.** Nothing in the app claimed them, so a press went to the media session and did nothing. Both the transport keys on a media remote and the skip keys on newer TV remotes now seek, and raise the controls the same way the on-screen buttons do.
+- **The controls bar stops dragging focus back to play/pause.** Every press that reset the auto-hide timer also re-focused play/pause, so walking along the row — or simply pressing rewind — bounced the selection back to the middle.
+
+### Live TV
+- **Pressing down at the bottom of the category rail no longer jumps into the channel list.** There was nothing below the last category for the remote to move to, so the selection escaped the rail and landed on whatever channel happened to sit lower on screen.
+- **The same category no longer appears twice inside a genre row.** Opening News showed both "NEWS" and "News"; Cinema showed both "SKY CINEMA" and "Sky Cinema". One of each pair is the provider's own category and the other is a channel grouping the app works out from channel names, and nothing had ever compared the two — they only looked like different rows because a worked-out row is drawn in capitals. They are now one row covering every channel either of them held.
+- **Categories inside a genre row are ordered by size**, largest first, so the one holding hundreds of channels is no longer sat below a category holding two.
+
+### Jellyfin
+- **Jellyfin no longer loads forever, with retrying the only way out.** Nothing bounded how long a request could take: the timeouts in use apply to each phase of a call, so a server trickling one byte at a time kept a request alive indefinitely, and a library is fetched a page at a time. Worse, a new attempt waits for the previous one to stop first, and a thread parked in a socket read cannot be interrupted — so every retry queued behind the stuck attempt instead of replacing it, and only succeeded once the original finally gave up on its own. Requests are now bounded end to end, and an abandoned load stops between pages instead of running to completion.
+- **Jellyfin connects alongside the other providers instead of after them.** It was fetched only once every IPTV provider had finished, so a single slow provider delayed the first Jellyfin byte by minutes. It is also now bounded by the same timeout as the rest, rather than being able to hold a load open indefinitely.
+- **Libraries load faster.** Live TV, movies and series are fetched at the same time rather than one after another — live being the unpredictable one, since a server with an unreachable tuner can sit there long after the other two have answered. The Continue Watching and Next Up rows are fetched together too.
+- **Fixed a connection leak** on failed requests, which starved every other request into re-establishing its connection from scratch.
+
 ## 3.6
 
 ### Live TV & guide
