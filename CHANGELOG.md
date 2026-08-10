@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.6
+
+### Live TV & guide
+- **The XMLTV guide now refreshes itself every 6 hours.** It never did: the periodic sync had no caller, so an added XMLTV source was downloaded exactly zero times, and the sync that was meant to run mapped programmes through a channel table nothing ever filled. Channels from M3U and Stalker providers — the ones with no other source of guide data — showed a guide that went blank a few hours in and stayed that way. Adding a source now fetches it straight away, and **Settings → EPG Sources** has a **Refresh now** button.
+
+### Player
+- **The whole player button row is reachable again on Fire TV 7.1.** Pressing right out of Sleep did nothing, and every button past it — External, Diagnostics, Record, Versions, Fit, Audio, Subtitles — could not be focused, because the row's left/right chain ran through buttons that are hidden on TV. The chain is now rebuilt over whatever is actually visible.
+- **"Resume from where you left off?" no longer reappears mid-film.** Any rebuffer offered to resume the position playback had just written a moment earlier.
+
+### Films & Series
+- **Trailers, plots and artwork use the id the provider sends.** Panels send a TMDB id on almost every title and a trailer key on most of them; both were being thrown away, and the Trailer button instead guessed the title back out of the catalogue name and searched for it. Names carrying a source tag ("4K-AMZ - Elle (2026) (CA)") searched wrong and confidently matched the wrong film — "Fearless (2020)" resolved to the 2006 Jet Li film, "Deep Cover (1992)" to the 2025 one — and that wrong match fed the detail screen's plot and backdrop too. Measured over 180 random titles from a live catalogue, trailers found rose from 68 to 76 films and 59 to 72 series.
+- **The category rail stops repeating itself.** A genre bucket holding a single category listed that category twice; quality tiers of one category ("Action" and "Action 4K") sat as two separate rows of the same titles and now merge into one expandable row; categories a brand had absorbed were invisible to the genre rows; and the long tail of near-empty categories folds into a single expandable "Other" row instead of taking a dozen rows for a handful of titles.
+- **The season row shows for single-season shows too**, so a one-season series can be marked watched in one press instead of episode by episode.
+- **"Adult Swim" is no longer treated as adult content** and sorted to the bottom of the rail.
+
+### Elsewhere
+- **The clock is back in the top-right of the toolbar**, following the device's 12/24-hour and locale settings.
+
+### Under the hood
+- **Around 1,500 lines of unreachable code removed**, including a TV Input Framework service that advertised a Lumora input the system could never tune, four Playback Settings toggles (Decoder, Buffer, Surface, FFmpeg) that reported success while writing preferences nothing read, and three database tables that were only ever written to. Existing recordings, watch history, downloads and provider settings are untouched.
+
 ## 3.5
 
 ### Films & Series
