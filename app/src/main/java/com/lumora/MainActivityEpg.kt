@@ -396,8 +396,12 @@ internal fun MainActivity.showControls() {
     relinkPlayerButtonRowFocus()
     // Becoming visible doesn't hand D-pad focus to anything by itself - without an
     // explicit request nothing in the overlay is reachable at all, since no view had
-    // focus while it was hidden.
-    if (!binding.btnPlayPause.isFocused) binding.btnPlayPause.requestFocus()
+    // focus while it was hidden. The test is "does anything in the bar hold focus",
+    // not "is btnPlayPause focused": every reveal path also calls this to reset the
+    // auto-hide timer while the bar is already up, and the narrower test dragged focus
+    // back to play/pause from whatever button the user had walked to (or had just
+    // clicked - btnRewind/btnFastForward call showControls() themselves).
+    if (!binding.controlsOverlay.hasFocus()) binding.btnPlayPause.requestFocus()
     mainHandler.removeCallbacks(hideControlsRunnable)
     mainHandler.postDelayed(hideControlsRunnable, 4000)
 }

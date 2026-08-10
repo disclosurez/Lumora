@@ -1312,6 +1312,19 @@ class MainActivity : AppCompatActivity() {
                 android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
                     playerManager.pause(); updatePlayPauseIcon(); showControls(); return true
                 }
+                // Same seek steps the on-screen buttons use. Remotes split across two
+                // codes for this pair - the transport keys on a media remote send
+                // FAST_FORWARD/REWIND, the +10/-10 style keys on newer TV remotes send
+                // SKIP_FORWARD/SKIP_BACKWARD - and neither was claimed, so a press went
+                // to the media session (which has no seek command wired) and did nothing.
+                android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                android.view.KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD -> {
+                    playerManager.seekBy(30_000); showControls(); return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_REWIND,
+                android.view.KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD -> {
+                    playerManager.seekBy(-15_000); showControls(); return true
+                }
             }
         }
 
@@ -1324,12 +1337,19 @@ class MainActivity : AppCompatActivity() {
         if (isPlayerVisible) {
             if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT && !isPlayerSideMenuOpen()) {
                 // Only from the bare video. With the controls bar up and focus inside it,
-                // LEFT belongs to the button row - and at its left end the press falls
-                // through to here, which flew the whole side menu out from under a user who
-                // was just walking along the buttons. Swallow it there instead: the row's
-                // own nextFocusLeft chain has already had its say, so there is nowhere left
-                // to go, and the menu is still one BACK (hiding the controls) away.
+                // LEFT belongs to the button row, and at its left end there is nowhere to
+                // go - flying the side menu out from under a user who was just walking
+                // along the buttons is wrong, so the key stays inside the overlay either
+                // way (the menu is still one BACK, hiding the controls, away).
+                //
+                // The move itself has to be performed here rather than left to the
+                // framework: Activity.onKeyDown runs BEFORE ViewRootImpl's focus
+                // navigation, so returning true - as this did unconditionally - killed the
+                // press before any nextFocusLeft chain was ever consulted, and LEFT off
+                // btnPlayPause could never reach btnRewind. RIGHT has no such branch, which
+                // is why only the leftward half of the transport row was stuck.
                 if (binding.controlsOverlay.visibility == View.VISIBLE && binding.controlsOverlay.hasFocus()) {
+                    focusOverlayNeighbour(View.FOCUS_LEFT)
                     showControls()
                     return true
                 }

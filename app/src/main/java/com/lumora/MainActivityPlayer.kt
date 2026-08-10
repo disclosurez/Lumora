@@ -870,6 +870,31 @@ internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = nu
  *  7.1) it hands the GONE view straight back and requestFocus() on it fails - RIGHT out of
  *  Sleep did nothing at all and every button past it (External, Diag, Rec, Versions, Fit,
  *  Audio, Subs) was unreachable on those sticks. */
+/** Moves focus one step along the controls bar in [direction] (a `View.FOCUS_*`), returning
+ *  whether it landed anywhere.
+ *
+ *  Needed because the Activity claims some direction keys while the bar is up (LEFT, so the
+ *  side menu can't fly out from under a user walking the button row) and Activity.onKeyDown
+ *  runs before ViewRootImpl's focus navigation - consuming the key there means the framework
+ *  never performs the move, so it has to be performed by hand.
+ *
+ *  The explicit nextFocus link is tried first and resolved against the overlay only; the
+ *  geometric fallback is fenced to the overlay too, since focusSearch runs over the whole
+ *  window and the browse screen behind the player is still focusable. */
+internal fun MainActivity.focusOverlayNeighbour(direction: Int): Boolean {
+    val focused = currentFocus ?: return false
+    val linkId = if (direction == View.FOCUS_LEFT) focused.nextFocusLeftId else focused.nextFocusRightId
+    val target = linkId.takeIf { it != View.NO_ID }
+        ?.let { binding.controlsOverlay.findViewById<View>(it) }
+        ?.takeIf { it.isFocusable && it.visibility == View.VISIBLE }
+        ?: focused.focusSearch(direction)
+    if (target == null || target === focused) return false
+    var p = target.parent
+    while (p != null && p !== binding.controlsOverlay) p = (p as? View)?.parent
+    if (p == null) return false
+    return target.requestFocus(direction)
+}
+
 internal fun MainActivity.relinkPlayerButtonRowFocus() {
     val row = binding.playerTrackButtons
     val visible = (0 until row.childCount)
