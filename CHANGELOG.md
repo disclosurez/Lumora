@@ -12,6 +12,9 @@
 - **The same category no longer appears twice inside a genre row.** Opening News showed both "NEWS" and "News"; Cinema showed both "SKY CINEMA" and "Sky Cinema". One of each pair is the provider's own category and the other is a channel grouping the app works out from channel names, and nothing had ever compared the two — they only looked like different rows because a worked-out row is drawn in capitals. They are now one row covering every channel either of them held.
 - **Categories inside a genre row are ordered by size**, largest first, so the one holding hundreds of channels is no longer sat below a category holding two.
 
+### Films & Series
+- **Expanding a grouped row stops listing the same category twice.** A row that gathers several provider categories together re-listed the spellings it had already merged — "NETFLIX ACTION" and "Netflix Action" as two children of the same row. Its categories are also ordered by size now, largest first.
+
 ### Jellyfin
 - **Jellyfin no longer loads forever, with retrying the only way out.** Nothing bounded how long a request could take: the timeouts in use apply to each phase of a call, so a server trickling one byte at a time kept a request alive indefinitely, and a library is fetched a page at a time. Worse, a new attempt waits for the previous one to stop first, and a thread parked in a socket read cannot be interrupted — so every retry queued behind the stuck attempt instead of replacing it, and only succeeded once the original finally gave up on its own. Requests are now bounded end to end, and an abandoned load stops between pages instead of running to completion.
 - **Jellyfin connects alongside the other providers instead of after them.** It was fetched only once every IPTV provider had finished, so a single slow provider delayed the first Jellyfin byte by minutes. It is also now bounded by the same timeout as the rest, rather than being able to hold a load open indefinitely.

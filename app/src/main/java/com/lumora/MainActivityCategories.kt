@@ -541,10 +541,39 @@ internal fun MainActivity.buildCategoryRows(
         // expand can splice them straight in instead of rebuilding (see onCategoryClick).
         val childrenByParent = mutableMapOf<String, List<CategoryFilter>>()
 
+        /** One parent's child rows: same-named leaves folded into one, biggest first.
+         *
+         *  A cluster's members are the raw leaves of the tier groups it absorbed
+         *  (groupSeriesFilmCategories flatMaps `group.members`), so a merge that already
+         *  happened - "NETFLIX ACTION" and "Netflix Action" becoming one row - is undone at
+         *  the moment the cluster is expanded, and both spellings are listed as separate
+         *  children of it.
+         *
+         *  Folded on the name as written, case-insensitively, and deliberately not on the
+         *  normalized key the parents use: that key also equates a category with its quality
+         *  tiers ("Action" and "Action 4K"), and those are exactly what the child rows exist
+         *  to let someone pick between. Counts add up rather than being unioned - leaves are
+         *  one per filterKey, so two of them never hold the same title. */
+        fun childRowsOf(members: List<CategoryFilter>): List<CategoryFilter> {
+            val byName = LinkedHashMap<String, CategoryFilter>()
+            for (member in members) {
+                val key = member.name.trim().lowercase()
+                val existing = byName[key]
+                byName[key] = if (existing == null) member else existing.copy(
+                    matchIds = existing.matchIds + member.matchIds,
+                    channelIds = existing.channelIds + member.channelIds,
+                    count = existing.count + member.count
+                )
+            }
+            return byName.values
+                .sortedWith(compareByDescending<CategoryFilter> { it.count }.thenBy { it.name.lowercase() })
+                .map { it.copy(isChild = true) }
+        }
+
         fun expandUnit(unit: Pair<CategoryFilter, List<CategoryFilter>>): List<CategoryFilter> {
             val (row, rawMembers) = unit
             if (!row.isParent) return listOf(row)
-            val children = rawMembers.sortedBy { it.name.lowercase() }.map { it.copy(isChild = true) }
+            val children = childRowsOf(rawMembers)
             row.id?.let { childrenByParent[it] = children }
             return if (row.expanded) listOf(row) + children else listOf(row)
         }
@@ -708,12 +737,9 @@ internal fun MainActivity.buildCategoryRows(
                         listOf(promoted)
                     } else {
                         // Its children are registered here rather than by expandUnit, which
-                        // only ever sees the rows still left in the cascade. Same
-                        // biggest-first order as the multi-member buckets below - this row
-                        // is one of those, just wearing the bucket's name.
-                        val children = rawMembers
-                            .sortedWith(compareByDescending<CategoryFilter> { it.count }.thenBy { it.name.lowercase() })
-                            .map { it.copy(isChild = true) }
+                        // only ever sees the rows still left in the cascade - same folding
+                        // and biggest-first order either way.
+                        val children = childRowsOf(rawMembers)
                         promoted.id?.let { childrenByParent[it] = children }
                         if (promoted.expanded) listOf(promoted) + children else listOf(promoted)
                     }
@@ -1831,7 +1857,7 @@ internal fun MainActivity.formatTime(ms: Long): String {
  *  7: quality tiers merge before clustering, cluster children feed the genre buckets, a
  *     bucket over one category promotes it instead of wrapping it, and the thin tail
  *     folds into one "Other" row. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 9
+private const val CATEGORY_ROWS_LOGIC_VERSION = 10
 
 /** Films/Series rail: a category with fewer titles than this sorts below the full ones.
  *  Counts are per-row, so a merged/clustered parent is judged on its members' total. */
