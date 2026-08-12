@@ -1030,7 +1030,11 @@ internal fun MainActivity.showProviderSettings() {
         R.id.navDownloads to R.id.paneDownloads,
         R.id.navPlugins to R.id.panePlugins,
         R.id.navGeneral to R.id.paneGeneral,
-        R.id.navAbout to R.id.paneAbout
+        R.id.navAbout to R.id.paneAbout,
+        // Appended rather than slotted in next to Plugins, where it sits visually: selectSection()
+        // addresses these by list index, so inserting in the middle would silently renumber every
+        // section below it - including the hardcoded selectSection(7) the plugin rail rows use.
+        R.id.navSites to R.id.paneSites
     ).map { (navId, paneId) -> dialogView.findViewById<View>(navId) to dialogView.findViewById<View>(paneId) }
     // Last section chosen - the rail's re-expand pill refocuses it (mirrors the category
     // rail refocusing the previously selected row).
@@ -1106,6 +1110,8 @@ internal fun MainActivity.showProviderSettings() {
     // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
     // with the plugin list itself left at its previous section.
     wirePluginNavRows(dialogView) { selectSection(7) }
+
+    wireScraperSettingsPane(dialogView)
 
     // About pane
     dialogView.findViewById<TextView>(R.id.settingsAppVersion).text = try {
@@ -1190,7 +1196,7 @@ internal fun MainActivity.showProviderSettings() {
         // catalog entries of its own but makes Discover and Find Stream usable. Testing
         // allChannels alone sent a plugin-only setup back to the "no provider" empty state
         // the moment Settings closed, however many plugins had just been switched on.
-        val hasPlugin = enabledStreamSearchPlugin() != null
+        val hasPlugin = hasProviderlessSource()
         // Unticking the last provider (or the last plugin) has to take the tab bar and
         // search back down, and land on the empty state - which is the only screen left
         // with a way back into Settings. Asked of the enabled providers rather than of

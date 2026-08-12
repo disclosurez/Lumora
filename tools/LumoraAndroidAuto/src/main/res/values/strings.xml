@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora Android Auto</string>
+
+    <!--
+        appcompat 1.7.0 dropped the Theme.AppCompat.Dark* family; the dark base
+        theme is Theme.AppCompat. Re-declare the legacy names so the manifest
+        reference @style/Theme.AppCompat.Dark.NoActionBar still resolves.
+    -->
+    <style name="Theme.AppCompat.Dark" parent="Theme.AppCompat" />
+    <style name="Theme.AppCompat.Dark.NoActionBar" parent="Theme.AppCompat.Dark">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+</resources>

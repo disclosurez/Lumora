@@ -43,4 +43,7 @@ data class PluginScript(
 
     val supportsStreamSearch: Boolean
         get() = JsPluginContract.CAPABILITY_STREAM_SEARCH in capabilities
+
+    val supportsScraperSites: Boolean
+        get() = JsPluginContract.CAPABILITY_SCRAPER_SITES in capabilities
 }

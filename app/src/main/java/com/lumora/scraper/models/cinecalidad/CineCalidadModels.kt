@@ -1,0 +1,1 @@
+package com.lumora.scraper.models.cinecalidad

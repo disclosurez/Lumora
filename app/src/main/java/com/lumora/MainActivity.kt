@@ -376,6 +376,11 @@ class MainActivity : AppCompatActivity() {
     /** The version group [detailReturnItem] was opened with, so re-opening its detail page shows
      *  the same set of alternate versions/episodes rather than re-deriving a narrower one. */
     internal var detailReturnGroup: List<Channel>? = null
+    /** Embed hosts from the last scraper source lookup (see MainActivityScraper). Held because a
+     *  source that fails to resolve puts the same list back rather than closing the picker -
+     *  picking a different host is the normal recovery, and re-fetching the list to do it would
+     *  mean a second round trip to the site for something already known. */
+    internal var lastScraperServers: List<com.lumora.scraper.models.Video.Server> = emptyList()
     /** Section membership from the last anime catalog fetch (Trending Now, Action, ...), used to
      *  build the Series sidebar's Anime parent and its child rows. A title belongs to several
      *  sections at once, so these are ids into the tab's channel list, not separate channels. */
@@ -734,7 +739,12 @@ class MainActivity : AppCompatActivity() {
         // which reads this discovery's cached result - awaited here so a plugin-only setup
         // (no traditional provider) isn't wrongly bounced to "Add a Provider" on cold start
         // because that check ran against the still-empty pre-discovery cache.
-        val pluginDiscoveryOnStart = scope.launch { pluginScriptManager.discoverScripts() }
+        val pluginDiscoveryOnStart = scope.launch {
+            pluginScriptManager.discoverScripts()
+            // Needs discovery to have run - it looks for an installed scraper_sites script, and
+            // supersedes the bundled site list BaseApplication already applied.
+            loadScraperSiteManifest()
+        }
         playerManager = PlayerManager(this)
         playerDiagnostics = PlayerDiagnostics(playerManager.getExoPlayer())
         playerManager.getExoPlayer().addAnalyticsListener(playerDiagnostics.getAnalyticsListener())
@@ -897,6 +907,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // The site scrapers' Cloudflare bypass runs headless first and only needs an Activity if
+        // a challenge has to be promoted to a visible dialog - which can happen several seconds
+        // into a fetch that no Activity started. Held weakly, so this is a handle, not a leak.
+        com.lumora.scraper.ScraperApp.setCurrentActivity(this)
         // Resync on return: the clock may have been stopped across a long background stint,
         // and the time (or the 12/24h setting) can have changed while it was.
         startToolbarClock()
@@ -906,6 +920,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        // Cleared so a background scraper fetch cannot try to raise a challenge dialog over an
+        // Activity that is no longer in front of the user - it falls back to headless-only.
+        com.lumora.scraper.ScraperApp.setCurrentActivity(null)
         stopToolbarClock()
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
         // Entering PiP also triggers onPause() - don't pause playback or we'd defeat the point of PiP.

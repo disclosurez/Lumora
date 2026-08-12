@@ -12,6 +12,27 @@ private val FILENAME_UNSAFE_REGEX = Regex("""[^A-Za-z0-9._-]+""")
  *  progress, and needs no storage permission when writing to the app's own external dir. */
 object VodDownloader {
 
+    /**
+     * Why a stream cannot be downloaded, or null when it can.
+     *
+     * This downloader is the system [DownloadManager], which fetches one URL to one file. That
+     * covers a provider's direct MP4 and nothing else, so the two cases it cannot handle are
+     * rejected up front rather than "succeeding" into a useless file:
+     *
+     *  - an HLS playlist would download as a few KB of text listing segment URLs;
+     *  - a torrent's URL points at the local HTTP server TorrentEngine runs for playback, which
+     *    stops with the session - and the real file is already on disk anyway.
+     */
+    fun unsupportedReason(channel: Channel): String? = when {
+        channel.url.isBlank() ->
+            "Play it once first - this title has no stream until a source is found for it."
+        channel.url.contains("m3u8", ignoreCase = true) ->
+            "This source is a live playlist, which can't be saved as a file."
+        channel.url.contains("127.0.0.1") || channel.url.contains("localhost") ->
+            "Torrent streams can't be downloaded this way."
+        else -> null
+    }
+
     fun enqueue(context: Context, channel: Channel): DownloadRecord {
         val extension = channel.url.substringAfterLast('.', "mp4").takeIf { it.length in 2..4 } ?: "mp4"
         val filename = FILENAME_UNSAFE_REGEX.replace(channel.name, "_").take(80) + "_${channel.id}.$extension"
@@ -20,6 +41,13 @@ object VodDownloader {
             .setTitle(channel.name)
             .setDestinationInExternalFilesDir(context, "downloads", filename)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+        // The headers the stream needs - a Referer for a hotlink-protected CDN, the provider's
+        // User-Agent. Without them a scraper-resolved URL that plays fine 403s when downloaded,
+        // because DownloadManager makes its own request with none of the player's context.
+        channel.streamHeaders?.forEach { (name, value) -> request.addRequestHeader(name, value) }
+        channel.streamUserAgent?.takeIf { it.isNotBlank() }
+            ?.let { request.addRequestHeader("User-Agent", it) }
 
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val downloadManagerId = downloadManager.enqueue(request)

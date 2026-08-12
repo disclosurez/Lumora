@@ -220,6 +220,7 @@ class PluginScriptManager(
         private val KNOWN_CAPABILITIES = setOf(
             JsPluginContract.CAPABILITY_PROVIDER_DISCOVERY,
             JsPluginContract.CAPABILITY_STREAM_SEARCH,
+            JsPluginContract.CAPABILITY_SCRAPER_SITES,
         )
     }
 }

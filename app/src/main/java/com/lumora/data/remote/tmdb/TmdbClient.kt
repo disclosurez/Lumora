@@ -343,6 +343,12 @@ class TmdbClient {
             "f562845c2beca65e1028ff2e31ccaff1"
         ).filter { it.isNotBlank() }
 
+        /** First usable key, or "" if none are configured. For callers outside this client that
+         *  take a bare key string rather than going through [request] - notably the ported
+         *  scraper stack's own TMDB layer (com.lumora.scraper.utils.TMDb3), which has no
+         *  rotation of its own and would otherwise need a second key baked in. */
+        fun firstKeyOrEmpty(): String = KEYS.firstOrNull() ?: ""
+
         /** Trailing "S05" / "Season 2" / "S01E03" / "3rd Season" / "Complete Series" - how
          *  panels name a series entry, and poison to TMDB's exact-ish search. */
         private val SEASON_SUFFIX_REGEX = Regex(

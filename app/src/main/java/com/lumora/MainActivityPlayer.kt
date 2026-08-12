@@ -456,7 +456,11 @@ internal fun MainActivity.showPlayerFor(
     preferredVersionId: String? = null,
     externalSubtitles: List<PlayerManager.ExternalSubtitle> = emptyList(),
     pluginStreamAlreadyResolved: Boolean = false,
-    audio: String? = null
+    audio: String? = null,
+    /** Set only by the scraper path - see PlayerManager.playUrl's parameter of the same name. */
+    maintainTokenQuery: String? = null,
+    /** Container MIME when the source knows it - see PlayerManager.playUrl. */
+    mimeType: String? = null
 ) {
     // Reset Up Next state on any new playback
     cancelUpNext()
@@ -700,7 +704,9 @@ internal fun MainActivity.showPlayerFor(
                 subtitles = externalSubtitles,
                 headers = startVersion.streamHeaders,
                 audio = audio,
-                preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
+                preferAudioLanguage = startVersion.mediaType != MediaType.LIVE,
+                maintainTokenQuery = maintainTokenQuery,
+                mimeType = mimeType
             )
             resumeFromMs?.let { playerManager.seekTo(it) }
         }

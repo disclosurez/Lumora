@@ -228,4 +228,35 @@
 
     <!-- activity_main.xml / dialog_discover_search.xml - Discover (TMDB) search -->
     <string name="discover_search_hint">Search movies &amp; series…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - shown above the challenge WebView on TV,
+         where there is no pointer and the checkbox has to be hit with a virtual cursor. -->
+    <string name="bypass_tv_instructions">MOVE THE CURSOR OVER THE CHECKBOX\nAND PRESS OK TO UNLOCK</string>
+
+    <!-- MainActivityScraper - the source picker. TMDB says what exists; the sites are asked
+         only who can stream it, and hosts die often enough that failing one is routine. -->
+    <string name="scraper_dialog_title">Find Stream \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Finding sources\u2026</string>
+    <string name="scraper_searching_sites">Searching sites\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Opening %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s didn\'t work \u2014 try another source</string>
+    <string name="scraper_no_sources">No sources found for this title</string>
+    <string name="scraper_pick_manually">Pick a source</string>
+    <string name="scraper_attempt_detail">via %1$s \u00b7 attempt %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d source</item>
+        <item quantity="other">%1$d sources</item>
+    </plurals>
+
+    <!-- MainActivitySettings - streaming-site sources. -->
+    <string name="scraper_settings_title">Streaming sites</string>
+    <string name="scraper_settings_subtitle">Public streaming sites Find Stream can pull from. Browsing stays on Discover \u2014 these are only asked who can stream a title you have already picked.</string>
+    <string name="scraper_enabled_title">Use streaming sites</string>
+    <string name="scraper_enabled_subtitle">Offers Find Stream on Discover titles</string>
+    <string name="scraper_sites_header">Sites to search</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Resolves site domains through an encrypted resolver instead of your ISP\'s</string>
+    <string name="scraper_doh_system">System DNS</string>
+    <string name="scraper_extra_buffering_title">Extra buffering</string>
+    <string name="scraper_extra_buffering_subtitle">Buffers up to 5 minutes ahead for hosts that deliver in bursts. Uses more memory; applies after a restart</string>
 </resources>

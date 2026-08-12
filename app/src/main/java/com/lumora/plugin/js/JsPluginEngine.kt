@@ -205,6 +205,34 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
         return result
     }
 
+    /**
+     * Runs a `scraper_sites` script's `sites(host)` and returns the JSON string it produced, or
+     * null if it failed, timed out or returned something else.
+     *
+     * A string rather than a parsed structure on purpose: it crosses the QuickJS bridge exactly
+     * once, deterministically, and is parsed on the Kotlin side by whoever actually understands
+     * the schema ([com.lumora.scraper.bridge.ScraperSiteManifest]). Handing back a JSObject would
+     * mean flattening a nested array of objects through `toMap`, which is the one shape that
+     * bridge does not round-trip reliably.
+     */
+    suspend fun scraperSites(source: String): String? {
+        val host = JsHostImpl(client = httpClient, onLog = { PluginLog.d(TAG, "script: $it") })
+        val outcome = runScript(JsPluginContract.SITES_TIMEOUT_MS, host) { context ->
+            context.evaluate("$source\nsites(host);") as? String
+        }
+        return when (outcome) {
+            is ScriptOutcome.Success -> (outcome.result as? String)?.takeIf { it.isNotBlank() }
+            is ScriptOutcome.Failure -> {
+                PluginLog.w(TAG, "sites() failed: ${outcome.message}")
+                null
+            }
+            ScriptOutcome.TimedOut -> {
+                PluginLog.w(TAG, "sites() timed out")
+                null
+            }
+        }
+    }
+
     /** Evaluates just enough of [source] to read its `PLUGIN` manifest object, if any. */
     suspend fun probeManifest(source: String): Map<String, Any?>? {
         val host = JsHostImpl(client = httpClient)

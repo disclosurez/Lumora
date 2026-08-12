@@ -139,6 +139,11 @@
                     android:showDividers="middle"
                     android:visibility="gone" />
 
+                <LinearLayout android:id="@+id/navSites" style="@style/Widget.Lumora.SettingsNavRow" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_providers" android:tint="@color/nav_icon_tint" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/scraper_settings_title" />
+                </LinearLayout>
+
                 <LinearLayout android:id="@+id/navAbout" style="@style/Widget.Lumora.SettingsNavRow" android:tag="9" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_about" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/about" />
@@ -189,6 +194,32 @@
                 android:visibility="gone">
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:text="@string/general" style="@style/TextAppearance.Lumora.SettingsTitle" />
+            </LinearLayout>
+
+            <!-- Pane: Streaming sites (com.lumora.scraper). Rows are built by
+                 wireScraperSettingsPane() rather than declared here, the same as the General
+                 pane - the site list comes from the provider registry at runtime, so there are
+                 ~70 rows and nothing static to lay out. -->
+            <LinearLayout
+                android:id="@+id/paneSites"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/scraper_settings_title" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/settings_gap_l" android:layout_marginTop="@dimen/settings_gap_s" android:text="@string/scraper_settings_subtitle" style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <LinearLayout
+                    android:id="@+id/settingsSitesRows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:orientation="vertical" />
             </LinearLayout>
 
             <!-- Pane: Providers -->

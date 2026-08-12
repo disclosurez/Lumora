@@ -38,7 +38,26 @@ import java.util.Locale
 // Extracted from MainActivity.kt; see that file's header.
 /** Kicks off a system DownloadManager job for a movie or single episode; no-op if already queued/downloaded. */
 internal fun MainActivity.downloadItem(channel: Channel) {
-    if (channel.id.isBlank() || channel.url.isBlank()) return
+    if (channel.id.isBlank()) return
+    // Used to return silently when there was no URL, which is every Discover, scraper and
+    // torrent item - so the button did nothing at all and said nothing about why.
+    // No URL yet (a Discover title, or a TMDB episode placeholder): find a source first and
+    // download whatever that resolves to, rather than telling the user to go and play it.
+    if (channel.url.isBlank()) {
+        if (!canFindStream(channel)) {
+            Toast.makeText(this, "No source available for this title", Toast.LENGTH_LONG).show()
+            return
+        }
+        val season = channel.id.substringAfterLast(":s", "").substringBefore("e").toIntOrNull()
+        showFindStreamDialog(channel, season, channel.episodeNum) { resolved ->
+            downloadItem(resolved)
+        }
+        return
+    }
+    VodDownloader.unsupportedReason(channel)?.let { reason ->
+        Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+        return
+    }
     if (DownloadStore.get(this, channel.id) != null) {
         Toast.makeText(this, "Already in Downloads", Toast.LENGTH_SHORT).show()
         return
@@ -582,6 +601,11 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 if (plugin != null) {
                     showStreamSearchDialog(plugin, item, season = null, episode = chosen.episodeNum)
                 }
+            } else if (chosen.url.isBlank()) {
+                // A TMDB-built episode placeholder (see tmdbSeasonsFor) - there is no stream
+                // until one is found for this specific episode.
+                val season = chosen.id.substringAfterLast(":s").substringBefore("e").toIntOrNull()
+                showFindStreamDialog(item, season, chosen.episodeNum)
             } else {
                 currentIndex = if (isSeries) -1 else filmList.indexOf(item)
                 val queue = if (isSeries) itemAdapter.currentList else emptyList()
@@ -854,11 +878,28 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             val client = XtreamClient(BaseApplication.instance.okHttpClient)
             if (isSeries) {
                 sectionLabel.text = "Episodes"
-                val (details, seasons) = loadSeriesContent(item)
-                detailSeasons = seasons
+                val (details, librarySeasons) = loadSeriesContent(item)
                 if (nowShowingDetailId != requestedItemId) return@launch
                 applyDetails(details)
                 enrichDetailsFromTmdb(details, isSeries = true, requestedItemId = requestedItemId)
+                // A Discover title the library does not have has no provider behind it, so
+                // loadSeriesContent finds nothing. TMDB knows the episodes even when no source
+                // does, and Find Stream can play any of them - so list those rather than showing
+                // an empty state for a series that is perfectly watchable.
+                //
+                // Resolved into `seasons` itself rather than carried alongside it: everything
+                // below - the chips, their click and watched-toggle handlers, the target-episode
+                // lookup - closes over this one list, and having a second "effective" copy meant
+                // the chips were built from TMDB while their handlers still indexed the empty
+                // library list, which crashed on the first chip press.
+                // Not "library or TMDB" - a provider that carries a series often carries only
+                // part of it, and choosing the library wholesale showed those seasons as
+                // complete when they were one episode of eight. Merged, so what the provider
+                // has plays directly and what it is missing routes to Find Stream.
+                val seasons = if (librarySeasons.all { it.second.isEmpty() }) tmdbSeasonsFor(item)
+                    else mergeMissingEpisodesFromTmdb(item, librarySeasons)
+                if (nowShowingDetailId != requestedItemId) return@launch
+                detailSeasons = seasons
                 if (seasons.all { it.second.isEmpty() }) {
                     statusText.text = "No episodes found"
                 } else {
@@ -961,8 +1002,14 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                     ?.let { PlaybackPositionStore.get(this@showContentDetail, it) }
                     ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
                 playButtonLabel.text = if (filmProgress != null) "Resume" else "Play"
-                playButton.visibility = View.VISIBLE
-                playButton.requestFocus()
+                // A title opened from Discover that the library does not have has no URL to
+                // play - its only route to a stream is Find Stream. Showing Play there would be
+                // a button that can only fail, so it stays hidden and Find Stream takes focus.
+                val playable = item.url.isNotBlank() || versions.any { it.url.isNotBlank() }
+                playButton.visibility = if (playable) View.VISIBLE else View.GONE
+                if (playable) playButton.requestFocus()
+                else binding.detailFindStreamButton.takeIf { it.visibility == View.VISIBLE }
+                    ?.requestFocus()
                 playButton.setOnClickListener {
                     // User-initiated play - see playItem for why the suppression flag is cleared here.
                     skipResumePrompt = false

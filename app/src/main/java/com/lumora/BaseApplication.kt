@@ -39,6 +39,12 @@ class BaseApplication : Application() {
         // has run once (see com.lumora.plugin.js.JsPluginEngine).
         com.whl.quickjs.android.QuickJSLoader.init()
 
+        // Application context for the ported site-scraper stack (com.lumora.scraper) - its
+        // network layer reads a bundled root certificate out of raw resources and shares the
+        // WebView cookie store, both of which need a Context that no scraper call carries.
+        com.lumora.scraper.ScraperApp.init(this)
+
+
         okHttpClient = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)

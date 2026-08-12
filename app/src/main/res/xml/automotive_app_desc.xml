@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy Android Auto descriptor. Declares template + notification surfaces only -
+     deliberately NOT "media", which is what classifies an app as audio-only on Android
+     Auto. "template" is what AAAD (the sideload toolchain, shmykelsa/AAAD) validates for
+     when deciding an app is a real car app; AAAD's own app ships this exact pair.
+     See the meta-data in AndroidManifest.xml. -->
+<automotiveApp>
+    <uses name="template" />
+    <uses name="notification" />
+</automotiveApp>

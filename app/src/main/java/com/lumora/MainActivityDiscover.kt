@@ -116,7 +116,7 @@ internal fun MainActivity.loadDiscover(query: String?) {
         // TMDB-only title is a dead tile - its dialog offers nothing but a trailer.
         // Drop anything that isn't already in the library; with a plugin enabled the
         // plugin can play every title, so nothing gets filtered.
-        val pluginEnabled = enabledStreamSearchPlugin() != null
+        val pluginEnabled = hasProviderlessSource()
         // With a plugin enabled every title is playable, so nothing has to be matched before
         // the grid can be shown - and matching is the one slow step here. Only the no-plugin
         // filter waits for it.
@@ -168,129 +168,39 @@ internal fun MainActivity.setDiscoverStatus(text: String?) {
 
 /** Discover pick opens an info screen: overview + poster, then either play a matching catalog
  *  item (if this title is already served by a provider) or find a torrent stream for it. */
+/**
+ * Opens a Discover title on the same detail screen everything else uses.
+ *
+ * It used to build its own dialog - backdrop, a few labels, and Open/Find stream/Trailer
+ * buttons - which meant a title reached from Discover looked and behaved differently from the
+ * identical title reached from the library, and only the "Open" button led anywhere familiar.
+ *
+ * When the library already has the title, the library copy is what opens, with the whole set of
+ * matches so the version chips can switch between sources. Otherwise the TMDB entry itself opens:
+ * the same screen, minus a Play button it has no URL for, with Find Stream as the action.
+ */
 internal fun MainActivity.onDiscoverItemClick(item: Channel) {
-    // Every copy, not the best one: the dialog names each source it found, and the detail
-    // screen needs the whole set so its version chips can switch between them.
-    val matches = findCatalogMatches(item)
-    val versions = catalogVersionsFor(matches)
+    // Every copy, not the best one: the detail screen needs the whole set for its version chips.
+    val versions = catalogVersionsFor(findCatalogMatches(item))
     val match = versions.firstOrNull()
-
-    val density = resources.displayMetrics.density
-    val pad = (20 * density).toInt()
-    val backdrop = ImageView(this).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, (200 * density).toInt()
-        )
-        scaleType = ImageView.ScaleType.CENTER_CROP
-    }
-    loadDetailImage(item.backdropUrl ?: item.posterUrl, backdrop)
-
-    val meta = listOfNotNull(
-        if (item.mediaType == MediaType.SERIES) "Series" else "Movie",
-        item.year,
-        item.rating?.let { "★ $it" }
-    ).joinToString("   ·   ")
-
-    fun label(text: String) = TextView(this).apply {
-        this.text = text
-        setTextColor(ContextCompat.getColor(this@onDiscoverItemClick, R.color.text_secondary))
-        setPadding(0, (6 * density).toInt(), 0, 0)
-    }
-
-    val content = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(pad, pad / 2, pad, 0)
-        addView(TextView(this@onDiscoverItemClick).apply {
-            text = item.name
-            setTextColor(ContextCompat.getColor(this@onDiscoverItemClick, R.color.text_primary))
-            textSize = 20f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-        })
-        addView(label(meta))
-        item.description?.let { addView(label(it)) }
-        // Name the sources rather than saying "provider": with a Jellyfin server and one or
-        // more IPTV panels merged into one catalogue, "which of my sources actually has
-        // this" is the whole question this line exists to answer - and the copies differ
-        // (the Jellyfin one may carry the season the IPTV one is missing).
-        if (versions.isNotEmpty()) {
-            val sources = versions.mapNotNull { providerNameFor(it) }.distinct()
-            addView(label(
-                if (sources.isEmpty()) "✓ In your library"
-                else "✓ In your library · ${sources.joinToString(", ")}"
-            ))
-        }
-    }
-    val buttonRow = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = android.view.Gravity.END
-        setPadding(pad, (12 * density).toInt(), pad, pad)
-    }
-    fun actionButton(text: String, onClick: () -> Unit) = Button(this).apply {
-        this.text = text
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { marginStart = (8 * density).toInt() }
-        setOnClickListener { onClick() }
-    }
-
-    val body = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        addView(backdrop)
-        addView(content)
-        addView(buttonRow)
-    }
-    val scroll = ScrollView(this).apply { addView(body) }
-
-    val dialog = AlertDialog.Builder(this).setView(scroll).create()
-    // Whatever a button does, it happens on the frame *after* the dialog is gone. Dismissing
-    // a dialog tears its window down and re-runs focus resolution on the Activity behind it,
-    // which lands on whatever was focused before (the Discover tile - by then hidden inside
-    // the GONE mainContent) and silently overrides the focus the incoming screen just asked
-    // for. That is what left the series detail with no focused view at all: seasons and
-    // episodes were on screen and the D-pad did nothing.
-    fun afterDismiss(action: () -> Unit) {
-        dialog.dismiss()
-        binding.root.post(action)
-    }
-    // Prefer the already-owned copy; the torrent path is offered too, but only when a
-    // stream-search plugin is actually enabled to serve it.
-    if (match != null) {
-        buttonRow.addView(actionButton("Play") {
-            // The group goes with it, so the detail screen opens on the best copy with the
-            // others as switchable chips - the same thing opening the series from the
-            // library gives you. Without it a match that is a *member* of a duplicate group
-            // (rather than its representative) resolved to no group at all, and the other
-            // provider's copy was unreachable from Discover.
-            afterDismiss { showContentDetail(match, versions.takeIf { it.size > 1 }) }
-        })
-    }
-    if (enabledStreamSearchPlugin() != null) {
-        buttonRow.addView(actionButton("Find stream") {
-            afterDismiss { startDiscoverStreamSearch(item) }
-        })
-    }
-    if (tmdbClient.hasKey()) {
-        buttonRow.addView(actionButton("Trailer") {
-            afterDismiss { showTrailerForDiscoverItem(item) }
-        })
-    }
-    buttonRow.addView(actionButton("Close") { dialog.dismiss() })
-    dialog.show()
+    if (match != null) showContentDetail(match, versions.takeIf { it.size > 1 })
+    else showContentDetail(item)
 }
 
-/** Kicks off a stream-search plugin for a Discover title (episode picker for series). */
 internal fun MainActivity.startDiscoverStreamSearch(item: Channel) {
-    val plugin = enabledStreamSearchPlugin(item)
-    if (plugin == null) {
+    if (!canFindStream(item)) {
         Toast.makeText(
             this,
-            "Enable a stream plugin in Settings → Plugins to play Discover titles.",
+            "Enable a stream plugin, or turn on Streaming sites in Settings, to play Discover titles.",
             Toast.LENGTH_LONG
         ).show()
         return
     }
-    if (item.mediaType == MediaType.SERIES) showSeriesEpisodePicker(plugin, item)
-    else showStreamSearchDialog(plugin, item)
+    val search: (Int?, Int?) -> Unit = { season, episode ->
+        showFindStreamDialog(item, season, episode)
+    }
+    if (item.mediaType == MediaType.SERIES) showSeriesEpisodePicker(item, search)
+    else search(null, null)
 }
 
 /** Every copy of a Discover title the library holds, best first.
@@ -388,10 +298,20 @@ internal fun MainActivity.normalizeMatchTitle(title: String): String =
     title.lowercase(Locale.US).replace(Regex("\\(\\d{4}\\)"), " ")
         .replace(Regex("[^a-z0-9]+"), " ").trim()
 
-/** Fetches the show's seasons from TMDB, then lets the user pick season → episode to search. */
-internal fun MainActivity.showSeriesEpisodePicker(plugin: PluginScript, item: Channel) {
+/**
+ * Fetches the show's seasons from TMDB, then lets the user pick season → episode.
+ *
+ * [onPick] receives the chosen season/episode, or nulls when there is nothing to choose from
+ * (no TMDB id, or TMDB has no season data) and the title has to be searched whole. Takes a
+ * callback rather than a [PluginScript] because both stream sources need this same picker - an
+ * installed plugin and the built-in site scrapers - and only the step after it differs.
+ */
+internal fun MainActivity.showSeriesEpisodePicker(
+    item: Channel,
+    onPick: (season: Int?, episode: Int?) -> Unit,
+) {
     val tvId = item.id.substringAfterLast(':').toIntOrNull()
-    if (tvId == null) { showStreamSearchDialog(plugin, item); return }
+    if (tvId == null) { onPick(null, null); return }
     val loading = AlertDialog.Builder(this)
         .setTitle(item.name)
         .setMessage("Loading episodes…")
@@ -403,7 +323,7 @@ internal fun MainActivity.showSeriesEpisodePicker(plugin: PluginScript, item: Ch
         loading.dismiss()
         if (seasons.isEmpty()) {
             // No season data - fall back to searching the title as a whole.
-            showStreamSearchDialog(plugin, item)
+            onPick(null, null)
             return@launch
         }
         val seasonLabels = seasons.map { "${it.name} (${it.episodeCount} eps)" }.toTypedArray()
@@ -414,10 +334,8 @@ internal fun MainActivity.showSeriesEpisodePicker(plugin: PluginScript, item: Ch
                 val epLabels = (1..season.episodeCount).map { "Episode $it" }.toTypedArray()
                 AlertDialog.Builder(this@showSeriesEpisodePicker)
                     .setTitle(season.name)
-                    .setItems(epLabels) { _, ei ->
-                        showStreamSearchDialog(plugin, item, season.number, ei + 1)
-                    }
-                    .setNegativeButton("Back") { _, _ -> showSeriesEpisodePicker(plugin, item) }
+                    .setItems(epLabels) { _, ei -> onPick(season.number, ei + 1) }
+                    .setNegativeButton("Back") { _, _ -> showSeriesEpisodePicker(item, onPick) }
                     .show()
             }
             .setNegativeButton("Cancel", null)
@@ -733,4 +651,108 @@ internal fun MainActivity.seriesContinueItems(): List<Channel> {
     val server = jellyfinResumeItems.filter { it.mediaType == MediaType.SERIES }
     val serverIds = server.map { it.id }.toSet()
     return (server + local.filterNot { it.id in serverIds }).filterNot(::isAdultHomeItem)
+}
+
+/**
+ * Seasons and episodes for a title the library does not have, built from TMDB.
+ *
+ * A Discover series has no provider behind it, so `loadSeriesContent` finds nothing and the
+ * detail screen used to say "No episodes found" - accurate about the library, useless to the
+ * user, since Find Stream could have played any of those episodes.
+ *
+ * The Channels produced here are placeholders: they carry the episode's number, title and still,
+ * and deliberately no `url`, because there is no stream until a source is found for that specific
+ * episode. [onEpisodeClick] in showContentDetail routes a URL-less episode to Find Stream.
+ *
+ * Season 0 (specials) is dropped - TMDB lists it first, which would otherwise make it the season
+ * the screen opens on.
+ */
+internal suspend fun MainActivity.tmdbSeasonsFor(item: Channel): List<Pair<String, List<Channel>>> {
+    val tvId = tmdbTypeAndId(item.id)?.second
+        ?: item.id.substringAfterLast(':').toIntOrNull()
+        ?: run {
+            android.util.Log.w("ScraperEpisodes", "tmdbSeasonsFor: no TMDB id in '${item.id}'")
+            return emptyList()
+        }
+    val seasons = runCatching { tmdbClient.tvSeasons(tvId) }.getOrElse { emptyList() }
+        .filter { it.number > 0 && it.episodeCount > 0 }
+    android.util.Log.i(
+        "ScraperEpisodes",
+        "tmdbSeasonsFor(tv=$tvId): ${seasons.size} season(s) " +
+            seasons.joinToString { "S${it.number}=${it.episodeCount}ep" }
+    )
+    if (seasons.isEmpty()) return emptyList()
+
+    return seasons.map { season ->
+        // Episode titles are a second request per season, so they are fetched rather than
+        // guessed - a list of "Episode 1..10" is not much better than the empty state.
+        val details = runCatching { tmdbClient.tvEpisodes(tvId, season.number) }
+            .getOrElse { emptyMap() }
+        val episodes = (1..season.episodeCount).map { number ->
+            val ep = details[number]
+            Channel(
+                id = "${item.id}:s${season.number}e$number",
+                name = ep?.name?.takeIf { it.isNotBlank() }
+                    ?.let { "E%02d · %s".format(number, it) }
+                    ?: "E%02d".format(number),
+                // No URL on purpose - see this function's kdoc.
+                url = "",
+                posterUrl = ep?.stillUrl ?: item.posterUrl,
+                backdropUrl = item.backdropUrl,
+                mediaType = MediaType.SERIES,
+                episodeNum = number,
+                description = ep?.overview,
+                categoryName = item.name,
+                group = item.group,
+            )
+        }
+        season.name to episodes
+    }
+}
+
+/**
+ * Fills the gaps in a provider's episode list from TMDB.
+ *
+ * A provider carrying a series is not a promise that it carries all of it - panels routinely
+ * list one or two episodes of a season and nothing else. Preferring the library wholesale meant
+ * those seasons displayed as complete when they were a fraction, with no hint the rest existed
+ * and no way to reach them.
+ *
+ * So the two are merged rather than one chosen: an episode the provider has keeps its real URL
+ * and plays directly, and every number TMDB knows about that the provider is missing is added as
+ * a URL-less placeholder that routes to Find Stream. Seasons TMDB has and the provider does not
+ * are appended whole.
+ *
+ * Returns [librarySeasons] unchanged when TMDB knows nothing, so a failed lookup can only cost
+ * the extra episodes, never the ones that were already there.
+ */
+internal suspend fun MainActivity.mergeMissingEpisodesFromTmdb(
+    item: Channel,
+    librarySeasons: List<Pair<String, List<Channel>>>,
+): List<Pair<String, List<Channel>>> {
+    val tmdbSeasons = tmdbSeasonsFor(item)
+    android.util.Log.i(
+        "ScraperEpisodes",
+        "merge: library=" + librarySeasons.joinToString { "${it.first}:${it.second.size}" } +
+            " tmdb=" + tmdbSeasons.joinToString { "${it.first}:${it.second.size}" }
+    )
+    if (tmdbSeasons.isEmpty()) return librarySeasons
+
+    /** "Season 2" / "S2" / "2" all have to line up with TMDB's own label. */
+    fun seasonNumber(label: String): Int? = Regex("""\d+""").find(label)?.value?.toIntOrNull()
+
+    val byNumber = librarySeasons.associateBy { seasonNumber(it.first) }
+    val merged = tmdbSeasons.map { (tmdbLabel, tmdbEpisodes) ->
+        val number = seasonNumber(tmdbLabel)
+        val library = byNumber[number]?.second.orEmpty()
+        if (library.isEmpty()) return@map tmdbLabel to tmdbEpisodes
+        val have = library.mapNotNull { it.episodeNum }.toSet()
+        val filled = (library + tmdbEpisodes.filter { it.episodeNum !in have })
+            .sortedBy { it.episodeNum ?: Int.MAX_VALUE }
+        (byNumber[number]?.first ?: tmdbLabel) to filled
+    }
+    // Anything the provider has that TMDB does not know about must not be dropped.
+    val covered = merged.mapNotNull { seasonNumber(it.first) }.toSet()
+    val extras = librarySeasons.filter { seasonNumber(it.first) !in covered }
+    return (merged + extras).sortedBy { seasonNumber(it.first) ?: Int.MAX_VALUE }
 }

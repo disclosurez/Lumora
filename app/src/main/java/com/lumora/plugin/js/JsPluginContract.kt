@@ -55,6 +55,16 @@ object JsPluginContract {
     const val CAPABILITY_PROVIDER_DISCOVERY = "provider_discovery"
     const val CAPABILITY_STREAM_SEARCH = "stream_search"
 
+    /**
+     * A script that carries configuration data rather than behaviour: it implements
+     * `function sites(host)` returning a JSON string, and is how the built-in scraper engine
+     * (`com.lumora.scraper`) learns which sites are still worth querying. The engine itself -
+     * every per-site parser, the extractors, the Cloudflare bypass - is compiled into the app,
+     * because none of it can be expressed as data; only the list of live sites and the domains
+     * of the repointable ones can, and that is the half that goes stale.
+     */
+    const val CAPABILITY_SCRAPER_SITES = "scraper_sites"
+
     /** Field names on a reported candidate object - mirrors [com.lumora.plugin.DiscoveredProvider]. */
     const val KEY_TYPE = "type"
     const val KEY_LABEL = "label"
@@ -89,4 +99,7 @@ object JsPluginContract {
     const val SEARCH_TIMEOUT_MS = 120_000L
     /** Resolving a result to a stream (fetch metadata, first-episode lookup, ...) is slow. */
     const val RESOLVE_TIMEOUT_MS = 300_000L
+
+    /** A `scraper_sites` script only returns a literal, so it has no reason to be slow. */
+    const val SITES_TIMEOUT_MS = 15_000L
 }

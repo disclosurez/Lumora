@@ -210,16 +210,37 @@ internal fun MainActivity.showTrailerPlayer(youtubeKey: String) {
     closeButton.requestFocus()
 }
 
+/**
+ * Two things can source a stream for a title that has no URL of its own: an installed
+ * `stream_search` plugin, or the built-in site scrapers (see MainActivityScraper).
+ *
+ * A plugin wins when both are available. The user went out of their way to install it, and it
+ * is the more specific answer - an anime plugin knows things about an anime title that a
+ * general-purpose site search does not.
+ */
 internal fun MainActivity.wireFindStreamButton(item: Channel) {
     val button = binding.detailFindStreamButton
-    val plugin = enabledStreamSearchPlugin(item)
-    val eligible = plugin != null && (item.mediaType == MediaType.MOVIE || item.mediaType == MediaType.SERIES)
-    button.visibility = if (eligible) View.VISIBLE else View.GONE
-    if (!eligible || plugin == null) {
-        button.setOnClickListener(null)
-        return
-    }
-    button.setOnClickListener { showStreamSearchDialog(plugin, item) }
+    val available = canFindStream(item)
+    button.visibility = if (available) View.VISIBLE else View.GONE
+    // One entry point for both kinds of source - an installed stream_search plugin and the
+    // built-in site scrapers are searched together and ranked into one queue. They used to be
+    // mutually exclusive, which meant the sites were dead weight whenever a plugin was on.
+    button.setOnClickListener(
+        if (!available) null
+        else View.OnClickListener {
+            // A series has to say which episode before anything can be searched for - without
+            // this it silently searched S01E01, which is right roughly never. The picker is
+            // TMDB-backed, so it works for a title the library does not have at all (the
+            // "No episodes found" case on a Discover series).
+            if (item.mediaType == MediaType.SERIES) {
+                showSeriesEpisodePicker(item) { season, episode ->
+                    showFindStreamDialog(item, season, episode)
+                }
+            } else {
+                showFindStreamDialog(item)
+            }
+        }
+    )
 }
 
 /**
@@ -272,6 +293,19 @@ internal suspend fun MainActivity.resolveTorrentStream(
  *  anything about the particular resolve that produced the URL. */
 internal fun MainActivity.pluginChannelId(plugin: PluginScript, token: String, episode: Int?): String =
     "plugin:${plugin.id}:$token" + (episode?.let { ":e$it" } ?: "")
+
+/**
+ * The enabled plugin that actually declares itself an anime source, if any.
+ *
+ * The anime catalog (the AniList shelves and the Anime sidebar row) used to be gated on *any*
+ * enabled `stream_search` plugin, on the reasoning that any of them could play the titles. In
+ * practice that meant switching on the torrent plugin made a whole Anime section appear that the
+ * user never asked for and could not obviously connect to what they had just enabled. Gated on
+ * the declared content type instead, so the section tracks the thing it is named after.
+ */
+internal fun MainActivity.enabledAnimePlugin(): PluginScript? =
+    pluginScriptManager.getDiscoveredScripts()
+        .firstOrNull { it.enabled && it.supportsStreamSearch && it.contentTypes.contains("anime") }
 
 internal fun MainActivity.enabledStreamSearchPlugin(item: Channel? = null): PluginScript? {
     val candidates = pluginScriptManager.getDiscoveredScripts().filter { it.enabled && it.supportsStreamSearch }
@@ -745,6 +779,9 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                 detailEnabledBox.isChecked = plugin.enabled
                 detailEnabledRow.setOnClickListener {
                     manager.setEnabled(plugin.id, !plugin.enabled)
+                    // A scraper_sites script is the gate on every built-in scraper site, so
+                    // toggling it has to take effect now rather than at the next launch.
+                    if (plugin.supportsScraperSites) loadScraperSiteManifest()
                     pluginFocusRequestViewId = R.id.pluginDetailEnabledRow
                     renderPluginDetail()
                     renderPluginList()
@@ -798,6 +835,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                         .setPositiveButton("Remove") { _, _ ->
                             manager.setEnabled(plugin.id, false)
                             manager.removeUserScript(plugin.fileName)
+                            if (plugin.supportsScraperSites) loadScraperSiteManifest()
                             closePluginPage()
                             renderPluginList()
                             refreshPluginNavRows?.invoke()

@@ -54,7 +54,7 @@ internal suspend fun MainActivity.classifyAndShow(preserveUi: Boolean = false) {
     // provider-sourced channels at all - gating the whole content area on allChannels alone
     // trapped a plugin-only setup (e.g. just torrent-search enabled, which contributes no
     // catalog entries) behind the "No provider configured" empty state for no reason.
-    val hasContent = allChannels.isNotEmpty() || enabledStreamSearchPlugin() != null
+    val hasContent = allChannels.isNotEmpty() || hasProviderlessSource()
 
     // Adapters are safe to (re)bind under an open overlay - only the visible screen
     // must not be, since it lives behind the overlay. Bind first, then swap visibility
@@ -171,7 +171,7 @@ internal fun MainActivity.classifyAndShowLiveFirst() {
         withContext(Dispatchers.Default) { deriveLiveHalf(allChannels) }
         // Mirror of classifyAndShow()'s first-paint bind block, live side only - the
         // other tabs' adapters and shelves belong to their own render path.
-        val hasContent = allChannels.isNotEmpty() || enabledStreamSearchPlugin() != null
+        val hasContent = allChannels.isNotEmpty() || hasProviderlessSource()
         if (hasContent) {
             // Mirror of classifyAndShow()'s adapter-bind block (all five, not just the
             // live side): on warm/stale-cache starts this is the only bind that runs, so

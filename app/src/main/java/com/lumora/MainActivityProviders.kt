@@ -53,7 +53,7 @@ internal fun MainActivity.hasProviderEnabled(): Boolean =
  *  button as the way in. The empty state carries its own Settings/Demo actions. Settings and
  *  refresh stay visible so the user can always get back to configuring one. */
 internal fun MainActivity.updateTopChromeVisibility() {
-    val enabled = hasProviderEnabled() || enabledStreamSearchPlugin() != null
+    val enabled = hasProviderEnabled() || hasProviderlessSource()
     if (!enabled) binding.homeSearchBar.visibility = View.GONE
     // Every tab/search visibility rule now lives in applySimpleModeUi() - it recomputes the
     // same "is there anything to browse" flag, and it must have the last word anyway.
@@ -140,7 +140,7 @@ internal fun MainActivity.applySimpleModeUi() {
     // Chrome up = something to browse, so the tab bar would be showing in normal mode.
     // Simple mode hides it regardless; the flag still gates the forced tab switch below
     // (with no providers the empty state owns the screen and selectTab would fight it).
-    val chromeUp = hasProviderEnabled() || enabledStreamSearchPlugin() != null
+    val chromeUp = hasProviderEnabled() || hasProviderlessSource()
     if (simple) {
         // Simple mode is "TV only", not "no navigation": Catch Up is the same live
         // channels shifted back in time, so it stays alongside Live TV when the panel
@@ -300,7 +300,7 @@ internal suspend fun MainActivity.persistCatalog(channels: List<Channel>) = with
  *  screen until the cache happened to be rewritten by a network refresh. A fresh fetch
  *  already skips them; this is the cached cold-start path saying the same thing. */
 internal fun MainActivity.dropDisabledPluginContent(channels: List<Channel>): List<Channel> {
-    if (enabledStreamSearchPlugin() != null) return channels
+    if (enabledAnimePlugin() != null) return channels
     return channels.filterNot { it.id.startsWith(AnimeCatalogClient.ID_PREFIX) }
 }
 
@@ -322,7 +322,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
     // A stream_search plugin (anime catalog, Discover/Find Stream) still has work to do here
     // even with zero traditional providers configured - bailing out before reaching the
     // anime-catalog fetch below meant a plugin-only setup never populated anything.
-    if (!hasProviderConfigured() && enabledStreamSearchPlugin() == null) { showProviderSettings(); return }
+    if (!hasProviderConfigured() && !hasProviderlessSource()) { showProviderSettings(); return }
     // Raised for the cached path too: reading and re-deriving a big catalog still takes
     // a few seconds, and with no status up the app just looks frozen.
     setStatus("Loading...", visible = true)
@@ -400,7 +400,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 visible = true
             )
         }
-        val animeDeferred = if (enabledStreamSearchPlugin() != null) {
+        val animeDeferred = if (enabledAnimePlugin() != null) {
             // fetchAnimeChannels does synchronous OkHttp calls, and this loader coroutine
             // runs on Main - the Dispatchers.IO hop mirrors the sequential version below.
             async { withContext(Dispatchers.IO) { fetchAnimeChannels() } }
