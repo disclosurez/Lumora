@@ -18,6 +18,7 @@ import com.lumora.adapter.LiveGuideAdapter
 import com.lumora.download.DownloadRecord
 import com.lumora.download.DownloadStatus
 import com.lumora.download.DownloadStore
+import com.lumora.download.HlsDownloads
 import com.lumora.download.VodDownloader
 import com.lumora.cache.FavoritesStore
 import com.lumora.cache.PlaybackPositionStore
@@ -52,6 +53,33 @@ internal fun MainActivity.downloadItem(channel: Channel) {
         showFindStreamDialog(channel, season, channel.episodeNum) { resolved ->
             downloadItem(resolved)
         }
+        return
+    }
+    // HLS cannot be fetched as one file - it needs its segments pulled into a cache the player
+    // can read back offline, which is a different downloader entirely (see HlsDownloads).
+    if (HlsDownloads.isHls(channel.url)) {
+        if (DownloadStore.get(this, channel.id) != null) {
+            Toast.makeText(this, "Already in Downloads", Toast.LENGTH_SHORT).show()
+            return
+        }
+        HlsDownloads.enqueue(this, channel)
+        DownloadStore.add(
+            this,
+            DownloadRecord(
+                id = channel.id,
+                title = channel.name,
+                subtitle = if (channel.mediaType == MediaType.SERIES)
+                    channel.categoryName ?: "Episode" else "Movie",
+                posterUrl = channel.posterUrl ?: channel.logoUrl,
+                mediaType = channel.mediaType.name,
+                // Media3 owns this download's lifecycle, not the system DownloadManager, so
+                // there is no system id to record against it.
+                downloadManagerId = -1L,
+                status = DownloadStatus.QUEUED,
+            )
+        )
+        Toast.makeText(this, "Downloading \"${channel.name}\"", Toast.LENGTH_SHORT).show()
+        if (showingDownloads) refreshDownloadsList()
         return
     }
     VodDownloader.unsupportedReason(channel)?.let { reason ->

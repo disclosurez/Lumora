@@ -26,8 +26,6 @@ object VodDownloader {
     fun unsupportedReason(channel: Channel): String? = when {
         channel.url.isBlank() ->
             "Play it once first - this title has no stream until a source is found for it."
-        channel.url.contains("m3u8", ignoreCase = true) ->
-            "This source is a live playlist, which can't be saved as a file."
         channel.url.contains("127.0.0.1") || channel.url.contains("localhost") ->
             "Torrent streams can't be downloaded this way."
         else -> null
