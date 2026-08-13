@@ -38,6 +38,20 @@ import java.util.Locale
 //
 // Extracted from MainActivity.kt; see that file's header.
 /** Kicks off a system DownloadManager job for a movie or single episode; no-op if already queued/downloaded. */
+/**
+ * The show behind an episode row, for anything that has to search by title.
+ *
+ * A TMDB episode placeholder carries the series name in `categoryName` (see `tmdbSeasonsFor`)
+ * and its own episode title in `name`; its id is the series id with an `:sNeN` suffix. Both are
+ * rewound here so a search runs as "Reacher" + S01E01 rather than for the episode's title, which
+ * no site indexes. Anything that is not recognisably an episode is returned untouched.
+ */
+private fun MainActivity.seriesItemForEpisode(channel: Channel): Channel {
+    val seriesName = channel.categoryName?.takeIf { it.isNotBlank() } ?: return channel
+    if (channel.episodeNum == null || !channel.id.contains(":s")) return channel
+    return channel.copy(name = seriesName, id = channel.id.substringBefore(":s"))
+}
+
 internal fun MainActivity.downloadItem(channel: Channel) {
     if (channel.id.isBlank()) return
     // Used to return silently when there was no URL, which is every Discover, scraper and
@@ -50,7 +64,14 @@ internal fun MainActivity.downloadItem(channel: Channel) {
             return
         }
         val season = channel.id.substringAfterLast(":s", "").substringBefore("e").toIntOrNull()
-        showFindStreamDialog(channel, season, channel.episodeNum) { resolved ->
+        // Search under the *series* name, never the episode row's own.
+        //
+        // A TMDB episode placeholder is named for its episode ("E01 · Welcome to Margrave"), and
+        // handing that to the scrapers searched every site for that phrase - which matches
+        // nothing anywhere, so the download silently found no source at all. The season/episode
+        // pair below is what identifies the episode; the title has to be the show. This is what
+        // the play path already does by passing the series item rather than the episode.
+        showFindStreamDialog(seriesItemForEpisode(channel), season, channel.episodeNum) { resolved ->
             downloadItem(resolved)
         }
         return
@@ -74,7 +95,7 @@ internal fun MainActivity.downloadItem(channel: Channel) {
                 mediaType = channel.mediaType.name,
                 // Media3 owns this download's lifecycle, not the system DownloadManager, so
                 // there is no system id to record against it.
-                downloadManagerId = -1L,
+                downloadManagerId = HlsDownloads.NO_SYSTEM_ID,
                 status = DownloadStatus.QUEUED,
             )
         )
@@ -96,7 +117,24 @@ internal fun MainActivity.downloadItem(channel: Channel) {
 }
 
 internal fun MainActivity.playDownload(record: DownloadRecord) {
-    if (record.status != DownloadStatus.COMPLETE || record.localFilePath.isNullOrBlank()) {
+    if (record.status != DownloadStatus.COMPLETE) {
+        Toast.makeText(this, "Still downloading…", Toast.LENGTH_SHORT).show()
+        return
+    }
+    // An HLS download is a tree of segments in Media3's cache, not a file - there is no path to
+    // build a file:// URL from. It plays by replaying the original stream URL through a data
+    // source wired to that cache, which serves it without touching the network.
+    if (HlsDownloads.owns(record)) {
+        val sourceUrl = HlsDownloads.sourceUrl(this, record.id)
+        if (sourceUrl.isNullOrBlank()) {
+            Toast.makeText(this, "Download is no longer available", Toast.LENGTH_LONG).show()
+            return
+        }
+        currentIndex = -1
+        playOfflineHls(record, sourceUrl)
+        return
+    }
+    if (record.localFilePath.isNullOrBlank()) {
         Toast.makeText(this, "Still downloading…", Toast.LENGTH_SHORT).show()
         return
     }
@@ -111,12 +149,44 @@ internal fun MainActivity.playDownload(record: DownloadRecord) {
     showPlayerFor(local)
 }
 
+/**
+ * Plays a completed HLS download from its cache.
+ *
+ * The channel carries the stream's *original* URL, not a local path: Media3 keyed every segment
+ * it stored by the URL it came from, so replaying that URL through a cache-backed data source is
+ * what reads the download back. [MainActivity.offlineHlsPlaybackId] is what tells showPlayerFor
+ * to swap the network source out, and it is cleared straight after so it cannot leak into the
+ * next thing played.
+ */
+private fun MainActivity.playOfflineHls(record: DownloadRecord, sourceUrl: String) {
+    val local = Channel(
+        id = record.id,
+        name = record.title,
+        url = sourceUrl,
+        posterUrl = record.posterUrl,
+        mediaType = runCatching { MediaType.valueOf(record.mediaType) }.getOrDefault(MediaType.MOVIE)
+    )
+    offlineHlsPlaybackId = record.id
+    try {
+        showPlayerFor(local)
+    } finally {
+        offlineHlsPlaybackId = null
+    }
+}
+
 internal fun MainActivity.deleteDownload(record: DownloadRecord) {
     AlertDialog.Builder(this)
         .setTitle("Delete download?")
         .setMessage("\"${record.title}\" will be removed from this device.")
         .setPositiveButton("Delete") { _, _ ->
-            VodDownloader.delete(this, record)
+            // Media3 owns the cached segments of an HLS download; handing its id to the system
+            // downloader would delete nothing and leave the cache filled forever.
+            if (HlsDownloads.owns(record)) {
+                HlsDownloads.remove(this, record.id)
+                DownloadStore.remove(this, record.id)
+            } else {
+                VodDownloader.delete(this, record)
+            }
             refreshDownloadsList()
         }
         .setNegativeButton("Cancel", null)
@@ -127,7 +197,14 @@ internal fun MainActivity.refreshDownloadsList() {
     scope.launch {
         val records = withContext(Dispatchers.IO) {
             DownloadStore.getAll(this@refreshDownloadsList).map { rec ->
-                if (rec.status == DownloadStatus.COMPLETE) rec else VodDownloader.refreshStatus(this@refreshDownloadsList, rec)
+                when {
+                    rec.status == DownloadStatus.COMPLETE -> rec
+                    // An HLS download has no system DownloadManager id, and querying the system
+                    // downloader for one it never issued reports FAILED - so these have to be
+                    // read out of Media3's index instead.
+                    HlsDownloads.owns(rec) -> HlsDownloads.refreshStatus(this@refreshDownloadsList, rec)
+                    else -> VodDownloader.refreshStatus(this@refreshDownloadsList, rec)
+                }
             }
         }
         downloadAdapter.submitList(records)

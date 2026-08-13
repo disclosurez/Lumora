@@ -173,10 +173,17 @@ class PlayerManager(
          * a token rather than `.m3u8` - it falls back to the progressive extractors and dies with
          * UnrecognizedInputFormatException on a playlist they cannot read.
          */
-        mimeType: String? = null
+        mimeType: String? = null,
+        /**
+         * Replaces the network data source entirely - used to play a completed offline download
+         * out of its cache. Every other argument that shapes a network request (headers, user
+         * agent, token query) is then irrelevant, since nothing is fetched.
+         */
+        dataSourceOverride: DataSource.Factory? = null
     ) {
         lastResolvedStream = ResolvedStream(url, userAgent, headers)
-        val dataSourceFactory = buildDataSourceFactory(userAgent, headers, maintainTokenQuery)
+        val dataSourceFactory = dataSourceOverride
+            ?: buildDataSourceFactory(userAgent, headers, maintainTokenQuery)
 
         val mediaItemBuilder = MediaItem.Builder()
             .setUri(Uri.parse(url))

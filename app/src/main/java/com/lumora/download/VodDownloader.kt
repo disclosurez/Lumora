@@ -28,6 +28,12 @@ object VodDownloader {
             "Play it once first - this title has no stream until a source is found for it."
         channel.url.contains("127.0.0.1") || channel.url.contains("localhost") ->
             "Torrent streams can't be downloaded this way."
+        // The system DownloadManager throws on anything that is not http(s) - a `data:` URI
+        // playlist from a scraper crashed the app here rather than being refused. Anything of
+        // that shape belongs to HlsDownloads; if it reaches this downloader at all, say so
+        // instead of handing it over.
+        HlsDownloads.isNonHttpUri(channel.url) ->
+            "This source can't be downloaded."
         else -> null
     }
 

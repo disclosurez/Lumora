@@ -491,6 +491,11 @@ class MainActivity : AppCompatActivity() {
      *  catalog/filters it was derived from. */
     internal var categoryChildrenCache: Map<String, List<CategoryFilter>> = emptyMap()
     internal var nowPlayingChannel: Channel? = null
+    /** Id of the completed HLS download currently being played back from its offline cache.
+     *  Matched against the channel about to play so the offline data source can only ever be
+     *  applied to that one item - a stale value cannot silently starve a live stream of its
+     *  network source. Cleared once playback is set up. */
+    internal var offlineHlsPlaybackId: String? = null
     /** One external-player offer per stream: the undecodable-audio check and the error path
      *  can both fire for the same tune, and two dialogs for one problem is worse than none.
      *  Reset by beginStreamAttempt(). */

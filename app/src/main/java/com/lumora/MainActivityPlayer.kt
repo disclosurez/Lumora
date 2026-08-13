@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.lumora.adapter.SideMenuCategoryAdapter
 import com.lumora.cache.PlaybackPositionStore
 import com.lumora.cache.RecentlyPlayedStore
+import com.lumora.download.HlsDownloads
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
@@ -706,7 +707,12 @@ internal fun MainActivity.showPlayerFor(
                 audio = audio,
                 preferAudioLanguage = startVersion.mediaType != MediaType.LIVE,
                 maintainTokenQuery = maintainTokenQuery,
-                mimeType = mimeType
+                mimeType = mimeType,
+                // Set only by playDownload for a completed HLS download, which replays its
+                // original URL out of the download cache instead of over the network.
+                dataSourceOverride = offlineHlsPlaybackId
+                    ?.takeIf { it == startVersion.id }
+                    ?.let { HlsDownloads.offlineDataSourceFactory(this) }
             )
             resumeFromMs?.let { playerManager.seekTo(it) }
         }
