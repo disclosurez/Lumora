@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.8
+
+### Onboarding
+- **A first-run screen replaces the old "no provider" empty state.** Pick an IPTV/Jellyfin provider, public streaming content, or both. Public streaming content downloads and enables the plugin store's stream_search/scraper_sites scripts, then drops you into Discover; either provider option opens Settings to add one.
+- **A newly installed plugin switches itself on.** Updating an already-installed plugin still leaves whatever you'd chosen alone.
+- **Installing or enabling a public-content plugin (torrent/site-scraper) now shows a one-time disclaimer** - these search public sites Lumora doesn't host or control. Accepted once, remembered from then on.
+- **Fixed a cold start that painted nothing but the toolbar.** With no provider and an empty disk cache, the app could finish loading without ever calling the routine that shows the empty state or the catalog - Settings and Refresh were reachable, everything else was blank until the next reload.
+
+### Discover, Series & Films
+- **Series and Films stay reachable with no IPTV/Jellyfin provider**, as long as a plugin is enabled - backed by TMDB's Popular ranking instead of an empty provider catalog. English-language originals only, News-genre shows dropped, duplicate titles (regional versions of the same format, e.g. multiple "Paradise Hotel" entries) folded down to one.
+- **Discover gets All/Films/Series filter chips**, pulling from the same deep Popular ranking instead of trending/week's thin ~10-per-type list.
+- **The Discover tab stays visible once a provider is added**, as long as a plugin is still enabled - it used to disappear the moment any IPTV/Jellyfin provider existed, cutting off "Both" setups from their own plugins.
+- Renamed the detail screen's **Find Stream** button to **Find & Play**.
+
+### Live TV
+- **Catch Up moved off the tab bar into a small chip under it**, shown only while Live TV itself is on screen. Frees a tab slot and fixes a couple of tab-bar focus/visibility edge cases that came with it.
+
 ## 3.7
 
 ### Player
