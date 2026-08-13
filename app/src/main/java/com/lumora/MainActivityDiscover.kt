@@ -654,6 +654,28 @@ internal fun MainActivity.seriesContinueItems(): List<Channel> {
 }
 
 /**
+ * The TMDB show id behind [item], or null when there is no way to be sure of one.
+ *
+ * The trap here is that "the trailing number in the id" is *not* a TMDB id for anything except
+ * a Discover title. A panel's series id is its own primary key - "1234" - and handing that to
+ * TMDB does not fail, it happily returns a completely different show (1234 is "Clapperboard",
+ * one season, no episodes). That is how a library series ended up listing a stranger's season
+ * structure - one episode per season - rather than its own.
+ *
+ * So the id is trusted only when it is declared as a TMDB one, either as a `tmdb:tv:N` Discover
+ * id or as a `tmdb_id` the panel itself sent. Anything else is matched by title and year, the
+ * same lookup the episode-metadata enrichment already does.
+ */
+private suspend fun MainActivity.tmdbTvIdFor(item: Channel): Int? {
+    tmdbTypeAndId(item.id)?.let { (type, id) -> if (type == "tv") return id }
+    item.tmdbTypeAndId()?.let { (type, id) -> if (type == "tv") return id }
+    return runCatching {
+        tmdbClient.resolveId(cleanVodTitle(item.name), item.tmdbYear(), isSeries = true)
+            ?.takeIf { it.first == "tv" }?.second
+    }.getOrNull()
+}
+
+/**
  * Seasons and episodes for a title the library does not have, built from TMDB.
  *
  * A Discover series has no provider behind it, so `loadSeriesContent` finds nothing and the
@@ -668,19 +690,9 @@ internal fun MainActivity.seriesContinueItems(): List<Channel> {
  * the screen opens on.
  */
 internal suspend fun MainActivity.tmdbSeasonsFor(item: Channel): List<Pair<String, List<Channel>>> {
-    val tvId = tmdbTypeAndId(item.id)?.second
-        ?: item.id.substringAfterLast(':').toIntOrNull()
-        ?: run {
-            android.util.Log.w("ScraperEpisodes", "tmdbSeasonsFor: no TMDB id in '${item.id}'")
-            return emptyList()
-        }
+    val tvId = tmdbTvIdFor(item) ?: return emptyList()
     val seasons = runCatching { tmdbClient.tvSeasons(tvId) }.getOrElse { emptyList() }
         .filter { it.number > 0 && it.episodeCount > 0 }
-    android.util.Log.i(
-        "ScraperEpisodes",
-        "tmdbSeasonsFor(tv=$tvId): ${seasons.size} season(s) " +
-            seasons.joinToString { "S${it.number}=${it.episodeCount}ep" }
-    )
     if (seasons.isEmpty()) return emptyList()
 
     return seasons.map { season ->
@@ -731,11 +743,6 @@ internal suspend fun MainActivity.mergeMissingEpisodesFromTmdb(
     librarySeasons: List<Pair<String, List<Channel>>>,
 ): List<Pair<String, List<Channel>>> {
     val tmdbSeasons = tmdbSeasonsFor(item)
-    android.util.Log.i(
-        "ScraperEpisodes",
-        "merge: library=" + librarySeasons.joinToString { "${it.first}:${it.second.size}" } +
-            " tmdb=" + tmdbSeasons.joinToString { "${it.first}:${it.second.size}" }
-    )
     if (tmdbSeasons.isEmpty()) return librarySeasons
 
     /** "Season 2" / "S2" / "2" all have to line up with TMDB's own label. */

@@ -1612,7 +1612,9 @@
 
                     <!-- marginEnd is 0dp off-TV; on TV it pulls the rows in from the full
                          panel width, which was far wider than a row's actual content. -->
-                    <androidx.recyclerview.widget.RecyclerView
+                    <!-- FullHeightRecyclerView, not a plain RecyclerView: inside a ScrollView a
+                         plain one measures itself to a single row. See that class. -->
+                    <com.lumora.view.FullHeightRecyclerView
                         android:id="@+id/detailItemsList"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

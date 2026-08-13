@@ -45,6 +45,21 @@ object HlsDownloads {
     @Volatile
     private var managerInstance: DownloadManager? = null
 
+    @Volatile
+    private var databaseInstance: StandaloneDatabaseProvider? = null
+
+    /**
+     * One provider for both the cache index and the download index.
+     *
+     * Both live in the same underlying `exoplayer_internal.db`, so handing each a
+     * [StandaloneDatabaseProvider] of its own puts two SQLiteOpenHelpers on one file and the
+     * second one to open can fail with a locked database.
+     */
+    @Synchronized
+    private fun database(context: Context): StandaloneDatabaseProvider =
+        databaseInstance ?: StandaloneDatabaseProvider(context.applicationContext)
+            .also { databaseInstance = it }
+
     /** Held so [enqueue] can put a stream's headers on it before the download starts. */
     private val upstream = DefaultHttpDataSource.Factory()
         .setAllowCrossProtocolRedirects(true)
@@ -58,17 +73,16 @@ object HlsDownloads {
     fun cache(context: Context): SimpleCache = cacheInstance ?: SimpleCache(
         File(context.applicationContext.getExternalFilesDir(null), CACHE_DIR),
         NoOpCacheEvictor(),
-        StandaloneDatabaseProvider(context.applicationContext),
+        database(context),
     ).also { cacheInstance = it }
 
     @Synchronized
     fun manager(context: Context): DownloadManager {
         managerInstance?.let { return it }
         val app = context.applicationContext
-        val databaseProvider = StandaloneDatabaseProvider(app)
         return DownloadManager(
             app,
-            DefaultDownloadIndex(databaseProvider),
+            DefaultDownloadIndex(database(app)),
             DefaultDownloaderFactory(
                 // Reads through the same cache the player will later read back from, which is
                 // what makes a downloaded stream playable offline rather than merely stored.
