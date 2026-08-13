@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.9
+
+### Live TV
+- **Catch Up is now a dropdown on the Live TV tab** rather than a chip under the tab row. Pressing the Live TV tab you are already in opens it, and a caret on the tab shows when there is one - only when a provider actually carries archive channels. The chip cost every Live TV screen a band of height, on the pane with the least room to spare.
+- **The toolbar reclaims the row the clock used to have to itself.** The clock now sits at the end of the tab row, and everything below moves up with it.
+
+### Jellyfin
+- **Your audio language setting is applied to Jellyfin titles.** A transcoded title arrives with exactly one audio track - whichever the file defaulted to - so there was nothing for the player to switch to and the setting had no effect. The language is now part of the negotiation with the server.
+- **The audio track picker lists the languages a Jellyfin title actually has.** It showed a lone, unnamed "Track 1" for an episode with three languages in it, for the same reason. On a transcoded title the list now comes from the server, named by language, and picking one rebuilds the stream around that track and picks up where you were.
+
+### Series
+- **Switching to another provider's copy mid-episode keeps the episode.** Picking a different version while watching S04E01 played that provider's S01E01: the match was made on episode number alone, so every "episode 1" resolved to the first season carrying one. It now matches the season too, and says plainly when a provider doesn't carry that episode instead of playing a different one.
+
 ## 3.8
 
 ### Onboarding
