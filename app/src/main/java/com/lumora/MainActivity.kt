@@ -257,6 +257,10 @@ class MainActivity : AppCompatActivity() {
      *  adds a discovered provider - otherwise the new provider is saved but the list stays stale. */
     internal var refreshIptvProviderList: () -> Unit = {}
     internal var activeSearchOverlay: FullScreenOverlay? = null
+    /** The Live TV tab's dropdown (Live TV / Catch Up) while it is open, so a pane switch
+     *  or a second press on the tab can close it instead of leaving it hanging over the
+     *  screen it no longer belongs to. */
+    internal var liveTabMenu: android.widget.PopupWindow? = null
 
     // Live TV inline preview: a separate, muted player instance so browsing the
     // channel list doesn't touch the main PlayerManager used for fullscreen playback.

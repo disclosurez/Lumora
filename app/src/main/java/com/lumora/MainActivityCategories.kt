@@ -1359,8 +1359,14 @@ internal fun MainActivity.applyStatus() {
 
 internal fun MainActivity.setupTabs() {
     binding.tabHome.setOnClickListener { selectHome() }
-    binding.tabLive.setOnClickListener { selectTab(0) }
-    binding.catchupSmallButton.setOnClickListener { showingHome = false; selectCatchup() }
+    // First press goes to Live TV; pressing the tab you are already inside opens its
+    // dropdown (Live TV / Catch Up), which is where Catch Up now lives. With no archive
+    // channels there is nothing to drop down, so the tab stays a plain tab.
+    binding.tabLive.setOnClickListener {
+        val onLiveSection = (activeTab == 0 && !showingHome && !showingDiscover && !showingDownloads) || showingCatchup
+        if (onLiveSection && catchupChannels().isNotEmpty()) showLiveTabMenu()
+        else selectTab(0)
+    }
     binding.tabSeries.setOnClickListener { selectTab(1) }
     binding.tabFilms.setOnClickListener { selectTab(2) }
     binding.tabDiscover.setOnClickListener { showingHome = false; selectDiscover() }

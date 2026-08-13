@@ -52,21 +52,55 @@ internal fun MainActivity.catchupCategories(): List<Pair<String, List<Channel>>>
         .toList()
         .sortedBy { it.first.lowercase() }
 
-/** The small Catch Up chip under the tab row only ever matters while Live TV is actually
- *  on screen - it opens a live channel's archive, so outside that pane it has nothing to
- *  act on. Called after every pane switch (selectTab/selectHome/selectDiscover/
- *  selectDownloads/selectCatchup), since none of those otherwise touch it. */
+/** Catch Up hangs off the Live TV tab as a dropdown, so all this has to keep current is
+ *  the caret that advertises it - shown only when some enabled provider actually reports
+ *  archive channels, since a dropdown with one dead entry reads as a broken tab. Called
+ *  after every pane switch (selectTab/selectHome/selectDiscover/selectDownloads/
+ *  selectCatchup), since none of those otherwise touch it. */
 internal fun MainActivity.updateCatchupTabVisibility() {
     val hasArchive = catchupChannels().isNotEmpty()
     // The archive vanishing under the user (its provider disabled while they are inside
     // Catch Up) must not leave the pane on screen with no way back to it.
     if (!hasArchive && showingCatchup) { selectTab(0); return }
-    val onLiveTv = activeTab == 0 && !showingHome && !showingDiscover && !showingDownloads && !showingCatchup
-    binding.catchupSmallButton.visibility = if (onLiveTv && hasArchive) View.VISIBLE else View.GONE
-    // Simple mode hides the whole tab bar, including Live TV itself - the chip's XML
-    // default (UP -> tabLive) would resolve to nothing and eat the press there.
-    binding.catchupSmallButton.nextFocusUpId =
-        if (binding.tabLive.visibility == View.VISIBLE) R.id.tabLive else R.id.btnSettings
+    if (!hasArchive) dismissLiveTabMenu()
+    binding.tabLiveChevron.visibility = if (hasArchive) View.VISIBLE else View.GONE
+}
+
+/** Opens the Live TV tab's dropdown, anchored under the tab itself. Its own focusable
+ *  window: the D-pad walks the rows without the tab bar's key intercepts in the way, and
+ *  BACK closes it before the Activity ever sees the press. */
+internal fun MainActivity.showLiveTabMenu() {
+    dismissLiveTabMenu()
+    val view = layoutInflater.inflate(R.layout.popup_live_menu, null)
+    val popup = android.widget.PopupWindow(
+        view,
+        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+        android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+        true
+    )
+    // Transparent so bg_category_panel's rounded corners aren't squared off by the
+    // default popup background, and outside taps still dismiss (needs a background set).
+    popup.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+    popup.setOnDismissListener { liveTabMenu = null }
+    view.findViewById<View>(R.id.liveMenuLive).setOnClickListener {
+        popup.dismiss()
+        showingHome = false
+        selectTab(0)
+    }
+    view.findViewById<View>(R.id.liveMenuCatchup).setOnClickListener {
+        popup.dismiss()
+        showingHome = false
+        selectCatchup()
+    }
+    liveTabMenu = popup
+    popup.showAsDropDown(binding.tabLive, 0, 0)
+    // Landing on the pane you are already in is the no-op choice; open on the other one.
+    view.findViewById<View>(if (showingCatchup) R.id.liveMenuLive else R.id.liveMenuCatchup).requestFocus()
+}
+
+internal fun MainActivity.dismissLiveTabMenu() {
+    liveTabMenu?.dismiss()
+    liveTabMenu = null
 }
 
 internal fun MainActivity.selectCatchup() {

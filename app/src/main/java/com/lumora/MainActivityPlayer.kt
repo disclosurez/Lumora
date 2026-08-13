@@ -623,8 +623,18 @@ internal fun MainActivity.showPlayerFor(
         startVersion.isJellyfin && startVersion.mediaType != MediaType.LIVE && startVersion.id.isNotBlank() -> scope.launch {
             val startAt = resumeFromMs ?: 0L
             val jellyfin = jellyfinClientOrConnect()
+            // The audio-language setting has to travel with the negotiation, not just with
+            // the player: a transcoded source arrives with the single audio track the server
+            // chose, so a track selection made afterwards has nothing to select.
+            val wantedAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en"
             val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
-                runCatching { jellyfin.resolveStream(startVersion.id, startAt) }.getOrNull()
+                runCatching {
+                    jellyfin.resolveStream(
+                        startVersion.id,
+                        startAt,
+                        preferredAudioLanguage = wantedAudioLanguage
+                    )
+                }.getOrNull()
             }
             if (nowPlayingChannel?.id != channel.id) return@launch
             // A failed negotiation is not a failed play: the plain static URL is what the
@@ -827,7 +837,13 @@ internal fun MainActivity.retryJellyfinPlayback() {
         val startAt = playerManager.currentPosition
         val jellyfin = jellyfinClientOrConnect()
         val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
-            runCatching { jellyfin.resolveStream(channel.id, startAt) }.getOrNull()
+            runCatching {
+                jellyfin.resolveStream(
+                    channel.id,
+                    startAt,
+                    preferredAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en"
+                )
+            }.getOrNull()
         }
         if (nowPlayingChannel?.id != channel.id) return@launch
         playerManager.playUrl(
@@ -989,10 +1005,13 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
     val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
     val currentIndex = group.indexOfFirst { it.id == series.id }
     val episodeNum = playing.episodeNum
-    // An episode Channel carries its episode number but not its season, so the season is
-    // approximated by the length of the queue it came from (that queue is one season's
-    // episodes) - enough to prefer the right season when two carry the same episode
-    // number, with a plain episode-number match as the fallback.
+    // Which season is playing, read off the episode itself ("S04E01 · ..."). Matching on
+    // the episode number alone walked the target's seasons in order and took the first
+    // one carrying that number - so every "episode 1" resolved to S01E01 no matter which
+    // season was actually playing. The old fallback, comparing season *lengths*, only
+    // ever helped when both providers happened to split the show identically, and never
+    // at all from the Play button (whose queue is the whole cross-season chain).
+    val seasonNum = seasonNumberOf(playing)
     val queueSeasonSize = currentEpisodeQueue.size.takeIf { it > 0 }
     AlertDialog.Builder(this)
         .setTitle("Series Version")
@@ -1003,13 +1022,32 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
             Toast.makeText(this, "Loading ${versionChipLabel(target, which)}…", Toast.LENGTH_SHORT).show()
             scope.launch {
                 val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
-                val match = seasons.firstNotNullOfOrNull { (_, eps) ->
-                    eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum && (queueSeasonSize == null || eps.size == queueSeasonSize) }
-                } ?: seasons.firstNotNullOfOrNull { (_, eps) ->
-                    eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+                // The target's own season number, taken from its episodes first (they carry
+                // the same "S04E01" marker) and from the season label as the fallback, since
+                // a provider may label a season anything ("Series 4", a Jellyfin custom name).
+                fun seasonNumberFor(label: String, eps: List<Channel>): Int? =
+                    eps.firstNotNullOfOrNull { seasonNumberOf(it) }
+                        ?: Regex("""\d+""").find(label)?.value?.toIntOrNull()
+                val match = when {
+                    // Season known on both sides: only that season's copy of the episode is
+                    // the right answer. No match there means this provider genuinely doesn't
+                    // carry it - saying so beats silently playing a different episode.
+                    seasonNum != null -> seasons.firstNotNullOfOrNull { (label, eps) ->
+                        if (seasonNumberFor(label, eps) != seasonNum) null
+                        else eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+                    }
+                    // No season stated by the playing episode - fall back to what this did
+                    // before: prefer a season the same length as the queue it came from,
+                    // then any season carrying that episode number.
+                    else -> seasons.firstNotNullOfOrNull { (_, eps) ->
+                        eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum && (queueSeasonSize == null || eps.size == queueSeasonSize) }
+                    } ?: seasons.firstNotNullOfOrNull { (_, eps) ->
+                        eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+                    }
                 }
                 if (match == null) {
-                    Toast.makeText(this@showSeriesVersionPicker, "That provider doesn't have this episode", Toast.LENGTH_SHORT).show()
+                    val what = if (seasonNum != null && episodeNum != null) "S${seasonNum}E$episodeNum" else "this episode"
+                    Toast.makeText(this@showSeriesVersionPicker, "That provider doesn't have $what", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
                 val resumeMs = playerManager.currentPosition.takeIf { it > 0 }

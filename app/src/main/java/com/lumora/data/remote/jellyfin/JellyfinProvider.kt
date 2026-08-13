@@ -140,6 +140,19 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         val isDefault: Boolean
     )
 
+    /** One audio track the *file* carries, as the server describes it. Kept even though
+     *  Media3 lists the tracks it can see, because a transcode only ever hands over the one
+     *  track the server picked: the rest exist, but nothing downstream of PlaybackInfo can
+     *  see them. Switching to one means asking the server to build the transcode around it. */
+    data class AudioStream(
+        val index: Int,
+        val language: String?,
+        val title: String?,
+        val codec: String?,
+        val channels: Int?,
+        val isDefault: Boolean
+    )
+
     /**
      * The outcome of a PlaybackInfo negotiation: the URL to actually play, plus the session
      * identity that playback reporting has to quote back so the server can tie progress to
@@ -152,7 +165,10 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         // "DirectPlay", "DirectStream" or "Transcode" - reported as-is to /Sessions/Playing.
         val playMethod: String,
         val runtimeMs: Long?,
-        val subtitles: List<SubtitleStream> = emptyList()
+        val subtitles: List<SubtitleStream> = emptyList(),
+        val audioStreams: List<AudioStream> = emptyList(),
+        /** Which of [audioStreams] this stream was built around. */
+        val audioStreamIndex: Int? = null
     )
 
     /** A device id that's stable for a given server+account (so the server's device list
@@ -814,37 +830,51 @@ class JellyfinProvider(baseClient: OkHttpClient) {
     suspend fun resolveStream(
         itemId: String,
         startPositionMs: Long = 0L,
-        maxBitrate: Int = JellyfinDeviceProfile.DEFAULT_MAX_BITRATE
+        maxBitrate: Int = JellyfinDeviceProfile.DEFAULT_MAX_BITRATE,
+        preferredAudioLanguage: String? = null,
+        forceAudioStreamIndex: Int? = null
     ): ResolvedStream? {
         val base = serverBase ?: return null
         val token = accessToken ?: return null
-        val payload = JSONObject()
-            .put("DeviceProfile", JellyfinDeviceProfile.build(maxBitrate))
-            .put("MaxStreamingBitrate", maxBitrate)
-            .put("StartTimeTicks", startPositionMs * TICKS_PER_MS)
 
-        val url = "$base/Items/$itemId/PlaybackInfo?userId=$userId" +
-            "&startTimeTicks=${startPositionMs * TICKS_PER_MS}" +
-            "&isPlayback=true&autoOpenLiveStream=true&maxStreamingBitrate=$maxBitrate"
+        var json = requestPlaybackInfo(itemId, startPositionMs, maxBitrate, null, null) ?: return null
+        var source = firstMediaSource(json) ?: return null
 
-        val json = runCatching {
-            val request = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
-                .header("Content-Type", "application/json")
-                .header("User-Agent", "Lumora/1.0")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                response.body?.string()?.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
+        // A transcode carries exactly the one audio track the server picked - by default the
+        // file's own default track, whatever language that is. ExoPlayer's preferred-language
+        // parameters can't recover from that: there is no second track in the HLS output to
+        // switch to. So when the item has an audio track in the user's language and the server
+        // wasn't already going to use it, negotiate again naming that stream index, and take
+        // the TranscodingUrl built for it. Direct play/stream needs none of this - the whole
+        // file goes over as-is and the selector picks from every track in it.
+        // [forceAudioStreamIndex] is the user picking a track by hand out of the server's
+        // list, which outranks the language preference and is re-requested even when it is
+        // already the default (the caller only asks when the current stream isn't it).
+        var usedAudioIndex: Int? = null
+        val wantedAudioIndex = forceAudioStreamIndex ?: preferredAudioIndex(source, preferredAudioLanguage)
+        val transcodeOnly = !source.optBoolean("SupportsDirectPlay", false) &&
+            !source.optBoolean("SupportsDirectStream", false)
+        if (transcodeOnly && wantedAudioIndex != null &&
+            (forceAudioStreamIndex != null || wantedAudioIndex != source.optInt("DefaultAudioStreamIndex", -1))
+        ) {
+            val retry = requestPlaybackInfo(
+                itemId, startPositionMs, maxBitrate,
+                audioStreamIndex = wantedAudioIndex,
+                mediaSourceId = source.optString("Id", "").takeIf { it.isNotBlank() }
+            )
+            val retrySource = retry?.let(::firstMediaSource)
+            // Only take the second answer if it actually produced a stream to play; a server
+            // that rejects the index must not cost the playback that the first answer had.
+            if (retry != null && retrySource != null &&
+                retrySource.optString("TranscodingUrl", "").isNotBlank()
+            ) {
+                json = retry
+                source = retrySource
+                usedAudioIndex = wantedAudioIndex
             }
-        }.getOrNull() ?: return null
+        }
 
         val playSessionId = json.optString("PlaySessionId", "").takeIf { it.isNotBlank() }
-        val sources = json.optJSONArray("MediaSources") ?: return null
-        val source = (0 until sources.length()).mapNotNull { sources.optJSONObject(it) }
-            .firstOrNull() ?: return null
-
         val mediaSourceId = source.optString("Id", "").takeIf { it.isNotBlank() }
         val transcodingUrl = source.optString("TranscodingUrl", "").takeIf { it.isNotBlank() }
         val directPlay = source.optBoolean("SupportsDirectPlay", false)
@@ -874,8 +904,96 @@ class JellyfinProvider(baseClient: OkHttpClient) {
             mediaSourceId = mediaSourceId,
             playMethod = playMethod,
             runtimeMs = source.optLong("RunTimeTicks", 0L).takeIf { it > 0 }?.div(TICKS_PER_MS),
-            subtitles = parseSubtitleStreams(source, itemId, mediaSourceId, token, base)
+            subtitles = parseSubtitleStreams(source, itemId, mediaSourceId, token, base),
+            audioStreams = parseAudioStreams(source),
+            audioStreamIndex = usedAudioIndex ?: source.optInt("DefaultAudioStreamIndex", -1).takeIf { it >= 0 }
         )
+    }
+
+    /** Every audio track of the resolved source, in the file's own order. */
+    private fun parseAudioStreams(source: JSONObject): List<JellyfinProvider.AudioStream> {
+        val streams = source.optJSONArray("MediaStreams") ?: return emptyList()
+        return (0 until streams.length()).mapNotNull { i ->
+            val stream = streams.optJSONObject(i) ?: return@mapNotNull null
+            if (!stream.optString("Type", "").equals("Audio", ignoreCase = true)) return@mapNotNull null
+            val index = stream.optInt("Index", -1).takeIf { it >= 0 } ?: return@mapNotNull null
+            AudioStream(
+                index = index,
+                language = stream.optString("Language", "").takeIf { it.isNotBlank() },
+                title = stream.optString("DisplayTitle", "").takeIf { it.isNotBlank() },
+                codec = stream.optString("Codec", "").takeIf { it.isNotBlank() },
+                channels = stream.optInt("Channels", 0).takeIf { it > 0 },
+                isDefault = stream.optBoolean("IsDefault", false)
+            )
+        }
+    }
+
+    /** One PlaybackInfo negotiation. [audioStreamIndex] names the audio track the server
+     *  should build the transcode around (paired with [mediaSourceId], which the endpoint
+     *  requires before it will honour a stream index). */
+    private fun requestPlaybackInfo(
+        itemId: String,
+        startPositionMs: Long,
+        maxBitrate: Int,
+        audioStreamIndex: Int?,
+        mediaSourceId: String?
+    ): JSONObject? {
+        val base = serverBase ?: return null
+        val token = accessToken ?: return null
+        val payload = JSONObject()
+            .put("DeviceProfile", JellyfinDeviceProfile.build(maxBitrate))
+            .put("MaxStreamingBitrate", maxBitrate)
+            .put("StartTimeTicks", startPositionMs * TICKS_PER_MS)
+            .apply {
+                audioStreamIndex?.let { put("AudioStreamIndex", it) }
+                mediaSourceId?.let { put("MediaSourceId", it) }
+            }
+
+        val url = "$base/Items/$itemId/PlaybackInfo?userId=$userId" +
+            "&startTimeTicks=${startPositionMs * TICKS_PER_MS}" +
+            "&isPlayback=true&autoOpenLiveStream=true&maxStreamingBitrate=$maxBitrate" +
+            (audioStreamIndex?.let { "&audioStreamIndex=$it" } ?: "") +
+            (mediaSourceId?.let { "&mediaSourceId=$it" } ?: "")
+
+        return runCatching {
+            val request = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "Lumora/1.0")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.string()?.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
+            }
+        }.getOrNull()
+    }
+
+    private fun firstMediaSource(json: JSONObject): JSONObject? {
+        val sources = json.optJSONArray("MediaSources") ?: return null
+        return (0 until sources.length()).mapNotNull { sources.optJSONObject(it) }.firstOrNull()
+    }
+
+    /** The item's audio stream in [language], or null when there is nothing to choose (one
+     *  audio track, no language given, or no track tagged with it). Jellyfin tags streams
+     *  with the container's own code, which is usually ISO 639-2 ("eng") while the app's
+     *  setting is 639-1 ("en"), so both forms are matched. Among several tracks in the same
+     *  language the server's default wins - that is the one the file was authored around
+     *  (commentary and descriptive tracks are the extras, not the pick). */
+    private fun preferredAudioIndex(source: JSONObject, language: String?): Int? {
+        val wanted = language?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
+        val iso3 = runCatching { java.util.Locale(wanted).isO3Language }.getOrNull().orEmpty().lowercase()
+        val streams = source.optJSONArray("MediaStreams") ?: return null
+        val audio = (0 until streams.length())
+            .mapNotNull { streams.optJSONObject(it) }
+            .filter { it.optString("Type", "").equals("Audio", ignoreCase = true) }
+        if (audio.size < 2) return null
+        val matches = audio.filter {
+            val tag = it.optString("Language", "").lowercase()
+            tag.isNotEmpty() && (tag == wanted || (iso3.isNotEmpty() && tag == iso3) || tag.startsWith("$wanted-"))
+        }
+        val pick = matches.firstOrNull { it.optBoolean("IsDefault", false) } ?: matches.firstOrNull() ?: return null
+        return pick.optInt("Index", -1).takeIf { it >= 0 }
     }
 
     /** Subtitle tracks of a resolved source. Anything the server can hand over as a sidecar

@@ -1167,6 +1167,16 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
 
 /** The "S01E04 · " marker both Xtream and Jellyfin bake onto an episode name. */
 private val EPISODE_NAME_PREFIX_REGEX = Regex("""^S\d+E\d+ · """)
+private val EPISODE_SEASON_REGEX = Regex("""^S(\d+)E\d+""")
+
+/** The season an episode belongs to. A Channel has an episodeNum but no season field, so
+ *  it's read back out of the "S04E01 · " marker its provider baked into the name, or out
+ *  of a TMDB placeholder's ":s4e1" id. Null when neither says - callers must not assume
+ *  season 1 from that, since "no season stated" and "season 1" are different things. */
+internal fun seasonNumberOf(episode: Channel): Int? =
+    EPISODE_SEASON_REGEX.find(episode.name)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        ?: episode.id.takeIf { it.contains(":s") }
+            ?.substringAfterLast(":s")?.substringBefore("e")?.toIntOrNull()
 /** What a provider with no episode titles actually sends: nothing, or the word itself
  *  ("Episode", "Episode 4", "Ep 4"). Anything else is a real title and is left alone. */
 private val PLACEHOLDER_EPISODE_TITLE_REGEX = Regex("""^(?:episode|ep|bölüm|folge)\s*\d*$""", RegexOption.IGNORE_CASE)
@@ -1295,6 +1305,26 @@ internal fun MainActivity.loadDetailImage(url: String?, imageView: ImageView) {
 
 internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
     val player = playerManager.getExoPlayer()
+    // A transcoded Jellyfin source is handed over with exactly one audio track, unnamed -
+    // hence the lone "Track 1" the picker used to show for an item that has three
+    // languages in it. The server knows all of them, so on that path the list comes from
+    // the negotiation and picking one re-negotiates instead of overriding a track that
+    // isn't there.
+    val jellyfinAudio = jellyfinPlaySession
+        ?.takeIf { isAudio && it.playMethod == "Transcode" && it.audioStreams.size > 1 }
+    if (jellyfinAudio != null) {
+        val streams = jellyfinAudio.audioStreams
+        val current = streams.indexOfFirst { it.index == jellyfinAudio.audioStreamIndex }
+        AlertDialog.Builder(this)
+            .setTitle("Audio Track")
+            .setSingleChoiceItems(streams.map(::jellyfinAudioLabel).toTypedArray(), current) { dialog, which ->
+                dialog.dismiss()
+                if (which != current) switchJellyfinAudioStream(streams[which].index)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+        return
+    }
     val tracks = if (isAudio) trackController.audioTracks(player) else trackController.subtitleTracks(player)
 
     val labels = mutableListOf<String>()

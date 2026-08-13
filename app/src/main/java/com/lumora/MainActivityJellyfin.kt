@@ -243,6 +243,60 @@ internal fun MainActivity.externalSubtitleFor(subtitle: PluginSubtitle): PlayerM
     )
 }
 
+/** How an audio track reads in the picker: the server's own DisplayTitle when it has one
+ *  ("English - Dolby Digital - 5.1 - Default"), otherwise the language spelled out with the
+ *  codec/channel detail that distinguishes two tracks in the same language. */
+internal fun jellyfinAudioLabel(stream: JellyfinProvider.AudioStream): String {
+    stream.title?.takeIf { it.isNotBlank() }?.let { return it }
+    val language = stream.language?.takeIf { it.isNotBlank() }?.let { tag ->
+        runCatching { java.util.Locale.forLanguageTag(tag).displayLanguage }
+            .getOrNull()?.takeIf { it.isNotBlank() } ?: tag
+    } ?: "Unknown"
+    val detail = listOfNotNull(
+        stream.codec?.uppercase(),
+        stream.channels?.let { if (it == 6) "5.1" else if (it == 8) "7.1" else "${it}ch" }
+    ).joinToString(" · ")
+    return if (detail.isBlank()) language else "$language  ·  $detail"
+}
+
+/** Rebuilds the stream around a different audio track of the same item and picks playback
+ *  up where it was. Needed because a transcoded source only carries the one track the
+ *  server chose - the others are in the file but never reach the player, so there is
+ *  nothing for a Media3 track override to select. */
+internal fun MainActivity.switchJellyfinAudioStream(streamIndex: Int) {
+    val itemId = jellyfinPlayingItemId ?: return
+    val channel = nowPlayingChannel ?: return
+    val resumeMs = playerManager.currentPosition.coerceAtLeast(0L)
+    binding.bufferingSpinner.visibility = View.VISIBLE
+    scope.launch {
+        val client = jellyfinClientOrConnect()
+        val resolved = if (client == null) null else withContext(Dispatchers.IO) {
+            runCatching {
+                client.resolveStream(itemId, resumeMs, forceAudioStreamIndex = streamIndex)
+            }.getOrNull()
+        }
+        // Playback moved on while the server was negotiating - this answer is for a title
+        // that is no longer on screen.
+        if (nowPlayingChannel?.id != channel.id) return@launch
+        if (resolved == null) {
+            binding.bufferingSpinner.visibility = View.GONE
+            Toast.makeText(this@switchJellyfinAudioStream, "Couldn't switch audio track", Toast.LENGTH_SHORT).show()
+            return@launch
+        }
+        playerManager.playUrl(
+            resolved.url,
+            channel.streamUserAgent,
+            subtitles = externalSubtitlesFor(resolved),
+            startPositionMs = resumeMs,
+            // The track was chosen by hand; re-applying the language preference on top of
+            // it would only fight the pick.
+            preferAudioLanguage = false
+        )
+        jellyfinPlaySession = resolved
+        reportJellyfinStart(itemId, resolved, resumeMs)
+    }
+}
+
 /** Reports a Jellyfin play as started, so the server opens a session for it (and knows
  *  not to reap the transcode it just set up). */
 internal fun MainActivity.reportJellyfinStart(itemId: String, resolved: JellyfinProvider.ResolvedStream?, positionMs: Long) {

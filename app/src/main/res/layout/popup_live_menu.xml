@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dropdown hung under the Live TV tab: the Live pane itself, plus Catch Up (the same
+     catalogue shifted back in time). Catch Up used to be a chip under the tab row, which
+     cost every Live TV screen a band of height; as a dropdown it costs nothing until it is
+     opened. Rows reuse the side-menu metrics/styles so this reads as the same nav surface.
+     Hosted in a focusable PopupWindow, so the D-pad walks these rows in their own window
+     and BACK closes it - the tab bar's focus chain is untouched. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_category_panel"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:elevation="8dp"
+    android:minWidth="@dimen/player_side_menu_width"
+    android:orientation="vertical"
+    android:outlineProvider="background"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:id="@+id/liveMenuLive"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/side_menu_row_height"
+        android:background="@drawable/bg_select_item"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:nextFocusUp="@id/liveMenuCatchup"
+        android:nextFocusDown="@id/liveMenuCatchup"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp"
+        android:stateListAnimator="@animator/focus_scale">
+
+        <ImageView
+            android:layout_width="@dimen/side_menu_icon"
+            android:layout_height="@dimen/side_menu_icon"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_live_tv"
+            android:tint="@color/text_secondary" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:maxLines="1"
+            android:text="@string/tab_live_tv"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/side_menu_text" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/liveMenuCatchup"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/side_menu_row_height"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/bg_select_item"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:nextFocusUp="@id/liveMenuLive"
+        android:nextFocusDown="@id/liveMenuLive"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp"
+        android:stateListAnimator="@animator/focus_scale">
+
+        <ImageView
+            android:layout_width="@dimen/side_menu_icon"
+            android:layout_height="@dimen/side_menu_icon"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_catchup"
+            android:tint="@color/text_secondary" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:maxLines="1"
+            android:text="@string/tab_catchup"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/side_menu_text" />
+    </LinearLayout>
+</LinearLayout>

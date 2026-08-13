@@ -17,23 +17,6 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
-        <!-- Local clock, pinned to the top-right corner above the Settings/Refresh cluster.
-             Its own row rather than a member of the chrome row: everything in that row lives
-             inside the tab scroller, so a clock placed there would scroll away with the tabs
-             on a narrow window. Decorative - never focusable, so the D-pad can't land on it.
-             Text is set from code (updateToolbarClock) in the device's 12/24h format. -->
-        <TextView
-            android:id="@+id/toolbarClock"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:fontFamily="@font/inter_medium"
-            android:maxLines="1"
-            android:paddingTop="6dp"
-            android:paddingEnd="@dimen/toolbar_padding_horizontal"
-            android:textColor="@color/text_secondary"
-            android:textSize="@dimen/toolbar_clock_text" />
-
         <!-- One chrome row: brand + a single scroller holding every chrome item - the tabs,
              Search, then Settings/Refresh at the end.
              Height is wrap_content, not a fixed toolbar_height: the tallest child (the
@@ -50,8 +33,8 @@
             android:orientation="horizontal"
             android:paddingStart="@dimen/toolbar_padding_horizontal"
             android:paddingEnd="@dimen/toolbar_padding_horizontal"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="6dp">
 
             <!-- Left group: brand + tab scroller. weight=1 absorbs the free middle of the
                  row, so the button cluster stays pinned right even when the scroller is
@@ -61,9 +44,15 @@
                  exactly the remaining width: all tabs at full size on TV, a scrolling
                  window on a portrait phone. clipChildren false so the tabs' focus scale
                  isn't sliced by the group's bounds. -->
+            <!-- height is wrap_content, NOT match_parent: in a wrap_content horizontal
+                 LinearLayout a match_parent child's own height doesn't count toward the row's
+                 height, so once the row gained a second, fixed-height child (the clock) the
+                 row sized itself to that child and the group was remeasured down to it -
+                 collapsing every tab to ~21dp, with the labels measured to zero height and
+                 only the selection indicator left drawing. -->
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:clipChildren="false"
                 android:clipToPadding="false"
@@ -174,6 +163,22 @@
                         android:text="@string/tab_live_tv"
                         android:textColor="@color/text_secondary"
                         android:textSize="@dimen/tab_text" />
+
+                    <!-- Catch Up lives in a dropdown hung off this tab rather than in a chip
+                         under the tab row: the chip pushed every Live TV screen down by its
+                         own height, on the one pane that has the least room to spare. Shown
+                         only when some enabled provider reports tv_archive channels (see
+                         updateCatchupTabVisibility) - otherwise the tab has nothing to drop
+                         down and the caret would be a lie. -->
+                    <ImageView
+                        android:id="@+id/tabLiveChevron"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginStart="6dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_chevron_down"
+                        android:tint="@color/text_tertiary"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <View
@@ -570,49 +575,31 @@
         </LinearLayout>
         </HorizontalScrollView>
             </LinearLayout>
-        </LinearLayout>
 
-        <!-- Catch Up: the live catalogue shifted back in time. A small chip under the tab
-             row rather than a tab of its own - it only ever matters while Live TV is on
-             screen, so it lives there instead of competing for a tab slot. Hidden unless
-             the active pane is actually Live TV AND some enabled provider reports
-             tv_archive channels (see updateCatchupTabVisibility) - a dead button reads as
-             a broken one. -->
-        <LinearLayout
-            android:id="@+id/catchupSmallButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:layout_marginStart="20dp"
-            android:layout_marginTop="2dp"
-            android:layout_marginBottom="6dp"
-            android:background="@drawable/bg_focus_item"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:nextFocusUp="@id/tabLive"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="6dp"
-            android:stateListAnimator="@animator/focus_scale_flat"
-            android:visibility="gone">
-
-            <ImageView
-                android:layout_width="14dp"
-                android:layout_height="14dp"
-                android:src="@drawable/ic_catchup"
-                android:tint="@color/text_secondary" />
-
+            <!-- Local clock. Sits at the end of the chrome row rather than in a row of its
+                 own above it: its own row cost the whole screen that row's height, on every
+                 tab, to show one line of text. Outside the tab scroller (a sibling of the
+                 left group, not a member of it) so it stays pinned right and can't scroll
+                 away with the tabs on a narrow window - the reason it was a separate row
+                 before. Decorative - never focusable, so the D-pad can't land on it. Text
+                 is set from code (updateToolbarClock) in the device's 12/24h format. -->
+            <!-- Aligned to the icon band, not to the row's centre: the tabs are taller than
+                 their labels (each carries a selection indicator underneath), so centring the
+                 clock in the row hung it visibly below the labels and the Settings/Refresh
+                 icons it sits next to. Top-aligned by the tabs' own vertical padding, then
+                 centred inside a 20dp box - the same band the toolbar icons occupy. -->
             <TextView
+                android:id="@+id/toolbarClock"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:ellipsize="end"
+                android:layout_height="20dp"
+                android:layout_gravity="top"
+                android:layout_marginTop="@dimen/tab_padding_vertical"
+                android:layout_marginStart="@dimen/toolbar_button_gap"
                 android:fontFamily="@font/inter_medium"
+                android:gravity="center_vertical"
                 android:maxLines="1"
-                android:text="@string/tab_catchup"
                 android:textColor="@color/text_secondary"
-                android:textSize="@dimen/text_caption" />
+                android:textSize="@dimen/toolbar_clock_text" />
         </LinearLayout>
 
         <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text.
