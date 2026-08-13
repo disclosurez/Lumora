@@ -32,6 +32,24 @@ class TmdbClient {
     suspend fun trending(): List<Channel> =
         get("/trending/all/week", "language=en-US")
 
+    /** One page (20 titles) of TMDB's popularity ranking, English-language originals only -
+     *  used by the Series/Films tabs' no-provider fallback, which wants far more than
+     *  trending/week's ~10-per-type gives them. /movie/popular and /tv/popular are fixed
+     *  lists with no filter params, so the discover endpoints are used instead - same
+     *  ranking (sort_by=popularity.desc), with with_original_language as the one thing added.
+     *  [page] is 1-based, same as TMDB's own paging. */
+    suspend fun popularMovies(page: Int): List<Channel> = withContext(Dispatchers.IO) {
+        val body = fetchBody("/discover/movie", "language=en-US&page=$page&sort_by=popularity.desc&with_original_language=en")
+            ?: return@withContext emptyList()
+        parse(body, forcedType = "movie")
+    }
+
+    suspend fun popularTv(page: Int): List<Channel> = withContext(Dispatchers.IO) {
+        val body = fetchBody("/discover/tv", "language=en-US&page=$page&sort_by=popularity.desc&with_original_language=en")
+            ?: return@withContext emptyList()
+        parse(body, forcedType = "tv")
+    }
+
     /** Multi-search across movies and TV; people/other media_types are dropped. */
     suspend fun search(query: String): List<Channel> {
         if (query.isBlank()) return emptyList()
@@ -281,6 +299,17 @@ class TmdbClient {
                 "tv" -> MediaType.SERIES
                 else -> continue // skip people and anything non-playable
             }
+            // News shows (Tagesschau, nightly bulletins, ...) are "tv" to TMDB same as any
+            // scripted series, and popular enough in some regions to rank alongside them -
+            // not what "Series" means here, so drop anything carrying that genre.
+            val genreIds = o.optJSONArray("genre_ids")
+            if (genreIds != null) {
+                var isNews = false
+                for (g in 0 until genreIds.length()) {
+                    if (genreIds.optInt(g) == GENRE_NEWS) { isNews = true; break }
+                }
+                if (isNews) continue
+            }
             val title = o.optString("title").ifBlank { o.optString("name") }
             if (title.isBlank()) continue
             val date = o.optString("release_date").ifBlank { o.optString("first_air_date") }
@@ -361,5 +390,7 @@ class TmdbClient {
         private const val BACKDROP = "https://image.tmdb.org/t/p/w780"
         private const val STILL = "https://image.tmdb.org/t/p/w300"
         private const val CAST_LIMIT = 8
+        // TMDB's own TV genre id - https://developer.themoviedb.org/reference/genre-tv-list
+        private const val GENRE_NEWS = 10763
     }
 }

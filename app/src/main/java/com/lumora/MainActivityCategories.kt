@@ -1360,7 +1360,7 @@ internal fun MainActivity.applyStatus() {
 internal fun MainActivity.setupTabs() {
     binding.tabHome.setOnClickListener { selectHome() }
     binding.tabLive.setOnClickListener { selectTab(0) }
-    binding.tabCatchup.setOnClickListener { showingHome = false; selectCatchup() }
+    binding.catchupSmallButton.setOnClickListener { showingHome = false; selectCatchup() }
     binding.tabSeries.setOnClickListener { selectTab(1) }
     binding.tabFilms.setOnClickListener { selectTab(2) }
     binding.tabDiscover.setOnClickListener { showingHome = false; selectDiscover() }
@@ -1371,7 +1371,7 @@ internal fun MainActivity.setupTabs() {
     // self-invalidate on unfocus doesn't always clear it. Forcing the whole bar to
     // redraw on every focus change is a blunt but reliable fix.
     val invalidateBarOnFocus = View.OnFocusChangeListener { _, _ -> binding.tabBar.invalidate() }
-    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabCatchup, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
+    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
         tv.onFocusChangeListener = invalidateBarOnFocus
     }
     // Hide tab bar + search until an enabled provider exists
@@ -1379,12 +1379,11 @@ internal fun MainActivity.setupTabs() {
 }
 
 internal fun MainActivity.updateTabStyles(selected: View) {
-    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabCatchup, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
+    for (tv in listOf(binding.tabHome, binding.tabLive, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
         val isSelected = tv === selected
         tv.isSelected = isSelected
         val (labelId, iconId, indicatorId) = when (tv.id) {
             R.id.tabLive -> Triple(R.id.tabLiveLabel, R.id.tabLiveIcon, R.id.tabLiveIndicator)
-            R.id.tabCatchup -> Triple(R.id.tabCatchupLabel, R.id.tabCatchupIcon, R.id.tabCatchupIndicator)
             R.id.tabSeries -> Triple(R.id.tabSeriesLabel, R.id.tabSeriesIcon, R.id.tabSeriesIndicator)
             R.id.tabFilms -> Triple(R.id.tabFilmsLabel, R.id.tabFilmsIcon, R.id.tabFilmsIndicator)
             R.id.tabHome -> Triple(R.id.tabHomeLabel, R.id.tabHomeIcon, R.id.tabHomeIndicator)
@@ -1426,6 +1425,7 @@ internal fun MainActivity.selectHome() {
     applyPanelWidth(binding.homeSearchBar, R.dimen.home_search_bar_width)
     updateTabStyles(binding.tabHome)
     homeShelfAdapter.submitList(buildHomeShelves())
+    updateCatchupTabVisibility()
     applyStatus()
 }
 
@@ -1458,6 +1458,7 @@ internal fun MainActivity.selectDownloads() {
     updateTabStyles(binding.tabDownloads)
     refreshDownloadsList()
     mainHandler.post(downloadsProgressRunnable)
+    updateCatchupTabVisibility()
     applyStatus()
 }
 

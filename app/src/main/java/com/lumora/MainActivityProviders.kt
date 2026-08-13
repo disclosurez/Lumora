@@ -15,6 +15,8 @@ import com.lumora.parser.M3uParser
 import com.lumora.parser.XtreamClient
 import com.lumora.util.normalizeServerUrl
 import com.lumora.data.remote.stalker.StalkerProvider
+import com.lumora.plugin.js.JsPluginContract
+import com.lumora.plugin.js.PluginScriptManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
 
@@ -69,7 +71,7 @@ internal fun MainActivity.updateTopChromeVisibility() {
 internal fun MainActivity.setBrowseTabsVisible(visible: Boolean) {
     val vis = if (visible) View.VISIBLE else View.GONE
     for (tab in listOf(
-        binding.tabHome, binding.tabLive, binding.tabCatchup, binding.tabSeries,
+        binding.tabHome, binding.tabLive, binding.tabSeries,
         binding.tabFilms, binding.tabDiscover, binding.tabDownloads, binding.btnSearch,
     )) {
         tab.visibility = vis
@@ -88,10 +90,11 @@ internal fun MainActivity.updateChromeFocusChain() {
     }
 }
 
-/** Simple mode is "TV only": Live TV plus Catch Up (the same channels shifted back in
- *  time) and nothing else. With no archive channels the bar would hold a single tab, so
- *  it is hidden entirely and the EPG/live content shifts up into the freed space, which is
- *  what simple mode always did. The toolbar above it stays, so Settings stays reachable. */
+/** Simple mode is "TV only": Live TV (with Catch Up reachable through its own small chip,
+ *  not a tab) and nothing else. The bar would only ever hold the single Live tab, which is
+ *  worth no space, so it is hidden entirely and the EPG/live content shifts up into the
+ *  freed space, which is what simple mode always did. The toolbar above it stays, so
+ *  Settings stays reachable. */
 internal fun MainActivity.isSimpleMode(): Boolean = prefs.getBoolean(PREF_SIMPLE_MODE, false)
 
 /** VOD is dropped at fetch time; the manual toggle and simple mode both turn it off,
@@ -142,32 +145,15 @@ internal fun MainActivity.applySimpleModeUi() {
     // (with no providers the empty state owns the screen and selectTab would fight it).
     val chromeUp = hasProviderEnabled() || hasProviderlessSource()
     if (simple) {
-        // Simple mode is "TV only", not "no navigation": Catch Up is the same live
-        // channels shifted back in time, so it stays alongside Live TV when the panel
-        // offers an archive. With no archive channels the bar has a single tab in it and
-        // is worth no space, so it goes away exactly as it used to.
-        val catchupAvailable = catchupChannels().isNotEmpty()
-        // One tab is worth no bar: with no archive channels every browsing item goes,
-        // leaving just Settings/Refresh - the same screen the old "hide the tab bar"
-        // produced, now that those two live inside the scroller.
-        val showTabs = chromeUp && catchupAvailable
-        setBrowseTabsVisible(showTabs)
-        if (showTabs) {
-            for (tab in listOf(binding.tabHome, binding.tabSeries, binding.tabFilms, binding.tabDiscover, binding.tabDownloads)) {
-                tab.visibility = View.GONE
-            }
-        }
-        // Live TV is the leftmost tab here, so its LEFT has nowhere to go but itself -
-        // Downloads (its normal-mode target) is GONE and would eat the press.
-        binding.tabLive.nextFocusLeftId = R.id.tabLive
-        binding.tabLive.nextFocusRightId = R.id.tabCatchup
-        binding.tabCatchup.nextFocusLeftId = R.id.tabLive
-        binding.tabCatchup.nextFocusRightId = R.id.tabCatchup
-        // The toolbar's Search chain points left into the bar - onto Catch Up when it is
-        // there, otherwise onto itself rather than a GONE tab.
-        binding.btnSearch.nextFocusLeftId = if (catchupAvailable) R.id.tabCatchup else R.id.btnSearch
-        // Home/Discover/Downloads (and any Series/Movies drill) aren't reachable in
-        // simple mode - land back on Live TV instead of leaving a hidden pane on screen.
+        // Every browsing tab goes, Live TV included - it would be the bar's only item,
+        // worth no space - leaving just Settings/Refresh, the same screen the old "hide
+        // the tab bar" produced now that those two live inside the scroller. Catch Up
+        // stays reachable through its own chip, gated below same as normal mode.
+        setBrowseTabsVisible(false)
+        if (chromeUp) updateCatchupTabVisibility()
+        // Live TV is the only pane reachable in simple mode - Home/Discover/Downloads
+        // (and any Series/Movies drill) land back on it instead of leaving a hidden pane
+        // on screen.
         if (chromeUp && (showingHome || showingDiscover || showingDownloads || activeTab != 0)) {
             if (!showingCatchup) selectTab(0)
         }
@@ -178,18 +164,69 @@ internal fun MainActivity.applySimpleModeUi() {
             // above put both back, so re-apply their own rules.
             if (isTv) binding.tabDownloads.visibility = View.GONE
             updateCatchupTabVisibility()
+            updateDiscoverTabVisibility()
+            updateProviderOnlyTabsVisibility()
         }
-        // Back to the full-row chain: Live -> Series ... Home -> Catch Up -> Discover.
+        // Back to the full-row chain: Live -> Series -> Films -> Home -> Discover.
         binding.tabLive.nextFocusLeftId = R.id.tabDownloads
         binding.tabLive.nextFocusRightId = R.id.tabSeries
-        binding.tabCatchup.nextFocusLeftId = R.id.tabHome
-        binding.tabCatchup.nextFocusRightId = R.id.tabDiscover
-        // Search's LEFT joins the merged chrome row at its last tab. Downloads is
-        // phone-only and GONE on TV, so Discover is the row's rightmost always-visible
-        // tab on both devices.
-        binding.btnSearch.nextFocusLeftId = R.id.tabDiscover
     }
     updateChromeFocusChain()
+}
+
+/** Discover (TMDB browse) is only useful once there's nothing else to browse: with an
+ *  IPTV or Jellyfin provider enabled and no plugin, its own catalog covers Movies/Series
+ *  and Discover would just be a second, disconnected way in - but a plugin (stream_search
+ *  or scraper_sites) is Discover's own way of finding something to play, so it stays even
+ *  once a provider exists (the startup chooser's "Both" pairs an IPTV/Jellyfin provider
+ *  with public streaming plugins on purpose - a provider must not switch the plugins'
+ *  entry point off). Also re-points its neighbors' D-pad targets, which have to skip the
+ *  tab while it is GONE - a nextFocus onto a GONE view resolves to nothing and the press
+ *  is silently eaten. */
+internal fun MainActivity.updateDiscoverTabVisibility() {
+    val available = !hasProviderEnabled() || hasProviderlessSource()
+    binding.tabDiscover.visibility = if (available) View.VISIBLE else View.GONE
+    binding.btnSearch.nextFocusLeftId = if (available) R.id.tabDiscover else R.id.tabFilms
+    // The tab vanishing under the user (a provider enabled while they are in Discover)
+    // must not leave the pane on screen with no way back to it.
+    if (!available && showingDiscover) selectTab(0)
+}
+
+/** Home/Live are provider catalog views with nothing to show once there's no IPTV/Jellyfin
+ *  provider - Live has no channels and Home's shelves are built from the same catalog.
+ *  Series/Films are different: with a plugin enabled they still have something to browse,
+ *  Discover's own TMDB catalog (see showDiscoverBackedCatalogTab), so they only disappear
+ *  alongside Home/Live when there is truly nothing at all. Runs after
+ *  updateDiscoverTabVisibility(), whose focus-chain fix it overrides where it would
+ *  otherwise point at a tab this function just hid. */
+internal fun MainActivity.updateProviderOnlyTabsVisibility() {
+    val providerAvailable = hasProviderEnabled()
+    val pluginAvailable = hasProviderlessSource()
+    val catalogVis = if (providerAvailable) View.VISIBLE else View.GONE
+    binding.tabHome.visibility = catalogVis
+    binding.tabLive.visibility = catalogVis
+    val seriesFilmsVis = if (providerAvailable || pluginAvailable) View.VISIBLE else View.GONE
+    binding.tabSeries.visibility = seriesFilmsVis
+    binding.tabFilms.visibility = seriesFilmsVis
+    if (providerAvailable) {
+        // Back to the XML chain, in case a previous no-provider pass below rewired these.
+        binding.tabSeries.nextFocusLeftId = R.id.tabLive
+        binding.tabFilms.nextFocusRightId = R.id.tabHome
+    } else {
+        binding.tabDiscover.nextFocusLeftId = if (pluginAvailable) R.id.tabFilms else R.id.tabDiscover
+        if (pluginAvailable) {
+            // Home/Live/Catchup are gone, so the row is just Series -> Films -> Discover.
+            binding.tabSeries.nextFocusLeftId = R.id.tabSeries
+            binding.tabFilms.nextFocusRightId = R.id.tabDiscover
+        }
+        // The tabs vanishing under the user (every provider disabled while on one of
+        // them) must not leave the pane on screen with no way back to it. Series/Films
+        // stay reachable with a plugin enabled, so only Home/Live losing their tab (or
+        // every tab, with no plugin either) needs the bounce.
+        val strandedOnHiddenTab = !showingDiscover && !showingDownloads && !showingCatchup &&
+            (activeTab == 0 || !pluginAvailable)
+        if (showingHome || strandedOnHiddenTab) selectDiscover()
+    }
 }
 
 /** Re-runs the provider load so the VOD gate takes effect - VOD is skipped at fetch
@@ -215,7 +252,7 @@ internal fun MainActivity.showEmptyState() {
     // focused and centre-press does nothing. Retried once on the next frame because the
     // very first post can land before the row is laid out (requestFocus then no-ops).
     fun focusFirstAction(): Boolean {
-        val target = binding.emptyQrPair.takeIf { it.isShown }
+        val target = binding.emptyChooseProvider.takeIf { it.isShown }
             ?: return false
         return target.requestFocus()
     }
@@ -322,7 +359,10 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
     // A stream_search plugin (anime catalog, Discover/Find Stream) still has work to do here
     // even with zero traditional providers configured - bailing out before reaching the
     // anime-catalog fetch below meant a plugin-only setup never populated anything.
-    if (!hasProviderConfigured() && !hasProviderlessSource()) { showProviderSettings(); return }
+    //
+    // With neither, classifyAndShow's own hasContent check lands on showEmptyState() - the
+    // first-run chooser - rather than auto-opening Settings unasked on a fresh install.
+    if (!hasProviderConfigured() && !hasProviderlessSource()) { scope.launch { classifyAndShow() }; return }
     // Raised for the cached path too: reading and re-deriving a big catalog still takes
     // a few seconds, and with no status up the app just looks frozen.
     setStatus("Loading...", visible = true)
@@ -479,8 +519,13 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
             if (!fallback.isNullOrEmpty()) {
                 allChannels = fallback
                 filmsSeriesDeriveJob?.cancel()
-                classifyAndShow(preserveUi = shouldPreserveUiOnLoad())
             }
+            // classifyAndShow() has to run even when nothing above changed allChannels -
+            // its own hasContent check also asks hasProviderlessSource(), and skipping this
+            // call left a plugin-only setup (no IPTV/Jellyfin channels, empty/no disk cache)
+            // with nothing ever painted past the toolbar: uiPainted stays false and no later
+            // event re-triggers a render.
+            classifyAndShow(preserveUi = shouldPreserveUiOnLoad())
             setStatus("", visible = false)
             if (errors.isNotEmpty()) {
                 Toast.makeText(this@loadAllConfiguredProviders, errors.joinToString(" · "), Toast.LENGTH_LONG).show()
@@ -681,5 +726,65 @@ internal suspend fun MainActivity.fetchXtreamChannels(config: IptvProviderConfig
         throw e
     } catch (e: Exception) {
         FetchResult.Failure(e.message?.take(60) ?: "error")
+    }
+}
+
+// ── First-run startup chooser (empty state) ──
+
+/** Wires the empty state's three first-run entry points. Only reachable while there is
+ *  neither a provider nor a plugin enabled - showEmptyState() is the sole caller of the
+ *  screen that hosts them. */
+internal fun MainActivity.wireStartupChooser() {
+    binding.emptyChooseProvider.setOnClickListener { showProviderSettings() }
+    binding.emptyChoosePublic.setOnClickListener {
+        installPublicStreamingPlugins { selectDiscover() }
+    }
+    binding.emptyChooseBoth.setOnClickListener {
+        installPublicStreamingPlugins { showProviderSettings() }
+    }
+}
+
+/** Downloads and installs every stream_search/scraper_sites script the default plugin
+ *  store lists - "public streaming content" is torrent/site-scraper plugins, not a
+ *  traditional provider. installScript() switches a first install on by itself, so
+ *  nothing here has to enable them separately. Runs [onDone] whether or not anything
+ *  actually installed - a store outage must not strand the user on a dead button. */
+internal fun MainActivity.installPublicStreamingPlugins(onDone: () -> Unit) {
+    ensurePublicContentDisclaimerAccepted { doInstallPublicStreamingPlugins(onDone) }
+}
+
+private fun MainActivity.doInstallPublicStreamingPlugins(onDone: () -> Unit) {
+    val status = binding.emptyStartupStatus
+    status.text = "Downloading streaming plugins…"
+    status.visibility = View.VISIBLE
+    binding.emptyChooseProvider.isEnabled = false
+    binding.emptyChoosePublic.isEnabled = false
+    binding.emptyChooseBoth.isEnabled = false
+    scope.launch {
+        val wanted = setOf(JsPluginContract.CAPABILITY_STREAM_SEARCH, JsPluginContract.CAPABILITY_SCRAPER_SITES)
+        var installed = 0
+        for (store in pluginStoreManager.storeUrls()) {
+            val catalog = pluginStoreManager.fetchCatalog(store.url).getOrNull() ?: continue
+            for (storeScript in catalog) {
+                if (wanted.none { it in storeScript.capabilities }) continue
+                val text = pluginStoreManager.fetchScriptText(storeScript.fileUrl) ?: continue
+                if (pluginScriptManager.installScript(text) is PluginScriptManager.InstallResult.Installed) installed++
+            }
+        }
+        binding.emptyChooseProvider.isEnabled = true
+        binding.emptyChoosePublic.isEnabled = true
+        binding.emptyChooseBoth.isEnabled = true
+        status.visibility = View.GONE
+        if (installed == 0) {
+            Toast.makeText(this@doInstallPublicStreamingPlugins, "Couldn't reach the plugin store", Toast.LENGTH_SHORT).show()
+            return@launch
+        }
+        pluginScriptManager.discoverScripts()
+        // The empty state was showing because there was nothing to browse - there is now,
+        // so take the chrome (tab bar/search) out of its "nothing configured" hide before
+        // handing off to the caller's destination.
+        binding.emptyState.visibility = View.GONE
+        updateTopChromeVisibility()
+        onDone()
     }
 }

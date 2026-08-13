@@ -52,16 +52,21 @@ internal fun MainActivity.catchupCategories(): List<Pair<String, List<Channel>>>
         .toList()
         .sortedBy { it.first.lowercase() }
 
-/** The tab only exists when there is something behind it. Also re-points Discover's D-pad
- *  LEFT, which has to skip the tab while it is GONE - a nextFocusLeft onto a GONE view
- *  resolves to nothing and the press is silently eaten. */
+/** The small Catch Up chip under the tab row only ever matters while Live TV is actually
+ *  on screen - it opens a live channel's archive, so outside that pane it has nothing to
+ *  act on. Called after every pane switch (selectTab/selectHome/selectDiscover/
+ *  selectDownloads/selectCatchup), since none of those otherwise touch it. */
 internal fun MainActivity.updateCatchupTabVisibility() {
-    val available = catchupChannels().isNotEmpty()
-    binding.tabCatchup.visibility = if (available) View.VISIBLE else View.GONE
-    binding.tabDiscover.nextFocusLeftId = if (available) R.id.tabCatchup else R.id.tabHome
-    // The tab vanishing under the user (a provider disabled while they are in Catch Up)
-    // must not leave the pane on screen with no way back to it.
-    if (!available && showingCatchup) selectTab(0)
+    val hasArchive = catchupChannels().isNotEmpty()
+    // The archive vanishing under the user (its provider disabled while they are inside
+    // Catch Up) must not leave the pane on screen with no way back to it.
+    if (!hasArchive && showingCatchup) { selectTab(0); return }
+    val onLiveTv = activeTab == 0 && !showingHome && !showingDiscover && !showingDownloads && !showingCatchup
+    binding.catchupSmallButton.visibility = if (onLiveTv && hasArchive) View.VISIBLE else View.GONE
+    // Simple mode hides the whole tab bar, including Live TV itself - the chip's XML
+    // default (UP -> tabLive) would resolve to nothing and eat the press there.
+    binding.catchupSmallButton.nextFocusUpId =
+        if (binding.tabLive.visibility == View.VISIBLE) R.id.tabLive else R.id.btnSettings
 }
 
 internal fun MainActivity.selectCatchup() {
@@ -86,8 +91,8 @@ internal fun MainActivity.selectCatchup() {
     applySidebarVisibility(tabWantsSidebar = false)
     binding.catchupContent.visibility = View.VISIBLE
     ensureCatchupColumnsWired()
-    updateTabStyles(binding.tabCatchup)
     showCatchupCategories()
+    updateCatchupTabVisibility()
     applyStatus()
 }
 
@@ -101,9 +106,11 @@ private fun MainActivity.ensureCatchupColumnsWired() {
     )) {
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
-        // UP out of any column lands on the tab row - it is outside this RecyclerView, so
-        // nextFocusUpId can't resolve it (see the repo's focus notes).
-        adapter.topRowFocusUpTargetId = R.id.tabCatchup
+        // UP out of any column lands on the Live TV tab - it is outside this RecyclerView,
+        // so nextFocusUpId can't resolve it (see the repo's focus notes). Not the Catch Up
+        // chip itself: that's GONE while inside Catch Up (see updateCatchupTabVisibility),
+        // and a nextFocus onto a GONE view resolves to nothing and eats the press.
+        adapter.topRowFocusUpTargetId = R.id.tabLive
     }
     // LEFT from the leftmost visible column steps the sliding window back instead of
     // dying against a column that is off screen.

@@ -31,6 +31,10 @@ internal fun MainActivity.setupDiscover() {
     // Search button open the on-screen-keyboard overlay instead.
     binding.discoverSearchField.setOnClickListener { showDiscoverSearchOverlay() }
     binding.discoverSearchButton.setOnClickListener { showDiscoverSearchOverlay() }
+    binding.discoverFilterAll.setOnClickListener { selectDiscoverFilter(null) }
+    binding.discoverFilterMovies.setOnClickListener { selectDiscoverFilter(MediaType.MOVIE) }
+    binding.discoverFilterSeries.setOnClickListener { selectDiscoverFilter(MediaType.SERIES) }
+    updateDiscoverFilterChipStyles()
 }
 
 /** Opens the Discover (TMDB) search overlay - the keyboard pattern from the main
@@ -62,6 +66,8 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
         overlay.dismiss()
         if (query.isNotEmpty()) {
             binding.discoverSearchInput.setText(query)
+            discoverTypeFilter = null
+            updateDiscoverFilterChipStyles()
             loadDiscover(query)
         }
     }
@@ -97,12 +103,76 @@ internal fun MainActivity.selectDiscover() {
     updateTabStyles(binding.tabDiscover)
     // Recompute span now the pane is on-screen and actually has a width.
     binding.discoverGrid.post { setGridSpan(binding.discoverGrid, discoverGridAdapter, R.id.tabDiscover) }
+    updateDiscoverFilterChipStyles()
     if (!tmdbClient.hasKey()) {
         setDiscoverStatus("Discover is unavailable (no TMDB key configured).")
     } else if (discoverGridAdapter.itemCount == 0) {
-        loadDiscover(null)
+        // Re-entering Discover with a chip already picked (Movies/Series) keeps browsing
+        // that instead of silently falling back to Trending.
+        when (val type = discoverTypeFilter) {
+            null -> loadDiscover(null)
+            else -> loadDiscoverByType(type)
+        }
     }
+    updateCatchupTabVisibility()
     applyStatus()
+}
+
+/** Series/Films tab content for a no-provider, plugin-only setup - [index] 1 for Series, 2
+ *  for Films. Reuses the shelf tabs' own grid adapters (already wired to playItem, which for
+ *  a MOVIE/SERIES channel opens the same detail screen Discover's own click handler does -
+ *  the two are only ever different when a catalog match exists, and there is none here since
+ *  there's no provider catalog to match against). No category sidebar: there's no
+ *  provider-derived category data to build one from, same as Discover itself. */
+internal fun MainActivity.showDiscoverBackedCatalogTab(index: Int) {
+    val wantedType = if (index == 1) MediaType.SERIES else MediaType.MOVIE
+    val adapter = if (index == 1) seriesGridAdapter else filmsGridAdapter
+    val recycler = if (index == 1) binding.seriesContent else binding.filmsContent
+    val tabId = if (index == 1) R.id.tabSeries else R.id.tabFilms
+    applySidebarVisibility(tabWantsSidebar = false)
+    setGridSpan(recycler, adapter, tabId)
+    recycler.adapter = adapter
+    binding.contentRow.visibility = View.VISIBLE
+    setStatus("Loading...", visible = true)
+    scope.launch {
+        if (!tmdbClient.hasKey()) {
+            adapter.replaceAll(emptyList())
+            setStatus("Discover is unavailable (no TMDB key configured).", visible = true)
+            return@launch
+        }
+        val results = fetchPopularPaged(wantedType)
+        // The user may have left this tab (or the whole no-provider state may have
+        // changed under them, e.g. a provider was just added) while the fetch was in
+        // flight - a stale response landing after that must not paint over whatever is
+        // on screen now.
+        if (activeTab != index || showingHome || showingDiscover || showingDownloads || hasProviderEnabled()) {
+            setStatus("", visible = false)
+            return@launch
+        }
+        adapter.replaceAll(results)
+        setStatus(if (results.isEmpty()) "Couldn't load titles. Check your connection." else "", visible = results.isEmpty())
+        applyStatus()
+        focusFirstItemWhenReady(recycler)
+    }
+}
+
+/** TMDB's popularity ranking for one type, paged 5 deep (trending/week's one mixed page
+ *  gives only ~10-per-type - not enough to scroll) - shared by the Series/Films no-provider
+ *  fallback and Discover's own Movies/Series filter chips. */
+internal suspend fun MainActivity.fetchPopularPaged(type: MediaType): List<Channel> {
+    val pages = (1..5).map { page ->
+        scope.async { if (type == MediaType.SERIES) tmdbClient.popularTv(page) else tmdbClient.popularMovies(page) }
+    }
+    // TMDB's popular ranking can shift rank between two page requests, which lands the
+    // same title on two consecutive pages under the same id - dedupe that first.
+    // Regional versions of the same format (Paradise Hotel US/Sweden/Norway, all
+    // separately popular at once) carry different ids but read as the same duplicated
+    // tile with no way to tell them apart - the grid has no year/country subtitle to
+    // disambiguate them the way the detail screen would - so fold those together too,
+    // keeping the highest-ranked (first) copy of each title.
+    return pages.awaitAll().flatten()
+        .distinctBy { it.id }
+        .distinctBy { it.name.trim().lowercase(Locale.US) }
 }
 
 /** Loads trending (null query) or search results into the Discover grid. */
@@ -135,6 +205,52 @@ internal fun MainActivity.loadDiscover(query: String?) {
             }
         )
     }
+}
+
+/** Loads one of Discover's Movies/Series filter chips - [type]'s own paginated Popular
+ *  ranking, same source and gates (English-only, News dropped, no-plugin library filter)
+ *  as loadDiscover() uses for trending/search. */
+internal fun MainActivity.loadDiscoverByType(type: MediaType) {
+    if (!tmdbClient.hasKey()) return
+    discoverSearchJob?.cancel()
+    setDiscoverStatus(if (type == MediaType.SERIES) "Loading series…" else "Loading movies…")
+    discoverSearchJob = scope.launch {
+        val results = fetchPopularPaged(type)
+        val pluginEnabled = hasProviderlessSource()
+        val visible = if (pluginEnabled) results else withContext(Dispatchers.Default) {
+            results.filter { findCatalogMatches(it).isNotEmpty() }
+        }
+        discoverGridAdapter.replaceAll(visible)
+        loadDiscoverLibraryBadges(visible)
+        setDiscoverStatus(
+            when {
+                visible.isNotEmpty() -> null
+                results.isEmpty() -> "Couldn't load titles. Check your connection."
+                else -> "Enable a stream plugin to browse titles outside your library."
+            }
+        )
+    }
+}
+
+/** Switches Discover's active filter chip and reloads the grid accordingly - [type] null is
+ *  Trending (and what a submitted search runs under; picking it clears any typed query so
+ *  the grid isn't left showing stale search results under the wrong chip). */
+internal fun MainActivity.selectDiscoverFilter(type: MediaType?) {
+    discoverTypeFilter = type
+    updateDiscoverFilterChipStyles()
+    if (type == null) {
+        binding.discoverSearchInput.setText("")
+        loadDiscover(null)
+    } else {
+        loadDiscoverByType(type)
+    }
+}
+
+internal fun MainActivity.updateDiscoverFilterChipStyles() {
+    val active = discoverTypeFilter
+    binding.discoverFilterAll.isSelected = active == null
+    binding.discoverFilterMovies.isSelected = active == MediaType.MOVIE
+    binding.discoverFilterSeries.isSelected = active == MediaType.SERIES
 }
 
 /** Works out which of the user's sources already carry each visible Discover title, then

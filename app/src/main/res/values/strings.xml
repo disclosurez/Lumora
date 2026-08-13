@@ -71,12 +71,15 @@
     <string name="no_provider_configured">No provider configured</string>
     <string name="press_settings_to_add_playlist">Press Settings to add a playlist URL</string>
     <string name="add_a_provider">Add a Provider</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN PROVIDER</string>
+    <string name="startup_choose_public">PUBLIC STREAMING CONTENT</string>
+    <string name="startup_choose_both">BOTH</string>
     <string name="search_main_hint">Search live TV, movies &amp; series…</string>
     <string name="no_downloads_yet">No downloads yet</string>
     <string name="overview">Overview</string>
     <string name="cast">Cast</string>
     <string name="play">Play</string>
-    <string name="find_stream">Find Stream</string>
+    <string name="find_stream">Find &amp; Play</string>
     <string name="trailer">Trailer</string>
     <string name="speed_default">1.0x</string>
     <string name="sleep_timer_button">Sleep</string>

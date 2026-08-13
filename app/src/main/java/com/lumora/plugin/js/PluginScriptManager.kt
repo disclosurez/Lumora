@@ -127,10 +127,9 @@ class PluginScriptManager(
      * installed overwrites it in place (update semantics) - there's no separate trusted tier to
      * protect against that anymore.
      *
-     * Installing does *not* enable. It used to, which meant browsing a store and tapping Install
-     * on something to have it available also switched it on - a stream_search plugin that is on
-     * starts answering Find Stream and, for the anime one, pulls a whole catalogue into the
-     * Series tab. Enabling is a separate, visible act on the plugin's own page.
+     * A first install enables the script - tapping Install in the store is the visible act that
+     * switches it on. A re-install (update) leaves whatever the user had chosen alone, so an
+     * update never resurrects a plugin the user had switched off.
      */
     suspend fun installScript(text: String): InstallResult {
         val fallbackId = "script-${System.currentTimeMillis()}"
@@ -144,11 +143,10 @@ class PluginScriptManager(
         if (capabilities.isEmpty()) return InstallResult.Rejected("Script declares no capability this app understands")
 
         val id = (manifest["id"] as? String)?.takeIf { it.isNotBlank() } ?: fallbackId
+        val isFirstInstall = scripts.none { it.id == id }
         val file = addUserScript(id, text)
-        // Whatever the user had chosen for this id is left exactly as it is - untouched on a
-        // re-install (an update must not resurrect a plugin that was switched off), and absent
-        // on a first install, which is what leaves a newly installed plugin off.
-        val enabled = isEnabled(id)
+        // First install: switch it on. Re-install (update): leave the user's prior choice alone.
+        val enabled = if (isFirstInstall) true.also { setEnabled(id, true) } else isEnabled(id)
         val script = PluginScript(
             fileName = file.name,
             id = id,

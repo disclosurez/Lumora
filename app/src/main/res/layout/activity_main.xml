@@ -305,7 +305,7 @@
                 android:paddingTop="@dimen/tab_padding_vertical"
                 android:paddingBottom="@dimen/tab_padding_vertical"
                 android:nextFocusLeft="@id/tabFilms"
-                android:nextFocusRight="@id/tabCatchup"
+                android:nextFocusRight="@id/tabDiscover"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none">
 
@@ -344,64 +344,6 @@
                     android:visibility="gone" />
             </LinearLayout>
 
-            <!-- Catch Up: the live catalogue shifted back in time. Sits after Home, and is the
-                 one other section simple mode keeps alongside Live TV. Hidden entirely
-                 unless some enabled provider reports tv_archive channels (see
-                 updateCatchupTabVisibility) - a dead tab reads as a broken one. -->
-            <LinearLayout
-                android:id="@+id/tabCatchup"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="3dp"
-                android:background="@drawable/bg_tab_item"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:paddingHorizontal="@dimen/tab_padding_horizontal"
-                android:paddingTop="@dimen/tab_padding_vertical"
-                android:paddingBottom="@dimen/tab_padding_vertical"
-                android:nextFocusLeft="@id/tabHome"
-                android:nextFocusRight="@id/tabDiscover"
-                android:stateListAnimator="@animator/focus_scale_flat"
-                android:layerType="none"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:id="@+id/tabCatchupIcon"
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:src="@drawable/ic_catchup"
-                        android:tint="@color/text_secondary" />
-
-                    <TextView
-                        android:id="@+id/tabCatchupLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:ellipsize="end"
-                        android:fontFamily="@font/inter_medium"
-                        android:maxLines="1"
-                        android:text="@string/tab_catchup"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="@dimen/tab_text" />
-                </LinearLayout>
-
-                <View
-                    android:id="@+id/tabCatchupIndicator"
-                    android:layout_width="24dp"
-                    android:layout_height="4dp"
-                    android:layout_marginTop="4dp"
-                    android:background="@drawable/tab_indicator"
-                    android:visibility="gone" />
-            </LinearLayout>
-
             <LinearLayout
                 android:id="@+id/tabDiscover"
                 android:layout_width="wrap_content"
@@ -415,7 +357,7 @@
                 android:paddingHorizontal="@dimen/tab_padding_horizontal"
                 android:paddingTop="@dimen/tab_padding_vertical"
                 android:paddingBottom="@dimen/tab_padding_vertical"
-                android:nextFocusLeft="@id/tabCatchup"
+                android:nextFocusLeft="@id/tabHome"
                 android:nextFocusRight="@id/btnSearch"
                 android:stateListAnimator="@animator/focus_scale_flat"
                 android:layerType="none">
@@ -630,6 +572,49 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- Catch Up: the live catalogue shifted back in time. A small chip under the tab
+             row rather than a tab of its own - it only ever matters while Live TV is on
+             screen, so it lives there instead of competing for a tab slot. Hidden unless
+             the active pane is actually Live TV AND some enabled provider reports
+             tv_archive channels (see updateCatchupTabVisibility) - a dead button reads as
+             a broken one. -->
+        <LinearLayout
+            android:id="@+id/catchupSmallButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="6dp"
+            android:background="@drawable/bg_focus_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:nextFocusUp="@id/tabLive"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:stateListAnimator="@animator/focus_scale_flat"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_catchup"
+                android:tint="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/inter_medium"
+                android:maxLines="1"
+                android:text="@string/tab_catchup"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_caption" />
+        </LinearLayout>
+
         <!-- Status row: spinner (only for in-progress messages, see setStatus()) + text.
              Fills the same content slot every tab uses (0dp/weight=1) so a "Loading..."
              message - startup or switching tabs - renders big and dead-center on screen
@@ -687,36 +672,104 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/text_caption" />
 
+            <!-- First-run chooser: no provider and no plugin is enabled yet, so nothing
+                 above knows what the user is here for. Three ways in, stacked for D-pad
+                 down/up travel - each row's next target is fixed explicitly since a GONE
+                 sibling (this whole block hides the moment either exists) must never be
+                 left as an implicit focus-search target. -->
             <LinearLayout
+                android:id="@+id/emptyStartupChooser"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:gravity="center"
-                android:orientation="horizontal">
+                android:orientation="vertical">
 
-                <!-- Opens Settings > Providers. Was labelled "Pair with Phone (QR)" but has
-                     always just opened Settings, and QR is one option inside there - so the
-                     honest label is "Add a Provider". -->
                 <LinearLayout
-                    android:id="@+id/emptyQrPair"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/emptyChooseProvider"
+                        android:layout_width="wrap_content"
+                        android:layout_height="56dp"
+                        android:background="@drawable/bg_focus_item"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:nextFocusUp="@id/btnSettings"
+                        android:nextFocusRight="@id/emptyChoosePublic"
+                        android:nextFocusDown="@id/emptyChooseBoth"
+                        android:paddingHorizontal="24dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/startup_choose_provider"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="@dimen/text_body_s" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/emptyChoosePublic"
+                        android:layout_width="wrap_content"
+                        android:layout_height="56dp"
+                        android:layout_marginStart="12dp"
+                        android:background="@drawable/bg_focus_item"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:nextFocusUp="@id/btnSettings"
+                        android:nextFocusLeft="@id/emptyChooseProvider"
+                        android:nextFocusDown="@id/emptyChooseBoth"
+                        android:paddingHorizontal="24dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/startup_choose_public"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="@dimen/text_body_s" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/emptyChooseBoth"
                     android:layout_width="wrap_content"
                     android:layout_height="56dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="12dp"
                     android:background="@drawable/bg_focus_item"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center"
-                    android:nextFocusUp="@id/btnSettings"
+                    android:nextFocusUp="@id/emptyChoosePublic"
                     android:paddingHorizontal="24dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/add_a_provider"
+                        android:text="@string/startup_choose_both"
                         android:textColor="@color/text_primary"
                         android:textStyle="bold"
                         android:textSize="@dimen/text_body_s" />
                 </LinearLayout>
 
+                <!-- Busy label for the plugin-download choices - hidden until tapped. -->
+                <TextView
+                    android:id="@+id/emptyStartupStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="12dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/text_caption"
+                    android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
 
@@ -856,6 +909,68 @@
                     android:stateListAnimator="@animator/focus_scale"
                     android:text="@string/search"
                     android:textColor="@color/text_primary" />
+            </LinearLayout>
+
+            <!-- Type filter: Trending (default, also what a submitted search runs under),
+                 Movies, Series - same season-chip lookalike as the search overlay's own
+                 result-type row. Movies/Series switch the grid to TMDB's paginated Popular
+                 ranking for that type instead of trending/week's thin mixed list (see
+                 loadDiscoverByType). Selection is applied in code (isSelected), not XML. -->
+            <LinearLayout
+                android:id="@+id/discoverFilterRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/discoverFilterAll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="@dimen/search_chip_gap"
+                    android:background="@drawable/bg_season_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="@font/inter_medium"
+                    android:paddingHorizontal="18dp"
+                    android:paddingVertical="10dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:text="@string/search_filter_all"
+                    android:textColor="@color/season_chip_text"
+                    android:textSize="@dimen/text_body_s" />
+
+                <TextView
+                    android:id="@+id/discoverFilterMovies"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="@dimen/search_chip_gap"
+                    android:background="@drawable/bg_season_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="@font/inter_medium"
+                    android:paddingHorizontal="18dp"
+                    android:paddingVertical="10dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:text="@string/search_filter_films"
+                    android:textColor="@color/season_chip_text"
+                    android:textSize="@dimen/text_body_s" />
+
+                <TextView
+                    android:id="@+id/discoverFilterSeries"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_season_chip"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="@font/inter_medium"
+                    android:paddingHorizontal="18dp"
+                    android:paddingVertical="10dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:text="@string/search_filter_series"
+                    android:textColor="@color/season_chip_text"
+                    android:textSize="@dimen/text_body_s" />
             </LinearLayout>
 
             <TextView

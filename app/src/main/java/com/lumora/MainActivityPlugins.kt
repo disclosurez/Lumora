@@ -25,6 +25,7 @@ import com.lumora.util.extractYearFromName
 import com.lumora.plugin.DiscoveryResult
 import com.lumora.plugin.ResolveResult
 import com.lumora.plugin.SearchResult
+import com.lumora.plugin.js.JsPluginContract
 import com.lumora.plugin.js.PluginScript
 import com.lumora.plugin.js.PluginScriptManager
 import com.lumora.plugin.js.PluginStore
@@ -41,6 +42,36 @@ import java.util.Locale
 // ── Plugins & stream-search ──
 //
 // Extracted from MainActivity.kt; see that file's header.
+
+private const val PREF_PUBLIC_CONTENT_DISCLAIMER_ACCEPTED = "public_content_disclaimer_accepted"
+
+/** Gate in front of installing or enabling any stream_search/scraper_sites plugin - those
+ *  search public torrent/streaming sites, which Lumora neither hosts nor controls. Accepted
+ *  once, remembered in prefs; every later call runs [onAccepted] straight away. [onAccepted]
+ *  is simply never called if the user declines. */
+internal fun MainActivity.ensurePublicContentDisclaimerAccepted(onAccepted: () -> Unit) {
+    if (prefs.getBoolean(PREF_PUBLIC_CONTENT_DISCLAIMER_ACCEPTED, false)) {
+        onAccepted()
+        return
+    }
+    AlertDialog.Builder(this)
+        .setTitle("Public Streaming Content")
+        .setMessage(
+            "These plugins search public torrent and streaming sites for content. Lumora " +
+                "does not host, control, or verify anything they find - what they return is " +
+                "entirely outside this app's control.\n\n" +
+                "For educational and personal use only. You are responsible for complying " +
+                "with the laws that apply to you."
+        )
+        .setCancelable(false)
+        .setPositiveButton("I Agree") { _, _ ->
+            prefs.edit().putBoolean(PREF_PUBLIC_CONTENT_DISCLAIMER_ACCEPTED, true).apply()
+            onAccepted()
+        }
+        .setNegativeButton("Cancel", null)
+        .show()
+}
+
 /** Parses a Discover [Channel.id] of the form "tmdb:movie:123" / "tmdb:tv:123". */
 internal fun MainActivity.tmdbTypeAndId(id: String): Pair<String, Int>? {
     val parts = id.split(":")
@@ -777,7 +808,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                 }.joinToString("  ·  ").uppercase(Locale.US)
 
                 detailEnabledBox.isChecked = plugin.enabled
-                detailEnabledRow.setOnClickListener {
+                fun applyEnabledToggle() {
                     manager.setEnabled(plugin.id, !plugin.enabled)
                     // A scraper_sites script is the gate on every built-in scraper site, so
                     // toggling it has to take effect now rather than at the next launch.
@@ -787,6 +818,15 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                     renderPluginList()
                     refreshPluginNavRows?.invoke()
                     if (plugin.supportsStreamSearch) loadAllConfiguredProviders(forceRefresh = true)
+                }
+                detailEnabledRow.setOnClickListener {
+                    // Only the OFF -> ON transition needs the disclaimer - switching one off
+                    // never reaches out to a public site.
+                    if (!plugin.enabled && (plugin.supportsStreamSearch || plugin.supportsScraperSites)) {
+                        ensurePublicContentDisclaimerAccepted { applyEnabledToggle() }
+                    } else {
+                        applyEnabledToggle()
+                    }
                 }
 
                 // Run only applies to discovery plugins; a stream_search plugin is driven
@@ -1032,7 +1072,7 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
                 val alreadyInstalled = storeScript.id in installedIds
                 val idleLabel = if (alreadyInstalled) "Update" else "Install"
                 installLabel.text = idleLabel
-                installButton.setOnClickListener {
+                fun doInstall() {
                     installButton.isEnabled = false
                     installLabel.text = if (alreadyInstalled) "Updating…" else "Installing…"
                     installFromStore(storeScript) { outcome ->
@@ -1040,12 +1080,9 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
                             is PluginScriptManager.InstallResult.Installed -> {
                                 installLabel.text = if (alreadyInstalled) "Updated" else "Installed"
                                 installButton.isEnabled = true
-                                // Same rule as the add-from-URL path: installing puts the
-                                // script on the device but does not switch it on. Enabling
-                                // is a separate, visible act on the plugin's own page - a
-                                // stream_search plugin that is on starts answering Find
-                                // Stream and pulls its catalogue into the Series tab, so a
-                                // store Install tap must not silently do that.
+                                // A first install switches itself on (see
+                                // PluginScriptManager.installScript); a re-install/update
+                                // leaves whatever the user had chosen alone.
                                 Toast.makeText(
                                     this@wirePluginStoresSection,
                                     if (outcome.script.enabled) "${storeScript.label} installed"
@@ -1061,6 +1098,16 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
                             }
                         }
                     }
+                }
+                installButton.setOnClickListener {
+                    // A first install switches itself on, which for one of these capabilities
+                    // means it starts reaching out to public sites the moment it lands - the
+                    // disclaimer has to clear before that happens, not after.
+                    val isPublicContent = !alreadyInstalled && (
+                        JsPluginContract.CAPABILITY_STREAM_SEARCH in storeScript.capabilities ||
+                            JsPluginContract.CAPABILITY_SCRAPER_SITES in storeScript.capabilities
+                        )
+                    if (isPublicContent) ensurePublicContentDisclaimerAccepted { doInstall() } else doInstall()
                 }
                 resultsHost.addView(row)
             }

@@ -682,6 +682,11 @@ class MainActivity : AppCompatActivity() {
     internal var discoverSearchJob: Job? = null
     /** Badge pass for the Discover grid - cancelled when a new search replaces the tiles. */
     internal var discoverBadgeJob: Job? = null
+    /** Which of Discover's filter chips is active - null is the default "Trending" chip
+     *  (also what a submitted search runs under). Movies/Series switch the grid from
+     *  trending/week's thin mixed list to the same paginated Popular ranking the
+     *  no-provider Series/Films tabs use (see MainActivityDiscover.loadDiscoverByType). */
+    internal var discoverTypeFilter: com.lumora.model.MediaType? = null
     internal var providerLoadJob: Job? = null
     internal val categoryAdapter = CategoryAdapter(
         onCategoryClick = { category -> onCategorySelected(category) },
@@ -738,6 +743,11 @@ class MainActivity : AppCompatActivity() {
         applySystemBarInsets()
 
         prefs = getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+        // With no IPTV/Jellyfin provider, Live/Series/Films have nothing to show - land on
+        // Discover (TMDB browse) instead of the usual Live tab. classifyAndShow's first-paint
+        // dispatch reads this flag, so setting it here is enough; it's untouched afterwards,
+        // so navigating away and back behaves exactly as it always has.
+        if (!hasProviderEnabled()) showingDiscover = true
         // Cheap (no network) - just parses each script's PLUGIN manifest header - but async
         // since it runs the JS engine, so kick it off early rather than on first use.
         // loadSavedProvider()'s gate (see loadAllConfiguredProviders) checks enabledStreamSearchPlugin(),

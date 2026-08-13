@@ -251,6 +251,17 @@ internal fun MainActivity.selectTab(index: Int) {
     }
 
     updateTabStyles(listOf(binding.tabLive, binding.tabSeries, binding.tabFilms)[index])
+    // Every flag the Catch Up chip's gate reads (activeTab/showingHome/showingDiscover/
+    // showingDownloads/showingCatchup) is already final at this point in the function.
+    updateCatchupTabVisibility()
+
+    // Series/Films with no IPTV/Jellyfin provider: the catalog these tabs normally browse
+    // is empty, but a plugin can still resolve a stream for a TMDB title, so fall back to
+    // Discover's own catalog instead of an empty category sidebar.
+    if (index != 0 && !hasProviderEnabled() && hasProviderlessSource()) {
+        showDiscoverBackedCatalogTab(index)
+        return
+    }
 
     selectedCategoryIds = null
     selectedBrandChannelIds = null
@@ -1355,7 +1366,7 @@ internal fun MainActivity.setupToolbar() {
     binding.btnSettings.setOnClickListener { showProviderSettings() }
     binding.btnRefresh.setOnClickListener { reloadCurrentProvider() }
     binding.btnSearch.setOnClickListener { showSearchDialog() }
-    binding.emptyQrPair.setOnClickListener { showProviderSettings() }
+    wireStartupChooser()
     binding.homeSearchBar.setOnClickListener { showSearchDialog() }
     // Phone-only re-expand affordance for a collapsed category rail: restores the
     // sidebar (persisted pref flips back), then refocuses the row the user had selected
