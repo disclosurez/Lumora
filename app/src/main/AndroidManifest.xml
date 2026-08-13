@@ -139,21 +139,14 @@
              would need its own service anyway. -->
 
         <!-- Android Auto. minCarApiLevel and the POI service below are the entire car
-             registration. The com.google.android.gms.car.application descriptor below was
-             deliberately omitted for a long time because a *media* descriptor (uses
-             name="media") is what got Lumora listed as audio-only; the descriptor we ship is
-             template + notification, matching what AAAD (shmykelsa/AAAD) validates for when
-             sideloading a car app, so the app is installable through that toolchain without
-             re-classifying as media (res/xml/automotive_app_desc.xml).
+             registration - deliberately no com.google.android.gms.car.application descriptor,
+             which is how a *media* app announces itself and got Lumora listed as audio-only.
              POI rather than NAVIGATION: this host lists sideloaded POI apps and not navigation
              ones, and POI is handed the same drawing surface, which is all the video path
              needs (see auto/CarPlayerScreen.kt). -->
         <meta-data
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
-        <meta-data
-            android:name="com.google.android.gms.car.application"
-            android:resource="@xml/automotive_app_desc" />
 
         <service
             android:name=".auto.LumoraCarAppService"
