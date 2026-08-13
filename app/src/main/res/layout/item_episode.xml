@@ -115,6 +115,21 @@
                 android:maxLines="1"
                 android:textColor="@color/text_primary"
                 android:textSize="@dimen/text_subhead_l" />
+
+            <!-- Air date, on the title's baseline at caption size: ambient detail, so it
+                 reads as a subordinate note next to the title rather than competing with
+                 it. wrap_content with the title taking the weight, so a long title is the
+                 thing that ellipsizes and the date always survives. -->
+            <TextView
+                android:id="@+id/episodeDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:fontFamily="@font/inter_medium"
+                android:maxLines="1"
+                android:textColor="@color/text_tertiary"
+                android:textSize="@dimen/text_caption"
+                android:visibility="gone" />
         </LinearLayout>
 
         <TextView

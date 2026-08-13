@@ -201,7 +201,8 @@ class TmdbClient {
                     overview = o.optString("overview").takeIf { it.isNotBlank() },
                     // A 300px-wide still is what the episode row's thumbnail slot actually
                     // renders at - the poster sizes would be wasted bytes per row.
-                    stillUrl = o.optString("still_path").takeIf { it.isNotBlank() }?.let { "$STILL$it" }
+                    stillUrl = o.optString("still_path").takeIf { it.isNotBlank() }?.let { "$STILL$it" },
+                    airDate = o.optString("air_date").takeIf { it.isNotBlank() }
                 )
             }
             out
@@ -342,7 +343,9 @@ class TmdbClient {
         val number: Int,
         val name: String?,
         val overview: String?,
-        val stillUrl: String?
+        val stillUrl: String?,
+        /** ISO "YYYY-MM-DD" - the air date providers routinely omit on episodes. */
+        val airDate: String? = null
     )
 
     /** Everything the detail screen can fill in from TMDB; all optional. */

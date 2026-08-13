@@ -442,7 +442,12 @@ class XtreamClient(private val client: OkHttpClient) {
             description = info?.optString("plot", null),
             episodeNum = episodeNum.takeIf { it > 0 },
             mediaType = MediaType.SERIES,
-            categoryId = seriesId
+            categoryId = seriesId,
+            // Panels disagree on the key even within one API - "air_date" on some,
+            // "releasedate"/"release_date" on others - so all three are read before the
+            // episode is left without a date (TMDB fills that gap where it can).
+            releaseDate = listOf("air_date", "releasedate", "release_date", "releaseDate")
+                .firstNotNullOfOrNull { key -> info?.optString(key, "")?.takeIf { it.isNotBlank() } }
         )
     }
 

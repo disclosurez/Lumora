@@ -876,11 +876,17 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 }
                 val description = ep.description?.takeIf { it.isNotBlank() } ?: m.overview
                 val poster = ep.posterUrl?.takeIf { it.isNotBlank() } ?: m.stillUrl
-                if (name == ep.name && description == ep.description && poster == ep.posterUrl) {
+                // Most Xtream panels state no air date on an episode at all, so TMDB's is
+                // what puts a date on those rows; a date the provider did send wins, since
+                // it describes the copy actually being played.
+                val aired = ep.releaseDate?.takeIf { it.isNotBlank() } ?: m.airDate
+                if (name == ep.name && description == ep.description && poster == ep.posterUrl &&
+                    aired == ep.releaseDate
+                ) {
                     ep
                 } else {
                     changed = true
-                    ep.copy(name = name, description = description, posterUrl = poster)
+                    ep.copy(name = name, description = description, posterUrl = poster, releaseDate = aired)
                 }
             }
             if (changed && token == seasonEnrichToken) itemAdapter.submitList(merged)
@@ -1199,10 +1205,12 @@ private fun isPlaceholderEpisodeTitle(episode: Channel, seriesName: String): Boo
     return title.isBlank() || PLACEHOLDER_EPISODE_TITLE_REGEX.matches(title)
 }
 
-/** True when TMDB has something worth asking for: a missing title, plot, or still. */
+/** True when TMDB has something worth asking for: a missing title, plot, still, or air
+ *  date (most Xtream panels state none, and the row shows one). */
 private fun needsEpisodeMetadata(episode: Channel, seriesName: String): Boolean =
     episode.description.isNullOrBlank() ||
         episode.posterUrl.isNullOrBlank() ||
+        episode.releaseDate.isNullOrBlank() ||
         isPlaceholderEpisodeTitle(episode, seriesName)
 
 internal fun MainActivity.hideContentDetail() {

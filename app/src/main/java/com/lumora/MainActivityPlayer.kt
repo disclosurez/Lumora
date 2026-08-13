@@ -973,12 +973,19 @@ internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
     val group = filmVersions[playing.id]
         ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
         ?: emptyList()
-    if (group.size <= 1) {
+    // One copy in the library is not "no versions": searching for another source is itself a
+    // version of this title, and it's the only route left when the one copy is the one that
+    // just failed. So the library's versions are listed when there are any, Find & Play is
+    // appended whenever anything can search, and only both being empty is a dead end.
+    val versions = if (group.size > 1) group else emptyList()
+    val canFind = canFindStream(playing)
+    if (versions.isEmpty() && !canFind) {
         Toast.makeText(this, "No other versions of this title", Toast.LENGTH_SHORT).show()
         return
     }
-    val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
-    val currentIndex = group.indexOfFirst { it.id == playing.id }
+    val labels = (versions.mapIndexed { index, version -> versionChipLabel(version, index) } +
+        listOfNotNull(FIND_AND_PLAY_ENTRY.takeIf { canFind })).toTypedArray()
+    val currentIndex = versions.indexOfFirst { it.id == playing.id }
     // The replacement is a different item with its own saved-position key, so the current
     // position is carried across by hand - otherwise switching source mid-film restarts it.
     val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
@@ -986,11 +993,18 @@ internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
         .setTitle("Version")
         .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
             dialog.dismiss()
-            if (which != currentIndex) showPlayerFor(group[which], resumeFromMs = resumeMs)
+            when {
+                which >= versions.size -> showFindStreamDialog(playing)
+                which != currentIndex -> showPlayerFor(versions[which], resumeFromMs = resumeMs)
+            }
         }
         .setNegativeButton("Cancel", null)
         .show()
 }
+
+/** Label for the "search every source for another copy" entry the version pickers always
+ *  end with. Matches the detail screen's button, so it reads as the same action. */
+internal const val FIND_AND_PLAY_ENTRY = "Find & Play…"
 
 /** Other providers' copies of the show whose episode is playing. Each copy is a separate
  *  catalog entry with its own episode list, so switching means fetching that list and
@@ -998,12 +1012,18 @@ internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
  *  simply not carry that episode), hence the explicit message rather than a silent no-op. */
 internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
     val (series, group) = currentSeriesVersionContext ?: return
-    if (group.size <= 1) {
+    // As with films: other providers' copies when there are any, plus Find & Play whenever
+    // something can search for this episode - a show carried by one provider still has
+    // somewhere else to look.
+    val versions = if (group.size > 1) group else emptyList()
+    val canFind = canFindStream(series)
+    if (versions.isEmpty() && !canFind) {
         Toast.makeText(this, "No other versions of this series", Toast.LENGTH_SHORT).show()
         return
     }
-    val labels = group.mapIndexed { index, version -> versionChipLabel(version, index) }.toTypedArray()
-    val currentIndex = group.indexOfFirst { it.id == series.id }
+    val labels = (versions.mapIndexed { index, version -> versionChipLabel(version, index) } +
+        listOfNotNull(FIND_AND_PLAY_ENTRY.takeIf { canFind })).toTypedArray()
+    val currentIndex = versions.indexOfFirst { it.id == series.id }
     val episodeNum = playing.episodeNum
     // Which season is playing, read off the episode itself ("S04E01 · ..."). Matching on
     // the episode number alone walked the target's seasons in order and took the first
@@ -1017,8 +1037,14 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
         .setTitle("Series Version")
         .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
             dialog.dismiss()
+            // Find & Play searches for the episode that is actually playing, rather than
+            // asking again which one - it's already on screen.
+            if (which >= versions.size) {
+                showFindStreamDialog(series, seasonNum, episodeNum)
+                return@setSingleChoiceItems
+            }
             if (which == currentIndex) return@setSingleChoiceItems
-            val target = group[which]
+            val target = versions[which]
             Toast.makeText(this, "Loading ${versionChipLabel(target, which)}…", Toast.LENGTH_SHORT).show()
             scope.launch {
                 val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }

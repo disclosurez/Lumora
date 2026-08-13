@@ -74,6 +74,7 @@ class EpisodeAdapter(
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val titleText: TextView = itemView.findViewById(R.id.episodeTitle)
+        private val dateText: TextView = itemView.findViewById(R.id.episodeDate)
         private val plotText: TextView = itemView.findViewById(R.id.episodePlot)
         private val resumeLabel: TextView = itemView.findViewById(R.id.episodeResumeLabel)
         private val numberBadge: TextView = itemView.findViewById(R.id.episodeNumberBadge)
@@ -174,6 +175,10 @@ class EpisodeAdapter(
             seriesPrefixRegex?.let { title = title.replaceFirst(it, "") }
             titleText.text = title
 
+            val aired = formatAirDate(episode.releaseDate)
+            dateText.text = aired.orEmpty()
+            dateText.visibility = if (aired != null) View.VISIBLE else View.GONE
+
             val plot = episode.description?.takeIf { it.isNotBlank() }
             if (plot != null) {
                 plotText.text = plot
@@ -267,3 +272,16 @@ private val EPISODE_PREFIX_REGEX = Regex("""^S\d+E\d+ · """)
  *  for display since the episode number now has its own badge on the thumbnail, but
  *  `name` itself stays untouched since Up Next/search/watch history all key off it. */
 private fun stripEpisodePrefix(name: String): String = name.replaceFirst(EPISODE_PREFIX_REGEX, "")
+
+/** Leading ISO date of a release/air date field. Every source that states one states it
+ *  this way, but with different amounts after it: Xtream sends a bare "2021-05-14",
+ *  Jellyfin a full "2021-05-14T00:00:00.0000000Z". Anything that doesn't start with an
+ *  ISO date is left out rather than guessed at - a mis-parsed date reads as fact. */
+private val ISO_DATE_PREFIX_REGEX = Regex("""^(\d{4})-(\d{2})-(\d{2})""")
+
+/** The air date as DD-MM-YY, or null when the source didn't state one. */
+internal fun formatAirDate(raw: String?): String? {
+    val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val (year, month, day) = (ISO_DATE_PREFIX_REGEX.find(value) ?: return null).destructured
+    return "$day-$month-${year.takeLast(2)}"
+}
