@@ -1,11 +1,11 @@
 package com.lumora.scraper.utils
 
+import android.util.Base64
 import android.util.Log
 import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.net.InetSocketAddress
-import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -59,7 +59,7 @@ class BypassWebSocketServer(
                     .takeIf { it.isNotBlank() }
                     ?.let { encoded ->
                         runCatching {
-                            String(Base64.getDecoder().decode(encoded), Charsets.UTF_8)
+                            String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8)
                         }.getOrNull()
                     }
                 if (sessions.remove(token) != null) {

@@ -1,12 +1,15 @@
 package com.lumora.plugin.js
 
+// android.util.Base64, not java.util.Base64: the latter is API 26 and this module ships to
+// minSdk 25. DEFAULT on decode is the lenient equivalent of the java.util basic decoder;
+// NO_WRAP on encode matches it exactly (DEFAULT would inject line breaks every 76 chars).
+import android.util.Base64
 import com.whl.quickjs.wrapper.JSArray
 import com.whl.quickjs.wrapper.JSCallFunction
 import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.QuickJSContext
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
-import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.SecretKeyFactory
@@ -303,9 +306,9 @@ class JsHostImpl(
     // own try/catch and null checks handle a failed operation, the same contract httpGet uses.
 
     private fun aesCbcDecrypt(args: Array<out Any?>): String? = runCatching {
-        val cipherBytes = Base64.getDecoder().decode(args[0] as String)
-        val keyBytes = Base64.getDecoder().decode(args[1] as String)
-        val ivBytes = Base64.getDecoder().decode(args[2] as String)
+        val cipherBytes = Base64.decode(args[0] as String, Base64.DEFAULT)
+        val keyBytes = Base64.decode(args[1] as String, Base64.DEFAULT)
+        val ivBytes = Base64.decode(args[2] as String, Base64.DEFAULT)
         val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(keyBytes, "AES"), IvParameterSpec(ivBytes))
         String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
@@ -314,12 +317,12 @@ class JsHostImpl(
     /** Returns the derived key, base64-encoded. */
     private fun pbkdf2Sha512(args: Array<out Any?>): String? = runCatching {
         val password = args[0] as String
-        val salt = Base64.getDecoder().decode(args[1] as String)
+        val salt = Base64.decode(args[1] as String, Base64.DEFAULT)
         val iterations = (args[2] as Number).toInt()
         val keyLenBytes = (args[3] as Number).toInt()
         val spec = PBEKeySpec(password.toCharArray(), salt, iterations, keyLenBytes * 8)
         val key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512").generateSecret(spec)
-        Base64.getEncoder().encodeToString(key.encoded)
+        Base64.encodeToString(key.encoded, Base64.NO_WRAP)
     }.getOrNull()
 
     /** Hex-encoded MD5 of a UTF-8 string - used by the EVP_BytesToKey fallback path. */
@@ -329,11 +332,11 @@ class JsHostImpl(
     }.getOrNull()
 
     private fun base64Decode(args: Array<out Any?>): String? = runCatching {
-        String(Base64.getDecoder().decode(args[0] as String), Charsets.UTF_8)
+        String(Base64.decode(args[0] as String, Base64.DEFAULT), Charsets.UTF_8)
     }.getOrNull()
 
     private fun base64Encode(args: Array<out Any?>): String? = runCatching {
-        Base64.getEncoder().encodeToString((args[0] as String).toByteArray(Charsets.UTF_8))
+        Base64.encodeToString((args[0] as String).toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
     }.getOrNull()
 
     // ── Binary-safe primitives (base64 in/out) for scripts that need to manipulate raw bytes -
@@ -342,30 +345,30 @@ class JsHostImpl(
 
     /** [start, end) byte slice of base64-decoded [args][0], re-encoded. `end` omitted/null = to the end. */
     private fun base64Slice(args: Array<out Any?>): String? = runCatching {
-        val bytes = Base64.getDecoder().decode(args[0] as String)
+        val bytes = Base64.decode(args[0] as String, Base64.DEFAULT)
         val start = (args[1] as Number).toInt()
         val end = (args.getOrNull(2) as? Number)?.toInt() ?: bytes.size
-        Base64.getEncoder().encodeToString(bytes.copyOfRange(start, end))
+        Base64.encodeToString(bytes.copyOfRange(start, end), Base64.NO_WRAP)
     }.getOrNull()
 
     private fun base64Concat(args: Array<out Any?>): String? = runCatching {
-        val a = Base64.getDecoder().decode(args[0] as String)
-        val b = Base64.getDecoder().decode(args[1] as String)
-        Base64.getEncoder().encodeToString(a + b)
+        val a = Base64.decode(args[0] as String, Base64.DEFAULT)
+        val b = Base64.decode(args[1] as String, Base64.DEFAULT)
+        Base64.encodeToString(a + b, Base64.NO_WRAP)
     }.getOrNull()
 
     /** Raw MD5 digest bytes (base64), unlike [md5] which hex-encodes a digest of UTF-8 text. */
     private fun md5Bytes(args: Array<out Any?>): String? = runCatching {
-        val bytes = Base64.getDecoder().decode(args[0] as String)
-        Base64.getEncoder().encodeToString(MessageDigest.getInstance("MD5").digest(bytes))
+        val bytes = Base64.decode(args[0] as String, Base64.DEFAULT)
+        Base64.encodeToString(MessageDigest.getInstance("MD5").digest(bytes), Base64.NO_WRAP)
     }.getOrNull()
 
     private fun hmacSha512(args: Array<out Any?>): String? = runCatching {
-        val key = Base64.getDecoder().decode(args[0] as String)
-        val message = Base64.getDecoder().decode(args[1] as String)
+        val key = Base64.decode(args[0] as String, Base64.DEFAULT)
+        val message = Base64.decode(args[1] as String, Base64.DEFAULT)
         val mac = Mac.getInstance("HmacSHA512")
         mac.init(SecretKeySpec(key, "HmacSHA512"))
-        Base64.getEncoder().encodeToString(mac.doFinal(message))
+        Base64.encodeToString(mac.doFinal(message), Base64.NO_WRAP)
     }.getOrNull()
 
     // ── HTML parsing (Jsoup) for scraper scripts like torrent-search.js. A script re-parses a

@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import android.util.Base64
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
@@ -30,7 +31,6 @@ import retrofit2.http.Query
 import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 import java.net.URLEncoder
-import java.util.Base64
 
 object GuardaFlixProvider : Provider {
 
@@ -197,7 +197,7 @@ object GuardaFlixProvider : Provider {
                 ?.substringAfter("base64,")
                 ?: ""
             if (b64Src.isBlank()) null else {
-                val decoded = String(Base64.getDecoder().decode(b64Src))
+                val decoded = String(Base64.decode(b64Src, Base64.DEFAULT))
                 val fromTrailer = Regex("""\"trailer\"\s*:\s*\".*?src=\\\"(https?:\\/\\/www\.youtube\.com\\/embed\\/[^\\\"]+)\\\"""")
                     .find(decoded)
                     ?.groupValues?.getOrNull(1)
