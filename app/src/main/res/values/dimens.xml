@@ -88,6 +88,17 @@
     <!-- Extra gap before the first (Live TV) tab, TV tier only (see values-sw540dp) - zero
          here, the brand's own translationX already sets the phone spacing. -->
     <dimen name="tab_live_start_gap">0dp</dimen>
+    <!-- Compact ("stacked") pill metrics, applied by applyChromeWrap() on portrait phones
+         only - never resolved by a layout, so they carry no orientation qualifier: the
+         Activity handles configChanges itself and never re-inflates, which would leave any
+         values-port copy of these stale after a rotate. Icon over label instead of beside it
+         roughly halves a pill's width, which is what gets the nine chrome items onto two
+         wrapped lines in a ~260dp window instead of three. -->
+    <dimen name="tab_text_compact">11sp</dimen>
+    <dimen name="tab_padding_compact_horizontal">6dp</dimen>
+    <dimen name="tab_padding_compact_vertical">6dp</dimen>
+    <dimen name="tab_label_compact_gap">2dp</dimen>
+    <dimen name="tab_label_gap">8dp</dimen>
     <dimen name="poster_title_text">10sp</dimen>
     <!-- Floor for the auto-sized poster/EPG titles. A hard 8sp meant any title that wrapped
          to three or four lines shrank to unreadable at TV viewing distance; keeping the floor

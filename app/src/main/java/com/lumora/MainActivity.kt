@@ -1087,6 +1087,7 @@ class MainActivity : AppCompatActivity() {
         }
         applySidebarVisibility(lastTabWantsSidebar)
         applySettingsRailVisibility()
+        applyChromeWrap()
     }
 
     override fun onDestroy() {

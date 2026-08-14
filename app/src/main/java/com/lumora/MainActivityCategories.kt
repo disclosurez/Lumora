@@ -4,6 +4,8 @@ import android.app.AlertDialog
 import android.content.res.Configuration
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.updateLayoutParams
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
@@ -314,6 +316,79 @@ internal fun MainActivity.submitCategories(categories: List<CategoryFilter>) {
  *  rather than by the user's persisted choice. */
 internal fun MainActivity.isPortraitPhone(): Boolean =
     !isTv && resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
+/** The chrome pills whose label sits beside their icon, paired with the id of the view that
+ *  label lives in - the label itself, except on Live TV where label and Catch Up caret share a
+ *  nested group so the caret follows the label when the pill stacks. Settings and Refresh are
+ *  not here: they are icon-only, so there is nothing to stack. */
+private fun MainActivity.chromeLabelPills(): List<Triple<View, Int, Int>> = listOf(
+    Triple(binding.tabHome, R.id.tabHomeLabel, R.id.tabHomeLabel),
+    Triple(binding.tabLive, R.id.tabLiveLabelGroup, R.id.tabLiveLabel),
+    Triple(binding.tabSeries, R.id.tabSeriesLabel, R.id.tabSeriesLabel),
+    Triple(binding.tabFilms, R.id.tabFilmsLabel, R.id.tabFilmsLabel),
+    Triple(binding.tabDiscover, R.id.tabDiscoverLabel, R.id.tabDiscoverLabel),
+    Triple(binding.tabDownloads, R.id.tabDownloadsLabel, R.id.tabDownloadsLabel),
+    Triple(binding.btnSearch, R.id.btnSearchLabel, R.id.btnSearchLabel),
+)
+
+/** Reshapes the top chrome row (six tabs + Search + Settings/Refresh) for a portrait phone.
+ *
+ *  Two things happen together, and neither is enough alone. The row wraps onto further lines
+ *  instead of scrolling: laid out as one line those nine items are ~800dp of content inside the
+ *  ~260dp the scroller gets once the brand and the clock have taken their share, so everything
+ *  past the second tab could only be reached by dragging sideways through three screens. And
+ *  each pill goes compact - icon above the label rather than beside it, smaller text, tighter
+ *  padding - which roughly halves a pill's width and is what lands the row on two lines instead
+ *  of three. No label is shortened or ellipsised in either mode: it is the row that breaks.
+ *
+ *  TV and landscape are untouched - wrap off, pills back to their XML metrics, one scrolling
+ *  line exactly as before.
+ *
+ *  Re-applied on rotate rather than read from a values-port qualifier: the Activity declares
+ *  configChanges and never re-inflates, so orientation-qualified resources resolved at inflate
+ *  time would stay stale for the rest of the process (see onConfigurationChanged). */
+internal fun MainActivity.applyChromeWrap() {
+    val portrait = isPortraitPhone()
+    val padH = resources.getDimensionPixelSize(
+        if (portrait) R.dimen.tab_padding_compact_horizontal else R.dimen.tab_padding_horizontal
+    )
+    val padV = resources.getDimensionPixelSize(
+        if (portrait) R.dimen.tab_padding_compact_vertical else R.dimen.tab_padding_vertical
+    )
+    val labelGap = resources.getDimensionPixelSize(
+        if (portrait) R.dimen.tab_label_compact_gap else R.dimen.tab_label_gap
+    )
+    val textSize = resources.getDimension(if (portrait) R.dimen.tab_text_compact else R.dimen.tab_text)
+
+    for ((pill, labelHolderId, labelId) in chromeLabelPills()) {
+        pill.setPaddingRelative(padH, padV, padH, padV)
+        // Child 0 of a pill is the icon+label group; child 1 is the selection indicator.
+        val group = (pill as ViewGroup).getChildAt(0) as LinearLayout
+        group.orientation = if (portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        group.gravity = if (portrait) Gravity.CENTER else Gravity.CENTER_VERTICAL
+
+        val labelHolder = pill.findViewById<View>(labelHolderId)
+        (labelHolder.layoutParams as LinearLayout.LayoutParams).apply {
+            // The gap moves with the label: beside the icon it is a start margin, under it a
+            // top margin. Leaving the start margin set would offset a stacked label.
+            marginStart = if (portrait) 0 else labelGap
+            topMargin = if (portrait) labelGap else 0
+        }
+        labelHolder.requestLayout()
+        pill.findViewById<TextView>(labelId).setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize)
+    }
+
+    // Settings/Refresh keep their own (icon-only) horizontal padding - see chrome_button_padding_h
+    // - but take the pills' vertical padding so the whole row still reads as one band.
+    val buttonPadH = resources.getDimensionPixelSize(R.dimen.chrome_button_padding_h)
+    binding.btnSettings.setPaddingRelative(buttonPadH, padV, buttonPadH, padV)
+    binding.btnRefresh.setPaddingRelative(buttonPadH, padV, buttonPadH, padV)
+
+    // Gap between wrapped lines. The pills scale to 1.06x on focus (focus_scale_flat), so
+    // without it a focused pill on the first line grows into the one below.
+    binding.tabBarRow.lineSpacing = if (portrait) (4 * resources.displayMetrics.density).toInt() else 0
+    binding.tabBarRow.wrap = portrait
+}
 
 /** Whether the category rail is collapsed on this device: a persisted pref, except on a
  *  portrait phone, where the rail auto-hides and only the transient (unpersisted)
@@ -1384,6 +1459,7 @@ internal fun MainActivity.setupTabs() {
     }
     // Hide tab bar + search until an enabled provider exists
     updateTopChromeVisibility()
+    applyChromeWrap()
 }
 
 internal fun MainActivity.updateTabStyles(selected: View) {

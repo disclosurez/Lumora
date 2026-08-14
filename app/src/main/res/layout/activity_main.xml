@@ -108,15 +108,20 @@
                     android:fillViewport="true"
                     android:scrollbars="none">
 
-        <LinearLayout
+        <!-- FlowRow, not LinearLayout: on a portrait phone these nine items (six tabs, Search,
+             Settings, Refresh) are ~800dp of content inside a ~260dp window, so as one line
+             everything past the second tab could only be reached by dragging the scroller
+             through three screens. FlowRow.wrap is turned on for portrait phones only (see
+             applyChromeWrap()) and breaks them onto a second line at full label width; on TV
+             and in landscape wrap stays off and this lays out exactly as the LinearLayout
+             did - one line, natural widths, scrolled by the parent. -->
+        <com.lumora.ui.FlowRow
             android:id="@+id/tabBarRow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
             android:clipChildren="false"
             android:clipToPadding="false"
-            android:gravity="start"
-            android:orientation="horizontal"
             android:paddingHorizontal="10dp"
             android:paddingBottom="6dp">
 
@@ -152,33 +157,45 @@
                         android:src="@drawable/ic_live_tv"
                         android:tint="@color/text_secondary" />
 
-                    <TextView
-                        android:id="@+id/tabLiveLabel"
+                    <!-- Label and caret share a nested row so the caret stays beside the label
+                         when applyChromeWrap() stacks the pill on a portrait phone (it flips
+                         the group above to vertical - without this nesting the caret would
+                         land on a line of its own under the label). -->
+                    <LinearLayout
+                        android:id="@+id/tabLiveLabelGroup"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
-                        android:ellipsize="end"
-                        android:fontFamily="@font/inter_medium"
-                        android:maxLines="1"
-                        android:text="@string/tab_live_tv"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="@dimen/tab_text" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <!-- Catch Up lives in a dropdown hung off this tab rather than in a chip
-                         under the tab row: the chip pushed every Live TV screen down by its
-                         own height, on the one pane that has the least room to spare. Shown
-                         only when some enabled provider reports tv_archive channels (see
-                         updateCatchupTabVisibility) - otherwise the tab has nothing to drop
-                         down and the caret would be a lie. -->
-                    <ImageView
-                        android:id="@+id/tabLiveChevron"
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:layout_marginStart="6dp"
-                        android:importantForAccessibility="no"
-                        android:src="@drawable/ic_chevron_down"
-                        android:tint="@color/text_tertiary"
-                        android:visibility="gone" />
+                        <TextView
+                            android:id="@+id/tabLiveLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/inter_medium"
+                            android:maxLines="1"
+                            android:text="@string/tab_live_tv"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/tab_text" />
+
+                        <!-- Catch Up lives in a dropdown hung off this tab rather than in a chip
+                             under the tab row: the chip pushed every Live TV screen down by its
+                             own height, on the one pane that has the least room to spare. Shown
+                             only when some enabled provider reports tv_archive channels (see
+                             updateCatchupTabVisibility) - otherwise the tab has nothing to drop
+                             down and the caret would be a lie. -->
+                        <ImageView
+                            android:id="@+id/tabLiveChevron"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="6dp"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_chevron_down"
+                            android:tint="@color/text_tertiary"
+                            android:visibility="gone" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <View
@@ -434,12 +451,14 @@
                     android:orientation="horizontal">
 
                     <ImageView
+                        android:id="@+id/btnSearchIcon"
                         android:layout_width="20dp"
                         android:layout_height="20dp"
                         android:src="@drawable/ic_search"
                         android:tint="@color/text_secondary" />
 
                     <TextView
+                        android:id="@+id/btnSearchLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
@@ -572,7 +591,7 @@
                     android:src="@drawable/ic_refresh"
                     android:tint="@color/text_secondary" />
             </LinearLayout>
-        </LinearLayout>
+        </com.lumora.ui.FlowRow>
         </HorizontalScrollView>
             </LinearLayout>
 
