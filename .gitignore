@@ -7,6 +7,7 @@ local.properties
 
 # Claude Code project instructions - local-only, not committed
 CLAUDE.md
+.claude/
 
 # Signing - never commit the release key or its credentials
 *.jks
