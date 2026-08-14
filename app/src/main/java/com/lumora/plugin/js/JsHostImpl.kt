@@ -4,6 +4,7 @@ import com.whl.quickjs.wrapper.JSArray
 import com.whl.quickjs.wrapper.JSCallFunction
 import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.QuickJSContext
+import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 import java.util.Base64
 import javax.crypto.Cipher
@@ -17,8 +18,18 @@ import org.jsoup.Jsoup
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
+
+/**
+ * Per-response cap on host.httpGet/httpGetAll bodies, applied while streaming so a broken or
+ * malicious endpoint can't OOM the app (plain `body.string()` loads the whole body unbounded,
+ * and httpGetAll fans out up to 8 requests at once). An over-limit body fails that one response
+ * the same way a network error does: `{status: 0, body: ""}`, which sorts under every script's
+ * existing `status < 200` success check.
+ */
+private const val MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 /**
  * The `host` object bound into every JS plugin script's globalThis. Replaces the Bundle
@@ -156,7 +167,13 @@ class JsHostImpl(
                         val builder = Request.Builder().url(url)
                         headers.forEach { (k, v) -> builder.header(k, v) }
                         client.newCall(builder.get().build()).execute().use { resp ->
-                            resp.code to resp.body?.string().orEmpty()
+                            val body = readBoundedBody(resp.body)
+                            if (body == null) {
+                                PluginLog.w(TAG, "GET $url aborted: response body exceeded $MAX_RESPONSE_BYTES bytes")
+                                0 to ""
+                            } else {
+                                resp.code to body
+                            }
                         }
                     }.getOrElse { 0 to "" }
                 })
@@ -173,13 +190,43 @@ class JsHostImpl(
         return out
     }
 
+    /**
+     * Streams a response body into a UTF-8 string, stopping once [MAX_RESPONSE_BYTES] is exceeded.
+     * Returns null for an over-limit body so callers can fall back to their failure shape instead
+     * of holding an unbounded body in memory (`body.string()` reads it all, and httpGetAll can
+     * hold up to 8 of those at once on the budget TV sticks this targets).
+     */
+    private fun readBoundedBody(body: ResponseBody?): String? {
+        if (body == null) return ""
+        var total = 0L
+        val buffer = ByteArrayOutputStream()
+        body.byteStream().use { input ->
+            val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(chunk)
+                if (read < 0) break
+                total += read
+                if (total > MAX_RESPONSE_BYTES) return null
+                buffer.write(chunk, 0, read)
+            }
+        }
+        return buffer.toString(Charsets.UTF_8)
+    }
+
     /** The returned [JSObject] is handed back to JS by the caller - do not release it here. */
     private fun execute(context: QuickJSContext, request: Request): JSObject {
         client.newCall(request).execute().use { response ->
             PluginLog.d(TAG, "${request.method} ${request.url} -> ${response.code} (${response.body?.contentLength() ?: -1} bytes)")
+            val body = readBoundedBody(response.body)
+            if (body == null) {
+                return failedResponse(
+                    context, request.method, request.url.toString(),
+                    IllegalStateException("response body exceeded $MAX_RESPONSE_BYTES bytes")
+                )
+            }
             val obj = context.createNewJSObject()
             obj.setProperty("status", response.code)
-            obj.setProperty("body", response.body?.string().orEmpty())
+            obj.setProperty("body", body)
             return obj
         }
     }

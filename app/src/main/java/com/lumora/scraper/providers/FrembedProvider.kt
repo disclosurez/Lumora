@@ -26,6 +26,7 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.Response
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TMDb3.original
 import com.lumora.scraper.utils.TMDb3.w500
 import com.lumora.scraper.utils.UserPreferences
@@ -536,11 +537,7 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
 
     private interface Service {
         companion object {
-            private val client = OkHttpClient.Builder()
-                .readTimeout(30, TimeUnit.SECONDS)
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .dns(DnsResolver.doh)
-                .build()
+            private val client = NetworkClient.default
 
             fun buildAddressFetcher(): Service {
                 val addressRetrofit = Retrofit.Builder()

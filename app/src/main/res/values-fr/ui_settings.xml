@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivitySettings.kt - boîte de dialogue des sources EPG -->
+    <string name="sett_epg_source_url_hint">URL XMLTV de l\'EPG</string>
+    <string name="sett_epg_source_name_hint">Nom de la source</string>
+    <string name="sett_add_epg_source_title">Ajouter une source EPG</string>
+    <string name="sett_enter_url">Entrez une URL</string>
+    <string name="sett_epg_source_added">Source EPG ajoutée — téléchargement du guide</string>
+
+    <!-- MainActivitySettings.kt - statut Jellyfin Quick Connect -->
+    <string name="sett_starting">Démarrage…</string>
+    <string name="sett_qc_couldnt_start">Impossible de démarrer Quick Connect - vérifiez l\'URL du serveur</string>
+    <string name="sett_enter_code_on_server">Saisissez le code %1$s sur votre serveur Jellyfin</string>
+    <string name="sett_qc_timed_out">Quick Connect a expiré</string>
+    <string name="sett_signing_in">Connexion…</string>
+    <string name="sett_qc_signin_failed">Échec de la connexion Quick Connect</string>
+    <string name="sett_signed_in_via_quick_connect">Connecté via Quick Connect</string>
+
+    <!-- MainActivitySettings.kt - assemblage des libellés de lignes de réglage -->
+    <string name="sett_language_row">%1$s  ·  %2$s</string>
+
+    <!-- MainActivitySettings.kt - boîte de dialogue d'effacement de l'historique -->
+    <string name="sett_clear_history_confirm">Effacer l\'historique de visionnage ?</string>
+    <string name="sett_clear_history_message">Supprime les positions de reprise et les chaînes récemment regardées. Les favoris ne sont pas affectés.</string>
+    <string name="sett_history_cleared">Historique de visionnage effacé</string>
+
+    <!-- MainActivitySettings.kt - configuration du fournisseur -->
+    <string name="sett_enter_server_url_first">Entrez d\'abord une URL de serveur</string>
+    <string name="sett_stalker_portal">Portail Stalker</string>
+    <string name="sett_type_summary">Type : %1$s</string>
+    <string name="sett_editing_provider">Modification de %1$s</string>
+    <string name="sett_editing_jellyfin">Modification de Jellyfin</string>
+    <string name="sett_provider_row_detail">%1$s · %2$s</string>
+    <string name="sett_remove_provider_confirm">Supprimer %1$s ?</string>
+    <string name="sett_remove_provider_message">Les chaînes de ce fournisseur n\'apparaîtront plus.</string>
+    <string name="sett_remove_jellyfin_confirm">Supprimer Jellyfin ?</string>
+    <string name="sett_remove_jellyfin_message">Ses chaînes n\'apparaîtront plus.</string>
+    <string name="sett_choose_provider_type_first">Choisissez d\'abord un type de fournisseur</string>
+    <string name="sett_enter_m3u_url">Entrez une URL M3U</string>
+    <string name="sett_enter_server_url">Entrez une URL de serveur</string>
+    <string name="sett_provider_saved_loading">Fournisseur enregistré. Chargement...</string>
+
+    <!-- MainActivitySettings.kt - serveur de jumelage QR -->
+    <string name="sett_starting_server">Démarrage du serveur...</string>
+    <string name="sett_scan_qr">Scannez le QR avec votre téléphone</string>
+    <string name="sett_expires_in">Expire dans %1$d:%2$02d</string>
+    <string name="sett_expired">Expiré</string>
+    <string name="sett_could_not_start_server">Impossible de démarrer le serveur</string>
+    <string name="sett_provider_received">Fournisseur reçu ! Chargement...</string>
+
+    <!-- MainActivitySettings.kt - sauvegarde et restauration -->
+    <string name="sett_backup_saved_to">Sauvegarde enregistrée dans %1$s</string>
+    <string name="sett_export_failed">Échec de l\'exportation</string>
+    <string name="sett_no_backup_file">Aucun fichier de sauvegarde trouvé à %1$s</string>
+    <string name="sett_imported_summary">Importés : %1$d fournisseurs, %2$d sources EPG, %3$d groupes</string>
+    <string name="sett_recording_storage_path">Stockage des enregistrements : %1$s</string>
+
+    <!-- MainActivitySettings.kt - boîte de dialogue des paramètres de lecture -->
+    <string name="sett_external_player_summary">Lecteur externe : %1$s</string>
+    <string name="sett_suggest_external_player_on_problems">Proposer un lecteur externe en cas de problème : %1$s</string>
+    <string name="sett_suggest_external_player">Proposer un lecteur externe : %1$s</string>
+    <string name="sett_on">ON</string>
+    <string name="sett_off">OFF</string>
+    <string name="sett_playback_settings_title">Paramètres de lecture</string>
+    <string name="sett_av_sync_offset_title">Décalage A/V</string>
+
+    <!-- MainActivitySettings.kt - code PIN parental -->
+    <string name="sett_change_parental_pin">Modifier le code PIN parental</string>
+    <string name="sett_enter_pin_show_adult">Entrez le code PIN pour afficher le contenu adulte</string>
+    <string name="sett_enter_current_pin">Entrez le code PIN actuel</string>
+    <string name="sett_ok">OK</string>
+    <string name="sett_incorrect_pin">Code PIN incorrect</string>
+    <string name="sett_pin_hint">Code PIN à 4 chiffres</string>
+    <string name="sett_next">Suivant</string>
+    <string name="sett_pin_length_error">Le code PIN doit comporter 4 chiffres</string>
+    <string name="sett_confirm_pin_hint">Confirmez le code PIN</string>
+    <string name="sett_confirm_pin_title">Confirmer le code PIN</string>
+    <string name="sett_parental_pin_set">Code PIN parental défini</string>
+    <string name="sett_pins_didnt_match">Les codes PIN ne correspondent pas</string>
+
+    <!-- MainActivitySettings.kt - panneau Filtres -->
+    <string name="sett_prefer_dubbed_audio">Préférer l\'audio doublé</string>
+    <string name="sett_prefer_dubbed_audio_caption">Afficher les résultats doublés en premier lorsque disponible</string>
+    <string name="sett_subtitles_with_dub">Sous-titres avec audio doublé</string>
+    <string name="sett_subtitles_with_dub_caption">Afficher aussi les sous-titres sur les épisodes doublés</string>
+    <string name="sett_subtitles_caption">Afficher les sous-titres sur toutes les lectures</string>
+
+    <!-- MainActivitySettings.kt - panneau Général -->
+    <string name="sett_simple_mode">Mode simple</string>
+    <string name="sett_simple_mode_caption">N\'afficher que la TV en direct - masque la barre d\'onglets pour que l\'EPG remplisse l\'écran</string>
+    <string name="sett_disable_vod">Désactiver le contenu VOD</string>
+    <string name="sett_disable_vod_caption">Ne récupérer que la TV en direct des fournisseurs - les films et séries sont masqués partout</string>
+    <string name="sett_audio_language">Langue audio</string>
+    <string name="sett_audio_language_caption">piste préférée pour les films et séries</string>
+    <string name="sett_subtitle_language">Langue des sous-titres</string>
+    <string name="sett_subtitle_language_caption">aussi utilisée pour les sous-titres forcés</string>
+
+    <!-- MainActivitySettings.kt - panneau À propos / vérification des mises à jour -->
+    <string name="sett_unknown">inconnu</string>
+    <string name="sett_no_browser_available">Aucun navigateur disponible</string>
+    <string name="sett_checking">Vérification…</string>
+    <string name="sett_couldnt_check_updates">Impossible de vérifier les mises à jour</string>
+    <string name="sett_update_available">Mise à jour disponible</string>
+    <string name="sett_update_available_message">Lumora v%1$s est disponible.\nVersion actuelle : v%2$s\n\n%3$s</string>
+    <string name="sett_later">Plus tard</string>
+    <string name="sett_latest_version">Vous disposez de la dernière version</string>
+</resources>

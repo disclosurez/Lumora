@@ -17,6 +17,7 @@ import com.lumora.scraper.models.Movie
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Season
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TmdbUtils
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -43,11 +44,7 @@ object Altadefinizione01Provider : Provider {
     private interface Altadefinizione01Service {
         companion object {
             fun build(baseUrl: String): Altadefinizione01Service {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
-                val client = clientBuilder.dns(DnsResolver.doh).build()
+                val client = NetworkClient.default
 
                 return Retrofit.Builder()
                     .baseUrl(baseUrl)

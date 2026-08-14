@@ -28,7 +28,7 @@ class TorrentForegroundService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Streaming", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, getString(R.string.ui_torrent_channel_name), NotificationManager.IMPORTANCE_LOW)
             )
         }
         // NotificationCompat's (context, channelId) constructor is the API-26 channel-aware
@@ -37,7 +37,7 @@ class TorrentForegroundService : Service() {
         // with NoSuchMethodError on API 25 (MEmu) the moment a torrent stream started.
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText("Streaming torrent")
+            .setContentText(getString(R.string.ui_torrent_streaming_text))
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

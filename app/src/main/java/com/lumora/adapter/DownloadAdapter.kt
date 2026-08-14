@@ -48,20 +48,20 @@ class DownloadAdapter(
             }
             when (record.status) {
                 DownloadStatus.QUEUED -> {
-                    status.text = "Queued…"
+                    status.text = itemView.context.getString(R.string.list_queued)
                     progress.visibility = View.GONE
                 }
                 DownloadStatus.DOWNLOADING -> {
-                    status.text = "Downloading ${record.progressPercent}%"
+                    status.text = itemView.context.getString(R.string.list_downloading_percent, record.progressPercent)
                     progress.visibility = View.VISIBLE
                     progress.progress = record.progressPercent
                 }
                 DownloadStatus.COMPLETE -> {
-                    status.text = "Downloaded · ${record.subtitle}"
+                    status.text = itemView.context.getString(R.string.list_downloaded, record.subtitle)
                     progress.visibility = View.GONE
                 }
                 DownloadStatus.FAILED -> {
-                    status.text = "Download failed"
+                    status.text = itemView.context.getString(R.string.list_download_failed)
                     progress.visibility = View.GONE
                 }
             }

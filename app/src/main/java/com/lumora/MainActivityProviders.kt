@@ -365,7 +365,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
     if (!hasProviderConfigured() && !hasProviderlessSource()) { scope.launch { classifyAndShow() }; return }
     // Raised for the cached path too: reading and re-deriving a big catalog still takes
     // a few seconds, and with no status up the app just looks frozen.
-    setStatus("Loading...", visible = true)
+    setStatus(getString(R.string.loading), visible = true)
     xtreamProviderConfigs = IptvProviderStore.load(prefs).filter { it.enabled && it.type == "xtream" }.associateBy { it.id }
     // Every type, not just Xtream, and regardless of enabled state - a cached catalog can
     // still contain items from a provider that's since been switched off, and their chips
@@ -435,8 +435,8 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
         val enabledConfigs = IptvProviderStore.load(prefs).filter { it.enabled }
         if (!uiPainted && enabledConfigs.isNotEmpty()) {
             setStatus(
-                if (enabledConfigs.size == 1) "Connecting to ${enabledConfigs.first().name}..."
-                else "Connecting to ${enabledConfigs.size} providers...",
+                if (enabledConfigs.size == 1) getString(R.string.plug_connecting_to, enabledConfigs.first().name)
+                else getString(R.string.plug_connecting_to_n, enabledConfigs.size),
                 visible = true
             )
         }
@@ -496,7 +496,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
             }
         }
         if (jellyfinDeferred != null) {
-            if (!uiPainted) setStatus("Connecting to Jellyfin...", visible = true)
+            if (!uiPainted) setStatus(getString(R.string.plug_connecting_to_jellyfin), visible = true)
             when (val result = jellyfinDeferred.await()) {
                 is FetchResult.Success -> combined += result.channels
                 is FetchResult.Failure -> errors += result.message
@@ -553,7 +553,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 Toast.makeText(this@loadAllConfiguredProviders, errors.joinToString(" · "), Toast.LENGTH_LONG).show()
             }
         } else {
-            val summary = "${combined.size} items" +
+            val summary = getString(R.string.plug_item_count, combined.size) +
                 (expiryText?.let { "  ·  $it" } ?: "") +
                 (errors.takeIf { it.isNotEmpty() }?.let { "  ·  ⚠ " + it.joinToString(", ") } ?: "")
             setStatus(summary, visible = true)
@@ -755,7 +755,7 @@ internal fun MainActivity.installPublicStreamingPlugins(onDone: () -> Unit) {
 
 private fun MainActivity.doInstallPublicStreamingPlugins(onDone: () -> Unit) {
     val status = binding.emptyStartupStatus
-    status.text = "Downloading streaming plugins…"
+    status.text = getString(R.string.plug_downloading_streaming_plugins)
     status.visibility = View.VISIBLE
     binding.emptyChooseProvider.isEnabled = false
     binding.emptyChoosePublic.isEnabled = false
@@ -776,7 +776,7 @@ private fun MainActivity.doInstallPublicStreamingPlugins(onDone: () -> Unit) {
         binding.emptyChooseBoth.isEnabled = true
         status.visibility = View.GONE
         if (installed == 0) {
-            Toast.makeText(this@doInstallPublicStreamingPlugins, "Couldn't reach the plugin store", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@doInstallPublicStreamingPlugins, getString(R.string.plug_couldnt_reach_plugin_store), Toast.LENGTH_SHORT).show()
             return@launch
         }
         pluginScriptManager.discoverScripts()

@@ -14,6 +14,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import retrofit2.Retrofit
@@ -656,13 +657,15 @@ object SuperStreamProvider : Provider {
 
         companion object {
             fun build(): SuperStreamApiService {
-                val client = OkHttpClient.Builder().dns(DnsResolver.doh).addInterceptor { chain ->
-                    val requestBuilder = chain.request().newBuilder()
-                        .addHeader("Accept", "charset=utf-8")
-                        .addHeader("Platform", "android")
+                val client = NetworkClient.newClient { builder ->
+                    builder.addInterceptor { chain ->
+                        val requestBuilder = chain.request().newBuilder()
+                            .header("Accept", "charset=utf-8")
+                            .addHeader("Platform", "android")
 
-                    chain.proceed(requestBuilder.build())
-                }.build()
+                        chain.proceed(requestBuilder.build())
+                    }
+                }
 
                 val retrofit = Retrofit.Builder()
                     .baseUrl(url)

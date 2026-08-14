@@ -15,6 +15,7 @@ import com.lumora.scraper.models.Show
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -45,19 +46,18 @@ object SeriesFlixProvider : Provider {
     }
 
     private val service: SeriesFlixService by lazy {
-        val client = OkHttpClient.Builder()
-            .dns(DnsResolver.doh)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                chain.proceed(
-                    chain.request().newBuilder()
-                        .header("User-Agent", USER_AGENT)
-                        .header("Referer", baseUrl)
-                        .build()
-                )
-            }
-            .build()
+        val client = NetworkClient.newClient { builder ->
+            builder.readTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .addInterceptor { chain ->
+                    chain.proceed(
+                        chain.request().newBuilder()
+                            .header("User-Agent", USER_AGENT)
+                            .header("Referer", baseUrl)
+                            .build()
+                    )
+                }
+        }
 
         Retrofit.Builder()
             .baseUrl("$baseUrl/")

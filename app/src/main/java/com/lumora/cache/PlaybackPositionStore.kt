@@ -42,6 +42,10 @@ object PlaybackPositionStore {
 
     // ConcurrentHashMap: the background writer persists this map while the main thread keeps
     // mutating it, so iteration on either side must not throw ConcurrentModificationException.
+    // @Volatile: the reference is reassigned on the main thread (ensureLoaded/clearAll) but
+    // read from Dispatchers.Default (seriesContinueItems during category build) - without it a
+    // worker could see a stale null and re-load, or see the pre-clear map after clearAll.
+    @Volatile
     private var cache: MutableMap<String, PlaybackPosition>? = null
 
     fun get(context: Context, key: String): PlaybackPosition? = ensureLoaded(context)[key]

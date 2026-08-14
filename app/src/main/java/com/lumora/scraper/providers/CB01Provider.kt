@@ -14,6 +14,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TmdbUtils
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -29,6 +30,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Url
 import com.lumora.scraper.utils.Keys
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import java.util.concurrent.TimeUnit
@@ -82,11 +84,7 @@ object CB01Provider : Provider {
 
         companion object {
             fun build(baseUrl: String): CB01Service {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
-                val client = clientBuilder.dns(DnsResolver.doh).build()
+                val client = NetworkClient.default
 
                 val retrofit = Retrofit.Builder()
                     .baseUrl(baseUrl)
@@ -115,11 +113,7 @@ object CB01Provider : Provider {
 
         companion object {
             fun build(): StayService {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
-                val client = clientBuilder.dns(DnsResolver.doh).build()
+                val client = NetworkClient.default
 
                 val retrofit = Retrofit.Builder()
                     .baseUrl("https://stayonline.pro/")
@@ -627,10 +621,10 @@ object CB01Provider : Provider {
     private fun callUprotApi(apiBase: String, uprotId: String): String? {
         val apiUrl = "$apiBase$uprotId&key=${Keys.getUprotApiKey()}"
         return try {
-            val client = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .build()
+            val client = NetworkClient.newClient(dns = Dns.SYSTEM) {
+                it.connectTimeout(15, TimeUnit.SECONDS)
+                    .readTimeout(15, TimeUnit.SECONDS)
+            }
             val req = okhttp3.Request.Builder()
                 .url(apiUrl)
                 .header("User-Agent", DEFAULT_USER_AGENT)

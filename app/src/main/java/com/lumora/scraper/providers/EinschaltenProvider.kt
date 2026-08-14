@@ -14,6 +14,7 @@ import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.extractors.DoodLaExtractor
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TmdbUtils
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -44,14 +45,10 @@ object EinschaltenProvider : Provider {
     private interface EinschaltenService {
         companion object {
             fun build(baseUrl: String): EinschaltenService {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
                 return Retrofit.Builder()
                     .baseUrl(baseUrl)
                     .addConverterFactory(JsoupConverterFactory.create())
-                    .client(clientBuilder.dns(DnsResolver.doh).build())
+                    .client(NetworkClient.default)
                     .build()
                     .create(EinschaltenService::class.java)
             }

@@ -21,11 +21,11 @@ class CarDisclaimerScreen(
 
     override fun onGetTemplate(): Template =
         MessageTemplate.Builder(carContext.getString(com.lumora.R.string.car_disclaimer))
-            .setTitle("Lumora")
+            .setTitle(carContext.getString(com.lumora.R.string.app_name))
             .setHeaderAction(Action.APP_ICON)
             .addAction(
                 Action.Builder()
-                    .setTitle("I'm not driving - continue")
+                    .setTitle(carContext.getString(com.lumora.R.string.ui_not_driving_continue))
                     .setOnClickListener {
                         session.disclaimerAccepted = true
                         screenManager.push(CarBrowseScreen(carContext, session))

@@ -78,7 +78,8 @@ internal fun MainActivity.toggleHiddenShelf(tab: Int, title: String) {
     val hidden = getHiddenCategories(tab)
     if (!hidden.remove(title)) hidden.add(title)
     prefs.edit().putStringSet(hiddenCategoriesPrefsKey(tab), hidden).apply()
-    val label = if (title in getHiddenCategories(tab)) "Hidden \"$title\"" else "Unhidden \"$title\""
+    val label = if (title in getHiddenCategories(tab)) getString(R.string.plug_hidden, title)
+    else getString(R.string.plug_unhidden, title)
     Toast.makeText(this, label, Toast.LENGTH_SHORT).show()
     scope.launch { classifyAndShow() }
 }
@@ -114,7 +115,8 @@ internal fun MainActivity.togglePinCategory(category: CategoryFilter, tab: Int =
     // moves once it lands - without a word on screen a hold looked like it did nothing.
     Toast.makeText(
         this,
-        if (pinningNow) "Pinned \"${category.name}\" to top" else "Unpinned \"${category.name}\"",
+        if (pinningNow) getString(R.string.plug_pinned_to_top, category.name)
+        else getString(R.string.plug_unpinned, category.name),
         Toast.LENGTH_SHORT
     ).show()
     scope.launch { rebuildCategoriesForActiveTab() }
@@ -128,7 +130,7 @@ internal fun MainActivity.toggleHiddenSidebarCategory(category: CategoryFilter, 
     val hidingNow = ids.none { it in hidden }
     if (hidingNow) hidden.addAll(ids) else hidden.removeAll(ids)
     prefs.edit().putStringSet(hiddenCategoriesPrefsKey(tab), hidden).apply()
-    Toast.makeText(this, if (hidingNow) "Hidden \"${category.name}\"" else "Unhidden \"${category.name}\"", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, if (hidingNow) getString(R.string.plug_hidden, category.name) else getString(R.string.plug_unhidden, category.name), Toast.LENGTH_SHORT).show()
     scope.launch { rebuildCategoriesForActiveTab() }
 }
 
@@ -148,7 +150,7 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
     if (id == JELLYFIN_CATEGORY_ID || id == NEWEST_CATEGORY_ID || id == CONTINUE_WATCHING_CATEGORY_ID) {
         AlertDialog.Builder(this)
             .setTitle(category.name)
-            .setItems(arrayOf("Hide")) { _, _ -> toggleHiddenSidebarCategory(category) }
+            .setItems(arrayOf(getString(R.string.plug_hide))) { _, _ -> toggleHiddenSidebarCategory(category) }
             .show()
         return
     }
@@ -156,8 +158,8 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
     val hideIds = category.matchIds.ifEmpty { setOf(id) }
     val isHidden = hideIds.any { it in getHiddenCategories() }
     val options = arrayOf(
-        if (isPinned) "Unpin" else "Pin to top",
-        if (isHidden) "Unhide" else "Hide"
+        if (isPinned) getString(R.string.plug_unpin) else getString(R.string.plug_pin_to_top),
+        if (isHidden) getString(R.string.plug_unhide) else getString(R.string.plug_hide)
     )
     AlertDialog.Builder(this)
         .setTitle(category.name)
@@ -175,7 +177,7 @@ internal fun MainActivity.toggleFavoriteChannel(channel: Channel) {
     val nowFavorite = FavoritesStore.toggleFavoriteChannel(this, channel.id)
     Toast.makeText(
         this,
-        if (nowFavorite) "Added to Favourites" else "Removed from Favourites",
+        if (nowFavorite) getString(R.string.plug_added_to_favourites) else getString(R.string.plug_removed_from_favourites),
         Toast.LENGTH_SHORT
     ).show()
     if (activeTab == 0) scope.launch { rebuildCategoriesForActiveTab() }
@@ -199,7 +201,7 @@ internal fun MainActivity.toggleFavoriteVodItem(item: Channel) {
     val nowFavorite = FavoritesStore.toggleFavoriteSeries(this, item.id)
     Toast.makeText(
         this,
-        if (nowFavorite) "Added to Favourites" else "Removed from Favourites",
+        if (nowFavorite) getString(R.string.plug_added_to_favourites) else getString(R.string.plug_removed_from_favourites),
         Toast.LENGTH_SHORT
     ).show()
     // Same server push the detail screen's star does - a Jellyfin item's favourite state
@@ -250,13 +252,13 @@ internal fun MainActivity.toggleProgramReminder(channel: Channel, program: Xtrea
     val reminder = ProgramReminder(channel.id, channel.name, program.title, program.startTimestamp)
     if (ReminderScheduler.isScheduled(this, reminder.key)) {
         ReminderScheduler.cancel(this, reminder)
-        Toast.makeText(this, "Reminder cancelled", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.plug_reminder_cancelled), Toast.LENGTH_SHORT).show()
     } else {
         val scheduled = ReminderScheduler.schedule(this, reminder)
         Toast.makeText(
             this,
-            if (scheduled) "Reminder set for \"${program.title}\""
-            else "Program starts too soon - reminder not set",
+            if (scheduled) getString(R.string.plug_reminder_set_for, program.title)
+            else getString(R.string.plug_program_starts_too_soon),
             Toast.LENGTH_SHORT
         ).show()
     }

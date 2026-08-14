@@ -14,6 +14,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -980,11 +981,7 @@ object AnyMovieProvider : Provider {
 
         companion object {
             fun build(): AllMoviesForYouService {
-                val client = OkHttpClient.Builder()
-                    .dns(DnsResolver.doh)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .build()
+                val client = NetworkClient.default
 
                 val retrofit = Retrofit.Builder()
                     .baseUrl(URL)

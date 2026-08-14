@@ -4,6 +4,7 @@ import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Log
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.*
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -26,10 +27,10 @@ class VavooProvider(override val language: String) : IptvProvider {
             "pl" to Triple("pl", "PL", listOf("Poland"))
         )
 
-        private val client = OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private val client = NetworkClient.newClient { builder ->
+            builder.connectTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
+        }
     }
 
     override val baseUrl: String get() = ScraperHosts[name]

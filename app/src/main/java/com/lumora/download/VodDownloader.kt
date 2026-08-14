@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
+import com.lumora.R
 
 private val FILENAME_UNSAFE_REGEX = Regex("""[^A-Za-z0-9._-]+""")
 
@@ -59,7 +60,7 @@ object VodDownloader {
         val record = DownloadRecord(
             id = channel.id,
             title = channel.name,
-            subtitle = if (channel.mediaType == MediaType.SERIES) channel.categoryName ?: "Episode" else "Movie",
+            subtitle = if (channel.mediaType == MediaType.SERIES) channel.categoryName ?: context.getString(R.string.ui_episode) else context.getString(R.string.ui_movie),
             posterUrl = channel.posterUrl ?: channel.logoUrl,
             mediaType = channel.mediaType.name,
             downloadManagerId = downloadManagerId,

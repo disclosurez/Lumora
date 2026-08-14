@@ -201,7 +201,7 @@ class EpisodeAdapter(
                     progressBar.visibility = View.VISIBLE
                     progressBar.progress = (saved.positionMs * 1000 / saved.durationMs).toInt().coerceIn(0, 1000)
                     val remainingMin = TimeUnit.MILLISECONDS.toMinutes(saved.durationMs - saved.positionMs).coerceAtLeast(1)
-                    resumeLabel.text = "Resume · ${remainingMin}m left"
+                    resumeLabel.text = itemView.context.getString(R.string.list_resume_remaining, remainingMin)
                     resumeLabel.visibility = View.VISIBLE
                 }
                 else -> {

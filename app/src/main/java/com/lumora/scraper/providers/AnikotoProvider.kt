@@ -15,6 +15,7 @@ import com.lumora.scraper.models.Show
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
@@ -457,9 +458,8 @@ object AnikotoProvider : Provider {
     private interface Service {
         companion object {
             fun build(): Service {
-                val client = OkHttpClient.Builder()
-                    .dns(DnsResolver.doh)
-                    .addInterceptor { chain ->
+                val client = NetworkClient.newClient { builder ->
+                    builder.addInterceptor { chain ->
                         val request = chain.request().newBuilder()
                             .header("User-Agent", USER_AGENT)
                             .header("Accept-Language", "de,en-US;q=0.9,en;q=0.8")
@@ -469,7 +469,7 @@ object AnikotoProvider : Provider {
                     }
                     .readTimeout(30, TimeUnit.SECONDS)
                     .connectTimeout(30, TimeUnit.SECONDS)
-                    .build()
+                }
 
                 return Retrofit.Builder()
                     .baseUrl("$baseUrl/")

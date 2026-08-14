@@ -8,6 +8,7 @@ import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.models.*
 import com.lumora.scraper.utils.JsUnpacker
+import com.lumora.scraper.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -34,27 +35,27 @@ object PelotaLibreTvHdProvider : IptvProvider {
     private const val TAG = "PelotaLibre"
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .cookieJar(object : CookieJar {
-            private val cookieStore = HashMap<String, MutableList<Cookie>>()
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                cookieStore[url.host] = cookies.toMutableList()
+    private val client = NetworkClient.newClient { builder ->
+        builder.connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .cookieJar(object : CookieJar {
+                private val cookieStore = HashMap<String, MutableList<Cookie>>()
+                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                    cookieStore[url.host] = cookies.toMutableList()
+                }
+                override fun loadForRequest(url: HttpUrl): List<Cookie> {
+                    return cookieStore[url.host] ?: ArrayList()
+                }
+            })
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3")
+                    .build()
+                chain.proceed(request)
             }
-            override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                return cookieStore[url.host] ?: ArrayList()
-            }
-        })
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                .header("Accept-Language", "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3")
-                .build()
-            chain.proceed(request)
-        }
-        .build()
+    }
 
     private interface ApiService {
         @GET

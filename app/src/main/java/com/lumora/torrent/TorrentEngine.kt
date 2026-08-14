@@ -44,6 +44,12 @@ class TorrentEngine(private val context: android.content.Context) {
     // takes it before removing the session. Otherwise a have_piece() call racing session.remove()
     // dereferences a freed handle and SIGSEGVs the whole process.
     private val nativeLock = Any()
+    // In-flight DHT lookup threads from injectDhtPeers. Those threads call dhtGetPeers()/
+    // connect_peer() on the session from outside nativeLock, so stop() has to wait for them to
+    // finish (join) before tearing the session down - otherwise a native call in flight during
+    // session.stop() is a use-after-free that runCatching cannot catch. Each thread removes itself
+    // when it exits, so the set only ever holds live threads.
+    private val dhtLookupThreads = mutableSetOf<Thread>()
 
     /**
      * Blocks until the chosen file's first pieces are ready, then returns the local URL. Throws
@@ -247,25 +253,56 @@ class TorrentEngine(private val context: android.content.Context) {
      * Runs on its own thread - the lookup blocks for its whole timeout.
      */
     private fun injectDhtPeers(th: TorrentHandle, hash: Sha1Hash) {
-        Thread {
-            val peers = runCatching { session.dhtGetPeers(hash, DHT_LOOKUP_TIMEOUT_SEC) }.getOrNull()
-            if (peers.isNullOrEmpty()) return@Thread
-            for (peer in peers) {
-                synchronized(nativeLock) {
-                    if (cancelled || !th.isValid) return@Thread
-                    runCatching { th.swig().connect_peer(peer.swig()) }
+        val lookup = Thread {
+            try {
+                val peers = runCatching { session.dhtGetPeers(hash, DHT_LOOKUP_TIMEOUT_SEC) }.getOrNull()
+                if (peers.isNullOrEmpty()) return@Thread
+                for (peer in peers) {
+                    synchronized(nativeLock) {
+                        if (cancelled || !th.isValid) return@Thread
+                        runCatching { th.swig().connect_peer(peer.swig()) }
+                    }
                 }
+            } finally {
+                // Drop the self-reference so stop()'s join only waits for still-running threads.
+                synchronized(dhtLookupThreads) { dhtLookupThreads.remove(Thread.currentThread()) }
             }
-        }.start()
+        }
+        synchronized(dhtLookupThreads) {
+            // stop() may have already set cancelled and be about to tear the session down; a thread
+            // added after its join scan would call dhtGetPeers()/connect_peer() during or after
+            // session.stop() - the use-after-free the join is meant to prevent. Starting under the
+            // lock also guarantees stop()'s snapshot (taken under the same lock) either sees this
+            // thread or has already passed the point where a fresh one can be launched.
+            if (cancelled) return
+            dhtLookupThreads.add(lookup)
+            lookup.start()
+        }
     }
 
     fun stop() {
         runCatching { server?.stop() }
         server = null
+        // Stop flag first so any DHT lookup thread still queuing peers backs out, then join every
+        // in-flight lookup thread before touching the session: dhtGetPeers()/connect_peer() run on
+        // those threads outside nativeLock, and a call still in flight when session.stop() runs
+        // dereferences a freed session (SIGSEGV), which runCatching cannot catch. dhtGetPeers
+        // blocks at most DHT_LOOKUP_TIMEOUT_SEC, so the join deadline is that plus a margin.
+        cancelled = true
+        val joinDeadline = System.currentTimeMillis() + DHT_JOIN_TIMEOUT_MS
+        // Snapshot under the lock, join outside it: each lookup thread removes itself from the set
+        // in its finally, which needs that same lock, so joining while holding it would deadlock a
+        // thread that finishes its native work and blocks on removal - join() would then only
+        // return when the deadline expired, burning the whole DHT_JOIN_TIMEOUT_MS on every stop().
+        val inFlight = synchronized(dhtLookupThreads) { dhtLookupThreads.toList() }
+        for (t in inFlight) {
+            val remaining = joinDeadline - System.currentTimeMillis()
+            if (remaining <= 0) break
+            t.join(remaining)
+        }
         // Take the native lock so we never free the session/handle while a have_piece()/status()
         // call is running on the buffering or read thread.
         synchronized(nativeLock) {
-            cancelled = true
             handle?.let { th -> runCatching { session.remove(th) } }
             handle = null
             runCatching { session.stop() }
@@ -322,6 +359,8 @@ class TorrentEngine(private val context: android.content.Context) {
         /** Ticks between session-level DHT lookups that feed peers into the torrent. */
         private const val DHT_LOOKUP_EVERY_TICKS = 15
         private const val DHT_LOOKUP_TIMEOUT_SEC = 12
+        /** How long stop() waits for an in-flight DHT lookup thread before tearing down anyway. */
+        private const val DHT_JOIN_TIMEOUT_MS = 15_000L
         private const val LISTEN_PORT_BASE = 30_000
         private const val LISTEN_PORT_SPAN = 20_000
         /** Explicit DHT bootstrap nodes - the session pack replaces libtorrent's defaults. */

@@ -27,8 +27,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val FILLER_MINUTES = 30
-private const val NOW_PREFIX = "Now: "
-private const val NEXT_PREFIX = "Next: "
 private const val NOW_NEXT_SEPARATOR = " · "
 // Fast D-pad/fling scrolling flies a row past in well under this time; waiting this
 // long before firing its network fetch means rows that never settle never cost a
@@ -327,7 +325,7 @@ class LiveGuideAdapter(
                 // to the name column, so use a neutral label instead. While a fetch is
                 // still pending the block stays blank - flashing "No programme info" for
                 // 200ms before data lands reads as the guide glitching.
-                listOf(RenderBlock(if (pending) "" else "No programme info", (FILLER_MINUTES * MINUTE_WIDTH_DP * density).toInt(), false, null))
+                listOf(RenderBlock(if (pending) "" else itemView.context.getString(R.string.list_no_programme_info), (FILLER_MINUTES * MINUTE_WIDTH_DP * density).toInt(), false, null))
             } else {
                 val nowSeconds = System.currentTimeMillis() / 1000
                 programs.map { program ->
@@ -414,11 +412,13 @@ class LiveGuideAdapter(
             val next = if (currentIndex >= 0) programs.getOrNull(currentIndex + 1)
             else programs.firstOrNull { it.startTimestamp > nowSeconds }
             val focused = channelInfo.isFocused
+            val context = itemView.context
             nowText.text = when {
                 focused && current != null && next != null ->
-                    NOW_PREFIX + current.title + NOW_NEXT_SEPARATOR + NEXT_PREFIX + next.title
-                focused && current != null -> NOW_PREFIX + current.title
-                focused && next != null -> NEXT_PREFIX + next.title
+                    context.getString(R.string.list_now_program, current.title) + NOW_NEXT_SEPARATOR +
+                        context.getString(R.string.list_next_program, next.title)
+                focused && current != null -> context.getString(R.string.list_now_program, current.title)
+                focused && next != null -> context.getString(R.string.list_next_program, next.title)
                 current != null -> current.title
                 else -> ""
             }

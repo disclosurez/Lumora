@@ -66,15 +66,10 @@ object GuardaSerieProvider : Provider {
     private interface GuardaSerieService {
         companion object {
             fun build(baseUrl: String): GuardaSerieService {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .cookieJar(NetworkClient.cookieJar)
-
                 return Retrofit.Builder()
                     .baseUrl(baseUrl)
                     .addConverterFactory(JsoupConverterFactory.create())
-                    .client(clientBuilder.dns(DnsResolver.doh).build())
+                    .client(NetworkClient.default)
                     .build()
                     .create(GuardaSerieService::class.java)
             }

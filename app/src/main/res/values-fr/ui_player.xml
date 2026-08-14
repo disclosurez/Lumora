@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivityPlayer -->
+    <string name="play_no_provider_enabled">Aucun fournisseur n\'est activé - activez-en un dans les Paramètres</string>
+    <string name="play_refreshing_providers">Actualisation des fournisseurs…</string>
+    <string name="play_playback_speed">Vitesse de lecture</string>
+    <string name="play_speed_0_5">0.5x</string>
+    <string name="play_speed_0_75">0.75x</string>
+    <string name="play_speed_1_25">1.25x</string>
+    <string name="play_speed_1_5">1.5x</string>
+    <string name="play_speed_2_0">2.0x</string>
+    <string name="play_speed_label">%1$.1fx</string>
+    <string name="play_sleep_timer">Minuteur de veille</string>
+    <string name="play_sleep_off">Désactivé</string>
+    <string name="play_sleep_15_min">15 min</string>
+    <string name="play_sleep_30_min">30 min</string>
+    <string name="play_sleep_45_min">45 min</string>
+    <string name="play_sleep_60_min">60 min</string>
+    <string name="play_sleep_90_min">90 min</string>
+    <string name="play_sleep_120_min">120 min</string>
+    <string name="play_cast_failed">Échec du Cast : vérifiez la TV et réessayez</string>
+    <string name="play_cast_play_content_first">Lancez d\'abord un contenu, puis Cast</string>
+    <string name="play_diag_body">Décodeur : %1$s\nVidéo : %2$s\nAudio : %3$s\nMicrocoupures : %4$d (%5$ds)\nÉtat : %6$s</string>
+    <string name="play_diag_title">Diagnostics du lecteur</string>
+    <string name="play_ok">OK</string>
+    <string name="play_recording_live_only">L\'enregistrement n\'est disponible que pour la TV en direct</string>
+    <string name="play_schedule_recording">Programmer un enregistrement</string>
+    <string name="play_record_confirm">Enregistrer « %1$s » ?</string>
+    <string name="play_record_for_2_hours">Enregistrer pendant 2 heures</string>
+    <string name="play_recording_scheduled">Enregistrement programmé</string>
+    <string name="play_playback_error">Erreur de lecture</string>
+    <string name="play_stream_error_reason">Lumora n\'a pas pu lire ce flux (%1$s).</string>
+    <string name="play_aspect_zoom">Zoom</string>
+    <string name="play_aspect_stretch">Étirer</string>
+    <string name="play_video_label">Vidéo : %1$s</string>
+    <string name="play_initial_fallback">?</string>
+    <string name="play_couldnt_open_title">Impossible d\'ouvrir ce titre</string>
+    <string name="play_plugin_disabled_message">Le plugin qui a joué ce contenu n\'est plus activé</string>
+    <string name="play_switching_alt_quality">Bascule vers une qualité alternative…</string>
+    <string name="play_switching_to">Bascule vers %1$s</string>
+    <string name="play_no_other_versions_channel">Aucune autre version de cette chaîne</string>
+    <string name="play_channel_version_title">Version de la chaîne</string>
+    <string name="play_no_other_versions_title">Aucune autre version de ce titre</string>
+    <string name="play_version_title">Version</string>
+    <string name="play_find_and_play">Rechercher &amp; lire…</string>
+    <string name="play_no_other_versions_series">Aucune autre version de cette série</string>
+    <string name="play_series_version_title">Version de la série</string>
+    <string name="play_loading_version">Chargement de %1$s…</string>
+    <string name="play_this_episode">cet épisode</string>
+    <string name="play_provider_missing_episode">Ce fournisseur n\'a pas %1$s</string>
+    <string name="play_stream_buffering_switching">Le flux est en cours de chargement, bascule de version…</string>
+    <string name="play_buffering_no_fallback">Ce flux continue de charger et il n\'y a pas d\'autre version de secours.</string>
+    <string name="play_channel_offline_switching">La chaîne semble hors ligne, bascule de version…</string>
+    <string name="play_channel_offline">La chaîne semble hors ligne</string>
+    <string name="play_resume_playback_title">Reprendre la lecture ?</string>
+    <string name="play_resume_message">Continuer à partir de %1$s ?</string>
+    <string name="play_resume">Reprendre</string>
+    <string name="play_start_over">Recommencer</string>
+
+    <!-- MainActivityExternalPlayer -->
+    <string name="play_nothing_playing">Rien n\'est en cours de lecture</string>
+    <string name="play_no_app_can_open">Aucune application sur cet appareil ne peut ouvrir ce flux</string>
+    <string name="play_other_app">Autre application…</string>
+    <string name="play_always_use">Toujours utiliser l\'une d\'elles…</string>
+    <string name="play_play_in">Lire dans</string>
+    <string name="play_ask_every_time">Demander à chaque fois</string>
+    <string name="play_default_external_player">Lecteur externe par défaut</string>
+    <string name="play_external_player_ask_every_time">Lecteur externe : demander à chaque fois</string>
+    <string name="play_external_player_label">Lecteur externe : %1$s</string>
+    <string name="play_in_another_app">Lire dans une autre application ?</string>
+    <string name="play_suggest_body">%1$s\n\nUn autre lecteur vidéo de cet appareil (VLC, MX Player…) peut peut-être le lire - Lumora peut lui confier le flux à la position actuelle.</string>
+    <string name="play_stay_here">Rester ici</string>
+    <string name="play_dont_ask_again">Ne plus demander</string>
+    <string name="play_turn_back_on_settings">Réactivez-le dans Paramètres &gt; Lecture</string>
+    <string name="play_audio_no_decoder_named">L\'audio de ce flux est en %1$s, format que cet appareil ne peut pas décoder - il se lit donc sans son.</string>
+    <string name="play_audio_no_decoder">Cet appareil ne peut pas décoder l\'audio de ce flux, il se lit donc sans son.</string>
+
+    <!-- MainActivityEpg -->
+    <string name="play_not_found">Introuvable</string>
+    <string name="play_first_episode">Premier épisode</string>
+    <string name="play_last_episode">Dernier épisode</string>
+    <string name="play_first">Premier</string>
+    <string name="play_last">Dernier</string>
+</resources>

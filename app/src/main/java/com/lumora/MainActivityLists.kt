@@ -60,7 +60,7 @@ internal fun MainActivity.downloadItem(channel: Channel) {
     // download whatever that resolves to, rather than telling the user to go and play it.
     if (channel.url.isBlank()) {
         if (!canFindStream(channel)) {
-            Toast.makeText(this, "No source available for this title", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.list_no_source_available), Toast.LENGTH_LONG).show()
             return
         }
         val season = channel.id.substringAfterLast(":s", "").substringBefore("e").toIntOrNull()
@@ -80,7 +80,7 @@ internal fun MainActivity.downloadItem(channel: Channel) {
     // can read back offline, which is a different downloader entirely (see HlsDownloads).
     if (HlsDownloads.isHls(channel.url)) {
         if (DownloadStore.get(this, channel.id) != null) {
-            Toast.makeText(this, "Already in Downloads", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.list_already_in_downloads), Toast.LENGTH_SHORT).show()
             return
         }
         HlsDownloads.enqueue(this, channel)
@@ -90,7 +90,7 @@ internal fun MainActivity.downloadItem(channel: Channel) {
                 id = channel.id,
                 title = channel.name,
                 subtitle = if (channel.mediaType == MediaType.SERIES)
-                    channel.categoryName ?: "Episode" else "Movie",
+                    channel.categoryName ?: getString(R.string.list_download_type_episode) else getString(R.string.list_download_type_movie),
                 posterUrl = channel.posterUrl ?: channel.logoUrl,
                 mediaType = channel.mediaType.name,
                 // Media3 owns this download's lifecycle, not the system DownloadManager, so
@@ -99,7 +99,7 @@ internal fun MainActivity.downloadItem(channel: Channel) {
                 status = DownloadStatus.QUEUED,
             )
         )
-        Toast.makeText(this, "Downloading \"${channel.name}\"", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.list_downloading, channel.name), Toast.LENGTH_SHORT).show()
         if (showingDownloads) refreshDownloadsList()
         return
     }
@@ -108,17 +108,17 @@ internal fun MainActivity.downloadItem(channel: Channel) {
         return
     }
     if (DownloadStore.get(this, channel.id) != null) {
-        Toast.makeText(this, "Already in Downloads", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.list_already_in_downloads), Toast.LENGTH_SHORT).show()
         return
     }
     VodDownloader.enqueue(this, channel)
-    Toast.makeText(this, "Downloading \"${channel.name}\"", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, getString(R.string.list_downloading, channel.name), Toast.LENGTH_SHORT).show()
     if (showingDownloads) refreshDownloadsList()
 }
 
 internal fun MainActivity.playDownload(record: DownloadRecord) {
     if (record.status != DownloadStatus.COMPLETE) {
-        Toast.makeText(this, "Still downloading…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.list_still_downloading), Toast.LENGTH_SHORT).show()
         return
     }
     // An HLS download is a tree of segments in Media3's cache, not a file - there is no path to
@@ -127,7 +127,7 @@ internal fun MainActivity.playDownload(record: DownloadRecord) {
     if (HlsDownloads.owns(record)) {
         val sourceUrl = HlsDownloads.sourceUrl(this, record.id)
         if (sourceUrl.isNullOrBlank()) {
-            Toast.makeText(this, "Download is no longer available", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.list_download_unavailable), Toast.LENGTH_LONG).show()
             return
         }
         currentIndex = -1
@@ -135,7 +135,7 @@ internal fun MainActivity.playDownload(record: DownloadRecord) {
         return
     }
     if (record.localFilePath.isNullOrBlank()) {
-        Toast.makeText(this, "Still downloading…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.list_still_downloading), Toast.LENGTH_SHORT).show()
         return
     }
     val local = Channel(
@@ -176,9 +176,9 @@ private fun MainActivity.playOfflineHls(record: DownloadRecord, sourceUrl: Strin
 
 internal fun MainActivity.deleteDownload(record: DownloadRecord) {
     AlertDialog.Builder(this)
-        .setTitle("Delete download?")
-        .setMessage("\"${record.title}\" will be removed from this device.")
-        .setPositiveButton("Delete") { _, _ ->
+        .setTitle(getString(R.string.list_delete_download))
+        .setMessage(getString(R.string.list_delete_download_message, record.title))
+        .setPositiveButton(getString(R.string.list_delete)) { _, _ ->
             // Media3 owns the cached segments of an HLS download; handing its id to the system
             // downloader would delete nothing and leave the cache filled forever.
             if (HlsDownloads.owns(record)) {
@@ -189,7 +189,7 @@ internal fun MainActivity.deleteDownload(record: DownloadRecord) {
             }
             refreshDownloadsList()
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -283,7 +283,7 @@ internal fun MainActivity.selectTab(index: Int) {
     // GONE (the status row shares that same slot, and seriesContent/filmsContent/
     // liveRow are not part of its slotTaken set). It is cleared only at the bottom
     // of the coroutine, once the tab's content has actually landed.
-    setStatus("Loading...", visible = true)
+    setStatus(getString(R.string.loading), visible = true)
     scope.launch {
         // A tab switch away from Live must not race the films/series derive: categories
         // for the Films/Series tabs read filmList/seriesList, so wait for any in-flight
@@ -349,7 +349,7 @@ internal fun MainActivity.buildGuideHeader() {
     binding.guideHeaderRow.removeAllViews()
     repeat(24) { index ->
         val label = TextView(this).apply {
-            text = if (index == 0) "Now" else timeFmt.format(calendar.time)
+            text = if (index == 0) getString(R.string.list_now) else timeFmt.format(calendar.time)
             setTextColor(getColor(R.color.text_tertiary))
             // Built in code, so it needs the dimen read explicitly to pick up the
             // large-screen tier that the XML-inflated guide rows below it get for free.
@@ -482,7 +482,7 @@ internal suspend fun MainActivity.loadSeriesContent(
 internal fun MainActivity.versionChipLabel(version: Channel, index: Int): String =
     listOfNotNull(providerNameFor(version), extractLeadingTag(version.name))
         .joinToString(" · ")
-        .ifBlank { "Version ${index + 1}" }
+        .ifBlank { getString(R.string.list_version, index + 1) }
 
 /** One version-picker chip, styled to sit inline next to Play. item_category's own text
  *  size is the sidebar's, so it's stepped down to the general caption dimen (still scales
@@ -553,7 +553,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     // Only the series path (wirePlayButton) ever writes this, tagging it with the
     // episode it would resume - "Resume S1E1". These views are reused across opens, so
     // without a reset that tag stayed on the button when a *film* was opened next.
-    playButtonLabel.text = "Play"
+    playButtonLabel.text = getString(R.string.play)
     favoriteButton.visibility = View.GONE
     downloadButton.visibility = View.GONE
     downloadButton.setOnClickListener(null)
@@ -760,7 +760,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     fun applyDetails(details: XtreamClient.ContentDetails?) {
         if (details == null) return
         if (!details.releaseDate.isNullOrBlank()) {
-            releaseDateText.text = "Released: ${details.releaseDate}"
+            releaseDateText.text = getString(R.string.list_released, details.releaseDate)
             releaseDateText.visibility = View.VISIBLE
         }
         if (!details.plot.isNullOrBlank()) {
@@ -769,9 +769,9 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             plotLabel.visibility = View.VISIBLE
         }
         val castLine = listOfNotNull(
-            details.genre?.takeIf { it.isNotBlank() }?.let { "Genre: $it" },
-            details.director?.takeIf { it.isNotBlank() }?.let { "Director: $it" },
-            details.cast?.takeIf { it.isNotBlank() }?.let { "Cast: $it" }
+            details.genre?.takeIf { it.isNotBlank() }?.let { getString(R.string.list_genre, it) },
+            details.director?.takeIf { it.isNotBlank() }?.let { getString(R.string.list_director, it) },
+            details.cast?.takeIf { it.isNotBlank() }?.let { getString(R.string.list_cast, it) }
         ).joinToString("\n")
         if (castLine.isNotBlank()) {
             castText.text = castLine
@@ -960,7 +960,9 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         // "Play"/"Resume" alone didn't say *which* episode - with several seasons in
         // play this was a guessing game before committing to it.
         val tag = if (seasonNum != null && target.episodeNum != null) "S${seasonNum}E${target.episodeNum}" else null
-        playButtonLabel.text = listOfNotNull(if (selection.isResume) "Resume" else "Play", tag).joinToString(" ")
+        playButtonLabel.text = listOfNotNull(
+            getString(if (selection.isResume) R.string.list_resume else R.string.play), tag
+        ).joinToString(" ")
         playButton.visibility = View.VISIBLE
         // Landing focus on Play once the screen opens; refocus=false on watch-toggle
         // refreshes (label/target changed) must NOT steal focus - the user is on a check.
@@ -999,7 +1001,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         try {
             val client = XtreamClient(BaseApplication.instance.okHttpClient)
             if (isSeries) {
-                sectionLabel.text = "Episodes"
+                sectionLabel.text = getString(R.string.list_episodes)
                 val (details, librarySeasons) = loadSeriesContent(item)
                 if (nowShowingDetailId != requestedItemId) return@launch
                 applyDetails(details)
@@ -1023,7 +1025,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 if (nowShowingDetailId != requestedItemId) return@launch
                 detailSeasons = seasons
                 if (seasons.all { it.second.isEmpty() }) {
-                    statusText.text = "No episodes found"
+                    statusText.text = getString(R.string.list_no_episodes)
                 } else {
                     statusText.visibility = View.GONE
                     itemsList.visibility = View.VISIBLE
@@ -1123,7 +1125,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 val filmProgress = filmKey.takeIf { it.isNotBlank() }
                     ?.let { PlaybackPositionStore.get(this@showContentDetail, it) }
                     ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
-                playButtonLabel.text = if (filmProgress != null) "Resume" else "Play"
+                playButtonLabel.text = if (filmProgress != null) getString(R.string.list_resume) else getString(R.string.play)
                 // A title opened from Discover that the library does not have has no URL to
                 // play - its only route to a stream is Find Stream. Showing Play there would be
                 // a button that can only fail, so it stays hidden and Find Stream takes focus.
@@ -1165,7 +1167,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 }
             }
         } catch (e: Exception) {
-            if (nowShowingDetailId == requestedItemId) statusText.text = "Failed to load details: ${e.message?.take(60)}"
+            if (nowShowingDetailId == requestedItemId) statusText.text = getString(R.string.list_detail_load_failed, e.message?.take(60) ?: "null")
         }
     }
     nowShowingDetailId = item.id
@@ -1254,31 +1256,31 @@ internal fun MainActivity.showEpgSourceListDialog() {
     scope.launch {
         val sources = withContext(Dispatchers.IO) { database.epgSourceDao().getAll() }
         if (sources.isEmpty()) {
-            Toast.makeText(this@showEpgSourceListDialog, "No EPG sources. Add one.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@showEpgSourceListDialog, getString(R.string.list_no_epg_sources), Toast.LENGTH_SHORT).show()
             showAddEpgSourceDialog()
             return@launch
         }
         val names = sources.map { "${it.name} (${it.url.take(40)}...)" }.toTypedArray()
         AlertDialog.Builder(this@showEpgSourceListDialog)
-            .setTitle("EPG Sources")
+            .setTitle(getString(R.string.epg_sources))
             .setItems(names) { _, which ->
                 val source = sources[which]
                 AlertDialog.Builder(this@showEpgSourceListDialog)
-                    .setTitle("Delete source?")
-                    .setMessage("Remove \"${source.name}\"?")
-                    .setPositiveButton("Delete") { _, _ ->
+                    .setTitle(getString(R.string.list_delete_source))
+                    .setMessage(getString(R.string.list_remove_source, source.name))
+                    .setPositiveButton(getString(R.string.list_delete)) { _, _ ->
                         scope.launch { database.epgSourceDao().delete(source) }
-                        Toast.makeText(this@showEpgSourceListDialog, "EPG source deleted", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@showEpgSourceListDialog, getString(R.string.list_epg_source_deleted), Toast.LENGTH_SHORT).show()
                     }
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(getString(R.string.cancel), null)
                     .show()
             }
-            .setPositiveButton("Add", { _, _ -> showAddEpgSourceDialog() })
-            .setNeutralButton("Refresh now") { _, _ ->
+            .setPositiveButton(getString(R.string.add), { _, _ -> showAddEpgSourceDialog() })
+            .setNeutralButton(getString(R.string.list_refresh_now)) { _, _ ->
                 com.lumora.data.sync.EpgSyncWorker.enqueue(this@showEpgSourceListDialog)
-                Toast.makeText(this@showEpgSourceListDialog, "Downloading EPG…", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@showEpgSourceListDialog, getString(R.string.list_downloading_epg), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Close", null)
+            .setNegativeButton(getString(R.string.close), null)
             .show()
     }
 }
@@ -1324,12 +1326,12 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
         val streams = jellyfinAudio.audioStreams
         val current = streams.indexOfFirst { it.index == jellyfinAudio.audioStreamIndex }
         AlertDialog.Builder(this)
-            .setTitle("Audio Track")
+            .setTitle(getString(R.string.list_audio_track))
             .setSingleChoiceItems(streams.map(::jellyfinAudioLabel).toTypedArray(), current) { dialog, which ->
                 dialog.dismiss()
                 if (which != current) switchJellyfinAudioStream(streams[which].index)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
         return
     }
@@ -1339,7 +1341,7 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
     val actions = mutableListOf<() -> Unit>()
 
     if (!isAudio) {
-        labels.add("Off")
+        labels.add(getString(R.string.list_off))
         actions.add { trackController.selectSubtitleTrack(player, null) }
     }
     tracks.forEach { track ->
@@ -1351,7 +1353,11 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
     }
 
     if (tracks.isEmpty()) {
-        Toast.makeText(this, if (isAudio) "No alternate audio tracks" else "No subtitles available", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            if (isAudio) getString(R.string.list_no_alt_audio) else getString(R.string.list_no_subtitles),
+            Toast.LENGTH_SHORT
+        ).show()
         return
     }
 
@@ -1363,12 +1369,12 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
     }
 
     AlertDialog.Builder(this)
-        .setTitle(if (isAudio) "Audio Track" else "Subtitles")
+        .setTitle(if (isAudio) getString(R.string.list_audio_track) else getString(R.string.subtitles))
         .setSingleChoiceItems(labels.toTypedArray(), checkedIndex) { dialog, which ->
             actions[which]()
             dialog.dismiss()
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 

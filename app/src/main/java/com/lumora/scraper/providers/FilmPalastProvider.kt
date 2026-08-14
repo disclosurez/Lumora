@@ -14,6 +14,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TmdbUtils
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -21,7 +22,6 @@ import kotlinx.coroutines.coroutineScope
 import okhttp3.Cache
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.OkHttpClient.Builder
 import okhttp3.ResponseBody
 import okhttp3.dnsoverhttps.DnsOverHttps
 import org.jsoup.nodes.Document
@@ -597,11 +597,11 @@ object FilmPalastProvider : Provider {
         companion object {
             private fun getOkHttpClient(): OkHttpClient {
                 val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
-                val clientBuilder = Builder().cache(appCache).readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
-                val clientToReturn = clientBuilder.dns(DnsResolver.doh).build()
-                return clientToReturn
+                return NetworkClient.newClient { builder ->
+                    builder.cache(appCache)
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                }
             }
 
             fun build(): FilmpalastService {

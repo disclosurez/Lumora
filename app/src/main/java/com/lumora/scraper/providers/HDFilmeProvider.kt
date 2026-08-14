@@ -20,6 +20,7 @@ import com.lumora.scraper.models.Movie
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Season
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TmdbUtils
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -50,16 +51,13 @@ object HDFilmeProvider : Provider {
     private interface HDFilmeService {
         companion object {
             fun build(baseUrl: String): HDFilmeService {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .followRedirects(false)
-                    .followSslRedirects(false)
-
-                val client = clientBuilder
-                    .addInterceptor(RedirectInterceptor())
-                    .dns(DnsResolver.doh)
-                    .build()
+                val client = NetworkClient.newClient { builder ->
+                    builder.readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .followRedirects(false)
+                        .followSslRedirects(false)
+                        .addInterceptor(RedirectInterceptor())
+                }
 
                 return Retrofit.Builder()
                     .baseUrl(baseUrl)

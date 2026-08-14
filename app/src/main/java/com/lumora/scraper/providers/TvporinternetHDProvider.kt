@@ -8,6 +8,7 @@ import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.*
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.utils.JsUnpacker
+import com.lumora.scraper.utils.NetworkClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -35,18 +36,18 @@ object TvporinternetHDProvider : IptvProvider {
     private var lastFetchTime: Long = 0
     private const val CACHE_VALIDITY = 2 * 60 * 60 * 1000L // 2 horas de caché
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .cookieJar(object : CookieJar {
-            private val store = HashMap<String, List<Cookie>>()
-            override fun saveFromResponse(u: HttpUrl, c: List<Cookie>) { store[u.host] = c }
-            override fun loadForRequest(u: HttpUrl): List<Cookie> = store[u.host] ?: emptyList()
-        })
-        .addInterceptor { chain ->
-            chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
-        }
-        .build()
+    private val client = NetworkClient.newClient { builder ->
+        builder.connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .cookieJar(object : CookieJar {
+                private val store = HashMap<String, List<Cookie>>()
+                override fun saveFromResponse(u: HttpUrl, c: List<Cookie>) { store[u.host] = c }
+                override fun loadForRequest(u: HttpUrl): List<Cookie> = store[u.host] ?: emptyList()
+            })
+            .addInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
+            }
+    }
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.
     private val serviceHolder = HostScopedService({ baseUrl }) {

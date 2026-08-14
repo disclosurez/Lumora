@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plugins pane & stream search (MainActivityPlugins) -->
+    <string name="plug_public_streaming_content_title">Contenu de streaming public</string>
+    <string name="plug_public_streaming_content_message">Ces plugins recherchent du contenu sur des sites publics de torrent et de streaming. Lumora n\'héberge, ne contrôle ni ne vérifie rien de ce qu\'ils trouvent — ce qu\'ils renvoient est entièrement hors du contrôle de cette application.\n\nRéservé à un usage éducatif et personnel. Vous êtes responsable du respect des lois qui s\'appliquent à vous.</string>
+    <string name="plug_i_agree">J\'accepte</string>
+    <string name="plug_no_trailer_found">Aucune bande-annonce trouvée.</string>
+    <string name="plug_could_not_resolve_stream">Impossible de résoudre le flux</string>
+    <string name="plug_searching">Recherche…</string>
+    <string name="plug_find_stream_title">Trouver un flux — %1$s%2$s</string>
+    <string name="plug_loading_title">Chargement de %1$s…</string>
+    <string name="plug_result_count">%1$d résultat(s)</string>
+    <string name="plug_no_streams_found">Aucun flux trouvé</string>
+    <string name="plug_enter_valid_link">Saisissez un lien http(s) valide</string>
+    <string name="plug_couldnt_fetch_script">Impossible de récupérer ce script</string>
+    <string name="plug_added_label">Ajouté : %1$s</string>
+    <string name="plug_added_label_enable">Ajouté : %1$s - activez-le pour l\'utiliser</string>
+    <string name="plug_add_plugin_script_from_url">Ajouter un script de plugin depuis une URL</string>
+    <string name="plug_enter_plugin_script_message">Saisissez le lien vers un script de plugin Lumora (.js).</string>
+    <string name="plug_added">Ajouté</string>
+    <string name="plug_add_candidate_title">Ajouter %1$s ?</string>
+    <string name="plug_add_candidate_message">%1$s a trouvé ce fournisseur %2$s :\n\n%3$s\n\nL\'ajouter enregistre ces informations comme fournisseur dans Lumora.</string>
+    <string name="plug_starting_label">Démarrage de %1$s…</string>
+    <string name="plug_nothing_found">Rien trouvé</string>
+    <string name="plug_found_count">Trouvé : %1$d</string>
+    <string name="plug_enabled">Activé</string>
+    <string name="plug_disabled">Désactivé</string>
+    <string name="plug_provider_discovery">Découverte de fournisseurs</string>
+    <string name="plug_stream_search">Recherche de flux</string>
+    <string name="plug_running">En cours…</string>
+    <string name="plug_plugin_already_running">Un plugin est déjà en cours d\'exécution</string>
+    <string name="plug_enable_label_first">Activez d\'abord %1$s</string>
+    <string name="plug_updating">Mise à jour…</string>
+    <string name="plug_remove_label_title">Supprimer %1$s ?</string>
+    <string name="plug_remove_script_message">Cela supprime le script installé. Vous pourrez le réinstaller plus tard depuis une boutique de plugins ou son URL.</string>
+    <string name="plug_couldnt_download_label">Impossible de télécharger %1$s</string>
+    <string name="plug_updated_label">Mis à jour : %1$s</string>
+    <string name="plug_update_rejected">Mise à jour refusée : %1$s</string>
+    <string name="plug_not_in_plugin_store">%1$s n\'est dans aucune boutique de plugins configurée</string>
+    <string name="plug_couldnt_download_script">Impossible de télécharger ce script</string>
+    <string name="plug_couldnt_load_store">Impossible de charger cette boutique</string>
+    <string name="plug_no_scripts_listed">Aucun script répertorié</string>
+    <string name="plug_script_count">%1$d script(s)</string>
+    <string name="plug_install">Installer</string>
+    <string name="plug_installing">Installation…</string>
+    <string name="plug_updated">Mis à jour</string>
+    <string name="plug_installed">Installé</string>
+    <string name="plug_installed_label">%1$s installé</string>
+    <string name="plug_installed_label_enable">%1$s installé - activez-le pour l\'utiliser</string>
+    <string name="plug_add_plugin_store">Ajouter une boutique de plugins</string>
+    <string name="plug_add_plugin_store_message">Saisissez le lien vers le catalogue d\'une boutique de plugins (un petit fichier JSON répertoriant ses scripts).</string>
+
+    <!-- Discover (TMDB browse) statuses (MainActivityDiscover) -->
+    <string name="plug_discover_unavailable">Discover n\'est pas disponible (aucune clé TMDB configurée).</string>
+    <string name="plug_couldnt_load_titles">Impossible de charger les titres. Vérifiez votre connexion.</string>
+    <string name="plug_loading_trending">Chargement des tendances…</string>
+    <string name="plug_searching_query">Recherche de \"%1$s\"…</string>
+    <string name="plug_no_results_for">Aucun résultat pour \"%1$s\".</string>
+    <string name="plug_enable_stream_plugin_browse">Activez un plugin de flux pour parcourir les titres hors de votre bibliothèque.</string>
+    <string name="plug_loading_series">Chargement des séries…</string>
+    <string name="plug_loading_movies">Chargement des films…</string>
+    <string name="plug_enable_stream_plugin_or_sites">Activez un plugin de flux ou les sites de streaming dans les Réglages pour lire les titres de Discover.</string>
+    <string name="plug_loading_episodes">Chargement des épisodes…</string>
+    <string name="plug_choose_season">%1$s — choisissez une saison</string>
+    <string name="plug_episode">Épisode %1$d</string>
+    <string name="plug_back">Retour</string>
+
+    <!-- Provider loading statuses (MainActivityProviders) -->
+    <string name="plug_connecting_to">Connexion à %1$s...</string>
+    <string name="plug_connecting_to_n">Connexion à %1$d fournisseurs...</string>
+    <string name="plug_connecting_to_jellyfin">Connexion à Jellyfin...</string>
+    <string name="plug_item_count">%1$d éléments</string>
+    <string name="plug_downloading_streaming_plugins">Téléchargement des plugins de streaming…</string>
+    <string name="plug_couldnt_reach_plugin_store">Impossible de joindre la boutique de plugins</string>
+
+    <!-- Jellyfin playback (MainActivityJellyfin) -->
+    <string name="plug_couldnt_switch_audio">Impossible de changer la piste audio</string>
+
+    <!-- Catalog status (MainActivityCatalog) -->
+    <string name="plug_trial_prefix">Essai ·</string>
+    <string name="plug_expired_status">Expiré %1$s</string>
+    <string name="plug_active_until_status">Actif jusqu\'au %1$s</string>
+
+    <!-- Category rail chrome (MainActivityCategories) -->
+    <string name="plug_hidden">Masqué \"%1$s\"</string>
+    <string name="plug_unhidden">Réaffiché \"%1$s\"</string>
+    <string name="plug_pinned_to_top">\"%1$s\" épinglé en haut</string>
+    <string name="plug_unpinned">\"%1$s\" désépinglé</string>
+    <string name="plug_hide">Masquer</string>
+    <string name="plug_unhide">Réafficher</string>
+    <string name="plug_unpin">Désépingler</string>
+    <string name="plug_pin_to_top">Épingler en haut</string>
+    <string name="plug_added_to_favourites">Ajouté aux favoris</string>
+    <string name="plug_removed_from_favourites">Retiré des favoris</string>
+    <string name="plug_reminder_cancelled">Rappel annulé</string>
+    <string name="plug_reminder_set_for">Rappel défini pour \"%1$s\"</string>
+    <string name="plug_program_starts_too_soon">Le programme commence trop tôt - rappel non défini</string>
+
+    <!-- Update & backup toasts (MainActivity) -->
+    <string name="plug_update_available">Mise à jour disponible</string>
+    <string name="plug_update_available_message">Lumora v%1$s est disponible.\nVersion actuelle : v%2$s\n\n%3$s</string>
+    <string name="plug_later">Plus tard</string>
+    <string name="plug_downloading_update">Téléchargement de la mise à jour…</string>
+    <string name="plug_update_download_failed">Échec du téléchargement de la mise à jour</string>
+    <string name="plug_backup_exported">Sauvegarde exportée</string>
+    <string name="plug_export_failed">Échec de l\'exportation</string>
+    <string name="plug_imported_summary">Importé : %1$d fournisseurs, %2$d sources EPG, %3$d groupes</string>
+    <string name="plug_import_failed">Échec de l\'importation</string>
+</resources>

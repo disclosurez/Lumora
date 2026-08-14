@@ -35,11 +35,11 @@ import java.util.Locale
 // Extracted from MainActivity.kt; see that file's header.
 internal fun MainActivity.showAddEpgSourceDialog() {
     val input = EditText(this).apply {
-        hint = "XMLTV EPG URL"
+        hint = getString(R.string.sett_epg_source_url_hint)
         inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
     }
     val nameInput = EditText(this).apply {
-        hint = "Source name"
+        hint = getString(R.string.sett_epg_source_name_hint)
         inputType = android.text.InputType.TYPE_CLASS_TEXT
     }
     val layout = LinearLayout(this).apply {
@@ -49,12 +49,12 @@ internal fun MainActivity.showAddEpgSourceDialog() {
         addView(input)
     }
     AlertDialog.Builder(this)
-        .setTitle("Add EPG Source")
+        .setTitle(getString(R.string.sett_add_epg_source_title))
         .setView(layout)
-        .setPositiveButton("Add") { _, _ ->
+        .setPositiveButton(getString(R.string.add)) { _, _ ->
             val name = nameInput.text.toString().trim().ifBlank { "EPG ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" }
             val url = input.text.toString().trim()
-            if (url.isBlank()) { Toast.makeText(this, "Enter a URL", Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+            if (url.isBlank()) { Toast.makeText(this, getString(R.string.sett_enter_url), Toast.LENGTH_SHORT).show(); return@setPositiveButton }
             scope.launch {
                 database.epgSourceDao().insert(
                     EpgSourceEntity(
@@ -66,10 +66,10 @@ internal fun MainActivity.showAddEpgSourceDialog() {
                 // Fetch it now rather than leaving the new source dark until the next 6h
                 // periodic run — adding a source and seeing no guide for hours reads as broken.
                 com.lumora.data.sync.EpgSyncWorker.enqueue(this@showAddEpgSourceDialog)
-                Toast.makeText(this@showAddEpgSourceDialog, "EPG source added — downloading guide", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@showAddEpgSourceDialog, getString(R.string.sett_epg_source_added), Toast.LENGTH_SHORT).show()
             }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -90,23 +90,23 @@ internal suspend fun MainActivity.performJellyfinQuickConnect(
 ): Boolean {
     val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
     val (code, secret) = existing ?: run {
-        onStatus("Starting…")
+        onStatus(getString(R.string.sett_starting))
         withContext(Dispatchers.IO) { qc.startQuickConnect(url) }
-            ?: run { onStatus(qc.lastQuickConnectError ?: "Couldn't start Quick Connect - check the server URL"); return false }
+            ?: run { onStatus(qc.lastQuickConnectError ?: getString(R.string.sett_qc_couldnt_start)); return false }
     }
-    onStatus("Enter code $code on your Jellyfin server")
+    onStatus(getString(R.string.sett_enter_code_on_server, code))
     val deadline = System.currentTimeMillis() + 120_000L
     var approved = false
     while (System.currentTimeMillis() < deadline) {
         delay(2000)
         if (withContext(Dispatchers.IO) { qc.isQuickConnectApproved(url, secret) }) { approved = true; break }
     }
-    if (!approved) { onStatus("Quick Connect timed out"); return false }
-    onStatus("Signing in…")
+    if (!approved) { onStatus(getString(R.string.sett_qc_timed_out)); return false }
+    onStatus(getString(R.string.sett_signing_in))
     val authResult = withContext(Dispatchers.IO) { qc.completeQuickConnect(url, secret) }
     val auth = authResult.getOrNull()
     if (auth == null || auth.token == null || auth.userId == null) {
-        onStatus("Quick Connect sign-in failed")
+        onStatus(getString(R.string.sett_qc_signin_failed))
         return false
     }
     // No password to save here - the token itself is the credential from now on.
@@ -128,7 +128,13 @@ internal suspend fun MainActivity.performJellyfinQuickConnect(
 /** A settings row that picks a language into [key]. Sits in General with the other
  *  whole-app choices; the Subtitles on/off switch stays under Filters with the rest of
  *  the playback toggles. */
-internal fun MainActivity.languageChoiceRow(title: String, key: String, caption: String): TextView {
+internal fun MainActivity.languageChoiceRow(
+    title: String,
+    key: String,
+    caption: String,
+    choices: List<Pair<String, String>> = PLAYBACK_LANGUAGES,
+    onSelect: ((String) -> Unit)? = null
+): TextView {
     val row = TextView(this)
     row.setTextColor(getColor(R.color.text_primary))
     row.setBackgroundResource(R.drawable.card_surface_background)
@@ -144,24 +150,26 @@ internal fun MainActivity.languageChoiceRow(title: String, key: String, caption:
     ).apply { topMargin = resources.getDimensionPixelSize(R.dimen.settings_gap_m) }
 
     fun render() {
-        val current = languageName(prefs.getString(key, "en") ?: "en")
-        row.text = twoLineSettingsText(title, "$current  ·  $caption")
+        val current = prefs.getString(key, "en") ?: "en"
+        val display = choices.firstOrNull { it.first == current }?.second ?: current.uppercase()
+        row.text = twoLineSettingsText(title, getString(R.string.sett_language_row, display, caption))
     }
     render()
     row.setOnClickListener {
-        val codes = PLAYBACK_LANGUAGES.map { it.first }
+        val codes = choices.map { it.first }
         val current = prefs.getString(key, "en") ?: "en"
         AlertDialog.Builder(this)
             .setTitle(title)
             .setSingleChoiceItems(
-                PLAYBACK_LANGUAGES.map { it.second }.toTypedArray(),
+                choices.map { it.second }.toTypedArray(),
                 codes.indexOf(current).coerceAtLeast(0)
             ) { dialog, which ->
                 prefs.edit().putString(key, codes[which]).apply()
+                onSelect?.invoke(codes[which])
                 render()
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
     return row
@@ -333,16 +341,16 @@ internal fun MainActivity.showProviderSettings() {
 
     clearHistory.setOnClickListener {
         AlertDialog.Builder(this)
-            .setTitle("Clear watch history?")
-            .setMessage("Removes resume positions and recently-played channels. Favorites aren't affected.")
-            .setPositiveButton("Clear") { _, _ ->
+            .setTitle(getString(R.string.sett_clear_history_confirm))
+            .setMessage(getString(R.string.sett_clear_history_message))
+            .setPositiveButton(getString(R.string.search_recents_clear)) { _, _ ->
                 PlaybackPositionStore.clearAll(this)
                 clearUpNextMemo()
                 RecentlyPlayedStore.clear(this)
-                Toast.makeText(this, "Watch history cleared", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.sett_history_cleared), Toast.LENGTH_SHORT).show()
                 if (showingHome) selectHome()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -359,17 +367,17 @@ internal fun MainActivity.showProviderSettings() {
     jellyfinQuickConnectButton.setOnClickListener {
         val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
         if (url.isBlank()) {
-            Toast.makeText(this, "Enter a server URL first", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.sett_enter_server_url_first), Toast.LENGTH_SHORT).show()
             return@setOnClickListener
         }
         scope.launch {
             var lastMsg = ""
             val ok = performJellyfinQuickConnect(url) { msg -> lastMsg = msg; jellyfinQuickConnectLabel.text = msg }
-            jellyfinQuickConnectLabel.text = "Sign in with Quick Connect"
+            jellyfinQuickConnectLabel.text = getString(R.string.sign_in_with_quick_connect)
             if (ok) {
                 
                 dialog.dismiss()
-                Toast.makeText(this@showProviderSettings, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@showProviderSettings, getString(R.string.sett_signed_in_via_quick_connect), Toast.LENGTH_SHORT).show()
                 loadAllConfiguredProviders(forceRefresh = true)
             } else {
                 Toast.makeText(this@showProviderSettings, lastMsg, Toast.LENGTH_LONG).show()
@@ -389,7 +397,12 @@ internal fun MainActivity.showProviderSettings() {
     var currentType: String? = null
     var editingProviderId: String? = null
     val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
-    val typeLabels = mapOf("m3u" to "M3U/M3U8", "xtream" to "Xtream", "stalker" to "Stalker Portal", "jellyfin" to "Jellyfin")
+    val typeLabels = mapOf(
+        "m3u" to getString(R.string.provider_type_m3u),
+        "xtream" to getString(R.string.provider_type_xtream),
+        "stalker" to getString(R.string.sett_stalker_portal),
+        "jellyfin" to getString(R.string.provider_type_jellyfin)
+    )
 
     // Every place this form shows/hides a section, the view that was holding d-pad focus
     // can be the one going GONE - and a focused view disappearing leaves nothing focused,
@@ -411,7 +424,7 @@ internal fun MainActivity.showProviderSettings() {
         }
         typePicker.visibility = View.GONE
         typeSummary.visibility = View.VISIBLE
-        typeSummaryLabel.text = "Type: ${typeLabels[type]}"
+        typeSummaryLabel.text = getString(R.string.sett_type_summary, typeLabels[type] ?: "")
         iptvFieldsSection.visibility = View.VISIBLE
         nameSection.visibility = if (type == "jellyfin") View.GONE else View.VISIBLE
         m3uGroup.visibility = if (type == "m3u") View.VISIBLE else View.GONE
@@ -457,7 +470,7 @@ internal fun MainActivity.showProviderSettings() {
         qrSection.visibility = View.VISIBLE
         qrFrame.visibility = View.GONE
         qrTimer.visibility = View.GONE
-        qrStatus.text = "Starting server..."
+        qrStatus.text = getString(R.string.sett_starting_server)
 
         scope.launch {
             val result = qrManager.start(providerType = type)
@@ -465,29 +478,29 @@ internal fun MainActivity.showProviderSettings() {
                 qrImage.setImageBitmap(result.qrBitmap)
                 qrFrame.visibility = View.VISIBLE
                 qrTimer.visibility = View.VISIBLE
-                qrStatus.text = "Scan QR with your phone"
+                qrStatus.text = getString(R.string.sett_scan_qr)
                 launch {
                     while (qrManager.result != null) {
                         val rem = (result.expiresAtMs - System.currentTimeMillis()) / 1000
                         if (rem <= 0) break
-                        qrTimer.text = "Expires in ${rem / 60}:%02d".format(rem % 60)
+                        qrTimer.text = getString(R.string.sett_expires_in, rem / 60, rem % 60)
                         delay(1000)
                     }
                     if (serverRunning) {
-                        qrTimer.text = "Expired"
+                        qrTimer.text = getString(R.string.sett_expired)
                         stopQrServer()
                     }
                 }
             } else {
                 serverRunning = false
-                qrStatus.text = "Could not start server"
+                qrStatus.text = getString(R.string.sett_could_not_start_server)
             }
         }
     }
 
     qrManager.onProviderReceived = { type, form ->
         runOnUiThread {
-            qrStatus.text = "Provider received! Loading..."
+            qrStatus.text = getString(R.string.sett_provider_received)
             when (type) {
                 "m3u" -> {
                     val url = form["m3uUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
@@ -543,7 +556,7 @@ internal fun MainActivity.showProviderSettings() {
                     val url = form["serverUrl"] ?: return@runOnUiThread
                     val code = form["code"] ?: return@runOnUiThread
                     val secret = form["secret"] ?: return@runOnUiThread
-                    qrStatus.text = "Enter code $code on your Jellyfin server"
+                    qrStatus.text = getString(R.string.sett_enter_code_on_server, code)
                     scope.launch {
                         var lastMsg = ""
                         val ok = performJellyfinQuickConnect(url, existing = code to secret) { msg -> lastMsg = msg; qrStatus.text = msg }
@@ -551,7 +564,7 @@ internal fun MainActivity.showProviderSettings() {
                             
                             stopQrServer()
                             dialog.dismiss()
-                            Toast.makeText(this@showProviderSettings, "Signed in via Quick Connect", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@showProviderSettings, getString(R.string.sett_signed_in_via_quick_connect), Toast.LENGTH_SHORT).show()
                             loadAllConfiguredProviders(forceRefresh = true)
                         } else {
                             qrStatus.text = lastMsg
@@ -569,7 +582,7 @@ internal fun MainActivity.showProviderSettings() {
         if (pair != null) {
             QrPairingManager.QuickConnectStart(pair.first, pair.second, null)
         } else {
-            QrPairingManager.QuickConnectStart(null, null, qc.lastQuickConnectError ?: "Couldn't start Quick Connect - check the server URL")
+            QrPairingManager.QuickConnectStart(null, null, qc.lastQuickConnectError ?: getString(R.string.sett_qc_couldnt_start))
         }
     }
 
@@ -615,7 +628,7 @@ internal fun MainActivity.showProviderSettings() {
         iptvListSection.visibility = View.GONE
         providerNameInput.setText(existing?.name ?: "")
         if (existing != null) {
-            iptvFormTitle.text = "Editing ${existing.name}"
+            iptvFormTitle.text = getString(R.string.sett_editing_provider, existing.name)
             iptvFormTitle.visibility = View.VISIBLE
             selectType(existing.type)
         } else {
@@ -656,7 +669,7 @@ internal fun MainActivity.showProviderSettings() {
         editingProviderId = null
         addIptvProviderButton.visibility = View.GONE
         iptvListSection.visibility = View.GONE
-        iptvFormTitle.text = "Editing Jellyfin"
+        iptvFormTitle.text = getString(R.string.sett_editing_jellyfin)
         iptvFormTitle.visibility = View.VISIBLE
         providerNameInput.setText("")
         selectType("jellyfin")
@@ -696,14 +709,18 @@ internal fun MainActivity.showProviderSettings() {
             bindContentBox(row.findViewById(R.id.rowMoviesBox), cfg.moviesEnabled) { on -> IptvProviderStore.setContentFlags(prefs, cfg.id, movies = on) }
             bindContentBox(row.findViewById(R.id.rowSeriesBox), cfg.seriesEnabled) { on -> IptvProviderStore.setContentFlags(prefs, cfg.id, series = on) }
             row.findViewById<TextView>(R.id.rowName).text = cfg.name
-            val typeLabel = when (cfg.type) { "xtream" -> "Xtream"; "stalker" -> "Stalker Portal"; else -> "M3U/M3U8" }
-            row.findViewById<TextView>(R.id.rowDetail).text = "$typeLabel · ${cfg.url ?: ""}"
+            val typeLabel = when (cfg.type) {
+                "xtream" -> getString(R.string.provider_type_xtream)
+                "stalker" -> getString(R.string.sett_stalker_portal)
+                else -> getString(R.string.provider_type_m3u)
+            }
+            row.findViewById<TextView>(R.id.rowDetail).text = getString(R.string.sett_provider_row_detail, typeLabel, cfg.url ?: "")
             row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openIptvForm(cfg) }
             row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
                 AlertDialog.Builder(this)
-                    .setTitle("Remove ${cfg.name}?")
-                    .setMessage("This provider's channels will no longer appear.")
-                    .setPositiveButton("Remove") { _, _ ->
+                    .setTitle(getString(R.string.sett_remove_provider_confirm, cfg.name))
+                    .setMessage(getString(R.string.sett_remove_provider_message))
+                    .setPositiveButton(getString(R.string.remove)) { _, _ ->
                         IptvProviderStore.remove(prefs, cfg.id)
                         renderIptvProviderList()
                         // The removed row's own Remove button was holding focus and is
@@ -711,7 +728,7 @@ internal fun MainActivity.showProviderSettings() {
                         focusWhenReady(addIptvProviderButton)
                         loadAllConfiguredProviders(forceRefresh = true)
                     }
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(getString(R.string.cancel), null)
                     .show()
             }
             iptvProviderListContainer.addView(row)
@@ -741,14 +758,14 @@ internal fun MainActivity.showProviderSettings() {
             // Movies box unchecked and look broken.
             bindJellyfinBox(row.findViewById(R.id.rowMoviesBox), "jellyfin_movies_enabled", jellyfinFlag("jellyfin_movies_enabled"))
             bindJellyfinBox(row.findViewById(R.id.rowSeriesBox), "jellyfin_series_enabled", jellyfinFlag("jellyfin_series_enabled"))
-            row.findViewById<TextView>(R.id.rowName).text = "Jellyfin"
-            row.findViewById<TextView>(R.id.rowDetail).text = "Jellyfin · ${prefs.getString("jellyfin_url", "") ?: ""}"
+            row.findViewById<TextView>(R.id.rowName).text = getString(R.string.provider_type_jellyfin)
+            row.findViewById<TextView>(R.id.rowDetail).text = getString(R.string.sett_provider_row_detail, getString(R.string.provider_type_jellyfin), prefs.getString("jellyfin_url", "") ?: "")
             row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openJellyfinEditForm() }
             row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
                 AlertDialog.Builder(this)
-                    .setTitle("Remove Jellyfin?")
-                    .setMessage("Its channels will no longer appear.")
-                    .setPositiveButton("Remove") { _, _ ->
+                    .setTitle(getString(R.string.sett_remove_jellyfin_confirm))
+                    .setMessage(getString(R.string.sett_remove_jellyfin_message))
+                    .setPositiveButton(getString(R.string.remove)) { _, _ ->
                         prefs.edit().remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
                             .remove("jellyfin_provider_enabled").remove("jellyfin_disable_vod")
                             .remove("jellyfin_live_enabled").remove("jellyfin_movies_enabled").remove("jellyfin_series_enabled").apply()
@@ -756,7 +773,7 @@ internal fun MainActivity.showProviderSettings() {
                         focusWhenReady(addIptvProviderButton)
                         loadAllConfiguredProviders(forceRefresh = true)
                     }
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(getString(R.string.cancel), null)
                     .show()
             }
             iptvProviderListContainer.addView(row)
@@ -797,7 +814,7 @@ internal fun MainActivity.showProviderSettings() {
                 val success = withContext(Dispatchers.IO) { backupManager.exportTo(Uri.fromFile(file)) }
                 Toast.makeText(
                     this@showProviderSettings,
-                    if (success) "Backup saved to ${file.absolutePath}" else "Export failed",
+                    if (success) getString(R.string.sett_backup_saved_to, file.absolutePath) else getString(R.string.sett_export_failed),
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -814,7 +831,7 @@ internal fun MainActivity.showProviderSettings() {
         } catch (e: android.content.ActivityNotFoundException) {
             val file = localBackupFile()
             if (!file.exists()) {
-                Toast.makeText(this@showProviderSettings, "No backup file found at ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@showProviderSettings, getString(R.string.sett_no_backup_file, file.absolutePath), Toast.LENGTH_LONG).show()
             } else {
                 scope.launch {
                     // Import is an explicit user action, so existing data isn't a decision
@@ -827,7 +844,7 @@ internal fun MainActivity.showProviderSettings() {
                     }
                     Toast.makeText(
                         this@showProviderSettings,
-                        "Imported: ${result.providersImported} providers, ${result.epgSourcesImported} EPG sources, ${result.customGroupsImported} groups",
+                        getString(R.string.sett_imported_summary, result.providersImported, result.epgSourcesImported, result.customGroupsImported),
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -842,7 +859,7 @@ internal fun MainActivity.showProviderSettings() {
 
     // Recording storage
     dialogView.findViewById<View>(R.id.settingsRecordingStorage).setOnClickListener {
-        Toast.makeText(this, "Recording storage: ${filesDir}/recordings", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.sett_recording_storage_path, "${filesDir}/recordings"), Toast.LENGTH_SHORT).show()
     }
 
     // Playback settings. Only entries that change something belong here — the Decoder /
@@ -852,24 +869,24 @@ internal fun MainActivity.showProviderSettings() {
     // did nothing.
     dialogView.findViewById<View>(R.id.settingsDecoderMode).setOnClickListener {
         val items = arrayOf(
-            "External player: ${externalPlayerSummary(this)}",
-            "Suggest external player on problems: ${if (prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)) "ON" else "OFF"}",
-            "Legal & safety notice"
+            getString(R.string.sett_external_player_summary, externalPlayerSummary(this)),
+            getString(R.string.sett_suggest_external_player_on_problems, if (prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)) getString(R.string.sett_on) else getString(R.string.sett_off)),
+            getString(R.string.legal_notice_title)
         )
         AlertDialog.Builder(this@showProviderSettings)
-            .setTitle("Playback Settings")
+            .setTitle(getString(R.string.sett_playback_settings_title))
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> chooseDefaultExternalPlayer()
                     1 -> {
                         val on = !prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)
                         prefs.edit().putBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, on).apply()
-                        Toast.makeText(this@showProviderSettings, "Suggest external player: ${if (on) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@showProviderSettings, getString(R.string.sett_suggest_external_player, if (on) getString(R.string.sett_on) else getString(R.string.sett_off)), Toast.LENGTH_SHORT).show()
                     }
                     2 -> showLegalNotice()
                 }
             }
-            .setPositiveButton("Close", null)
+            .setPositiveButton(getString(R.string.close), null)
             .show()
     }
 
@@ -880,12 +897,12 @@ internal fun MainActivity.showProviderSettings() {
         val values = listOf(-500, -250, -100, -50, 0, 50, 100, 250, 500)
         val checked = values.indexOf(current).coerceAtLeast(0)
         AlertDialog.Builder(this@showProviderSettings)
-            .setTitle("A/V Sync Offset")
+            .setTitle(getString(R.string.sett_av_sync_offset_title))
             .setSingleChoiceItems(presets.toTypedArray(), checked) { dialog, which ->
                 avOffsetManager.save(values[which])
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -913,7 +930,7 @@ internal fun MainActivity.showProviderSettings() {
     val parentalPinRow = dialogView.findViewById<View>(R.id.settingsParentalPin)
     val parentalPinLabel = dialogView.findViewById<TextView>(R.id.settingsParentalPinLabel)
     hideAdult.isChecked = prefs.getBoolean(PREF_HIDE_ADULT, true)
-    parentalPinLabel.text = if (hasParentalPin()) "Change parental PIN" else "Set parental PIN"
+    parentalPinLabel.text = if (hasParentalPin()) getString(R.string.sett_change_parental_pin) else getString(R.string.set_parental_pin)
 
     lateinit var hideAdultListener: CompoundButton.OnCheckedChangeListener
     fun applyHideAdult(checked: Boolean) {
@@ -928,7 +945,7 @@ internal fun MainActivity.showProviderSettings() {
         // is set - otherwise the toggle is just a preference with nothing locking it.
         if (!checked && hasParentalPin()) {
             applyHideAdult(true)
-            promptForPin("Enter PIN to show adult content") { applyHideAdult(false) }
+            promptForPin(getString(R.string.sett_enter_pin_show_adult)) { applyHideAdult(false) }
         } else {
             applyHideAdult(checked)
         }
@@ -936,7 +953,7 @@ internal fun MainActivity.showProviderSettings() {
     hideAdult.setOnCheckedChangeListener(hideAdultListener)
     parentalPinRow.setOnClickListener {
         if (hasParentalPin()) {
-            promptForPin("Enter current PIN") { showSetPinDialog(parentalPinLabel) }
+            promptForPin(getString(R.string.sett_enter_current_pin)) { showSetPinDialog(parentalPinLabel) }
         } else {
             showSetPinDialog(parentalPinLabel)
         }
@@ -966,18 +983,18 @@ internal fun MainActivity.showProviderSettings() {
     // Both default off; the subtitles one is read by PlayerManager from the same prefs.
     val filtersPane = dialogView.findViewById<LinearLayout>(R.id.paneFilters)
     filtersPane.addView(dubCheckBoxRow(
-        "Prefer dubbed audio",
-        "Show dub results first when available",
+        getString(R.string.sett_prefer_dubbed_audio),
+        getString(R.string.sett_prefer_dubbed_audio_caption),
         PREF_PREFER_DUB_AUDIO
     ))
     filtersPane.addView(dubCheckBoxRow(
-        "Subtitles with dubbed audio",
-        "Show subtitles on dubbed episodes too",
+        getString(R.string.sett_subtitles_with_dub),
+        getString(R.string.sett_subtitles_with_dub_caption),
         PREF_SUBTITLES_WITH_DUB
     ))
     filtersPane.addView(dubCheckBoxRow(
-        "Subtitles",
-        "Show subtitles on all playback",
+        getString(R.string.subtitles),
+        getString(R.string.sett_subtitles_caption),
         PREF_SUBTITLES_ENABLED
     ))
 
@@ -986,8 +1003,8 @@ internal fun MainActivity.showProviderSettings() {
     val generalPane = dialogView.findViewById<LinearLayout>(R.id.paneGeneral)
     lateinit var vodCheckBox: CheckBox
     generalPane.addView(dubCheckBoxRow(
-        "Simple mode",
-        "Show only Live TV - hides the tab bar so the EPG fills the screen",
+        getString(R.string.sett_simple_mode),
+        getString(R.string.sett_simple_mode_caption),
         PREF_SIMPLE_MODE
     ) { checked ->
         // Simple mode drives the VOD toggle so the two checkboxes never disagree:
@@ -999,23 +1016,32 @@ internal fun MainActivity.showProviderSettings() {
         vodStateChanged()
     })
     vodCheckBox = dubCheckBoxRow(
-        "Disable VOD content",
-        "Fetch only live TV from providers - movies and series are hidden everywhere",
+        getString(R.string.sett_disable_vod),
+        getString(R.string.sett_disable_vod_caption),
         PREF_DISABLE_VOD
     ) { vodStateChanged() }
     generalPane.addView(vodCheckBox)
     generalPane.addView(
         languageChoiceRow(
-            "Audio language",
-            PREF_AUDIO_LANGUAGE,
-            "preferred track on films and series"
+            getString(R.string.settings_ui_language),
+            PREF_UI_LANGUAGE,
+            getString(R.string.settings_ui_language_caption),
+            choices = UI_LANGUAGES,
+            onSelect = { code -> onUiLanguageSelected(code) }
         )
     )
     generalPane.addView(
         languageChoiceRow(
-            "Subtitle language",
+            getString(R.string.sett_audio_language),
+            PREF_AUDIO_LANGUAGE,
+            getString(R.string.sett_audio_language_caption)
+        )
+    )
+    generalPane.addView(
+        languageChoiceRow(
+            getString(R.string.sett_subtitle_language),
             PREF_SUBTITLE_LANGUAGE,
-            "used for forced subtitles too"
+            getString(R.string.sett_subtitle_language_caption)
         )
     )
 
@@ -1117,39 +1143,39 @@ internal fun MainActivity.showProviderSettings() {
     dialogView.findViewById<TextView>(R.id.settingsAppVersion).text = try {
         val info = packageManager.getPackageInfo(packageName, 0)
         "${info.versionName} (${info.versionCode})"
-    } catch (e: Exception) { "unknown" }
+    } catch (e: Exception) { getString(R.string.sett_unknown) }
     dialogView.findViewById<View>(R.id.settingsGithubLink).setOnClickListener {
         try {
             startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://github.com/disclosurez/Lumora")))
         } catch (e: android.content.ActivityNotFoundException) {
-            Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.sett_no_browser_available), Toast.LENGTH_SHORT).show()
         }
     }
     dialogView.findViewById<View>(R.id.settingsDiscordLink).setOnClickListener {
         try {
             startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://discord.gg/lumora")))
         } catch (e: android.content.ActivityNotFoundException) {
-            Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.sett_no_browser_available), Toast.LENGTH_SHORT).show()
         }
     }
     val checkUpdateLabel = dialogView.findViewById<TextView>(R.id.settingsCheckUpdateLabel)
     dialogView.findViewById<View>(R.id.settingsCheckUpdate).setOnClickListener {
-        checkUpdateLabel.text = "Checking…"
+        checkUpdateLabel.text = getString(R.string.sett_checking)
         scope.launch {
             val updater = AppUpdateChecker(this@showProviderSettings)
             val info = withContext(Dispatchers.IO) { updater.checkForUpdate() }
-            checkUpdateLabel.text = "Check for Updates"
+            checkUpdateLabel.text = getString(R.string.check_for_updates)
             when {
-                info == null -> Toast.makeText(this@showProviderSettings, "Couldn't check for updates", Toast.LENGTH_SHORT).show()
+                info == null -> Toast.makeText(this@showProviderSettings, getString(R.string.sett_couldnt_check_updates), Toast.LENGTH_SHORT).show()
                 info.isUpdateAvailable && info.downloadUrl.isNotBlank() -> {
                     AlertDialog.Builder(this@showProviderSettings)
-                        .setTitle("Update available")
-                        .setMessage("Lumora v${info.latestVersion} is available.\nCurrent: v${info.currentVersion}\n\n${info.releaseNotes.take(200)}")
-                        .setPositiveButton("Update") { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
-                        .setNegativeButton("Later", null)
+                        .setTitle(getString(R.string.sett_update_available))
+                        .setMessage(getString(R.string.sett_update_available_message, info.latestVersion, info.currentVersion, info.releaseNotes.take(200).replace("%", "%%")))
+                        .setPositiveButton(getString(R.string.update)) { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
+                        .setNegativeButton(getString(R.string.sett_later), null)
                         .show()
                 }
-                else -> Toast.makeText(this@showProviderSettings, "You're on the latest version", Toast.LENGTH_SHORT).show()
+                else -> Toast.makeText(this@showProviderSettings, getString(R.string.sett_latest_version), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -1240,7 +1266,7 @@ internal fun MainActivity.showProviderSettings() {
             return@setOnClickListener
         }
         if (currentType == null) {
-            Toast.makeText(this, "Choose a provider type first", Toast.LENGTH_SHORT).show(); return@setOnClickListener
+            Toast.makeText(this, getString(R.string.sett_choose_provider_type_first), Toast.LENGTH_SHORT).show(); return@setOnClickListener
         }
         val name = providerNameInput.text.toString().trim()
         val id = editingProviderId ?: IptvProviderStore.newId()
@@ -1251,7 +1277,7 @@ internal fun MainActivity.showProviderSettings() {
             "m3u" -> {
                 val url = m3uUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
                 if (url.isBlank()) {
-                    Toast.makeText(this, "Enter an M3U URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener
+                    Toast.makeText(this, getString(R.string.sett_enter_m3u_url), Toast.LENGTH_SHORT).show(); return@setOnClickListener
                 }
                 IptvProviderStore.upsert(prefs, IptvProviderConfig(
                     id = id, type = "m3u", name = name.ifBlank { "M3U/M3U8 Playlist" }, enabled = true,
@@ -1262,7 +1288,7 @@ internal fun MainActivity.showProviderSettings() {
             }
             "xtream" -> {
                 val url = xtreamUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
-                if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+                if (url.isBlank()) { Toast.makeText(this, getString(R.string.sett_enter_server_url), Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                 IptvProviderStore.upsert(prefs, IptvProviderConfig(
                     id = id, type = "xtream", name = name.ifBlank { "Xtream" }, enabled = true,
                     liveEnabled = prevConfig?.liveEnabled ?: true,
@@ -1272,7 +1298,7 @@ internal fun MainActivity.showProviderSettings() {
             }
             "stalker" -> {
                 val url = stalkerUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
-                if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+                if (url.isBlank()) { Toast.makeText(this, getString(R.string.sett_enter_server_url), Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                 IptvProviderStore.upsert(prefs, IptvProviderConfig(
                     id = id, type = "stalker", name = name.ifBlank { "Stalker Portal" }, enabled = true,
                     liveEnabled = prevConfig?.liveEnabled ?: true,
@@ -1284,7 +1310,7 @@ internal fun MainActivity.showProviderSettings() {
                 // Not part of IptvProviderStore - Jellyfin is still a single fixed
                 // slot under the hood, stored as loose prefs (see hasJellyfinConfigured()).
                 val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
-                if (url.isBlank()) { Toast.makeText(this, "Enter a server URL", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+                if (url.isBlank()) { Toast.makeText(this, getString(R.string.sett_enter_server_url), Toast.LENGTH_SHORT).show(); return@setOnClickListener }
                 prefs.edit()
                     .putString("jellyfin_url", url)
                     .putString("jellyfin_user", jellyfinUser.text.toString().trim())
@@ -1301,7 +1327,7 @@ internal fun MainActivity.showProviderSettings() {
         // was dismissed, so the toolbar behind the dialog kept showing the no-provider
         // chrome (Settings + Refresh alone) after a successful save.
         updateTopChromeVisibility()
-        Toast.makeText(this, "Provider saved. Loading...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.sett_provider_saved_loading), Toast.LENGTH_SHORT).show()
         loadAllConfiguredProviders(forceRefresh = true)
     }
 }
@@ -1323,14 +1349,14 @@ internal fun MainActivity.promptForPin(title: String, onCorrect: () -> Unit) {
     AlertDialog.Builder(this)
         .setTitle(title)
         .setView(input)
-        .setPositiveButton("OK") { _, _ ->
+        .setPositiveButton(getString(R.string.sett_ok)) { _, _ ->
             if (input.text.toString() == prefs.getString(PREF_PARENTAL_PIN, null)) {
                 onCorrect()
             } else {
-                Toast.makeText(this, "Incorrect PIN", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.sett_incorrect_pin), Toast.LENGTH_SHORT).show()
             }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -1339,38 +1365,38 @@ internal fun MainActivity.showSetPinDialog(label: TextView) {
     val input = EditText(this).apply {
         inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
         filters = arrayOf(android.text.InputFilter.LengthFilter(4))
-        hint = "4-digit PIN"
+        hint = getString(R.string.sett_pin_hint)
     }
     AlertDialog.Builder(this)
-        .setTitle("Set parental PIN")
+        .setTitle(getString(R.string.set_parental_pin))
         .setView(input)
-        .setPositiveButton("Next") { _, _ ->
+        .setPositiveButton(getString(R.string.sett_next)) { _, _ ->
             val pin = input.text.toString()
             if (pin.length != 4) {
-                Toast.makeText(this, "PIN must be 4 digits", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.sett_pin_length_error), Toast.LENGTH_SHORT).show()
                 return@setPositiveButton
             }
             val confirm = EditText(this).apply {
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
                 filters = arrayOf(android.text.InputFilter.LengthFilter(4))
-                hint = "Confirm PIN"
+                hint = getString(R.string.sett_confirm_pin_hint)
             }
             AlertDialog.Builder(this)
-                .setTitle("Confirm PIN")
+                .setTitle(getString(R.string.sett_confirm_pin_title))
                 .setView(confirm)
-                .setPositiveButton("Save") { _, _ ->
+                .setPositiveButton(getString(R.string.save)) { _, _ ->
                     if (confirm.text.toString() == pin) {
                         prefs.edit().putString(PREF_PARENTAL_PIN, pin).apply()
-                        label.text = "Change parental PIN"
-                        Toast.makeText(this, "Parental PIN set", Toast.LENGTH_SHORT).show()
+                        label.text = getString(R.string.sett_change_parental_pin)
+                        Toast.makeText(this, getString(R.string.sett_parental_pin_set), Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this, "PINs didn't match", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.sett_pins_didnt_match), Toast.LENGTH_SHORT).show()
                     }
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(getString(R.string.cancel), null)
                 .show()
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -1380,6 +1406,6 @@ internal fun MainActivity.showLegalNotice() {
     AlertDialog.Builder(this)
         .setTitle(R.string.legal_notice_title)
         .setMessage(R.string.legal_notice)
-        .setPositiveButton("Close", null)
+        .setPositiveButton(getString(R.string.close), null)
         .show()
 }

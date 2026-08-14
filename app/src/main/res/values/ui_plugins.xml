@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plugins pane & stream search (MainActivityPlugins) -->
+    <string name="plug_public_streaming_content_title">Public Streaming Content</string>
+    <string name="plug_public_streaming_content_message">These plugins search public torrent and streaming sites for content. Lumora does not host, control, or verify anything they find - what they return is entirely outside this app\'s control.\n\nFor educational and personal use only. You are responsible for complying with the laws that apply to you.</string>
+    <string name="plug_i_agree">I Agree</string>
+    <string name="plug_no_trailer_found">No trailer found.</string>
+    <string name="plug_could_not_resolve_stream">Could not resolve stream</string>
+    <string name="plug_searching">Searching…</string>
+    <string name="plug_find_stream_title">Find Stream — %1$s%2$s</string>
+    <string name="plug_loading_title">Loading %1$s…</string>
+    <string name="plug_result_count">%1$d result(s)</string>
+    <string name="plug_no_streams_found">No streams found</string>
+    <string name="plug_enter_valid_link">Enter a valid http(s) link</string>
+    <string name="plug_couldnt_fetch_script">Couldn\'t fetch that script</string>
+    <string name="plug_added_label">Added %1$s</string>
+    <string name="plug_added_label_enable">Added %1$s - enable it to use it</string>
+    <string name="plug_add_plugin_script_from_url">Add plugin script from URL</string>
+    <string name="plug_enter_plugin_script_message">Enter the link to a Lumora plugin script (.js).</string>
+    <string name="plug_added">Added</string>
+    <string name="plug_add_candidate_title">Add %1$s?</string>
+    <string name="plug_add_candidate_message">%1$s found this %2$s provider:\n\n%3$s\n\nAdding it saves those details as a provider in Lumora.</string>
+    <string name="plug_starting_label">Starting %1$s…</string>
+    <string name="plug_nothing_found">Nothing found</string>
+    <string name="plug_found_count">Found %1$d</string>
+    <string name="plug_enabled">Enabled</string>
+    <string name="plug_disabled">Disabled</string>
+    <string name="plug_provider_discovery">Provider discovery</string>
+    <string name="plug_stream_search">Stream search</string>
+    <string name="plug_running">Running…</string>
+    <string name="plug_plugin_already_running">A plugin is already running</string>
+    <string name="plug_enable_label_first">Enable %1$s first</string>
+    <string name="plug_updating">Updating…</string>
+    <string name="plug_remove_label_title">Remove %1$s?</string>
+    <string name="plug_remove_script_message">This deletes the installed script. You can reinstall it later from a plugin store or its URL.</string>
+    <string name="plug_couldnt_download_label">Couldn\'t download %1$s</string>
+    <string name="plug_updated_label">Updated %1$s</string>
+    <string name="plug_update_rejected">Update rejected: %1$s</string>
+    <string name="plug_not_in_plugin_store">%1$s isn\'t in any configured plugin store</string>
+    <string name="plug_couldnt_download_script">Couldn\'t download that script</string>
+    <string name="plug_couldnt_load_store">Couldn\'t load this store</string>
+    <string name="plug_no_scripts_listed">No scripts listed</string>
+    <string name="plug_script_count">%1$d script(s)</string>
+    <string name="plug_install">Install</string>
+    <string name="plug_installing">Installing…</string>
+    <string name="plug_updated">Updated</string>
+    <string name="plug_installed">Installed</string>
+    <string name="plug_installed_label">%1$s installed</string>
+    <string name="plug_installed_label_enable">%1$s installed - enable it to use it</string>
+    <string name="plug_add_plugin_store">Add plugin store</string>
+    <string name="plug_add_plugin_store_message">Enter the link to a plugin store\'s catalog (a small JSON file listing its scripts).</string>
+
+    <!-- Discover (TMDB browse) statuses (MainActivityDiscover) -->
+    <string name="plug_discover_unavailable">Discover is unavailable (no TMDB key configured).</string>
+    <string name="plug_couldnt_load_titles">Couldn\'t load titles. Check your connection.</string>
+    <string name="plug_loading_trending">Loading trending…</string>
+    <string name="plug_searching_query">Searching \"%1$s\"…</string>
+    <string name="plug_no_results_for">No results for \"%1$s\".</string>
+    <string name="plug_enable_stream_plugin_browse">Enable a stream plugin to browse titles outside your library.</string>
+    <string name="plug_loading_series">Loading series…</string>
+    <string name="plug_loading_movies">Loading movies…</string>
+    <string name="plug_enable_stream_plugin_or_sites">Enable a stream plugin, or turn on Streaming sites in Settings, to play Discover titles.</string>
+    <string name="plug_loading_episodes">Loading episodes…</string>
+    <string name="plug_choose_season">%1$s — choose a season</string>
+    <string name="plug_episode">Episode %1$d</string>
+    <string name="plug_back">Back</string>
+
+    <!-- Provider loading statuses (MainActivityProviders) -->
+    <string name="plug_connecting_to">Connecting to %1$s...</string>
+    <string name="plug_connecting_to_n">Connecting to %1$d providers...</string>
+    <string name="plug_connecting_to_jellyfin">Connecting to Jellyfin...</string>
+    <string name="plug_item_count">%1$d items</string>
+    <string name="plug_downloading_streaming_plugins">Downloading streaming plugins…</string>
+    <string name="plug_couldnt_reach_plugin_store">Couldn\'t reach the plugin store</string>
+
+    <!-- Jellyfin playback (MainActivityJellyfin) -->
+    <string name="plug_couldnt_switch_audio">Couldn\'t switch audio track</string>
+
+    <!-- Catalog status (MainActivityCatalog) -->
+    <string name="plug_trial_prefix">Trial ·</string>
+    <string name="plug_expired_status">Expired %1$s</string>
+    <string name="plug_active_until_status">Active until %1$s</string>
+
+    <!-- Category rail chrome (MainActivityCategories) -->
+    <string name="plug_hidden">Hidden \"%1$s\"</string>
+    <string name="plug_unhidden">Unhidden \"%1$s\"</string>
+    <string name="plug_pinned_to_top">Pinned \"%1$s\" to top</string>
+    <string name="plug_unpinned">Unpinned \"%1$s\"</string>
+    <string name="plug_hide">Hide</string>
+    <string name="plug_unhide">Unhide</string>
+    <string name="plug_unpin">Unpin</string>
+    <string name="plug_pin_to_top">Pin to top</string>
+    <string name="plug_added_to_favourites">Added to Favourites</string>
+    <string name="plug_removed_from_favourites">Removed from Favourites</string>
+    <string name="plug_reminder_cancelled">Reminder cancelled</string>
+    <string name="plug_reminder_set_for">Reminder set for \"%1$s\"</string>
+    <string name="plug_program_starts_too_soon">Program starts too soon - reminder not set</string>
+
+    <!-- Update & backup toasts (MainActivity) -->
+    <string name="plug_update_available">Update available</string>
+    <string name="plug_update_available_message">Lumora v%1$s is available.\nCurrent: v%2$s\n\n%3$s</string>
+    <string name="plug_later">Later</string>
+    <string name="plug_downloading_update">Downloading update…</string>
+    <string name="plug_update_download_failed">Update download failed</string>
+    <string name="plug_backup_exported">Backup exported</string>
+    <string name="plug_export_failed">Export failed</string>
+    <string name="plug_imported_summary">Imported: %1$d providers, %2$d EPG sources, %3$d groups</string>
+    <string name="plug_import_failed">Import failed</string>
+</resources>

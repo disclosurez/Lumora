@@ -280,7 +280,7 @@ internal fun MainActivity.switchJellyfinAudioStream(streamIndex: Int) {
         if (nowPlayingChannel?.id != channel.id) return@launch
         if (resolved == null) {
             binding.bufferingSpinner.visibility = View.GONE
-            Toast.makeText(this@switchJellyfinAudioStream, "Couldn't switch audio track", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@switchJellyfinAudioStream, getString(R.string.plug_couldnt_switch_audio), Toast.LENGTH_SHORT).show()
             return@launch
         }
         playerManager.playUrl(
@@ -397,7 +397,7 @@ internal fun MainActivity.showChapterPicker() {
         "$marker${chapter.name}  ·  ${formatTime(chapter.positionMs)}"
     }.toTypedArray()
     AlertDialog.Builder(this)
-        .setTitle("Chapters")
+        .setTitle(getString(R.string.chapters))
         .setItems(labels) { _, which ->
             playerManager.seekTo(chapters[which].positionMs)
             showControls()

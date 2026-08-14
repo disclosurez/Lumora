@@ -239,7 +239,7 @@ internal fun MainActivity.resolveDigitInput() {
         playItem(match)
     } else {
         // Flash "not found" briefly on the overlay, then dismiss
-        binding.numericInputChannelName.text = "Not found"
+        binding.numericInputChannelName.text = getString(R.string.play_not_found)
         binding.numericInputChannelName.visibility = View.VISIBLE
         mainHandler.postDelayed({ hideNumericOverlay(); clearDigitBuffer() }, 800)
     }
@@ -372,14 +372,14 @@ internal fun MainActivity.navigateChannel(dir: Int) {
             currentEpisodeQueue = episodeQueue
             currentEpisodeQueueIndex = idx
         } else {
-            Toast.makeText(this, if (dir < 0) "First episode" else "Last episode", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, if (dir < 0) getString(R.string.play_first_episode) else getString(R.string.play_last_episode), Toast.LENGTH_SHORT).show()
         }
         return
     }
     val list = when (activeTab) { 0 -> liveChannels; 1 -> seriesList; 2 -> filmList; else -> liveChannels }
     val idx = currentIndex + dir
     if (idx in list.indices) { currentIndex = idx; showPlayerFor(list[idx]) }
-    else { Toast.makeText(this, if (dir < 0) "First" else "Last", Toast.LENGTH_SHORT).show() }
+    else { Toast.makeText(this, if (dir < 0) getString(R.string.play_first) else getString(R.string.play_last), Toast.LENGTH_SHORT).show() }
 }
 
 internal fun MainActivity.showControls() {

@@ -15,6 +15,7 @@ import com.lumora.scraper.models.Show
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -218,11 +219,7 @@ object FanpelisProvider : Provider {
                 .baseUrl(API_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .client(
-                    OkHttpClient.Builder()
-                        .connectTimeout(30, TimeUnit.SECONDS)
-                        .readTimeout(30, TimeUnit.SECONDS)
-                        .dns(DnsResolver.doh)
-                        .build(),
+                    NetworkClient.default,
                 )
                 .build()
                 .create(Service::class.java)

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Download manager (MainActivityLists.kt / DownloadAdapter.kt) -->
+    <string name="list_queued">Queued…</string>
+    <string name="list_downloading_percent">Downloading %1$d%%</string>
+    <string name="list_downloaded">Downloaded · %1$s</string>
+    <string name="list_download_failed">Download failed</string>
+    <string name="list_no_source_available">No source available for this title</string>
+    <string name="list_already_in_downloads">Already in Downloads</string>
+    <string name="list_download_type_episode">Episode</string>
+    <string name="list_download_type_movie">Movie</string>
+    <string name="list_downloading">Downloading \"%1$s\"</string>
+    <string name="list_still_downloading">Still downloading…</string>
+    <string name="list_download_unavailable">Download is no longer available</string>
+    <string name="list_delete_download">Delete download?</string>
+    <string name="list_delete_download_message">\"%1$s\" will be removed from this device.</string>
+    <string name="list_delete">Delete</string>
+
+    <!-- Episode rows (EpisodeAdapter.kt) -->
+    <string name="list_resume_remaining">Resume · %1$dm left</string>
+
+    <!-- Guide (MainActivityLists.kt / LiveGuideAdapter.kt) -->
+    <string name="list_now">Now</string>
+    <string name="list_now_program">Now: %1$s</string>
+    <string name="list_next_program">Next: %1$s</string>
+    <string name="list_no_programme_info">No programme info</string>
+
+    <!-- Detail screen (MainActivityLists.kt) -->
+    <string name="list_version">Version %1$d</string>
+    <string name="list_resume">Resume</string>
+    <string name="list_episodes">Episodes</string>
+    <string name="list_no_episodes">No episodes found</string>
+    <string name="list_released">Released: %1$s</string>
+    <string name="list_genre">Genre: %1$s</string>
+    <string name="list_director">Director: %1$s</string>
+    <string name="list_cast">Cast: %1$s</string>
+    <string name="list_detail_load_failed">Failed to load details: %1$s</string>
+
+    <!-- Poster type badges (PosterGridAdapter.kt / SearchResultsAdapter.kt) -->
+    <string name="list_type_film">Film</string>
+
+    <!-- EPG source list dialog (MainActivityLists.kt) -->
+    <string name="list_no_epg_sources">No EPG sources. Add one.</string>
+    <string name="list_delete_source">Delete source?</string>
+    <string name="list_remove_source">Remove \"%1$s\"?</string>
+    <string name="list_epg_source_deleted">EPG source deleted</string>
+    <string name="list_refresh_now">Refresh now</string>
+    <string name="list_downloading_epg">Downloading EPG…</string>
+
+    <!-- Track picker (MainActivityLists.kt) -->
+    <string name="list_audio_track">Audio Track</string>
+    <string name="list_off">Off</string>
+    <string name="list_no_alt_audio">No alternate audio tracks</string>
+    <string name="list_no_subtitles">No subtitles available</string>
+</resources>

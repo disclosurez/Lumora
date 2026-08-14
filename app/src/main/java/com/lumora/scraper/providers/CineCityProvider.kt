@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.*
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.*
 import java.util.concurrent.TimeUnit
 
@@ -21,25 +22,25 @@ object CineCityProvider : IptvProvider {
 
     private const val FALLBACK_VIDEO_URL = "https://raw.githubusercontent.com/NANDOFS/ModoPrueba/main/VIDEO/SIN-SE%C3%91AL.mp4"
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .cookieJar(object : CookieJar {
-            private val cookieStore = mutableMapOf<String, List<Cookie>>()
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                cookieStore[url.host] = cookies
+    private val client = NetworkClient.newClient { builder ->
+        builder.connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .cookieJar(object : CookieJar {
+                private val cookieStore = mutableMapOf<String, List<Cookie>>()
+                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                    cookieStore[url.host] = cookies
+                }
+                override fun loadForRequest(url: HttpUrl): List<Cookie> {
+                    return cookieStore[url.host] ?: listOf()
+                }
+            })
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+                    .build()
+                chain.proceed(request)
             }
-            override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                return cookieStore[url.host] ?: listOf()
-            }
-        })
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
-                .build()
-            chain.proceed(request)
-        }
-        .build()
+    }
 
     private var cachedChannels: List<M3UChannel>? = null
     private var lastFetchTime: Long = 0

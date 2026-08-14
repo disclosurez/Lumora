@@ -79,6 +79,9 @@ class OnScreenKeyboard @JvmOverloads constructor(
 
     private val shiftLabel: String = context.getString(R.string.keyboard_shift)
     private val abcLabel: String = context.getString(R.string.keyboard_abc)
+    private val spaceLabel: String = context.getString(R.string.ui_key_space)
+    private val delLabel: String = context.getString(R.string.ui_key_del)
+    private val clearLabel: String = context.getString(R.string.ui_key_clear)
 
     /** The three rows that swap between letter and punctuation layers (children 1..3;
      *  child 0 is the digits row, which both layers share). */
@@ -108,7 +111,7 @@ class OnScreenKeyboard @JvmOverloads constructor(
         // Bottom row: the shift key toggles the punctuation layer, SPACE keeps its wide
         // key (the most-used key in a multi-word query), then DEL and CLEAR.
         val bottom = keyRow(
-            labels = listOf(shiftLabel, "SPACE", "DEL", "CLEAR"),
+            labels = listOf(shiftLabel, spaceLabel, delLabel, clearLabel),
             weights = listOf(1f, 2f, 1f, 1f)
         )
         addView(bottom)
@@ -196,9 +199,9 @@ class OnScreenKeyboard @JvmOverloads constructor(
 
     private fun emit(label: String) {
         when (label) {
-            "SPACE" -> onKey?.invoke(" ")
-            "DEL" -> onBackspace?.invoke()
-            "CLEAR" -> onClear?.invoke()
+            spaceLabel -> onKey?.invoke(" ")
+            delLabel -> onBackspace?.invoke()
+            clearLabel -> onClear?.invoke()
             shiftLabel, abcLabel -> {
                 // Swap the letter rows for punctuation (or back) in place - the key views
                 // are reused, so whatever holds focus keeps it through the swap.

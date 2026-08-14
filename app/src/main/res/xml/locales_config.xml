@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-app languages exposed to Android 13+ system settings. Keep in step with the
+     UI_LANGUAGES list in MainActivity.kt and the res/values-<code>/ directories. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="fr" />
+</locale-config>

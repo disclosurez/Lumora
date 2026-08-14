@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gestionnaire de téléchargements (MainActivityLists.kt / DownloadAdapter.kt) -->
+    <string name="list_queued">En file d\'attente…</string>
+    <string name="list_downloading_percent">Téléchargement : %1$d%%</string>
+    <string name="list_downloaded">Téléchargé · %1$s</string>
+    <string name="list_download_failed">Échec du téléchargement</string>
+    <string name="list_no_source_available">Aucune source disponible pour ce titre</string>
+    <string name="list_already_in_downloads">Déjà dans les téléchargements</string>
+    <string name="list_download_type_episode">Épisode</string>
+    <string name="list_download_type_movie">Film</string>
+    <string name="list_downloading">Téléchargement de « %1$s »</string>
+    <string name="list_still_downloading">Téléchargement en cours…</string>
+    <string name="list_download_unavailable">Le téléchargement n\'est plus disponible</string>
+    <string name="list_delete_download">Supprimer le téléchargement ?</string>
+    <string name="list_delete_download_message">« %1$s » sera supprimé de cet appareil.</string>
+    <string name="list_delete">Supprimer</string>
+
+    <!-- Lignes d\'épisodes (EpisodeAdapter.kt) -->
+    <string name="list_resume_remaining">Reprendre · %1$dm restantes</string>
+
+    <!-- Guide (MainActivityLists.kt / LiveGuideAdapter.kt) -->
+    <string name="list_now">Maintenant</string>
+    <string name="list_now_program">En ce moment : %1$s</string>
+    <string name="list_next_program">Ensuite : %1$s</string>
+    <string name="list_no_programme_info">Aucune info programme</string>
+
+    <!-- Écran de détail (MainActivityLists.kt) -->
+    <string name="list_version">Version %1$d</string>
+    <string name="list_resume">Reprendre</string>
+    <string name="list_episodes">Épisodes</string>
+    <string name="list_no_episodes">Aucun épisode trouvé</string>
+    <string name="list_released">Sorti le : %1$s</string>
+    <string name="list_genre">Genre : %1$s</string>
+    <string name="list_director">Réalisateur : %1$s</string>
+    <string name="list_cast">Distribution : %1$s</string>
+    <string name="list_detail_load_failed">Échec du chargement des détails : %1$s</string>
+
+    <!-- Badges de type d\'affiche (PosterGridAdapter.kt / SearchResultsAdapter.kt) -->
+    <string name="list_type_film">Film</string>
+
+    <!-- Boîte de dialogue des sources EPG (MainActivityLists.kt) -->
+    <string name="list_no_epg_sources">Aucune source EPG. Ajoutez-en une.</string>
+    <string name="list_delete_source">Supprimer la source ?</string>
+    <string name="list_remove_source">Supprimer « %1$s » ?</string>
+    <string name="list_epg_source_deleted">Source EPG supprimée</string>
+    <string name="list_refresh_now">Actualiser maintenant</string>
+    <string name="list_downloading_epg">Téléchargement de l\'EPG…</string>
+
+    <!-- Sélecteur de piste (MainActivityLists.kt) -->
+    <string name="list_audio_track">Piste audio</string>
+    <string name="list_off">Désactivé</string>
+    <string name="list_no_alt_audio">Aucune piste audio alternative</string>
+    <string name="list_no_subtitles">Aucun sous-titre disponible</string>
+</resources>

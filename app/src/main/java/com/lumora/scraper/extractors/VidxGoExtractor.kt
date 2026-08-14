@@ -9,9 +9,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
-import kotlinx.coroutines.DelicateCoroutinesApi
 
 object TokenManager {
+    @Volatile
     var latestQuery: String? = null
 }
 
@@ -19,7 +19,12 @@ class VidxGoExtractor : Extractor() {
     override val name = "VidxGo"
     override val mainUrl = "https://v.vidxgo.co"
 
-    @OptIn(DelicateCoroutinesApi::class)
+    // Locally-owned scope (not GlobalScope): the refresh job is stored per-instance and
+    // cancelled before a new extraction starts, so at most one refresh loop is alive at a time
+    // and no loop outlives its stream once a newer extraction takes over.
+    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var refreshJob: Job? = null
+
     override suspend fun extract(link: String): Video {
         val client = OkHttpClient.Builder()
             .dns(DnsResolver.doh)
@@ -55,7 +60,10 @@ class VidxGoExtractor : Extractor() {
             TokenManager.latestQuery = initialUri.encodedQuery
             Log.d("TokenManager", "[INIT] Initial token set. expire=${expireTime}, query=${TokenManager.latestQuery?.take(60)}...")
 
-            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // Cancel any previous refresh loop before starting a new one so at most one
+            // loop is alive at a time for this (shared, singleton) extractor instance.
+            refreshJob?.cancel()
+            refreshJob = refreshScope.launch {
                 while (true) {
                     val delayMs = if (expireTime != null) {
                         val remaining = expireTime!! - System.currentTimeMillis()
@@ -84,7 +92,7 @@ class VidxGoExtractor : Extractor() {
                         if (!isSuccessful) {
                             Log.w("TokenManager", "[REFRESH] HTTP response error: $statusCode")
                         }
-                        
+
                         if (newHtml != null) {
                             expireTime = Regex("\"expire\"\\s*:\\s*(\\d+)").find(newHtml)?.groupValues?.get(1)?.toLongOrNull()
                             val newUrlStr = Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(newHtml)?.groupValues?.get(1)?.replace("\\/", "/")
@@ -98,6 +106,8 @@ class VidxGoExtractor : Extractor() {
                         } else {
                             Log.w("TokenManager", "[REFRESH] Empty response body")
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e("TokenManager", "[REFRESH] Error during token refresh", e)
                         expireTime = System.currentTimeMillis() + 15_000L
@@ -163,7 +173,10 @@ class VidxGoExtractor : Extractor() {
         Log.d("TokenManager", "[FILM-INIT] Token/Expiry extracted from JS. token=$currentToken, expireTime=${initialExpireTime}")
 
         if (filmRefreshUrl != null) {
-            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // Cancel any previous refresh loop before starting a new one so at most one
+            // loop is alive at a time for this (shared, singleton) extractor instance.
+            refreshJob?.cancel()
+            refreshJob = refreshScope.launch {
                 var expireTime: Long? = initialExpireTime
                 while (true) {
                     val delayMs = if (expireTime != null) {
@@ -207,6 +220,8 @@ class VidxGoExtractor : Extractor() {
                         } else {
                             Log.w("TokenManager", "[FILM-REFRESH] Empty body")
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e("TokenManager", "[FILM-REFRESH] Refresh error", e)
                         expireTime = System.currentTimeMillis() + 150_000L

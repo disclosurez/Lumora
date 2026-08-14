@@ -7,6 +7,7 @@ import androidx.media3.common.MimeTypes
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.models.*
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -75,19 +76,19 @@ object CineHaxProvider : Provider {
 
     // region HTTP
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                )
-                .build()
-            chain.proceed(request)
-        }
-        .build()
+    private val httpClient = NetworkClient.newClient { builder ->
+        builder.connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    )
+                    .build()
+                chain.proceed(request)
+            }
+    }
 
     private fun get(url: String): String {
         val request = Request.Builder().url(url).build()

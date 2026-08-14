@@ -7,6 +7,7 @@ import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.models.*
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -28,12 +29,11 @@ object CineCalidadProvider : Provider {
     private fun getOkHttpClient(): OkHttpClient {
         val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
 
-        val clientBuilder = OkHttpClient.Builder()
-            .cache(appCache)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(30, TimeUnit.SECONDS)
-
-        return clientBuilder.dns(DnsResolver.doh).build()
+        return NetworkClient.newClient { builder ->
+            builder.cache(appCache)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(30, TimeUnit.SECONDS)
+        }
     }
 
     private interface CineCalidadService {

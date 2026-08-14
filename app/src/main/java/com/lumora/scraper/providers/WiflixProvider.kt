@@ -13,6 +13,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -674,17 +675,16 @@ object WiflixProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     private interface Service {
 
         companion object {
-            private val client = OkHttpClient.Builder()
-                .readTimeout(30, TimeUnit.SECONDS)
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .dns(DnsResolver.doh)
-                .addInterceptor { chain ->
-                    val newRequest = chain.request().newBuilder()
-                        .header("Cookie", "h_check=25")
-                        .build()
-                    chain.proceed(newRequest)
-                }
-                .build()
+            private val client = NetworkClient.newClient { builder ->
+                builder.readTimeout(30, TimeUnit.SECONDS)
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .addInterceptor { chain ->
+                        val newRequest = chain.request().newBuilder()
+                            .header("Cookie", "h_check=25")
+                            .build()
+                        chain.proceed(newRequest)
+                    }
+            }
 
             fun buildAddressFetcher(): Service {
                 val addressRetrofit = Retrofit.Builder()

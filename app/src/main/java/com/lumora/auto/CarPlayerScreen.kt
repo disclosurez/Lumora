@@ -63,23 +63,23 @@ class CarPlayerScreen(
         val pane = Pane.Builder()
             .addRow(
                 Row.Builder()
-                    .setTitle(channel?.name ?: "Lumora")
-                    .addText("Playing")
+                    .setTitle(channel?.name ?: carContext.getString(com.lumora.R.string.app_name))
+                    .addText(carContext.getString(com.lumora.R.string.ui_playing))
                     .build()
             )
             .build()
         return PaneTemplate.Builder(pane)
-            .setTitle(channel?.name ?: "Lumora")
+            .setTitle(channel?.name ?: carContext.getString(com.lumora.R.string.app_name))
             .setHeaderAction(Action.BACK)
             .setActionStrip(
                 ActionStrip.Builder()
-                    .addAction(textAction("Prev") { session.playback.step(queue, -1); refreshAfterInput() })
+                    .addAction(textAction(carContext.getString(com.lumora.R.string.ui_prev)) { session.playback.step(queue, -1); refreshAfterInput() })
                     .addAction(
-                        textAction(if (session.playback.isPlaying) "Pause" else "Play") {
+                        textAction(if (session.playback.isPlaying) carContext.getString(com.lumora.R.string.ui_pause) else carContext.getString(com.lumora.R.string.play)) {
                             session.playback.togglePlayPause(); refreshAfterInput()
                         }
                     )
-                    .addAction(textAction("Next") { session.playback.step(queue, 1); refreshAfterInput() })
+                    .addAction(textAction(carContext.getString(com.lumora.R.string.ui_next)) { session.playback.step(queue, 1); refreshAfterInput() })
                     .build()
             )
             .build()

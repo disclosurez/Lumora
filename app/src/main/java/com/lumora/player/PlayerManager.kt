@@ -6,6 +6,7 @@ import android.view.SurfaceView
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -60,6 +61,13 @@ class PlayerManager(
         .also { it.setHandleAudioBecomingNoisy(true) }
     private val listeners = CopyOnWriteArrayList<Player.Listener>()
     private var released = false
+
+    // The one-shot audio/forced-subtitle track overrides (see attachOneShot*) stay attached
+    // until onTracksChanged hands over a real track list - a dead stream or endless buffering
+    // never does, so without a cap they'd accumulate one per playUrl call and then fire against
+    // a later play. Remember the last one of each kind so a new playUrl can retire it first.
+    private var oneShotAudioListener: Player.Listener? = null
+    private var oneShotForcedSubtitleListener: Player.Listener? = null
 
     /**
      * What the player was last asked to play, as it was finally resolved (Stalker commands,
@@ -181,6 +189,9 @@ class PlayerManager(
          */
         dataSourceOverride: DataSource.Factory? = null
     ) {
+        // A pending coroutine can outlive the activity (release() only runs at suspension
+        // points); calling into a released ExoPlayer throws. Refuse rather than crash.
+        if (released) return
         lastResolvedStream = ResolvedStream(url, userAgent, headers)
         val dataSourceFactory = dataSourceOverride
             ?: buildDataSourceFactory(userAgent, headers, maintainTokenQuery)
@@ -325,6 +336,10 @@ class PlayerManager(
      * in the name.
      */
     private fun attachOneShotForcedSubtitlePreference(language: String) {
+        // Retire any previous forced-subtitle one-shot that never got to decide (dead stream /
+        // endless buffering never deliver a usable onTracksChanged). Prevents per-playUrl
+        // accumulation firing against a later play.
+        oneShotForcedSubtitleListener?.let { player.removeListener(it) }
         // ISO 639-2 alongside the 639-1 code: sources tag the same language either way
         // ("en" or "eng"), and Media3 hands the format's tag through as it found it.
         val iso3 = runCatching { java.util.Locale(language).isO3Language }.getOrNull().orEmpty()
@@ -337,6 +352,7 @@ class PlayerManager(
                 if (tracks.groups.isEmpty()) return
                 decided = true
                 player.removeListener(this)
+                if (oneShotForcedSubtitleListener === this) oneShotForcedSubtitleListener = null
                 if (textGroups.isEmpty()) return
                 for (group in textGroups) {
                     for (i in 0 until group.length) {
@@ -359,7 +375,17 @@ class PlayerManager(
                     }
                 }
             }
+
+            // Terminal path: the stream died before tracks arrived, so this one-shot will never
+            // decide. Remove it now rather than leaving it attached to fire on a later play.
+            override fun onPlayerError(error: PlaybackException) {
+                if (decided) return
+                decided = true
+                player.removeListener(this)
+                if (oneShotForcedSubtitleListener === this) oneShotForcedSubtitleListener = null
+            }
         }
+        oneShotForcedSubtitleListener = listener
         player.addListener(listener)
         // Same as the audio preference: covers a source that fired onTracksChanged during
         // prepare(), before this listener existed.
@@ -377,6 +403,10 @@ class PlayerManager(
             .getString("subtitle_language", "en") ?: "en"
 
     private fun attachOneShotAudioPreference(audio: String) {
+        // Retire any previous audio one-shot that never got to decide (dead stream / endless
+        // buffering never deliver a usable onTracksChanged). Prevents per-playUrl accumulation
+        // firing against a later play.
+        oneShotAudioListener?.let { player.removeListener(it) }
         val wantsDub = audio.equals("dub", ignoreCase = true)
         val listener = object : Player.Listener {
             private var decided = false
@@ -387,6 +417,7 @@ class PlayerManager(
                 if (audioGroups.isEmpty()) return
                 decided = true
                 player.removeListener(this)
+                if (oneShotAudioListener === this) oneShotAudioListener = null
                 // A single audio track is all this stream has to offer - nothing to switch to.
                 if (audioGroups.sumOf { it.length } <= 1) return
                 var bestGroup: Tracks.Group? = null
@@ -416,7 +447,17 @@ class PlayerManager(
                         .build()
                 }
             }
+
+            // Terminal path: the stream died before tracks arrived, so this one-shot will never
+            // decide. Remove it now rather than leaving it attached to fire on a later play.
+            override fun onPlayerError(error: PlaybackException) {
+                if (decided) return
+                decided = true
+                player.removeListener(this)
+                if (oneShotAudioListener === this) oneShotAudioListener = null
+            }
         }
+        oneShotAudioListener = listener
         player.addListener(listener)
         // Covers sources that fired onTracksChanged synchronously during prepare(), before the
         // listener was attached; a no-op until track info is actually there.
@@ -472,15 +513,28 @@ class PlayerManager(
 
     /** Toggle play/pause. */
     fun togglePlayPause() {
+        if (released) return
         if (player.isPlaying) player.pause() else player.play()
     }
 
-    fun play() = player.play()
-    fun pause() = player.pause()
-    fun seekTo(positionMs: Long) = player.seekTo(positionMs)
+    fun play() {
+        if (released) return
+        player.play()
+    }
+
+    fun pause() {
+        if (released) return
+        player.pause()
+    }
+
+    fun seekTo(positionMs: Long) {
+        if (released) return
+        player.seekTo(positionMs)
+    }
 
     /** Seek forward/backward by a relative delta, clamped to [0, duration]. */
     fun seekBy(deltaMs: Long) {
+        if (released) return
         val dur = player.duration
         if (dur <= 0) return
         val pos = player.currentPosition
@@ -489,7 +543,10 @@ class PlayerManager(
         player.seekTo(target)
     }
 
-    fun stop() { player.stop() }
+    fun stop() {
+        if (released) return
+        player.stop()
+    }
 
     /** Add a player event listener. */
     fun addListener(listener: Player.Listener) {

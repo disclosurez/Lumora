@@ -26,6 +26,7 @@ import retrofit2.http.Url
 import retrofit2.Response
 import okhttp3.ResponseBody
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.UserPreferences
 import org.jsoup.nodes.Element
 import retrofit2.http.Field
@@ -873,22 +874,21 @@ object FrenchStreamProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     private interface Service {
 
         companion object {
-            private val client = OkHttpClient.Builder()
-                .readTimeout(30, TimeUnit.SECONDS)
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .dns(DnsResolver.doh)
-                .addInterceptor { chain ->
-                    val original = chain.request()
-                    val cookie = original.header("Cookie")
-                    val requestBuilder = original.newBuilder()
-                    if (cookie != null) {
-                        requestBuilder.header("Cookie", "$cookie; fsschal=1")
-                    } else {
-                        requestBuilder.header("Cookie", "fsschal=1")
+            private val client = NetworkClient.newClient { builder ->
+                builder.readTimeout(30, TimeUnit.SECONDS)
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .addInterceptor { chain ->
+                        val original = chain.request()
+                        val cookie = original.header("Cookie")
+                        val requestBuilder = original.newBuilder()
+                        if (cookie != null) {
+                            requestBuilder.header("Cookie", "$cookie; fsschal=1")
+                        } else {
+                            requestBuilder.header("Cookie", "fsschal=1")
+                        }
+                        chain.proceed(requestBuilder.build())
                     }
-                    chain.proceed(requestBuilder.build())
-                }
-                .build()
+            }
 
             fun buildAddressFetcher(): Service {
                 val addressRetrofit = Retrofit.Builder()

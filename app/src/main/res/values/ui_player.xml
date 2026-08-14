@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivityPlayer -->
+    <string name="play_no_provider_enabled">No provider is enabled - turn one on in Settings</string>
+    <string name="play_refreshing_providers">Refreshing providers…</string>
+    <string name="play_playback_speed">Playback Speed</string>
+    <string name="play_speed_0_5">0.5x</string>
+    <string name="play_speed_0_75">0.75x</string>
+    <string name="play_speed_1_25">1.25x</string>
+    <string name="play_speed_1_5">1.5x</string>
+    <string name="play_speed_2_0">2.0x</string>
+    <string name="play_speed_label">%1$.1fx</string>
+    <string name="play_sleep_timer">Sleep Timer</string>
+    <string name="play_sleep_off">Off</string>
+    <string name="play_sleep_15_min">15 min</string>
+    <string name="play_sleep_30_min">30 min</string>
+    <string name="play_sleep_45_min">45 min</string>
+    <string name="play_sleep_60_min">60 min</string>
+    <string name="play_sleep_90_min">90 min</string>
+    <string name="play_sleep_120_min">120 min</string>
+    <string name="play_cast_failed">Cast failed: check TV and try again</string>
+    <string name="play_cast_play_content_first">Play content first, then Cast</string>
+    <string name="play_diag_body">Decoder: %1$s\nVideo: %2$s\nAudio: %3$s\nStalls: %4$d (%5$ds)\nState: %6$s</string>
+    <string name="play_diag_title">Player Diagnostics</string>
+    <string name="play_ok">OK</string>
+    <string name="play_recording_live_only">Recording is only available for live TV</string>
+    <string name="play_schedule_recording">Schedule Recording</string>
+    <string name="play_record_confirm">Record \"%1$s\"?</string>
+    <string name="play_record_for_2_hours">Record for 2 hours</string>
+    <string name="play_recording_scheduled">Recording scheduled</string>
+    <string name="play_playback_error">Playback error</string>
+    <string name="play_stream_error_reason">Lumora couldn\'t play this stream (%1$s).</string>
+    <string name="play_aspect_zoom">Zoom</string>
+    <string name="play_aspect_stretch">Stretch</string>
+    <string name="play_video_label">Video: %1$s</string>
+    <string name="play_initial_fallback">?</string>
+    <string name="play_couldnt_open_title">Couldn\'t open this title</string>
+    <string name="play_plugin_disabled_message">The plugin that played this is no longer enabled</string>
+    <string name="play_switching_alt_quality">Switching to alternate quality…</string>
+    <string name="play_switching_to">Switching to %1$s</string>
+    <string name="play_no_other_versions_channel">No other versions of this channel</string>
+    <string name="play_channel_version_title">Channel Version</string>
+    <string name="play_no_other_versions_title">No other versions of this title</string>
+    <string name="play_version_title">Version</string>
+    <string name="play_find_and_play">Find &amp; Play…</string>
+    <string name="play_no_other_versions_series">No other versions of this series</string>
+    <string name="play_series_version_title">Series Version</string>
+    <string name="play_loading_version">Loading %1$s…</string>
+    <string name="play_this_episode">this episode</string>
+    <string name="play_provider_missing_episode">That provider doesn\'t have %1$s</string>
+    <string name="play_stream_buffering_switching">Stream buffering, switching version…</string>
+    <string name="play_buffering_no_fallback">This stream keeps buffering and there\'s no other version to fall back on.</string>
+    <string name="play_channel_offline_switching">Channel appears offline, switching version…</string>
+    <string name="play_channel_offline">Channel appears offline</string>
+    <string name="play_resume_playback_title">Resume playback?</string>
+    <string name="play_resume_message">Continue from %1$s?</string>
+    <string name="play_resume">Resume</string>
+    <string name="play_start_over">Start Over</string>
+
+    <!-- MainActivityExternalPlayer -->
+    <string name="play_nothing_playing">Nothing is playing</string>
+    <string name="play_no_app_can_open">No app on this device can open this stream</string>
+    <string name="play_other_app">Other app…</string>
+    <string name="play_always_use">Always use one of these…</string>
+    <string name="play_play_in">Play in</string>
+    <string name="play_ask_every_time">Ask every time</string>
+    <string name="play_default_external_player">Default external player</string>
+    <string name="play_external_player_ask_every_time">External player: ask every time</string>
+    <string name="play_external_player_label">External player: %1$s</string>
+    <string name="play_in_another_app">Play in another app?</string>
+    <string name="play_suggest_body">%1$s\n\nAnother video player on this device (VLC, MX Player…) may handle it - Lumora can hand the stream over at the current position.</string>
+    <string name="play_stay_here">Stay here</string>
+    <string name="play_dont_ask_again">Don\'t ask again</string>
+    <string name="play_turn_back_on_settings">Turn back on in Settings &gt; Playback Settings</string>
+    <string name="play_audio_no_decoder_named">This stream\'s audio is %1$s, which this device has no decoder for - so it plays with no sound.</string>
+    <string name="play_audio_no_decoder">This device has no decoder for this stream\'s audio, so it plays with no sound.</string>
+
+    <!-- MainActivityEpg -->
+    <string name="play_not_found">Not found</string>
+    <string name="play_first_episode">First episode</string>
+    <string name="play_last_episode">Last episode</string>
+    <string name="play_first">First</string>
+    <string name="play_last">Last</string>
+</resources>

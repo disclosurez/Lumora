@@ -2,10 +2,12 @@ package com.lumora.scraper.utils
 
 import android.util.Log
 import android.webkit.CookieManager
+import okhttp3.ConnectionPool
 import okhttp3.ConnectionSpec
 import com.lumora.scraper.ScraperConfig
 import okhttp3.Cookie
 import okhttp3.CookieJar
+import okhttp3.Dispatcher
 import okhttp3.Dns
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -56,6 +58,11 @@ object NetworkClient {
         }
     }
 
+    // One connection pool and one dispatcher shared by every client built through newClient(),
+    // so the app does not spin up a pool/dispatcher thread-pool per scraper provider.
+    private val sharedPool: ConnectionPool by lazy { ConnectionPool() }
+    private val sharedDispatcher: Dispatcher by lazy { Dispatcher() }
+
     val default: OkHttpClient by lazy { buildClient(DnsResolver.doh) }
     val systemDns: OkHttpClient by lazy { buildClient(Dns.SYSTEM) }
     val noRedirects: OkHttpClient by lazy { buildClient(DnsResolver.doh) { it.followRedirects(false).followSslRedirects(false) } }
@@ -71,6 +78,20 @@ object NetworkClient {
             it.sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
               .hostnameVerifier { _, _ -> true }
         }
+    }
+
+    /**
+     * Factory for per-provider clients. Builds on [buildClient] (default headers, cookie jar,
+     * timeouts, TLS) and additionally routes the client through the single shared
+     * [sharedPool]/[sharedDispatcher] so all scraper providers reuse one connection pool and one
+     * dispatcher thread pool instead of creating one per client.
+     */
+    fun newClient(
+        dns: Dns = DnsResolver.doh,
+        customizer: ((OkHttpClient.Builder) -> Unit)? = null,
+    ): OkHttpClient = buildClient(dns) { builder ->
+        builder.connectionPool(sharedPool).dispatcher(sharedDispatcher)
+        customizer?.invoke(builder)
     }
 
     private fun buildClient(dns: Dns, customizer: ((OkHttpClient.Builder) -> Unit)? = null): OkHttpClient {

@@ -1,30 +1,22 @@
 package com.lumora.scraper.providers
 
-import com.lumora.scraper.bridge.HostScopedService
-import com.lumora.scraper.bridge.ScraperHosts
 import com.lumora.scraper.adapters.AppAdapter
-import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.models.*
 import com.lumora.scraper.utils.NetworkClient
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONArray
 import org.jsoup.nodes.Document
-import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Url
 
-object TioAnimeProvider : Provider {
+object TioAnimeProvider : JsoupSiteProvider() {
     override val name = "TioAnime"
-    override val baseUrl: String get() = ScraperHosts[name]
     override val logo: String get() = "$baseUrl/assets/img/logo-dark.png"
     override val language = "es"
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.
-    private val serviceHolder = HostScopedService({ baseUrl }) {
-        Retrofit.Builder().baseUrl("$baseUrl/")
-            .addConverterFactory(JsoupConverterFactory.create()).client(NetworkClient.default)
-            .build().create(Service::class.java)
+    private val serviceHolder = hostScopedService {
+        newRetrofit("$baseUrl/", NetworkClient.default).create(Service::class.java)
     }
     private val service get() = serviceHolder.get()
 
@@ -115,8 +107,6 @@ object TioAnimeProvider : Provider {
             }
         }.distinctBy { it.id }
     }
-
-    override suspend fun getVideo(server: Video.Server): Video = Extractor.extract(server.id, server)
 
     private suspend fun directoryPage(
         page: Int,

@@ -15,6 +15,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -736,11 +737,7 @@ object SflixProvider : Provider {
 
         companion object {
             fun build(): SflixService {
-                val client = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .dns(DnsResolver.doh)
-                    .build()
+                val client = NetworkClient.default
 
                 val retrofit = Retrofit.Builder()
                     .baseUrl(URL)

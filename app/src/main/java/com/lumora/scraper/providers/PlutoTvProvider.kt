@@ -5,44 +5,102 @@ import android.util.Base64
 import android.util.Log
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.*
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.*
 import java.util.concurrent.TimeUnit
 
-object PlutoTvArProvider : IptvProvider {
+class PlutoTvProvider(locale: String) : IptvProvider {
 
-    override val name = "Pluto TV Ar"
+    companion object {
+        private const val TAG = "PlutoTvProvider"
+
+        private data class LocaleConfig(
+            val name: String,
+            val logo: String,
+            val language: String,
+            val playlistUrl: String
+        )
+
+        private val LOCALES = mapOf(
+            "mx" to LocaleConfig(
+                "Pluto TV MX",
+                "https://i.ibb.co/9mGNwYVS/Logo-Pluto-TV.jpg",
+                "es",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_mx.m3u"
+            ),
+            "ar" to LocaleConfig(
+                "Pluto TV Ar",
+                "https://i.ibb.co/jPsc2PMd/Logo-Pluto-TV-AR.jpg",
+                "es",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_ar.m3u"
+            ),
+            "de" to LocaleConfig(
+                "Pluto TV De",
+                "https://i.ibb.co/qz7jJF1/plutotv.png",
+                "de",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_de.m3u"
+            ),
+            "es" to LocaleConfig(
+                "Pluto TV Es",
+                "https://i.ibb.co/TBjWz2Zw/Pluto-TV-es.jpg",
+                "es",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_es.m3u"
+            ),
+            "fr" to LocaleConfig(
+                "Pluto TV FR",
+                "https://i.ibb.co/qz7jJF1/plutotv.png",
+                "fr",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_fr.m3u"
+            ),
+            "it" to LocaleConfig(
+                "Pluto TV It",
+                "https://i.ibb.co/qz7jJF1/plutotv.png",
+                "it",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_it.m3u"
+            ),
+            "us" to LocaleConfig(
+                "Pluto TV Us",
+                "https://i.ibb.co/qz7jJF1/plutotv.png",
+                "en",
+                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_us.m3u"
+            )
+        )
+    }
+
+    private val config = LOCALES[locale] ?: LOCALES["mx"]!!
+
+    override val name = config.name
     override val baseUrl: String get() = ScraperHosts[name]
-    override val logo = "https://i.ibb.co/jPsc2PMd/Logo-Pluto-TV-AR.jpg"
-    override val language = "es"
+    override val logo = config.logo
+    override val language = config.language
 
-    private const val TAG = "PlutoTvMxProvider"
-    private const val PLAYLIST_URL = "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_ar.m3u"
+    private val PLAYLIST_URL = config.playlistUrl
 
     // 🛡️ La Vacuna Anti-Bots (Edición IPTV con CookieJar integrado) 🛡️
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .cookieJar(object : CookieJar {
-            private val cookieStore = mutableMapOf<String, List<Cookie>>()
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                cookieStore[url.host] = cookies
+    private val client = NetworkClient.newClient { builder ->
+        builder.connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .cookieJar(object : CookieJar {
+                private val cookieStore = mutableMapOf<String, List<Cookie>>()
+                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                    cookieStore[url.host] = cookies
+                }
+                override fun loadForRequest(url: HttpUrl): List<Cookie> {
+                    return cookieStore[url.host] ?: listOf()
+                }
+            })
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+                    .build()
+                chain.proceed(request)
             }
-            override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                return cookieStore[url.host] ?: listOf()
-            }
-        })
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
-                .build()
-            chain.proceed(request)
-        }
-        .build()
+    }
 
     // 💾 Sistema de Caché en Memoria
     private var cachedChannels: List<M3UChannel>? = null
     private var lastFetchTime: Long = 0
-    private const val CACHE_DURATION = 30 * 60 * 1000 // 30 minutos
+    private val CACHE_DURATION = 30 * 60 * 1000L // 30 minutos
 
     data class M3UChannel(
         val name: String,

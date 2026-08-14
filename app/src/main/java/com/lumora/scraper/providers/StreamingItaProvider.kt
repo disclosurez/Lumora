@@ -15,6 +15,7 @@ import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.lumora.scraper.utils.TmdbUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -22,6 +23,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -53,11 +55,7 @@ object StreamingItaProvider : Provider {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
 
     private fun getOkHttpClient(): OkHttpClient {
-        val clientBuilder = OkHttpClient.Builder()
-            .readTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(30, TimeUnit.SECONDS)
-        
-        return clientBuilder.dns(DnsResolver.doh).build()
+        return NetworkClient.default
     }
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.
@@ -545,7 +543,12 @@ object StreamingItaProvider : Provider {
     }
 
     private suspend fun httpGet(url: String, referer: String? = null): String = withContext(Dispatchers.IO) {
-        val client = OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build()
+        val client = NetworkClient.newClient(dns = Dns.SYSTEM) { builder ->
+            builder.followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+        }
         val reqBuilder = Request.Builder().url(url).header("User-Agent", DEFAULT_USER_AGENT)
         referer?.let { reqBuilder.header("Referer", it) }
         client.newCall(reqBuilder.build()).execute().use { resp ->
@@ -554,7 +557,12 @@ object StreamingItaProvider : Provider {
     }
 
     private suspend fun followRedirect(url: String): String = withContext(Dispatchers.IO) {
-        val client = OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build()
+        val client = NetworkClient.newClient(dns = Dns.SYSTEM) { builder ->
+            builder.followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+        }
         val request = Request.Builder()
             .url(url)
             .header("Referer", baseUrl)

@@ -2,6 +2,7 @@ package com.lumora.plugin.js
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.lumora.R
 import java.io.File
 
 /**
@@ -137,10 +138,10 @@ class PluginScriptManager(
             engine.probeManifest(text)
         } catch (e: Exception) {
             null
-        } ?: return InstallResult.Rejected("Not a valid plugin script")
+        } ?: return InstallResult.Rejected(context.getString(R.string.ui_plugin_invalid_script))
 
         val capabilities = extractCapabilities(manifest)
-        if (capabilities.isEmpty()) return InstallResult.Rejected("Script declares no capability this app understands")
+        if (capabilities.isEmpty()) return InstallResult.Rejected(context.getString(R.string.ui_plugin_no_capability))
 
         val id = (manifest["id"] as? String)?.takeIf { it.isNotBlank() } ?: fallbackId
         val isFirstInstall = scripts.none { it.id == id }

@@ -9,6 +9,7 @@ import android.util.Log
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import com.lumora.R
 import com.lumora.util.normalizeServerUrl
 import kotlinx.coroutines.*
 import java.io.BufferedReader
@@ -78,7 +79,7 @@ class QrPairingManager(private val context: Context) {
 
         val host = resolveLanIp()
         if (host == null) {
-            val err = "Could not detect LAN IP. Connect to Wi-Fi and try again."
+            val err = context.getString(R.string.ui_pairing_no_lan_ip)
             Log.w(TAG, err)
             onError?.invoke(err)
             return@withContext null
@@ -88,7 +89,7 @@ class QrPairingManager(private val context: Context) {
         val socket = try {
             ServerSocket(0, 10)
         } catch (e: Exception) {
-            val err = "Server error: ${e.message}"
+            val err = context.getString(R.string.ui_pairing_server_error, e.message)
             Log.w(TAG, err)
             onError?.invoke(err)
             return@withContext null
@@ -118,7 +119,7 @@ class QrPairingManager(private val context: Context) {
             if (_result != null) {
                 Log.d(TAG, "Pairing timed out")
                 stop()
-                onError?.invoke("Pairing session expired. Try again.")
+                onError?.invoke(context.getString(R.string.ui_pairing_session_expired))
             }
         }
 

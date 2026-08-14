@@ -55,20 +55,14 @@ internal fun MainActivity.ensurePublicContentDisclaimerAccepted(onAccepted: () -
         return
     }
     AlertDialog.Builder(this)
-        .setTitle("Public Streaming Content")
-        .setMessage(
-            "These plugins search public torrent and streaming sites for content. Lumora " +
-                "does not host, control, or verify anything they find - what they return is " +
-                "entirely outside this app's control.\n\n" +
-                "For educational and personal use only. You are responsible for complying " +
-                "with the laws that apply to you."
-        )
+        .setTitle(getString(R.string.plug_public_streaming_content_title))
+        .setMessage(getString(R.string.plug_public_streaming_content_message))
         .setCancelable(false)
-        .setPositiveButton("I Agree") { _, _ ->
+        .setPositiveButton(getString(R.string.plug_i_agree)) { _, _ ->
             prefs.edit().putBoolean(PREF_PUBLIC_CONTENT_DISCLAIMER_ACCEPTED, true).apply()
             onAccepted()
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -110,7 +104,7 @@ internal fun MainActivity.showTrailerForDiscoverItem(item: Channel) {
         }
         android.util.Log.d("TrailerPlayer", "trailerKey($type,$id) = $key")
         if (key == null) {
-            Toast.makeText(this@showTrailerForDiscoverItem, "No trailer found.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@showTrailerForDiscoverItem, getString(R.string.plug_no_trailer_found), Toast.LENGTH_SHORT).show()
         } else {
             showTrailerPlayer(key)
         }
@@ -206,7 +200,7 @@ internal fun MainActivity.showTrailerPlayer(youtubeKey: String) {
         }
     }
     val closeButton = Button(this).apply {
-        text = "Close"
+        text = getString(R.string.close)
         layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
@@ -305,7 +299,7 @@ internal suspend fun MainActivity.resolveTorrentStream(
         if (activeTorrentSession === engine) activeTorrentSession = null
         withContext(Dispatchers.IO) { runCatching { engine.stop() } }
         TorrentForegroundService.stop(this)
-        ResolveResult.Failed(e.message ?: "Could not resolve stream")
+        ResolveResult.Failed(e.message ?: getString(R.string.plug_could_not_resolve_stream))
     }
 }
 
@@ -366,7 +360,7 @@ internal fun MainActivity.showStreamSearchDialog(
         setPadding(pad, pad, pad, pad)
     }
     val status = TextView(this).apply {
-        text = "Searching…"
+        text = getString(R.string.plug_searching)
         setTextColor(ContextCompat.getColor(this@showStreamSearchDialog, R.color.text_secondary))
     }
     val resultsHost = LinearLayout(this).apply {
@@ -384,16 +378,16 @@ internal fun MainActivity.showStreamSearchDialog(
     ))
 
     val dialog = AlertDialog.Builder(this)
-        .setTitle("Find Stream — ${item.name}$epTag")
+        .setTitle(getString(R.string.plug_find_stream_title, item.name, epTag))
         .setView(container)
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .create()
 
     val source = pluginScriptManager.readSource(plugin)
     val results = mutableListOf<TorrentResult>()
 
     fun playResult(result: TorrentResult) {
-        status.text = "Loading ${result.title}…"
+        status.text = getString(R.string.plug_loading_title, result.title)
         resultsHost.removeAllViews()
         scope.launch {
             val resolved = if (plugin.resolvesNatively) {
@@ -480,13 +474,13 @@ internal fun MainActivity.showStreamSearchDialog(
                 // most likely pick surfaces first instead of being buried under the subs.
                 val atFront = prefs.getBoolean(PREF_PREFER_DUB_AUDIO, false) && result.audio == "dub"
                 if (atFront) results.add(0, result) else results.add(result)
-                status.text = "${results.size} result(s)"
+                status.text = getString(R.string.plug_result_count, results.size)
                 addResultRow(result, atFront)
             }
         )
         if (results.isEmpty()) {
             status.text = when (outcome) {
-                is SearchResult.Finished -> outcome.message ?: "No streams found"
+                is SearchResult.Finished -> outcome.message ?: getString(R.string.plug_no_streams_found)
                 is SearchResult.Failed -> outcome.message
             }
         }
@@ -574,7 +568,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
     fun fetchAndAddPluginScript(url: String) {
         val scheme = url.substringBefore("://", "").lowercase(Locale.US)
         if (url.isBlank() || (scheme != "http" && scheme != "https")) {
-            Toast.makeText(this, "Enter a valid http(s) link", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.plug_enter_valid_link), Toast.LENGTH_SHORT).show()
             return
         }
         scope.launch {
@@ -589,15 +583,15 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                 null
             }
             if (text.isNullOrBlank()) {
-                Toast.makeText(this@wirePluginsPane, "Couldn't fetch that script", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@wirePluginsPane, getString(R.string.plug_couldnt_fetch_script), Toast.LENGTH_SHORT).show()
                 return@launch
             }
             when (val result = manager.installScript(text)) {
                 is PluginScriptManager.InstallResult.Installed -> {
                     // Says so explicitly, because installing no longer switches it on and a
                     // plugin that is installed but does nothing is otherwise a puzzle.
-                    val message = if (result.script.enabled) "Added ${result.script.label}"
-                        else "Added ${result.script.label} - enable it to use it"
+                    val message = if (result.script.enabled) getString(R.string.plug_added_label, result.script.label)
+                        else getString(R.string.plug_added_label_enable, result.script.label)
                     Toast.makeText(this@wirePluginsPane, message, Toast.LENGTH_LONG).show()
                     renderPluginList()
                 }
@@ -616,11 +610,11 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
         val pad = (20 * resources.displayMetrics.density).toInt()
         val container = FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
         AlertDialog.Builder(this)
-            .setTitle("Add plugin script from URL")
-            .setMessage("Enter the link to a Lumora plugin script (.js).")
+            .setTitle(getString(R.string.plug_add_plugin_script_from_url))
+            .setMessage(getString(R.string.plug_enter_plugin_script_message))
             .setView(container)
-            .setPositiveButton("Add") { _, _ -> fetchAndAddPluginScript(input.text.toString().trim()) }
-            .setNegativeButton("Cancel", null)
+            .setPositiveButton(getString(R.string.add)) { _, _ -> fetchAndAddPluginScript(input.text.toString().trim()) }
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -652,18 +646,17 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
         // Survives the re-render that follows every discovery progress line - the button is
         // a fresh view each time, but the fact it was already used is not.
         if (candidate.url in pluginDiscoveryAdded) {
-            addLabel.text = "Added"
+            addLabel.text = getString(R.string.plug_added)
             addButton.isEnabled = false
             addButton.isFocusable = false
         }
         addButton.setOnClickListener {
             AlertDialog.Builder(this)
-                .setTitle("Add ${candidate.label}?")
+                .setTitle(getString(R.string.plug_add_candidate_title, candidate.label))
                 .setMessage(
-                    "${plugin.label} found this $typeLabel provider:\n\n${candidate.url}\n\n" +
-                        "Adding it saves those details as a provider in Lumora."
+                    getString(R.string.plug_add_candidate_message, plugin.label, typeLabel, candidate.url)
                 )
-                .setPositiveButton("Add") { _, _ ->
+                .setPositiveButton(getString(R.string.add)) { _, _ ->
                     IptvProviderStore.upsert(
                         prefs,
                         IptvProviderConfig(
@@ -680,7 +673,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                         )
                     )
                     pluginDiscoveryAdded.add(candidate.url)
-                    addLabel.text = "Added"
+                    addLabel.text = getString(R.string.plug_added)
                     addButton.isEnabled = false
                     addButton.isFocusable = false
                     // Rebuild the provider list in the same settings screen so the newly
@@ -698,7 +691,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                     // rather than leaving them staring at the now-empty "Added" button.
                     onProviderAdded()
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(getString(R.string.cancel), null)
                 .show()
         }
         candidateList.addView(row)
@@ -711,7 +704,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
         pluginDiscoveryPluginId = plugin.id
         pluginDiscoveryCandidates.clear()
         pluginDiscoveryAdded.clear()
-        pluginDiscoveryStatus = "Starting ${plugin.label}…"
+        pluginDiscoveryStatus = getString(R.string.plug_starting_label, plugin.label)
         liveDiscoveryStatusView = null
         liveDiscoveryCandidateList = null
         liveDiscoveryPlugin = null
@@ -738,7 +731,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
             val found = pluginDiscoveryCandidates.size
             pluginDiscoveryStatus = when (result) {
                 is DiscoveryResult.Finished ->
-                    result.message ?: if (found == 0) "Nothing found" else "Found $found"
+                    result.message ?: if (found == 0) getString(R.string.plug_nothing_found) else getString(R.string.plug_found_count, found)
                 is DiscoveryResult.Failed -> result.message
             }
             pluginDiscoveryJob = null
@@ -767,7 +760,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                 val row = layoutInflater.inflate(R.layout.item_plugin_row, listContainer, false)
                 row.findViewById<TextView>(R.id.pluginName).text = plugin.label
                 row.findViewById<TextView>(R.id.pluginSummary).text = listOfNotNull(
-                    if (plugin.enabled) "Enabled" else "Disabled",
+                    if (plugin.enabled) getString(R.string.plug_enabled) else getString(R.string.plug_disabled),
                     pluginDiscoveryStatus.takeIf { plugin.id == pluginDiscoveryPluginId }
                 ).joinToString("  ·  ")
                 row.setOnClickListener { openPluginDetail(plugin.id) }
@@ -802,8 +795,8 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                 detailDescription.visibility =
                     if (plugin.description.isNullOrBlank()) View.GONE else View.VISIBLE
                 detailMeta.text = buildList {
-                    if (plugin.supportsDiscovery) add("Provider discovery")
-                    if (plugin.supportsStreamSearch) add("Stream search")
+                    if (plugin.supportsDiscovery) add(getString(R.string.plug_provider_discovery))
+                    if (plugin.supportsStreamSearch) add(getString(R.string.plug_stream_search))
                     addAll(plugin.contentTypes)
                 }.joinToString("  ·  ").uppercase(Locale.US)
 
@@ -833,7 +826,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                 // from a title's "Find stream" instead.
                 if (plugin.supportsDiscovery) {
                     detailRunButton.visibility = View.VISIBLE
-                    detailRunLabel.text = if (running && isRunningPlugin) "Running…" else "Run"
+                    detailRunLabel.text = if (running && isRunningPlugin) getString(R.string.plug_running) else getString(R.string.run)
                     // Dimmed but still focusable when it can't be used: setEnabled(false)
                     // takes a View out of focus search entirely, and Run is exactly what the
                     // user is heading for after enabling a plugin, so it has to stay on the
@@ -842,10 +835,10 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                     detailRunButton.setOnClickListener {
                         when {
                             running -> Toast.makeText(
-                                this@wirePluginsPane, "A plugin is already running", Toast.LENGTH_SHORT
+                                this@wirePluginsPane, getString(R.string.plug_plugin_already_running), Toast.LENGTH_SHORT
                             ).show()
                             !plugin.enabled -> Toast.makeText(
-                                this@wirePluginsPane, "Enable ${plugin.label} first", Toast.LENGTH_SHORT
+                                this@wirePluginsPane, getString(R.string.plug_enable_label_first, plugin.label), Toast.LENGTH_SHORT
                             ).show()
                             else -> runDiscovery(plugin)
                         }
@@ -857,7 +850,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
 
                 detailUpdateLabel.text = getString(R.string.update)
                 detailUpdateButton.setOnClickListener {
-                    detailUpdateLabel.text = "Updating…"
+                    detailUpdateLabel.text = getString(R.string.plug_updating)
                     scope.launch {
                         val message = updatePluginFromStore(plugin)
                         Toast.makeText(this@wirePluginsPane, message, Toast.LENGTH_LONG).show()
@@ -870,9 +863,9 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
 
                 detailRemoveButton.setOnClickListener {
                     AlertDialog.Builder(this@wirePluginsPane)
-                        .setTitle("Remove ${plugin.label}?")
-                        .setMessage("This deletes the installed script. You can reinstall it later from a plugin store or its URL.")
-                        .setPositiveButton("Remove") { _, _ ->
+                        .setTitle(getString(R.string.plug_remove_label_title, plugin.label))
+                        .setMessage(getString(R.string.plug_remove_script_message))
+                        .setPositiveButton(getString(R.string.remove)) { _, _ ->
                             manager.setEnabled(plugin.id, false)
                             manager.removeUserScript(plugin.fileName)
                             if (plugin.supportsScraperSites) loadScraperSiteManifest()
@@ -880,7 +873,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                             renderPluginList()
                             refreshPluginNavRows?.invoke()
                         }
-                        .setNegativeButton("Cancel", null)
+                        .setNegativeButton(getString(R.string.cancel), null)
                         .show()
                 }
 
@@ -939,15 +932,15 @@ internal suspend fun MainActivity.updatePluginFromStore(plugin: PluginScript): S
         val catalog = pluginStoreManager.fetchCatalog(store.url).getOrNull() ?: continue
         val entry = catalog.firstOrNull { it.id == plugin.id } ?: continue
         val text = pluginStoreManager.fetchScriptText(entry.fileUrl)
-            ?: return "Couldn't download ${plugin.label}"
+            ?: return getString(R.string.plug_couldnt_download_label, plugin.label)
         // installScript() preserves the stored enabled state, so an update can't switch a
         // plugin the user had turned off back on.
         return when (val result = pluginScriptManager.installScript(text)) {
-            is PluginScriptManager.InstallResult.Installed -> "Updated ${result.script.label}"
-            is PluginScriptManager.InstallResult.Rejected -> "Update rejected: ${result.reason}"
+            is PluginScriptManager.InstallResult.Installed -> getString(R.string.plug_updated_label, result.script.label)
+            is PluginScriptManager.InstallResult.Rejected -> getString(R.string.plug_update_rejected, result.reason)
         }
     }
-    return "${plugin.label} isn't in any configured plugin store"
+    return getString(R.string.plug_not_in_plugin_store, plugin.label)
 }
 
 /**
@@ -1014,7 +1007,7 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
         scope.launch {
             val text = pluginStoreManager.fetchScriptText(storeScript.fileUrl)
             if (text.isNullOrBlank()) {
-                onDone(PluginScriptManager.InstallResult.Rejected("Couldn't download that script"))
+                onDone(PluginScriptManager.InstallResult.Rejected(getString(R.string.plug_couldnt_download_script)))
                 return@launch
             }
             // No enabled-state juggling here: installScript() leaves it alone, so an update
@@ -1025,7 +1018,7 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
 
     fun showBrowseStoreDialog(store: PluginStore) {
         val status = TextView(this).apply {
-            text = "Loading…"
+            text = getString(R.string.loading)
             setTextColor(ContextCompat.getColor(this@wirePluginStoresSection, R.color.text_secondary))
         }
         val resultsHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -1039,7 +1032,7 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
         val dialog = AlertDialog.Builder(this)
             .setTitle(store.name ?: store.url)
             .setView(ScrollView(this).apply { addView(container) })
-            .setNegativeButton("Close", null)
+            .setNegativeButton(getString(R.string.close), null)
             .create()
         dialog.show()
 
@@ -1048,14 +1041,14 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
             val result = pluginStoreManager.fetchCatalog(store.url)
             val catalog = result.getOrNull()
             if (catalog == null) {
-                status.text = "Couldn't load this store"
+                status.text = getString(R.string.plug_couldnt_load_store)
                 return@launch
             }
             if (catalog.isEmpty()) {
-                status.text = "No scripts listed"
+                status.text = getString(R.string.plug_no_scripts_listed)
                 return@launch
             }
-            status.text = "${catalog.size} script${if (catalog.size == 1) "" else "s"}"
+            status.text = getString(R.string.plug_script_count, catalog.size)
             for (storeScript in catalog) {
                 val row = layoutInflater.inflate(R.layout.item_plugin_candidate_row, resultsHost, false)
                 row.findViewById<TextView>(R.id.candidateName).text = storeScript.label
@@ -1070,23 +1063,23 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
                 // in place (see PluginScriptManager.installScript), which is exactly how you
                 // pick up a store update. Stays clickable either way, just relabeled.
                 val alreadyInstalled = storeScript.id in installedIds
-                val idleLabel = if (alreadyInstalled) "Update" else "Install"
+                val idleLabel = if (alreadyInstalled) getString(R.string.update) else getString(R.string.plug_install)
                 installLabel.text = idleLabel
                 fun doInstall() {
                     installButton.isEnabled = false
-                    installLabel.text = if (alreadyInstalled) "Updating…" else "Installing…"
+                    installLabel.text = if (alreadyInstalled) getString(R.string.plug_updating) else getString(R.string.plug_installing)
                     installFromStore(storeScript) { outcome ->
                         when (outcome) {
                             is PluginScriptManager.InstallResult.Installed -> {
-                                installLabel.text = if (alreadyInstalled) "Updated" else "Installed"
+                                installLabel.text = if (alreadyInstalled) getString(R.string.plug_updated) else getString(R.string.plug_installed)
                                 installButton.isEnabled = true
                                 // A first install switches itself on (see
                                 // PluginScriptManager.installScript); a re-install/update
                                 // leaves whatever the user had chosen alone.
                                 Toast.makeText(
                                     this@wirePluginStoresSection,
-                                    if (outcome.script.enabled) "${storeScript.label} installed"
-                                    else "${storeScript.label} installed - enable it to use it",
+                                    if (outcome.script.enabled) getString(R.string.plug_installed_label, storeScript.label)
+                                    else getString(R.string.plug_installed_label_enable, storeScript.label),
                                     Toast.LENGTH_LONG
                                 ).show()
                                 onInstalled()
@@ -1125,20 +1118,20 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
         val pad = (20 * resources.displayMetrics.density).toInt()
         val container = FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
         AlertDialog.Builder(this)
-            .setTitle("Add plugin store")
-            .setMessage("Enter the link to a plugin store's catalog (a small JSON file listing its scripts).")
+            .setTitle(getString(R.string.plug_add_plugin_store))
+            .setMessage(getString(R.string.plug_add_plugin_store_message))
             .setView(container)
-            .setPositiveButton("Add") { _, _ ->
+            .setPositiveButton(getString(R.string.add)) { _, _ ->
                 val url = input.text.toString().trim()
                 val scheme = url.substringBefore("://", "").lowercase(Locale.US)
                 if (url.isBlank() || (scheme != "http" && scheme != "https")) {
-                    Toast.makeText(this, "Enter a valid http(s) link", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.plug_enter_valid_link), Toast.LENGTH_SHORT).show()
                 } else {
                     pluginStoreManager.addStore(url)
                     renderStoreList()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 

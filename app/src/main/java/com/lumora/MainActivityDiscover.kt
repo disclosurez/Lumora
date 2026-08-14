@@ -23,7 +23,7 @@ import java.util.Locale
 //
 // Extracted from MainActivity.kt; see that file's header.
 internal fun MainActivity.setupDiscover() {
-    setGridSpan(binding.discoverGrid, discoverGridAdapter, R.id.tabDiscover)
+    setGridSpan(binding.discoverGrid, discoverGridAdapter, discoverGridFocusUpTargetId())
     // setGridSpan only wires the layout manager/span; the adapter still has to be attached.
     binding.discoverGrid.adapter = discoverGridAdapter
     // The inline field isn't a real input (no platform IME on TV, and a focused field
@@ -102,10 +102,12 @@ internal fun MainActivity.selectDiscover() {
     binding.discoverContent.visibility = View.VISIBLE
     updateTabStyles(binding.tabDiscover)
     // Recompute span now the pane is on-screen and actually has a width.
-    binding.discoverGrid.post { setGridSpan(binding.discoverGrid, discoverGridAdapter, R.id.tabDiscover) }
+    binding.discoverGrid.post {
+        setGridSpan(binding.discoverGrid, discoverGridAdapter, discoverGridFocusUpTargetId())
+    }
     updateDiscoverFilterChipStyles()
     if (!tmdbClient.hasKey()) {
-        setDiscoverStatus("Discover is unavailable (no TMDB key configured).")
+        setDiscoverStatus(getString(R.string.plug_discover_unavailable))
     } else if (discoverGridAdapter.itemCount == 0) {
         // Re-entering Discover with a chip already picked (Movies/Series) keeps browsing
         // that instead of silently falling back to Trending.
@@ -133,11 +135,11 @@ internal fun MainActivity.showDiscoverBackedCatalogTab(index: Int) {
     setGridSpan(recycler, adapter, tabId)
     recycler.adapter = adapter
     binding.contentRow.visibility = View.VISIBLE
-    setStatus("Loading...", visible = true)
+    setStatus(getString(R.string.loading), visible = true)
     scope.launch {
         if (!tmdbClient.hasKey()) {
             adapter.replaceAll(emptyList())
-            setStatus("Discover is unavailable (no TMDB key configured).", visible = true)
+            setStatus(getString(R.string.plug_discover_unavailable), visible = true)
             return@launch
         }
         val results = fetchPopularPaged(wantedType)
@@ -150,7 +152,7 @@ internal fun MainActivity.showDiscoverBackedCatalogTab(index: Int) {
             return@launch
         }
         adapter.replaceAll(results)
-        setStatus(if (results.isEmpty()) "Couldn't load titles. Check your connection." else "", visible = results.isEmpty())
+        setStatus(if (results.isEmpty()) getString(R.string.plug_couldnt_load_titles) else "", visible = results.isEmpty())
         applyStatus()
         focusFirstItemWhenReady(recycler)
     }
@@ -179,7 +181,7 @@ internal suspend fun MainActivity.fetchPopularPaged(type: MediaType): List<Chann
 internal fun MainActivity.loadDiscover(query: String?) {
     if (!tmdbClient.hasKey()) return
     discoverSearchJob?.cancel()
-    setDiscoverStatus(if (query == null) "Loading trending…" else "Searching \"$query\"…")
+    setDiscoverStatus(if (query == null) getString(R.string.plug_loading_trending) else getString(R.string.plug_searching_query, query))
     discoverSearchJob = scope.launch {
         val results = if (query == null) tmdbClient.trending() else tmdbClient.search(query)
         // Without a stream-search plugin (the torrent plugin being the common one), a
@@ -200,8 +202,8 @@ internal fun MainActivity.loadDiscover(query: String?) {
         setDiscoverStatus(
             when {
                 visible.isNotEmpty() -> null
-                results.isEmpty() -> if (query == null) "Couldn't load titles. Check your connection." else "No results for \"$query\"."
-                else -> "Enable a stream plugin to browse titles outside your library."
+                results.isEmpty() -> if (query == null) getString(R.string.plug_couldnt_load_titles) else getString(R.string.plug_no_results_for, query)
+                else -> getString(R.string.plug_enable_stream_plugin_browse)
             }
         )
     }
@@ -213,7 +215,7 @@ internal fun MainActivity.loadDiscover(query: String?) {
 internal fun MainActivity.loadDiscoverByType(type: MediaType) {
     if (!tmdbClient.hasKey()) return
     discoverSearchJob?.cancel()
-    setDiscoverStatus(if (type == MediaType.SERIES) "Loading series…" else "Loading movies…")
+    setDiscoverStatus(if (type == MediaType.SERIES) getString(R.string.plug_loading_series) else getString(R.string.plug_loading_movies))
     discoverSearchJob = scope.launch {
         val results = fetchPopularPaged(type)
         val pluginEnabled = hasProviderlessSource()
@@ -225,8 +227,8 @@ internal fun MainActivity.loadDiscoverByType(type: MediaType) {
         setDiscoverStatus(
             when {
                 visible.isNotEmpty() -> null
-                results.isEmpty() -> "Couldn't load titles. Check your connection."
-                else -> "Enable a stream plugin to browse titles outside your library."
+                results.isEmpty() -> getString(R.string.plug_couldnt_load_titles)
+                else -> getString(R.string.plug_enable_stream_plugin_browse)
             }
         )
     }
@@ -251,6 +253,17 @@ internal fun MainActivity.updateDiscoverFilterChipStyles() {
     binding.discoverFilterAll.isSelected = active == null
     binding.discoverFilterMovies.isSelected = active == MediaType.MOVIE
     binding.discoverFilterSeries.isSelected = active == MediaType.SERIES
+    discoverGridAdapter.topRowFocusUpTargetId = discoverGridFocusUpTargetId()
+}
+
+/** Where D-pad UP off the grid's top row lands. The Trending/Films/Series chips used to be
+ *  skipped entirely (UP went straight to the Discover tab), so switching type meant going up
+ *  to the tab bar and back down twice - the chip row is the natural stop above the grid, and
+ *  landing on the *active* chip means RIGHT/LEFT immediately reaches the other two. */
+internal fun MainActivity.discoverGridFocusUpTargetId(): Int = when (discoverTypeFilter) {
+    MediaType.MOVIE -> R.id.discoverFilterMovies
+    MediaType.SERIES -> R.id.discoverFilterSeries
+    else -> R.id.discoverFilterAll
 }
 
 /** Works out which of the user's sources already carry each visible Discover title, then
@@ -307,7 +320,7 @@ internal fun MainActivity.startDiscoverStreamSearch(item: Channel) {
     if (!canFindStream(item)) {
         Toast.makeText(
             this,
-            "Enable a stream plugin, or turn on Streaming sites in Settings, to play Discover titles.",
+            getString(R.string.plug_enable_stream_plugin_or_sites),
             Toast.LENGTH_LONG
         ).show()
         return
@@ -430,8 +443,8 @@ internal fun MainActivity.showSeriesEpisodePicker(
     if (tvId == null) { onPick(null, null); return }
     val loading = AlertDialog.Builder(this)
         .setTitle(item.name)
-        .setMessage("Loading episodes…")
-        .setNegativeButton("Cancel", null)
+        .setMessage(getString(R.string.plug_loading_episodes))
+        .setNegativeButton(getString(R.string.cancel), null)
         .create()
     loading.show()
     scope.launch {
@@ -444,17 +457,17 @@ internal fun MainActivity.showSeriesEpisodePicker(
         }
         val seasonLabels = seasons.map { "${it.name} (${it.episodeCount} eps)" }.toTypedArray()
         AlertDialog.Builder(this@showSeriesEpisodePicker)
-            .setTitle("${item.name} — choose a season")
+            .setTitle(getString(R.string.plug_choose_season, item.name))
             .setItems(seasonLabels) { _, si ->
                 val season = seasons[si]
-                val epLabels = (1..season.episodeCount).map { "Episode $it" }.toTypedArray()
+                val epLabels = (1..season.episodeCount).map { getString(R.string.plug_episode, it) }.toTypedArray()
                 AlertDialog.Builder(this@showSeriesEpisodePicker)
                     .setTitle(season.name)
                     .setItems(epLabels) { _, ei -> onPick(season.number, ei + 1) }
-                    .setNegativeButton("Back") { _, _ -> showSeriesEpisodePicker(item, onPick) }
+                    .setNegativeButton(getString(R.string.plug_back)) { _, _ -> showSeriesEpisodePicker(item, onPick) }
                     .show()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 }

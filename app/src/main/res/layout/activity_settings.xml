@@ -458,7 +458,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Type: M3U"
+                            android:text="@string/settings_type_m3u"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body"
                             android:fontFamily="@font/inter_medium" />

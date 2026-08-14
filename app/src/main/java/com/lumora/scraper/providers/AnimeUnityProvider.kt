@@ -1,7 +1,5 @@
 package com.lumora.scraper.providers
 
-import com.lumora.scraper.bridge.HostScopedService
-import com.lumora.scraper.bridge.ScraperHosts
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.Category
 import com.lumora.scraper.models.Episode
@@ -12,9 +10,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.extractors.VixcloudExtractor
-import com.lumora.scraper.utils.DnsResolver
 import okhttp3.OkHttpClient
-import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -32,12 +28,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.json.JSONObject
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import java.util.concurrent.TimeUnit
 
-object AnimeUnityProvider : Provider {
+object AnimeUnityProvider : JsoupSiteProvider() {
     override val name = "AnimeUnity"
-    override val baseUrl: String get() = ScraperHosts[name]
     override val logo: String get() = "$baseUrl/images/scritta2.png"
     override val language = "it"
     
@@ -172,60 +166,49 @@ object AnimeUnityProvider : Provider {
                 
                 return "https://img.$domain/anime/$filename"
             }
-            
-            fun build(baseUrl: String): AnimeUnityService {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
-                val client = clientBuilder
-                    .dns(DnsResolver.doh)
-                    .addInterceptor { chain ->
-                        val originalRequest = chain.request()
-                        val requestBuilder = originalRequest.newBuilder()
-                        
-                        
-                        if (originalRequest.url.toString().endsWith("/archivio/get-animes")) {
-                                requestBuilder.header("Cookie", savedCookieHeader)
-                                requestBuilder.header("X-CSRF-TOKEN", savedCsrfToken)
-                        }
-                        
-                        val response = chain.proceed(requestBuilder.build())
-                        
-                        if (originalRequest.url.toString().endsWith("/archivio")) {
-                            val cookies = response.headers("Set-Cookie")
-                            savedCookieHeader = cookies.joinToString("; ") { it.substringBefore(";") }
-                            
-                            val responseBody = response.body
-                            if (responseBody != null) {
-                                val html = responseBody.string()
-                                val csrfMeta = Jsoup.parse(html).selectFirst("meta[name=csrf-token]")
-                                savedCsrfToken = csrfMeta?.attr("content") ?: ""
-                                
-                                val newResponseBody = html.toResponseBody(responseBody.contentType())
-                                response.newBuilder().body(newResponseBody).build()
-                            } else {
-                                response
-                            }
-                        } else {
-                            response
-                        }
-                    }
-                    .build()
-
-                val retrofit = Retrofit.Builder()
-                    .baseUrl(baseUrl)
-                    .addConverterFactory(JsoupConverterFactory.create())
-                    .client(client)
-                    .build()
-
-                return retrofit.create(AnimeUnityService::class.java)
-            }
         }
     }
 
+    private fun buildAnimeUnityService(baseUrl: String): AnimeUnityService {
+        val client = newHttpClient().newBuilder()
+            .addInterceptor { chain ->
+                val originalRequest = chain.request()
+                val requestBuilder = originalRequest.newBuilder()
+                
+                
+                if (originalRequest.url.toString().endsWith("/archivio/get-animes")) {
+                        requestBuilder.header("Cookie", savedCookieHeader)
+                        requestBuilder.header("X-CSRF-TOKEN", savedCsrfToken)
+                }
+                
+                val response = chain.proceed(requestBuilder.build())
+                
+                if (originalRequest.url.toString().endsWith("/archivio")) {
+                    val cookies = response.headers("Set-Cookie")
+                    savedCookieHeader = cookies.joinToString("; ") { it.substringBefore(";") }
+                    
+                    val responseBody = response.body
+                    if (responseBody != null) {
+                        val html = responseBody.string()
+                        val csrfMeta = Jsoup.parse(html).selectFirst("meta[name=csrf-token]")
+                        savedCsrfToken = csrfMeta?.attr("content") ?: ""
+                        
+                        val newResponseBody = html.toResponseBody(responseBody.contentType())
+                        response.newBuilder().body(newResponseBody).build()
+                    } else {
+                        response
+                    }
+                } else {
+                    response
+                }
+            }
+            .build()
+
+        return newRetrofit(baseUrl, client).create(AnimeUnityService::class.java)
+    }
+
     // Rebuilt when the manifest repoints this site - see HostScopedService.
-    private val serviceHolder = HostScopedService({ baseUrl }) { AnimeUnityService.build(baseUrl) }
+    private val serviceHolder = hostScopedService { buildAnimeUnityService(baseUrl) }
     private val service get() = serviceHolder.get()
 
 

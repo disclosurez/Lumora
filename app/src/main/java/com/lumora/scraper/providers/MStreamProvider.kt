@@ -19,7 +19,6 @@ import com.lumora.scraper.utils.DnsResolver
 import okhttp3.Cache
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.OkHttpClient.Builder
 import okhttp3.ResponseBody
 import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.logging.HttpLoggingInterceptor
@@ -395,19 +394,18 @@ object MStreamProvider : Provider {
         companion object {
             private fun getOkHttpClient(): OkHttpClient {
                 val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
-                val clientBuilder = NetworkClient.default.newBuilder()
-                    .cache(appCache)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                clientBuilder.addInterceptor { chain ->
-                    val original = chain.request()
-                    val requestWithHeaders = original.newBuilder()
-                        .header("Referer", currentBaseUrl())
-                        .build()
-                    chain.proceed(requestWithHeaders)
+                return NetworkClient.newClient { builder ->
+                    builder.cache(appCache)
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .addInterceptor { chain ->
+                            val original = chain.request()
+                            val requestWithHeaders = original.newBuilder()
+                                .header("Referer", currentBaseUrl())
+                                .build()
+                            chain.proceed(requestWithHeaders)
+                        }
                 }
-                val clientToReturn = clientBuilder.dns(DnsResolver.doh).build()
-                return clientToReturn
             }
 
             fun build(baseUrl: String): MStreamService {

@@ -14,6 +14,7 @@ import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.ArtworkRequestHeaders
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -58,25 +59,24 @@ object SeriesTurcasProvider : Provider {
     private val detailPageCache = ConcurrentHashMap<String, CachedDocument>()
 
     private val service: SeriesTurcasService by lazy {
-        val client = OkHttpClient.Builder()
-            .dns(DnsResolver.doh)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                chain.proceed(
-                    chain.request().newBuilder()
-                        .header("User-Agent", USER_AGENT)
-                        .header("Referer", "$baseUrl/")
-                        .header("Accept", DOCUMENT_ACCEPT)
-                        .header("Accept-Language", "en-US,en;q=0.5")
-                        .header("Sec-Fetch-Dest", "document")
-                        .header("Sec-Fetch-Mode", "navigate")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .header("Upgrade-Insecure-Requests", "1")
-                        .build()
-                )
-            }
-            .build()
+        val client = NetworkClient.newClient { builder ->
+            builder.readTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .addInterceptor { chain ->
+                    chain.proceed(
+                        chain.request().newBuilder()
+                            .header("User-Agent", USER_AGENT)
+                            .header("Referer", "$baseUrl/")
+                            .header("Accept", DOCUMENT_ACCEPT)
+                            .header("Accept-Language", "en-US,en;q=0.5")
+                            .header("Sec-Fetch-Dest", "document")
+                            .header("Sec-Fetch-Mode", "navigate")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .header("Upgrade-Insecure-Requests", "1")
+                            .build()
+                    )
+                }
+        }
 
         Retrofit.Builder()
             .baseUrl("$baseUrl/")

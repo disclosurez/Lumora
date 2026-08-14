@@ -56,15 +56,19 @@ object DownloadStore {
         val file = File(context.filesDir, FILE_NAME)
         if (!file.exists()) emptyList() else {
             val arr = JSONArray(file.readText())
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
+            (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = obj.optString("id")
+                // A row with no id can't be looked up or removed by key - structurally
+                // broken. Skip it rather than let one bad entry wipe the whole store.
+                if (id.isBlank()) return@mapNotNull null
                 DownloadRecord(
-                    id = obj.getString("id"),
+                    id = id,
                     title = obj.optString("title", ""),
                     subtitle = obj.optString("subtitle", ""),
                     posterUrl = obj.optString("posterUrl", "").ifEmpty { null },
                     mediaType = obj.optString("mediaType", "MOVIE"),
-                    downloadManagerId = obj.getLong("downloadManagerId"),
+                    downloadManagerId = obj.optLong("downloadManagerId"),
                     status = runCatching { DownloadStatus.valueOf(obj.optString("status", "QUEUED")) }
                         .getOrDefault(DownloadStatus.QUEUED),
                     localFilePath = obj.optString("localFilePath", "").ifEmpty { null }

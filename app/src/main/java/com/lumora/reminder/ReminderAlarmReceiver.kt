@@ -40,8 +40,8 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
 
         val notification = NotificationCompat.Builder(context, REMINDER_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(programTitle.ifBlank { "Starting soon" })
-            .setContentText("$channelName starts in about 5 minutes")
+            .setContentTitle(programTitle.ifBlank { context.getString(R.string.ui_reminder_starting_soon) })
+            .setContentText(context.getString(R.string.ui_reminder_starts_soon, channelName))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -57,9 +57,9 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         if (manager.getNotificationChannel(REMINDER_NOTIFICATION_CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             REMINDER_NOTIFICATION_CHANNEL_ID,
-            "Programme reminders",
+            context.getString(R.string.ui_reminder_channel_name),
             NotificationManager.IMPORTANCE_DEFAULT
-        ).apply { description = "Alerts a few minutes before a show you set a reminder for" }
+        ).apply { description = context.getString(R.string.ui_reminder_channel_desc) }
         manager.createNotificationChannel(channel)
     }
 }

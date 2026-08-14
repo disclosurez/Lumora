@@ -15,6 +15,7 @@ import com.lumora.scraper.models.Show
 import com.lumora.scraper.utils.TmdbUtils
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -43,14 +44,10 @@ object GuardaFlixProvider : Provider {
     private interface GuardaFlixService {
         companion object {
             fun build(baseUrl: String): GuardaFlixService {
-                val clientBuilder = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
                 return Retrofit.Builder()
                     .baseUrl(baseUrl)
                     .addConverterFactory(JsoupConverterFactory.create())
-                    .client(clientBuilder.dns(DnsResolver.doh).build())
+                    .client(NetworkClient.default)
                     .build()
                     .create(GuardaFlixService::class.java)
             }

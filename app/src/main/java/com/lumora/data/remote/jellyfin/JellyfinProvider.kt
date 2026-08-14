@@ -53,8 +53,15 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         .build()
 
     private val mutex = Mutex()
+    // @Volatile: written under the mutex (authenticate/completeQuickConnect) or
+    // synchronized(this) (restoreSession), but read unsynchronized from IO threads
+    // (getLiveTvChannels/getMovies/... after connect). Without it a token set on main can
+    // read stale-null on a worker -> spurious empty catalog right after connect.
+    @Volatile
     private var accessToken: String? = null
+    @Volatile
     private var userId: String? = null
+    @Volatile
     private var serverBase: String? = null
 
     /** Set by startQuickConnect() on failure so callers can show *why* instead of a generic

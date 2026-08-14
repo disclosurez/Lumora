@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android Auto / car screens -->
+    <string name="ui_car_no_channels">Aucune chaîne en cache. Ouvrez Lumora une fois sur votre téléphone pour charger vos fournisseurs.</string>
+    <string name="ui_favourites">Favoris</string>
+    <string name="ui_recent">Récents</string>
+    <string name="ui_all_channels">Toutes les chaînes</string>
+    <string name="ui_channels_count">%1$d chaînes</string>
+    <string name="ui_more">Plus&#8230;</string>
+    <string name="ui_more_count">%1$d de plus</string>
+    <string name="ui_not_driving_continue">Je ne conduis pas - continuer</string>
+    <string name="ui_other">Autre</string>
+    <string name="ui_playing">En lecture</string>
+    <string name="ui_pause">Pause</string>
+    <string name="ui_prev">Préc.</string>
+    <string name="ui_next">Suiv.</string>
+
+    <!-- App updates -->
+    <string name="ui_update_title">Mise à jour Lumora</string>
+    <string name="ui_update_downloading">Téléchargement de la v%1$s</string>
+    <string name="ui_update_allow_install">Autorisez Lumora à installer des mises à jour, puis réessayez</string>
+    <string name="ui_update_no_app">Aucune application trouvée pour installer la mise à jour</string>
+
+    <!-- Downloads -->
+    <string name="ui_episode">Épisode</string>
+    <string name="ui_movie">Film</string>
+
+    <!-- QR provider pairing -->
+    <string name="ui_pairing_no_lan_ip">Impossible de détecter l\'adresse IP du réseau local. Connectez-vous au Wi-Fi et réessayez.</string>
+    <string name="ui_pairing_server_error">Erreur du serveur : %1$s</string>
+    <string name="ui_pairing_session_expired">Session d\'appairage expirée. Réessayez.</string>
+
+    <!-- Plugins -->
+    <string name="ui_plugin_invalid_script">Script de plugin non valide</string>
+    <string name="ui_plugin_no_capability">Le script ne déclare aucune capacité comprise par cette application</string>
+
+    <!-- External player chooser -->
+    <string name="ui_play_with">Lire avec</string>
+
+    <!-- Programme reminders -->
+    <string name="ui_reminder_starting_soon">Commence bientôt</string>
+    <string name="ui_reminder_starts_soon">%1$s commence dans environ 5 minutes</string>
+    <string name="ui_reminder_channel_name">Rappels de programmes</string>
+    <string name="ui_reminder_channel_desc">Alerte quelques minutes avant une émission pour laquelle vous avez défini un rappel</string>
+
+    <!-- Torrent foreground service -->
+    <string name="ui_torrent_channel_name">Streaming</string>
+    <string name="ui_torrent_streaming_text">Streaming torrent</string>
+
+    <!-- On-screen keyboard action keys -->
+    <string name="ui_key_space">ESPACE</string>
+    <string name="ui_key_del">SUPPR</string>
+    <string name="ui_key_clear">EFFACER</string>
+</resources>

@@ -144,9 +144,9 @@ class PosterGridAdapter(
             } else if (showTypeBadge) {
                 typeBadge.visibility = View.VISIBLE
                 val (label, colorRes) = when (channel.mediaType) {
-                    MediaType.LIVE -> "Live" to R.color.live_red
-                    MediaType.MOVIE -> "Film" to R.color.info_cyan
-                    MediaType.SERIES -> "Series" to R.color.primary
+                    MediaType.LIVE -> itemView.context.getString(R.string.live_badge) to R.color.live_red
+                    MediaType.MOVIE -> itemView.context.getString(R.string.list_type_film) to R.color.info_cyan
+                    MediaType.SERIES -> itemView.context.getString(R.string.series_tab) to R.color.primary
                 }
                 typeBadge.text = label
                 typeBadge.backgroundTintList = ContextCompat.getColorStateList(itemView.context, colorRes)

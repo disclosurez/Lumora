@@ -15,6 +15,7 @@ import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.ArtworkRequestHeaders
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.Cache
@@ -227,21 +228,19 @@ object MkissaProvider : Provider {
         .baseUrl(API_URL)
         .addConverterFactory(ScalarsConverterFactory.create())
         .client(
-            OkHttpClient.Builder()
-                .cache(Cache(File("cacheDir", "mkissa_okhttpcache"), 10 * 1024 * 1024))
-                .readTimeout(30, TimeUnit.SECONDS)
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .dns(DnsResolver.doh)
-                .build()
+            NetworkClient.newClient { builder ->
+                builder.cache(Cache(File("cacheDir", "mkissa_okhttpcache"), 10 * 1024 * 1024))
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .connectTimeout(30, TimeUnit.SECONDS)
+            }
         )
         .build()
         .create(MkissaService::class.java)
 
-    private val sourceResolverClient = OkHttpClient.Builder()
-        .dns(DnsResolver.doh)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .build()
+    private val sourceResolverClient = NetworkClient.newClient { builder ->
+        builder.followRedirects(true)
+            .followSslRedirects(true)
+    }
 
     // Origin/Referer are applied by an interceptor rather than @Headers: the site's host now
     // comes from the plugin manifest at runtime, and an annotation argument has to be a

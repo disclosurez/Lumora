@@ -26,11 +26,16 @@ class TmdbClient {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    /** TMDB language tag (xx-XX) for every request; driven by MainActivity's UI-language
+     *  cascade. Caches key on this too, so switching language refetches rather than serving
+     *  stale English results. */
+    var languageTag: String = "en-US"
+
     fun hasKey(): Boolean = KEYS.isNotEmpty()
 
     /** Trending movies + shows this week - the default Discover grid before any search. */
     suspend fun trending(): List<Channel> =
-        get("/trending/all/week", "language=en-US")
+        get("/trending/all/week", "language=$languageTag")
 
     /** One page (20 titles) of TMDB's popularity ranking, English-language originals only -
      *  used by the Series/Films tabs' no-provider fallback, which wants far more than
@@ -39,13 +44,13 @@ class TmdbClient {
      *  ranking (sort_by=popularity.desc), with with_original_language as the one thing added.
      *  [page] is 1-based, same as TMDB's own paging. */
     suspend fun popularMovies(page: Int): List<Channel> = withContext(Dispatchers.IO) {
-        val body = fetchBody("/discover/movie", "language=en-US&page=$page&sort_by=popularity.desc&with_original_language=en")
+        val body = fetchBody("/discover/movie", "language=$languageTag&page=$page&sort_by=popularity.desc&with_original_language=en")
             ?: return@withContext emptyList()
         parse(body, forcedType = "movie")
     }
 
     suspend fun popularTv(page: Int): List<Channel> = withContext(Dispatchers.IO) {
-        val body = fetchBody("/discover/tv", "language=en-US&page=$page&sort_by=popularity.desc&with_original_language=en")
+        val body = fetchBody("/discover/tv", "language=$languageTag&page=$page&sort_by=popularity.desc&with_original_language=en")
             ?: return@withContext emptyList()
         parse(body, forcedType = "tv")
     }
@@ -54,7 +59,7 @@ class TmdbClient {
     suspend fun search(query: String): List<Channel> {
         if (query.isBlank()) return emptyList()
         val q = java.net.URLEncoder.encode(query, "UTF-8")
-        return get("/search/multi", "include_adult=false&language=en-US&query=$q")
+        return get("/search/multi", "include_adult=false&language=$languageTag&query=$q")
     }
 
     /**
@@ -63,7 +68,7 @@ class TmdbClient {
      */
     suspend fun trailerKey(mediaType: String, id: Int): String? = withContext(Dispatchers.IO) {
         val path = if (mediaType == "tv") "/tv/$id/videos" else "/movie/$id/videos"
-        val body = fetchBody(path, "language=en-US") ?: return@withContext null
+        val body = fetchBody(path, "language=$languageTag") ?: return@withContext null
         val results = JSONObject(body).optJSONArray("results") ?: return@withContext null
         val youtube = (0 until results.length()).mapNotNull { results.optJSONObject(it) }
             .filter { it.optString("site") == "YouTube" && it.optString("key").isNotBlank() }
@@ -155,14 +160,14 @@ class TmdbClient {
         withContext(Dispatchers.IO) {
             val q = java.net.URLEncoder.encode(query, "UTF-8")
             val path = if (isSeries) "/search/tv" else "/search/movie"
-            val body = fetchBody(path, "include_adult=false&language=en-US&query=$q")
+            val body = fetchBody(path, "include_adult=false&language=$languageTag&query=$q")
                 ?: return@withContext emptyList()
             parse(body, forcedType = if (isSeries) "tv" else "movie")
         }
 
     /** Seasons of a TV show (season 0 / specials dropped), for the episode picker. */
     suspend fun tvSeasons(tvId: Int): List<TvSeason> = withContext(Dispatchers.IO) {
-        val body = fetchBody("/tv/$tvId", "language=en-US") ?: return@withContext emptyList()
+        val body = fetchBody("/tv/$tvId", "language=$languageTag") ?: return@withContext emptyList()
         val arr = JSONObject(body).optJSONArray("seasons") ?: return@withContext emptyList()
         val out = ArrayList<TvSeason>(arr.length())
         for (i in 0 until arr.length()) {
@@ -184,10 +189,10 @@ class TmdbClient {
      * a session. A season that TMDB has nothing for caches as empty, so a miss is asked once.
      */
     suspend fun tvEpisodes(tvId: Int, seasonNumber: Int): Map<Int, TvEpisode> {
-        val cacheKey = "$tvId:$seasonNumber"
+        val cacheKey = "$languageTag:$tvId:$seasonNumber"
         episodeCache[cacheKey]?.let { return it }
         val parsed = withContext(Dispatchers.IO) {
-            val body = fetchBody("/tv/$tvId/season/$seasonNumber", "language=en-US")
+            val body = fetchBody("/tv/$tvId/season/$seasonNumber", "language=$languageTag")
                 ?: return@withContext emptyMap<Int, TvEpisode>()
             val arr = JSONObject(body).optJSONArray("episodes") ?: return@withContext emptyMap()
             val out = LinkedHashMap<Int, TvEpisode>(arr.length())
@@ -221,10 +226,10 @@ class TmdbClient {
      * for the process, same reasoning as [tvEpisodes].
      */
     suspend fun titleDetails(mediaType: String, id: Int): TitleDetails? {
-        val cacheKey = "$mediaType:$id"
+        val cacheKey = "$languageTag:$mediaType:$id"
         titleCache[cacheKey]?.let { return it.value }
         val parsed = withContext(Dispatchers.IO) {
-            val body = fetchBody("/$mediaType/$id", "language=en-US&append_to_response=credits")
+            val body = fetchBody("/$mediaType/$id", "language=$languageTag&append_to_response=credits")
                 ?: return@withContext null
             val o = JSONObject(body)
             val genres = o.optJSONArray("genres")?.let { arr ->

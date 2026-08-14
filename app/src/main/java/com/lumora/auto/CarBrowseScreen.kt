@@ -34,9 +34,9 @@ class CarBrowseScreen(
 
         if (session.playback.channels.isEmpty()) {
             return MessageTemplate.Builder(
-                "No channels cached yet. Open Lumora on your phone once so it can load your providers."
+                carContext.getString(com.lumora.R.string.ui_car_no_channels)
             )
-                .setTitle("Lumora")
+                .setTitle(carContext.getString(com.lumora.R.string.app_name))
                 .setHeaderAction(Action.APP_ICON)
                 .build()
         }
@@ -56,15 +56,15 @@ class CarBrowseScreen(
 
         val favourites = playback.favourites()
         if (favourites.isNotEmpty()) {
-            builder.addItem(sectionRow("Favourites", "${favourites.size} channels", favourites))
+            builder.addItem(sectionRow(carContext.getString(com.lumora.R.string.ui_favourites), carContext.getString(com.lumora.R.string.ui_channels_count, favourites.size), favourites))
         }
         val recents = playback.recents()
         if (recents.isNotEmpty()) {
-            builder.addItem(sectionRow("Recent", "${recents.size} channels", recents))
+            builder.addItem(sectionRow(carContext.getString(com.lumora.R.string.ui_recent), carContext.getString(com.lumora.R.string.ui_channels_count, recents.size), recents))
         }
-        builder.addItem(sectionRow("All channels", "${playback.channels.size} channels", playback.channels))
+        builder.addItem(sectionRow(carContext.getString(com.lumora.R.string.ui_all_channels), carContext.getString(com.lumora.R.string.ui_channels_count, playback.channels.size), playback.channels))
         for ((category, items) in playback.categories()) {
-            builder.addItem(sectionRow(category, "${items.size} channels", items))
+            builder.addItem(sectionRow(category, carContext.getString(com.lumora.R.string.ui_channels_count, items.size), items))
         }
         return builder.build()
     }
@@ -103,8 +103,8 @@ class CarBrowseScreen(
         if (start + PAGE_SIZE < items.size) {
             builder.addItem(
                 Row.Builder()
-                    .setTitle("More…")
-                    .addText("${items.size - start - PAGE_SIZE} more")
+                    .setTitle(carContext.getString(com.lumora.R.string.ui_more))
+                    .addText(carContext.getString(com.lumora.R.string.ui_more_count, items.size - start - PAGE_SIZE))
                     .setBrowsable(true)
                     .setOnClickListener {
                         screenManager.push(CarBrowseScreen(carContext, session, title, items, page + 1))

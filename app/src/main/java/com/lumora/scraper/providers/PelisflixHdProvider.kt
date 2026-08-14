@@ -15,6 +15,7 @@ import com.lumora.scraper.models.Show
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -36,17 +37,16 @@ object PelisflixHdProvider : Provider {
     private const val USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
-    private val client = OkHttpClient.Builder()
-        .readTimeout(30, TimeUnit.SECONDS)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", USER_AGENT)
-                .build()
-            chain.proceed(request)
-        }
-        .dns(DnsResolver.doh)
-        .build()
+    private val client = NetworkClient.newClient { builder ->
+        builder.readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+                chain.proceed(request)
+            }
+    }
 
     private interface PelisflixHdService {
         @GET

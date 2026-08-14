@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivitySettings.kt - EPG source dialog -->
+    <string name="sett_epg_source_url_hint">XMLTV EPG URL</string>
+    <string name="sett_epg_source_name_hint">Source name</string>
+    <string name="sett_add_epg_source_title">Add EPG Source</string>
+    <string name="sett_enter_url">Enter a URL</string>
+    <string name="sett_epg_source_added">EPG source added — downloading guide</string>
+
+    <!-- MainActivitySettings.kt - Jellyfin Quick Connect status -->
+    <string name="sett_starting">Starting…</string>
+    <string name="sett_qc_couldnt_start">Couldn\'t start Quick Connect - check the server URL</string>
+    <string name="sett_enter_code_on_server">Enter code %1$s on your Jellyfin server</string>
+    <string name="sett_qc_timed_out">Quick Connect timed out</string>
+    <string name="sett_signing_in">Signing in…</string>
+    <string name="sett_qc_signin_failed">Quick Connect sign-in failed</string>
+    <string name="sett_signed_in_via_quick_connect">Signed in via Quick Connect</string>
+
+    <!-- MainActivitySettings.kt - settings row label assembly -->
+    <string name="sett_language_row">%1$s  ·  %2$s</string>
+
+    <!-- MainActivitySettings.kt - clear watch history dialog -->
+    <string name="sett_clear_history_confirm">Clear watch history?</string>
+    <string name="sett_clear_history_message">Removes resume positions and recently-played channels. Favorites aren\'t affected.</string>
+    <string name="sett_history_cleared">Watch history cleared</string>
+
+    <!-- MainActivitySettings.kt - provider setup -->
+    <string name="sett_enter_server_url_first">Enter a server URL first</string>
+    <string name="sett_stalker_portal">Stalker Portal</string>
+    <string name="sett_type_summary">Type: %1$s</string>
+    <string name="sett_editing_provider">Editing %1$s</string>
+    <string name="sett_editing_jellyfin">Editing Jellyfin</string>
+    <string name="sett_provider_row_detail">%1$s · %2$s</string>
+    <string name="sett_remove_provider_confirm">Remove %1$s?</string>
+    <string name="sett_remove_provider_message">This provider\'s channels will no longer appear.</string>
+    <string name="sett_remove_jellyfin_confirm">Remove Jellyfin?</string>
+    <string name="sett_remove_jellyfin_message">Its channels will no longer appear.</string>
+    <string name="sett_choose_provider_type_first">Choose a provider type first</string>
+    <string name="sett_enter_m3u_url">Enter an M3U URL</string>
+    <string name="sett_enter_server_url">Enter a server URL</string>
+    <string name="sett_provider_saved_loading">Provider saved. Loading...</string>
+
+    <!-- MainActivitySettings.kt - QR pairing server -->
+    <string name="sett_starting_server">Starting server...</string>
+    <string name="sett_scan_qr">Scan QR with your phone</string>
+    <string name="sett_expires_in">Expires in %1$d:%2$02d</string>
+    <string name="sett_expired">Expired</string>
+    <string name="sett_could_not_start_server">Could not start server</string>
+    <string name="sett_provider_received">Provider received! Loading...</string>
+
+    <!-- MainActivitySettings.kt - backup & restore -->
+    <string name="sett_backup_saved_to">Backup saved to %1$s</string>
+    <string name="sett_export_failed">Export failed</string>
+    <string name="sett_no_backup_file">No backup file found at %1$s</string>
+    <string name="sett_imported_summary">Imported: %1$d providers, %2$d EPG sources, %3$d groups</string>
+    <string name="sett_recording_storage_path">Recording storage: %1$s</string>
+
+    <!-- MainActivitySettings.kt - playback settings dialog -->
+    <string name="sett_external_player_summary">External player: %1$s</string>
+    <string name="sett_suggest_external_player_on_problems">Suggest external player on problems: %1$s</string>
+    <string name="sett_suggest_external_player">Suggest external player: %1$s</string>
+    <string name="sett_on">ON</string>
+    <string name="sett_off">OFF</string>
+    <string name="sett_playback_settings_title">Playback Settings</string>
+    <string name="sett_av_sync_offset_title">A/V Sync Offset</string>
+
+    <!-- MainActivitySettings.kt - parental PIN -->
+    <string name="sett_change_parental_pin">Change parental PIN</string>
+    <string name="sett_enter_pin_show_adult">Enter PIN to show adult content</string>
+    <string name="sett_enter_current_pin">Enter current PIN</string>
+    <string name="sett_ok">OK</string>
+    <string name="sett_incorrect_pin">Incorrect PIN</string>
+    <string name="sett_pin_hint">4-digit PIN</string>
+    <string name="sett_next">Next</string>
+    <string name="sett_pin_length_error">PIN must be 4 digits</string>
+    <string name="sett_confirm_pin_hint">Confirm PIN</string>
+    <string name="sett_confirm_pin_title">Confirm PIN</string>
+    <string name="sett_parental_pin_set">Parental PIN set</string>
+    <string name="sett_pins_didnt_match">PINs didn\'t match</string>
+
+    <!-- MainActivitySettings.kt - Filters pane -->
+    <string name="sett_prefer_dubbed_audio">Prefer dubbed audio</string>
+    <string name="sett_prefer_dubbed_audio_caption">Show dub results first when available</string>
+    <string name="sett_subtitles_with_dub">Subtitles with dubbed audio</string>
+    <string name="sett_subtitles_with_dub_caption">Show subtitles on dubbed episodes too</string>
+    <string name="sett_subtitles_caption">Show subtitles on all playback</string>
+
+    <!-- MainActivitySettings.kt - General pane -->
+    <string name="sett_simple_mode">Simple mode</string>
+    <string name="sett_simple_mode_caption">Show only Live TV - hides the tab bar so the EPG fills the screen</string>
+    <string name="sett_disable_vod">Disable VOD content</string>
+    <string name="sett_disable_vod_caption">Fetch only live TV from providers - movies and series are hidden everywhere</string>
+    <string name="sett_audio_language">Audio language</string>
+    <string name="sett_audio_language_caption">preferred track on films and series</string>
+    <string name="sett_subtitle_language">Subtitle language</string>
+    <string name="sett_subtitle_language_caption">used for forced subtitles too</string>
+
+    <!-- MainActivitySettings.kt - About pane / update check -->
+    <string name="sett_unknown">unknown</string>
+    <string name="sett_no_browser_available">No browser available</string>
+    <string name="sett_checking">Checking…</string>
+    <string name="sett_couldnt_check_updates">Couldn\'t check for updates</string>
+    <string name="sett_update_available">Update available</string>
+    <string name="sett_update_available_message">Lumora v%1$s is available.\nCurrent: v%2$s\n\n%3$s</string>
+    <string name="sett_later">Later</string>
+    <string name="sett_latest_version">You\'re on the latest version</string>
+</resources>

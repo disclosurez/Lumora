@@ -1,19 +1,11 @@
 package com.lumora.scraper.providers
 
-import com.lumora.scraper.bridge.HostScopedService
-import com.lumora.scraper.bridge.ScraperHosts
-import android.util.Log
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
-import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.models.*
-import com.lumora.scraper.utils.DnsResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.Cache
-import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
-import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -22,41 +14,24 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Headers
 import java.io.File
-import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 import org.json.JSONArray
 
-object AnimeAv1Provider : Provider {
+object AnimeAv1Provider : JsoupSiteProvider() {
 
     override val name = "AnimeAV1"
-    override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
     override val logo = "https://animeav1.com/favicon.png"
 
-    private val client = getOkHttpClient()
+    private val client = newHttpClient().newBuilder()
+        .cache(Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024))
+        .build()
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.
-    private val retrofitHolder = HostScopedService({ baseUrl }) {
-        Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .addConverterFactory(JsoupConverterFactory.create())
-            .client(client)
-            .build()
-    }
+    private val retrofitHolder = hostScopedService { newRetrofit(baseUrl, client) }
     private val retrofit get() = retrofitHolder.get()
 
     private val service = retrofit.create(AnimeAv1Service::class.java)
-
-    private fun getOkHttpClient(): OkHttpClient {
-        val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
-
-        val clientBuilder = OkHttpClient.Builder()
-            .cache(appCache)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(30, TimeUnit.SECONDS)
-
-        return clientBuilder.dns(DnsResolver.doh).build()
-    }
 
     private fun getEpisodePoster(animeId: String, episodeNum: String): String {
         return "https://cdn.animeav1.com/screenshots/$animeId/$episodeNum.jpg"
@@ -557,9 +532,5 @@ object AnimeAv1Provider : Provider {
         } catch (e: Exception) {
             emptyList()
         }
-    }
-
-    override suspend fun getVideo(server: Video.Server): Video {
-        return Extractor.extract(server.id, server)
     }
 }

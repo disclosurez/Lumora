@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import androidx.core.view.updateLayoutParams
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.view.PixelCopy
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -48,11 +49,11 @@ import okhttp3.Request
  */
 internal fun MainActivity.reloadCurrentProvider() {
     if (!hasProviderEnabled()) {
-        Toast.makeText(this, "No provider is enabled - turn one on in Settings", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, getString(R.string.play_no_provider_enabled), Toast.LENGTH_LONG).show()
         showProviderSettings()
         return
     }
-    Toast.makeText(this, "Refreshing providers…", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, getString(R.string.play_refreshing_providers), Toast.LENGTH_SHORT).show()
     loadAllConfiguredProviders(forceRefresh = true)
 }
 
@@ -113,21 +114,28 @@ internal fun MainActivity.setupPlayerControls() {
     // Speed control
     speedController = com.lumora.player.playback.PlaybackSpeedController(playerManager.getExoPlayer())
     binding.btnSpeed.setOnClickListener {
-        val speeds = arrayOf("0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x")
+        val speeds = arrayOf(
+            getString(R.string.play_speed_0_5),
+            getString(R.string.play_speed_0_75),
+            getString(R.string.speed_default),
+            getString(R.string.play_speed_1_25),
+            getString(R.string.play_speed_1_5),
+            getString(R.string.play_speed_2_0),
+        )
         val currentSpeed = speedController.currentSpeed
         val checkedIndex = when {
             currentSpeed <= 0.5f -> 0; currentSpeed <= 0.75f -> 1; currentSpeed <= 1.0f -> 2
             currentSpeed <= 1.25f -> 3; currentSpeed <= 1.5f -> 4; else -> 5
         }
         AlertDialog.Builder(this)
-            .setTitle("Playback Speed")
+            .setTitle(getString(R.string.play_playback_speed))
             .setSingleChoiceItems(speeds, checkedIndex) { dialog, which ->
                 val speed = when (which) { 0 -> 0.5f; 1 -> 0.75f; 2 -> 1.0f; 3 -> 1.25f; 4 -> 1.5f; else -> 2.0f }
                 speedController.setSpeed(speed)
-                binding.btnSpeed.text = String.format("%.1fx", speed)
+                binding.btnSpeed.text = getString(R.string.play_speed_label, speed)
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -136,17 +144,25 @@ internal fun MainActivity.setupPlayerControls() {
         onTickCallback = { display -> binding.btnSleepTimer.text = display }
     }
     binding.btnSleepTimer.setOnClickListener {
-        val presets = arrayOf("Off", "15 min", "30 min", "45 min", "60 min", "90 min", "120 min")
+        val presets = arrayOf(
+            getString(R.string.play_sleep_off),
+            getString(R.string.play_sleep_15_min),
+            getString(R.string.play_sleep_30_min),
+            getString(R.string.play_sleep_45_min),
+            getString(R.string.play_sleep_60_min),
+            getString(R.string.play_sleep_90_min),
+            getString(R.string.play_sleep_120_min),
+        )
         val checkedIndex = sleepTimer.currentPreset.ordinal
         AlertDialog.Builder(this)
-            .setTitle("Sleep Timer")
+            .setTitle(getString(R.string.play_sleep_timer))
             .setSingleChoiceItems(presets, checkedIndex) { dialog, which ->
                 val preset = com.lumora.player.playback.SleepTimer.Preset.entries[which]
                 sleepTimer.start(preset)
-                binding.btnSleepTimer.text = if (preset == com.lumora.player.playback.SleepTimer.Preset.OFF) "Sleep" else presets[which]
+                binding.btnSleepTimer.text = if (preset == com.lumora.player.playback.SleepTimer.Preset.OFF) getString(R.string.sleep_timer_button) else presets[which]
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -172,10 +188,10 @@ internal fun MainActivity.setupPlayerControls() {
                     if (castChannel(channel, channel.name)) {
                         playerManager.pause()
                     } else {
-                        Toast.makeText(this@setupPlayerControls, "Cast failed: check TV and try again", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@setupPlayerControls, getString(R.string.play_cast_failed), Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Toast.makeText(this@setupPlayerControls, "Play content first, then Cast", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@setupPlayerControls, getString(R.string.play_cast_play_content_first), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -195,31 +211,33 @@ internal fun MainActivity.setupPlayerControls() {
     // Diagnostics
     binding.btnDiagnostics.setOnClickListener {
         val snapshot = playerDiagnostics.getSnapshot()
-        val diag = """
-            |Decoder: ${snapshot.videoDecoder}
-            |Video: ${snapshot.videoFormat}
-            |Audio: ${snapshot.audioFormat}
-            |Stalls: ${snapshot.stallCount} (${snapshot.totalStallDuration / 1000}s)
-            |State: ${snapshot.playbackState}
-        """.trimMargin()
+        val diag = getString(
+            R.string.play_diag_body,
+            snapshot.videoDecoder,
+            snapshot.videoFormat,
+            snapshot.audioFormat,
+            snapshot.stallCount,
+            snapshot.totalStallDuration / 1000,
+            snapshot.playbackState
+        )
         AlertDialog.Builder(this)
-            .setTitle("Player Diagnostics")
+            .setTitle(getString(R.string.play_diag_title))
             .setMessage(diag)
-            .setPositiveButton("OK", null)
+            .setPositiveButton(getString(R.string.play_ok), null)
             .show()
     }
 
     // Record button
     binding.btnRecord.setOnClickListener {
         if (nowPlayingChannel?.mediaType != MediaType.LIVE) {
-            Toast.makeText(this, "Recording is only available for live TV", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.play_recording_live_only), Toast.LENGTH_SHORT).show()
             return@setOnClickListener
         }
         val channel = nowPlayingChannel ?: return@setOnClickListener
         AlertDialog.Builder(this)
-            .setTitle("Schedule Recording")
-            .setMessage("Record \"${channel.name}\"?")
-            .setPositiveButton("Record for 2 hours") { _, _ ->
+            .setTitle(getString(R.string.play_schedule_recording))
+            .setMessage(getString(R.string.play_record_confirm, channel.name))
+            .setPositiveButton(getString(R.string.play_record_for_2_hours)) { _, _ ->
                 val recEntry = com.lumora.recording.RecordingScheduler.createRecording(
                     channelId = channel.id,
                     channelName = channel.name,
@@ -231,9 +249,9 @@ internal fun MainActivity.setupPlayerControls() {
                 scope.launch {
                     database.recordingDao().insert(recEntry)
                 }
-                Toast.makeText(this, "Recording scheduled", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.play_recording_scheduled), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -387,8 +405,8 @@ internal fun MainActivity.setupPlayerControls() {
                     // and Jellyfin's re-resolve (if any) failed too. Another player on the
                     // device is the last thing left to try, so offer it rather than leaving
                     // the user on a dead screen with a two-word toast.
-                    Toast.makeText(this@setupPlayerControls, "Playback error", Toast.LENGTH_SHORT).show()
-                    suggestExternalPlayer("Lumora couldn't play this stream (${error.errorCodeName}).")
+                    Toast.makeText(this@setupPlayerControls, getString(R.string.play_playback_error), Toast.LENGTH_SHORT).show()
+                    suggestExternalPlayer(getString(R.string.play_stream_error_reason, error.errorCodeName))
                 }
             }
         }
@@ -427,9 +445,9 @@ internal fun MainActivity.loadSavedAspectMode(): VideoAspectFrameLayout.Mode =
 internal fun MainActivity.applyAspectMode(mode: VideoAspectFrameLayout.Mode) {
     binding.playerAspectContainer.resizeMode = mode
     binding.btnAspectRatio.text = when (mode) {
-        VideoAspectFrameLayout.Mode.FIT -> "Fit"
-        VideoAspectFrameLayout.Mode.ZOOM -> "Zoom"
-        VideoAspectFrameLayout.Mode.FILL -> "Stretch"
+        VideoAspectFrameLayout.Mode.FIT -> getString(R.string.fit)
+        VideoAspectFrameLayout.Mode.ZOOM -> getString(R.string.play_aspect_zoom)
+        VideoAspectFrameLayout.Mode.FILL -> getString(R.string.play_aspect_stretch)
     }
     prefs.edit().putString(PREF_ASPECT_MODE, mode.name).apply()
 }
@@ -438,7 +456,7 @@ internal fun MainActivity.cycleAspectMode() {
     val modes = VideoAspectFrameLayout.Mode.entries
     val next = modes[(modes.indexOf(binding.playerAspectContainer.resizeMode) + 1) % modes.size]
     applyAspectMode(next)
-    Toast.makeText(this, "Video: ${binding.btnAspectRatio.text}", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, getString(R.string.play_video_label, binding.btnAspectRatio.text), Toast.LENGTH_SHORT).show()
 }
 
 /** [resumeFromMs] carries the position across a version switch (see showVersionPicker):
@@ -521,7 +539,7 @@ internal fun MainActivity.showPlayerFor(
     binding.playerChannelLogo.scaleType = if (isPoster) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
     val logoPadding = if (isPoster) 0 else (6 * density).toInt()
     binding.playerChannelLogo.setPadding(logoPadding, logoPadding, logoPadding, logoPadding)
-    binding.playerChannelInitial.text = channel.name.firstOrNull()?.uppercase() ?: "?"
+    binding.playerChannelInitial.text = channel.name.firstOrNull()?.uppercase() ?: getString(R.string.play_initial_fallback)
     binding.playerChannelInitial.visibility = View.VISIBLE
     binding.playerChannelLogo.visibility = View.GONE
     binding.playerChannelLogo.setImageDrawable(null)
@@ -601,7 +619,7 @@ internal fun MainActivity.showPlayerFor(
             if (nowPlayingChannel?.id != channel.id) return@launch
             if (resolved.isNullOrBlank()) {
                 binding.bufferingSpinner.visibility = View.GONE
-                Toast.makeText(this@showPlayerFor, "Couldn't open this title", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@showPlayerFor, getString(R.string.play_couldnt_open_title), Toast.LENGTH_SHORT).show()
             } else {
                 // Not the MAC (which Stalker channels carry as their UA for the portal API):
                 // the resolved movie.php/live.php stream is plain HTTP and wants a normal
@@ -664,7 +682,7 @@ internal fun MainActivity.showPlayerFor(
             val plugin = pluginScriptManager.getDiscoveredScripts()
                 .firstOrNull { it.enabled && it.id == startVersion.pluginId }
             val resolved = when {
-                plugin == null -> ResolveResult.Failed("The plugin that played this is no longer enabled")
+                plugin == null -> ResolveResult.Failed(getString(R.string.play_plugin_disabled_message))
                 // Same split as the Find Stream dialog: a natively-resolving plugin's token
                 // is a magnet for the built-in torrent engine, not something the JS runtime
                 // can turn into a URL.
@@ -858,13 +876,13 @@ internal fun MainActivity.retryJellyfinPlayback() {
     }
 }
 
-internal fun MainActivity.tryNextQualityVersion(message: String = "Switching to alternate quality…"): Boolean {
+internal fun MainActivity.tryNextQualityVersion(message: String? = null): Boolean {
     if (nowPlayingChannel?.mediaType != MediaType.LIVE) return false
     currentVersionGroup.getOrNull(currentVersionIndex)?.let { markStreamDead(it) }
     var nextIndex = currentVersionIndex + 1
     while (nextIndex < currentVersionGroup.size && isStreamDead(currentVersionGroup[nextIndex])) nextIndex++
     if (nextIndex >= currentVersionGroup.size) return false
-    switchToVersionIndex(nextIndex, message)
+    switchToVersionIndex(nextIndex, message ?: getString(R.string.play_switching_alt_quality))
     return true
 }
 
@@ -879,7 +897,7 @@ internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = nu
     startBlackFrameWatch()
     binding.playerAspectContainer.videoAspectRatio = 0f
     binding.playerChannelName.text = next.name
-    Toast.makeText(this, message ?: "Switching to ${extractLeadingTag(next.name) ?: next.name}", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, message ?: getString(R.string.play_switching_to, extractLeadingTag(next.name) ?: next.name), Toast.LENGTH_SHORT).show()
     binding.bufferingSpinner.visibility = View.VISIBLE
     playerManager.playUrl(
         next.url,
@@ -948,17 +966,17 @@ internal fun MainActivity.showVersionPicker() {
     when {
         playing.mediaType == MediaType.LIVE -> {
             if (currentVersionGroup.size <= 1) {
-                Toast.makeText(this, "No other versions of this channel", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.play_no_other_versions_channel), Toast.LENGTH_SHORT).show()
                 return
             }
             val labels = currentVersionGroup.map { it.name }.toTypedArray()
             AlertDialog.Builder(this)
-                .setTitle("Channel Version")
+                .setTitle(getString(R.string.play_channel_version_title))
                 .setSingleChoiceItems(labels, currentVersionIndex) { dialog, which ->
                     switchToVersionIndex(which)
                     dialog.dismiss()
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(getString(R.string.cancel), null)
                 .show()
         }
         currentSeriesVersionContext != null -> showSeriesVersionPicker(playing)
@@ -980,17 +998,17 @@ internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
     val versions = if (group.size > 1) group else emptyList()
     val canFind = canFindStream(playing)
     if (versions.isEmpty() && !canFind) {
-        Toast.makeText(this, "No other versions of this title", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.play_no_other_versions_title), Toast.LENGTH_SHORT).show()
         return
     }
     val labels = (versions.mapIndexed { index, version -> versionChipLabel(version, index) } +
-        listOfNotNull(FIND_AND_PLAY_ENTRY.takeIf { canFind })).toTypedArray()
+        listOfNotNull(getString(R.string.play_find_and_play).takeIf { canFind })).toTypedArray()
     val currentIndex = versions.indexOfFirst { it.id == playing.id }
     // The replacement is a different item with its own saved-position key, so the current
     // position is carried across by hand - otherwise switching source mid-film restarts it.
     val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
     AlertDialog.Builder(this)
-        .setTitle("Version")
+        .setTitle(getString(R.string.play_version_title))
         .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
             dialog.dismiss()
             when {
@@ -998,13 +1016,9 @@ internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
                 which != currentIndex -> showPlayerFor(versions[which], resumeFromMs = resumeMs)
             }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
-
-/** Label for the "search every source for another copy" entry the version pickers always
- *  end with. Matches the detail screen's button, so it reads as the same action. */
-internal const val FIND_AND_PLAY_ENTRY = "Find & Play…"
 
 /** Other providers' copies of the show whose episode is playing. Each copy is a separate
  *  catalog entry with its own episode list, so switching means fetching that list and
@@ -1018,11 +1032,11 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
     val versions = if (group.size > 1) group else emptyList()
     val canFind = canFindStream(series)
     if (versions.isEmpty() && !canFind) {
-        Toast.makeText(this, "No other versions of this series", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.play_no_other_versions_series), Toast.LENGTH_SHORT).show()
         return
     }
     val labels = (versions.mapIndexed { index, version -> versionChipLabel(version, index) } +
-        listOfNotNull(FIND_AND_PLAY_ENTRY.takeIf { canFind })).toTypedArray()
+        listOfNotNull(getString(R.string.play_find_and_play).takeIf { canFind })).toTypedArray()
     val currentIndex = versions.indexOfFirst { it.id == series.id }
     val episodeNum = playing.episodeNum
     // Which season is playing, read off the episode itself ("S04E01 · ..."). Matching on
@@ -1034,7 +1048,7 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
     val seasonNum = seasonNumberOf(playing)
     val queueSeasonSize = currentEpisodeQueue.size.takeIf { it > 0 }
     AlertDialog.Builder(this)
-        .setTitle("Series Version")
+        .setTitle(getString(R.string.play_series_version_title))
         .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
             dialog.dismiss()
             // Find & Play searches for the episode that is actually playing, rather than
@@ -1045,7 +1059,7 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
             }
             if (which == currentIndex) return@setSingleChoiceItems
             val target = versions[which]
-            Toast.makeText(this, "Loading ${versionChipLabel(target, which)}…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.play_loading_version, versionChipLabel(target, which)), Toast.LENGTH_SHORT).show()
             scope.launch {
                 val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
                 // The target's own season number, taken from its episodes first (they carry
@@ -1072,8 +1086,8 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
                     }
                 }
                 if (match == null) {
-                    val what = if (seasonNum != null && episodeNum != null) "S${seasonNum}E$episodeNum" else "this episode"
-                    Toast.makeText(this@showSeriesVersionPicker, "That provider doesn't have $what", Toast.LENGTH_SHORT).show()
+                    val what = if (seasonNum != null && episodeNum != null) "S${seasonNum}E$episodeNum" else getString(R.string.play_this_episode)
+                    Toast.makeText(this@showSeriesVersionPicker, getString(R.string.play_provider_missing_episode, what), Toast.LENGTH_SHORT).show()
                     return@launch
                 }
                 val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
@@ -1084,7 +1098,7 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
                 currentSeriesVersionContext = target to group
             }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -1127,8 +1141,8 @@ internal fun MainActivity.attemptBufferFailover() {
     resetStallTracking()
     // Out of versions to fall back on means the app has nothing left to try on its own -
     // constant rebuffering with no alternative is exactly when another player is worth a go.
-    if (!tryNextQualityVersion("Stream buffering, switching version…")) {
-        suggestExternalPlayer("This stream keeps buffering and there's no other version to fall back on.")
+    if (!tryNextQualityVersion(getString(R.string.play_stream_buffering_switching))) {
+        suggestExternalPlayer(getString(R.string.play_buffering_no_fallback))
     }
 }
 
@@ -1170,6 +1184,17 @@ internal fun MainActivity.checkForBlackFrame() {
         mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
         return
     }
+    // PixelCopy.request is API 26+; on API 25 (minSdk, Fire TV 7.1) the class is missing and
+    // the failure surfaces as an uncaught NoClassDefFoundError, which the Exception catch below
+    // can't see. Fall back to the preview pane's TextureView.getBitmap sampling path - only a
+    // TextureView is readable that way, and the fullscreen surface is a SurfaceView, so there's
+    // no sample and no verdict: the streak resets and the watchdog just re-arms. Black-frame
+    // failover stays inert on pre-O instead of crashing the first live tune.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        blackFrameStreak = 0
+        mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
     val sample = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888)
     try {
         PixelCopy.request(surfaceView, sample, { result ->
@@ -1179,8 +1204,8 @@ internal fun MainActivity.checkForBlackFrame() {
             blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
             if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD && !withinFailoverGrace()) {
                 blackFrameStreak = 0
-                if (!tryNextQualityVersion("Channel appears offline, switching version…")) {
-                    Toast.makeText(this, "Channel appears offline", Toast.LENGTH_SHORT).show()
+                if (!tryNextQualityVersion(getString(R.string.play_channel_offline_switching))) {
+                    Toast.makeText(this, getString(R.string.play_channel_offline), Toast.LENGTH_SHORT).show()
                 }
             } else {
                 mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
@@ -1274,10 +1299,10 @@ internal fun MainActivity.maybeShowResumePrompt() {
 
     playerManager.pause()
     AlertDialog.Builder(this)
-        .setTitle("Resume playback?")
-        .setMessage("Continue from ${formatTime(saved.positionMs)}?")
-        .setPositiveButton("Resume") { _, _ -> playerManager.seekTo(saved.positionMs); playerManager.play() }
-        .setNegativeButton("Start Over") { _, _ -> playerManager.seekTo(0); playerManager.play() }
+        .setTitle(getString(R.string.play_resume_playback_title))
+        .setMessage(getString(R.string.play_resume_message, formatTime(saved.positionMs)))
+        .setPositiveButton(getString(R.string.play_resume)) { _, _ -> playerManager.seekTo(saved.positionMs); playerManager.play() }
+        .setNegativeButton(getString(R.string.play_start_over)) { _, _ -> playerManager.seekTo(0); playerManager.play() }
         .setCancelable(false)
         .show()
 }

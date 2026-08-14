@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.lumora.R
 import java.io.File
 
 /**
@@ -33,8 +34,8 @@ class AppUpdateInstaller(private val context: Context) {
         // it throws SecurityException and crashes the app outright. The app-specific
         // external dir needs no such permission and is still reachable by FileProvider.
         val request = DownloadManager.Request(Uri.parse(downloadUrl))
-            .setTitle("Lumora Update")
-            .setDescription("Downloading v$versionName")
+            .setTitle(context.getString(R.string.ui_update_title))
+            .setDescription(context.getString(R.string.ui_update_downloading, versionName))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
             .setAllowedOverMetered(true)
@@ -61,7 +62,7 @@ class AppUpdateInstaller(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
         ) {
-            Toast.makeText(context, "Allow Lumora to install updates, then try again", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.ui_update_allow_install), Toast.LENGTH_LONG).show()
             val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                 data = Uri.parse("package:${context.packageName}")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -89,7 +90,7 @@ class AppUpdateInstaller(private val context: Context) {
             context.startActivity(intent)
             true
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(context, "No app found to install the update", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.ui_update_no_app), Toast.LENGTH_LONG).show()
             false
         }
     }

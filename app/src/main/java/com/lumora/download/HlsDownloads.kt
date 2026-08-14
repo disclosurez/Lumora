@@ -14,8 +14,12 @@ import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.Downloader
+import androidx.media3.exoplayer.offline.DownloaderFactory
 import com.lumora.model.Channel
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 /**
@@ -63,11 +67,29 @@ object HlsDownloads {
         databaseInstance ?: StandaloneDatabaseProvider(context.applicationContext)
             .also { databaseInstance = it }
 
-    /** Held so [enqueue] can put a stream's headers on it before the download starts. */
+    /**
+     * Shared HTTP source factory for segment fetches; request headers are stamped per data source
+     * by [headerStampingFactory] rather than set here in [enqueue], because the downloader reads
+     * them on its own thread after enqueueing.
+     */
     private val upstream = DefaultHttpDataSource.Factory()
         .setAllowCrossProtocolRedirects(true)
         .setConnectTimeoutMs(15_000)
         .setReadTimeoutMs(60_000)
+
+    /**
+     * Headers for the download most recently passed to [enqueue], applied at data-source creation.
+     *
+     * Media3's downloader runs on its own executor and reads request properties from [upstream]
+     * only when it actually builds a network request, which is strictly after [enqueue] returns -
+     * so setting them on the shared factory and clearing them synchronously in a `finally` meant
+     * the clear always won and the headers never reached a segment fetch. They are instead stamped
+     * per data source by [headerStampingFactory], on the downloader's own thread, where they cannot
+     * race. Replaced wholesale on every enqueue (empty for a headerless stream) so one download's
+     * headers can never survive into the next.
+     */
+    @Volatile
+    private var enqueuedHeaders: Map<String, String> = emptyMap()
 
     /**
      * True for a stream this downloader is the right one for.
@@ -89,7 +111,12 @@ object HlsDownloads {
 
     @Synchronized
     fun cache(context: Context): SimpleCache = cacheInstance ?: SimpleCache(
-        File(context.applicationContext.getExternalFilesDir(null), CACHE_DIR),
+        // getExternalFilesDir can return null when external storage is unmounted; a bare null here
+        // becomes File(null, ...) which NPEs, so fall back to the always-available internal dir.
+        File(
+            context.applicationContext.getExternalFilesDir(null) ?: context.applicationContext.filesDir,
+            CACHE_DIR,
+        ),
         NoOpCacheEvictor(),
         database(context),
     ).also { cacheInstance = it }
@@ -109,8 +136,8 @@ object HlsDownloads {
                     // DefaultDataSource, not the bare HTTP one: a scraper can return the
                     // playlist itself as a `data:` URI, which only the scheme-dispatching
                     // source can open. Its segment URLs are ordinary https and still go
-                    // through `upstream`, headers and all.
-                    .setUpstreamDataSourceFactory(DefaultDataSource.Factory(app, upstream)),
+                    // through `upstream`, headers and all, stamped per request.
+                    .setUpstreamDataSourceFactory(headerStampingFactory(app)),
                 Executors.newFixedThreadPool(MAX_PARALLEL_DOWNLOADS),
             ),
         ).apply {
@@ -120,21 +147,51 @@ object HlsDownloads {
     }
 
     /**
+     * Wraps [upstream] so each created data source carries the stream's current [enqueuedHeaders].
+     *
+     * [upstream] is shared across every download, so its request properties cannot be set from
+     * [enqueue] - the downloader reads them later, on its own thread, and a synchronous clear would
+     * always win. Stamping them here, inside `createDataSource()` - which the downloader calls on
+     * that thread just before building a request - puts the right headers on exactly the segment
+     * fetches that need them. [upstream]'s properties are reset on every call (to [enqueuedHeaders],
+     * which is empty for a headerless stream), so one download's Referer can never leak into the
+     * next. Two *simultaneous* downloads from different hosts would still get one host's headers
+     * applied to both; that needs a per-host data source rather than a shared factory.
+     */
+    private fun headerStampingFactory(context: Context): DataSource.Factory {
+        val delegate = DefaultDataSource.Factory(context, upstream)
+        return object : DataSource.Factory {
+            override fun createDataSource(): DataSource {
+                // DefaultDataSource.Factory constructs the underlying HTTP source here, inside
+                // createDataSource(), so properties set on `upstream` at this point are captured
+                // by the source the returned DefaultDataSource will use.
+                upstream.setDefaultRequestProperties(enqueuedHeaders)
+                return delegate.createDataSource()
+            }
+        }
+    }
+
+    /**
      * Queues [channel]'s HLS stream for download.
      *
      * A hotlink-protected CDN 403s every segment without its Referer, so the stream's headers
      * have to be applied. [DownloadRequest] has nowhere to carry them, so they go on the shared
-     * upstream factory instead - which means they are global, not per-download. Two simultaneous
-     * downloads from different hosts would have the second one's headers applied to both. Left
-     * as-is because downloads are started one at a time from the UI; if that changes this needs
-     * a per-host data source rather than a shared factory.
+     * upstream factory - but Media3's downloader reads that factory on its own executor thread,
+     * strictly after this method returns, so setting the properties here and clearing them in a
+     * `finally` never reached a segment fetch. The headers are instead recorded in
+     * [enqueuedHeaders] and stamped onto each data source at creation time by
+     * [headerStampingFactory], on the downloader's thread, exactly when a request is built. The
+     * recorded headers are replaced wholesale on every enqueue (empty for a headerless stream), so
+     * one download's headers never survive into the next. Two *simultaneous* downloads from
+     * different hosts would still have one host's headers applied to both; that needs a per-host
+     * data source rather than a shared factory.
      */
     fun enqueue(context: Context, channel: Channel) {
         val headers = buildMap {
             channel.streamHeaders?.let { putAll(it) }
             channel.streamUserAgent?.takeIf { it.isNotBlank() }?.let { put("User-Agent", it) }
         }
-        if (headers.isNotEmpty()) upstream.setDefaultRequestProperties(headers)
+        enqueuedHeaders = headers
         val item = MediaItem.Builder()
             .setUri(channel.url)
             .setMediaId(channel.id)

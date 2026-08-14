@@ -84,12 +84,18 @@ object ReminderStore {
             if (file.exists()) {
                 val arr = JSONArray(file.readText())
                 for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val channelId = obj.optString("channelId")
+                    val startTimestamp = obj.optLong("startTimestamp")
+                    // A reminder keyed on a blank channelId or a missing start timestamp
+                    // can't be scheduled or looked up - structurally broken. Skip it rather
+                    // than let one bad entry fail the whole load.
+                    if (channelId.isBlank() || startTimestamp <= 0L) continue
                     val reminder = ProgramReminder(
-                        channelId = obj.getString("channelId"),
+                        channelId = channelId,
                         channelName = obj.optString("channelName", ""),
                         programTitle = obj.optString("programTitle", ""),
-                        startTimestamp = obj.getLong("startTimestamp")
+                        startTimestamp = startTimestamp
                     )
                     cache[reminder.key] = reminder
                 }

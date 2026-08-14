@@ -13,6 +13,7 @@ import com.whl.quickjs.wrapper.QuickJSContext
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -65,7 +66,15 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
             fun dispatch() {
                 // Re-check at dispatch time: the flag can be set between the post and now.
                 if (finished.get()) return
-                runCatching { callback(value) }.onFailure { PluginLog.w(TAG, "UI callback threw: ${it.message}") }
+                // CancellationException must not be swallowed: rethrowing keeps coroutine
+                // cancellation observable to the caller instead of being logged away.
+                try {
+                    callback(value)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    PluginLog.w(TAG, "UI callback threw: ${e.message}")
+                }
             }
             // Looper itself is an unmocked Android stub under this project's plain JVM unit tests
             // (no Robolectric) - treat that as "just call it directly" (which is what a test wants

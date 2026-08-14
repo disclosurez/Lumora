@@ -9,6 +9,7 @@ import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.models.*
 import com.lumora.scraper.models.sololatino.Item
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -58,8 +59,8 @@ object SoloLatinoProvider : Provider {
     private fun getOkHttpClient(): OkHttpClient {
         val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
 
-        val clientBuilder = OkHttpClient.Builder()
-            .addInterceptor { chain ->
+        return NetworkClient.newClient { builder ->
+            builder.addInterceptor { chain ->
                 val request = chain.request().newBuilder()
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
                     .build()
@@ -69,8 +70,7 @@ object SoloLatinoProvider : Provider {
             .cache(appCache)
             .readTimeout(30, TimeUnit.SECONDS)
             .connectTimeout(30, TimeUnit.SECONDS)
-
-        return clientBuilder.dns(DnsResolver.doh).build()
+        }
     }
 
     private interface SoloLatinoService {

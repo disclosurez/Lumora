@@ -471,15 +471,12 @@ object SerienStreamProvider : Provider {
 
             private fun getOkHttpClient(): OkHttpClient {
                 val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
-                val clientBuilder = OkHttpClient.Builder()
-                    .cache(appCache)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-
-                return clientBuilder
-                    .applyBrowserHeaders()
-                    .dns(DnsResolver.doh)
-                    .build()
+                return NetworkClient.newClient { builder ->
+                    builder.cache(appCache)
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                    builder.applyBrowserHeaders()
+                }
             }
 
             private fun getUnsafeOkHttpClient(): OkHttpClient {
@@ -496,19 +493,16 @@ object SerienStreamProvider : Provider {
                     val sslSocketFactory = sslContext.socketFactory
 
                     val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
-                    val clientBuilder = OkHttpClient.Builder()
-                        .cache(appCache)
-                        .readTimeout(30, TimeUnit.SECONDS)
-                        .connectTimeout(30, TimeUnit.SECONDS)
-                        .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-                        .hostnameVerifier { _, _ -> true }
-
-                    return clientBuilder
-                        .applyBrowserHeaders()
-                        .dns(DnsResolver.doh)
-                        .followRedirects(true)
-                        .followSslRedirects(true)
-                        .build()
+                    return NetworkClient.newClient { builder ->
+                        builder.cache(appCache)
+                            .readTimeout(30, TimeUnit.SECONDS)
+                            .connectTimeout(30, TimeUnit.SECONDS)
+                            .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+                            .hostnameVerifier { _, _ -> true }
+                        builder.applyBrowserHeaders()
+                            .followRedirects(true)
+                            .followSslRedirects(true)
+                    }
                 } catch (e: Exception) {
                     throw RuntimeException(e)
                 }

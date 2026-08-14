@@ -14,6 +14,7 @@ import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
@@ -423,34 +424,33 @@ object RidomoviesProvider : Provider {
 
         companion object {
             fun build(): Service {
-                val client = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .dns(DnsResolver.doh)
-                    .addInterceptor { chain ->
-                        val request = chain.request()
-                        val response = chain.proceed(request)
-                        
-                        val requestUrl = request.url.toString()
-                        val responseUrl = response.request.url.toString()
+                val client = NetworkClient.newClient { builder ->
+                    builder.readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .addInterceptor { chain ->
+                            val request = chain.request()
+                            val response = chain.proceed(request)
 
-                        if (requestUrl != responseUrl) {
-                            currentSlug = responseUrl.substringBefore("?").substringBefore("#")
-                                .trimEnd('/').substringAfterLast("/")
+                            val requestUrl = request.url.toString()
+                            val responseUrl = response.request.url.toString()
+
+                            if (requestUrl != responseUrl) {
+                                currentSlug = responseUrl.substringBefore("?").substringBefore("#")
+                                    .trimEnd('/').substringAfterLast("/")
+                            }
+
+                            response
                         }
-                        
-                        response
-                    }
-                    .addInterceptor { chain ->
-                        val request = chain.request().newBuilder()
-                            .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                            .addHeader("Accept-Language", "en-US,en;q=0.5")
-                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
-                            .addHeader("Platform", "android")
-                            .build()
-                        chain.proceed(request)
-                    }
-                    .build()
+                        .addInterceptor { chain ->
+                            val request = chain.request().newBuilder()
+                                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                                .header("Accept-Language", "en-US,en;q=0.5")
+                                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+                                .header("Platform", "android")
+                                .build()
+                            chain.proceed(request)
+                        }
+                }
 
                 val retrofit = Retrofit.Builder()
                     .baseUrl(URL)

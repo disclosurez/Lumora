@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android Auto / car screens -->
+    <string name="ui_car_no_channels">No channels cached yet. Open Lumora on your phone once so it can load your providers.</string>
+    <string name="ui_favourites">Favourites</string>
+    <string name="ui_recent">Recent</string>
+    <string name="ui_all_channels">All channels</string>
+    <string name="ui_channels_count">%1$d channels</string>
+    <string name="ui_more">More&#8230;</string>
+    <string name="ui_more_count">%1$d more</string>
+    <string name="ui_not_driving_continue">I\'m not driving - continue</string>
+    <string name="ui_other">Other</string>
+    <string name="ui_playing">Playing</string>
+    <string name="ui_pause">Pause</string>
+    <string name="ui_prev">Prev</string>
+    <string name="ui_next">Next</string>
+
+    <!-- App updates -->
+    <string name="ui_update_title">Lumora Update</string>
+    <string name="ui_update_downloading">Downloading v%1$s</string>
+    <string name="ui_update_allow_install">Allow Lumora to install updates, then try again</string>
+    <string name="ui_update_no_app">No app found to install the update</string>
+
+    <!-- Downloads -->
+    <string name="ui_episode">Episode</string>
+    <string name="ui_movie">Movie</string>
+
+    <!-- QR provider pairing -->
+    <string name="ui_pairing_no_lan_ip">Could not detect LAN IP. Connect to Wi-Fi and try again.</string>
+    <string name="ui_pairing_server_error">Server error: %1$s</string>
+    <string name="ui_pairing_session_expired">Pairing session expired. Try again.</string>
+
+    <!-- Plugins -->
+    <string name="ui_plugin_invalid_script">Not a valid plugin script</string>
+    <string name="ui_plugin_no_capability">Script declares no capability this app understands</string>
+
+    <!-- External player chooser -->
+    <string name="ui_play_with">Play with</string>
+
+    <!-- Programme reminders -->
+    <string name="ui_reminder_starting_soon">Starting soon</string>
+    <string name="ui_reminder_starts_soon">%1$s starts in about 5 minutes</string>
+    <string name="ui_reminder_channel_name">Programme reminders</string>
+    <string name="ui_reminder_channel_desc">Alerts a few minutes before a show you set a reminder for</string>
+
+    <!-- Torrent foreground service -->
+    <string name="ui_torrent_channel_name">Streaming</string>
+    <string name="ui_torrent_streaming_text">Streaming torrent</string>
+
+    <!-- On-screen keyboard action keys -->
+    <string name="ui_key_space">SPACE</string>
+    <string name="ui_key_del">DEL</string>
+    <string name="ui_key_clear">CLEAR</string>
+</resources>

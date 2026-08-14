@@ -66,7 +66,7 @@ class CarPlayback(private val context: Context) {
     /** Category name -> channels, for the browse list. Uncategorised channels are grouped
      *  under one heading rather than dropped. */
     fun categories(): Map<String, List<Channel>> =
-        channels.groupBy { it.categoryName?.takeIf { name -> name.isNotBlank() } ?: "Other" }
+        channels.groupBy { it.categoryName?.takeIf { name -> name.isNotBlank() } ?: context.getString(com.lumora.R.string.ui_other) }
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
     fun play(channel: Channel) {

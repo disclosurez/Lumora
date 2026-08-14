@@ -41,7 +41,7 @@ private val LICENCED_AUDIO_MIMES = mapOf(
 internal fun MainActivity.openInExternalPlayer(preselectedPackage: String? = null) {
     val stream = playerManager.lastResolvedStream
     if (stream == null) {
-        Toast.makeText(this, "Nothing is playing", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.play_nothing_playing), Toast.LENGTH_SHORT).show()
         return
     }
     val title = nowPlayingChannel?.name
@@ -59,7 +59,7 @@ internal fun MainActivity.openInExternalPlayer(preselectedPackage: String? = nul
             packageName = packageName,
         )
         if (!ExternalPlayer.launch(this, intent)) {
-            Toast.makeText(this, "No app on this device can open this stream", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.play_no_app_can_open), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -81,9 +81,9 @@ internal fun MainActivity.openInExternalPlayer(preselectedPackage: String? = nul
         launch(null)
         return
     }
-    val labels = installed.map { it.label } + listOf("Other app…", "Always use one of these…")
+    val labels = installed.map { it.label } + listOf(getString(R.string.play_other_app), getString(R.string.play_always_use))
     AlertDialog.Builder(this)
-        .setTitle("Play in")
+        .setTitle(getString(R.string.play_play_in))
         .setItems(labels.toTypedArray()) { _, which ->
             when (which) {
                 installed.size -> launch(null)
@@ -91,29 +91,29 @@ internal fun MainActivity.openInExternalPlayer(preselectedPackage: String? = nul
                 else -> launch(installed[which].packageName)
             }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
 /** Picks the app that external playback always uses, so the picker stops appearing. */
 internal fun MainActivity.chooseDefaultExternalPlayer() {
     val installed = ExternalPlayer.installedPlayers(this)
-    val labels = installed.map { it.label } + listOf("Ask every time")
+    val labels = installed.map { it.label } + listOf(getString(R.string.play_ask_every_time))
     val current = prefs.getString(PREF_EXTERNAL_PLAYER_PACKAGE, null)
     val checked = installed.indexOfFirst { it.packageName == current }.takeIf { it >= 0 } ?: installed.size
     AlertDialog.Builder(this)
-        .setTitle("Default external player")
+        .setTitle(getString(R.string.play_default_external_player))
         .setSingleChoiceItems(labels.toTypedArray(), checked) { dialog, which ->
             dialog.dismiss()
             if (which == installed.size) {
                 prefs.edit().remove(PREF_EXTERNAL_PLAYER_PACKAGE).apply()
-                Toast.makeText(this, "External player: ask every time", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.play_external_player_ask_every_time), Toast.LENGTH_SHORT).show()
             } else {
                 prefs.edit().putString(PREF_EXTERNAL_PLAYER_PACKAGE, installed[which].packageName).apply()
-                Toast.makeText(this, "External player: ${installed[which].label}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.play_external_player_label, installed[which].label), Toast.LENGTH_SHORT).show()
             }
         }
-        .setNegativeButton("Cancel", null)
+        .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
@@ -132,13 +132,13 @@ internal fun MainActivity.suggestExternalPlayer(reason: String) {
     externalPlayerSuggestedForStream = true
 
     AlertDialog.Builder(this)
-        .setTitle("Play in another app?")
-        .setMessage("$reason\n\nAnother video player on this device (VLC, MX Player…) may handle it - Lumora can hand the stream over at the current position.")
-        .setPositiveButton("Open in…") { _, _ -> openInExternalPlayer() }
-        .setNegativeButton("Stay here", null)
-        .setNeutralButton("Don't ask again") { _, _ ->
+        .setTitle(getString(R.string.play_in_another_app))
+        .setMessage(getString(R.string.play_suggest_body, reason))
+        .setPositiveButton(getString(R.string.open_in_external_player_short)) { _, _ -> openInExternalPlayer() }
+        .setNegativeButton(getString(R.string.play_stay_here), null)
+        .setNeutralButton(getString(R.string.play_dont_ask_again)) { _, _ ->
             prefs.edit().putBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, false).apply()
-            Toast.makeText(this, "Turn back on in Settings > Playback Settings", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.play_turn_back_on_settings), Toast.LENGTH_LONG).show()
         }
         .show()
 }
@@ -165,8 +165,8 @@ internal fun MainActivity.checkForUndecodableAudio(tracks: Tracks) {
         .mapNotNull { LICENCED_AUDIO_MIMES[it] }
         .firstOrNull()
     suggestExternalPlayer(
-        if (formatName != null) "This stream's audio is $formatName, which this device has no decoder for - so it plays with no sound."
-        else "This device has no decoder for this stream's audio, so it plays with no sound."
+        if (formatName != null) getString(R.string.play_audio_no_decoder_named, formatName)
+        else getString(R.string.play_audio_no_decoder)
     )
 }
 
@@ -180,4 +180,4 @@ internal fun MainActivity.setupExternalPlayerButton(button: View) {
 internal fun MainActivity.externalPlayerSummary(context: Context): String =
     prefs.getString(PREF_EXTERNAL_PLAYER_PACKAGE, null)
         ?.let { ExternalPlayer.labelFor(context, it) }
-        ?: "Ask every time"
+        ?: context.getString(R.string.play_ask_every_time)

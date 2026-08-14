@@ -28,8 +28,9 @@ internal fun MainActivity.formatSubscriptionStatus(expDateSeconds: Long?, isTria
     val fmt = java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault())
     val dateStr = fmt.format(java.util.Date(expDateSeconds * 1000))
     val nowSeconds = System.currentTimeMillis() / 1000
-    val trialPrefix = if (isTrial) "Trial · " else ""
-    return if (expDateSeconds < nowSeconds) "⚠ $trialPrefix Expired $dateStr" else "$trialPrefix Active until $dateStr"
+    val trialPrefix = if (isTrial) getString(R.string.plug_trial_prefix) + " " else ""
+    return if (expDateSeconds < nowSeconds) "⚠ $trialPrefix" + getString(R.string.plug_expired_status, dateStr)
+    else trialPrefix + getString(R.string.plug_active_until_status, dateStr)
 }
 
 /**

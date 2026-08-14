@@ -17,6 +17,7 @@ import com.lumora.scraper.models.Show
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
 import com.lumora.scraper.utils.DnsResolver
+import com.lumora.scraper.utils.NetworkClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.OkHttpClient
@@ -37,8 +38,8 @@ object PelisplustoProvider : Provider {
     override val logo = "https://pelisplus.to/images/logo2.png"
     private const val TAG = "PelisplustoProvider"
 
-    private val client = OkHttpClient.Builder()
-        .addInterceptor { chain ->
+    private val client = NetworkClient.newClient { builder ->
+        builder.addInterceptor { chain ->
             val request = chain.request().newBuilder()
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
                 .build()
@@ -46,8 +47,7 @@ object PelisplustoProvider : Provider {
         }
         .readTimeout(30, TimeUnit.SECONDS)
         .connectTimeout(30, TimeUnit.SECONDS)
-        .dns(DnsResolver.doh)
-        .build()
+    }
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.
     private val serviceHolder = HostScopedService({ baseUrl }) {

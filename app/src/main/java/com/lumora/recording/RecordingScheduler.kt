@@ -12,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.util.UUID
 
 /**
@@ -106,13 +105,12 @@ class RecordingScheduler {
 
         /**
          * Reschedule all future recordings (e.g., after boot).
+         * Suspends on the caller's dispatcher instead of blocking one with runBlocking.
          */
-        fun rescheduleAll(context: Context) {
-            runBlocking(Dispatchers.IO) {
-                val db = LumoraDatabase.getInstance(context)
-                val recordings = db.recordingDao().getScheduled()
-                recordings.forEach { schedule(context, it) }
-            }
+        suspend fun rescheduleAll(context: Context) {
+            val db = LumoraDatabase.getInstance(context)
+            val recordings = db.recordingDao().getScheduled()
+            recordings.forEach { schedule(context, it) }
         }
 
         /**

@@ -2,6 +2,11 @@
 <resources>
     <string name="app_name">Lumora</string>
     <string name="settings">Settings</string>
+    <!-- In-app UI language (General settings pane). "system" follows the device language;
+         the picker's entries are native-language display names and don't need translating. -->
+    <string name="settings_ui_language">Language</string>
+    <string name="settings_ui_language_caption">Translates the whole app — also sets audio, subtitles and TMDB</string>
+    <string name="settings_type_m3u">Type: M3U</string>
     <string name="m3u_url">M3U/M3U8 Playlist URL</string>
     <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
     <string name="xtream_username">Username</string>

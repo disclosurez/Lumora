@@ -12,6 +12,7 @@ import com.lumora.scraper.models.People
 import com.lumora.scraper.models.Season
 import com.lumora.scraper.models.TvShow
 import com.lumora.scraper.models.Video
+import com.lumora.scraper.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.Cookie
 import okhttp3.CookieJar
@@ -81,11 +82,11 @@ object MEGAKinoProvider : Provider {
 
         companion object {
             fun build(baseUrl: String): MEGAKinoService {
-                val client = OkHttpClient.Builder()
-                    .cookieJar(MyCookieJar())
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .build()
+                val client = NetworkClient.newClient { builder ->
+                    builder.cookieJar(MyCookieJar())
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                }
 
                 return Retrofit.Builder()
                     .baseUrl(baseUrl)

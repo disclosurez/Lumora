@@ -29,6 +29,8 @@ import android.text.TextPaint
 import android.text.style.MetricAffectingSpan
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.media3.common.Player
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -97,6 +99,19 @@ internal val PLAYBACK_LANGUAGES = listOf(
     "zh" to "Chinese", "ja" to "Japanese", "ko" to "Korean", "sv" to "Swedish",
     "no" to "Norwegian", "da" to "Danish", "fi" to "Finnish", "el" to "Greek",
     "ro" to "Romanian", "cs" to "Czech", "hu" to "Hungarian"
+)
+/** UI (interface) language of the whole app. "system" follows the device language; any other
+ *  value is an ISO 639-1 code with a matching res/values-<code>/ directory. Picking a language
+ *  also cascades into the audio/subtitle track preferences and the TMDB API language, so a
+ *  French UI picks French audio, subtitles and metadata by default too. */
+internal const val PREF_UI_LANGUAGE = "ui_language"
+/** The language picker's choices: native display names, so the list reads the same no matter
+ *  which language the interface is currently in. Adding a language = add the matching
+ *  res/values-<code>/ (translating every strings file under values/) plus one row here. */
+internal val UI_LANGUAGES = listOf(
+    "system" to "System default",
+    "en" to "English",
+    "fr" to "Français"
 )
 internal const val PREF_PARENTAL_PIN = "parental_pin"
 /** Package of the video app external playback always uses; absent = ask each time. */
@@ -245,6 +260,42 @@ class MainActivity : AppCompatActivity() {
      *  can do - sibling files (MainActivityPlayer) go through this instead. */
     internal val isCastManagerReady: Boolean get() = ::castManager.isInitialized
     internal lateinit var prefs: SharedPreferences
+
+    /** "system" or an ISO 639-1 code — the single source of truth for the whole app's
+     *  language. Read wherever a context without an Activity to ask is needed (TMDB tag). */
+    internal fun uiLanguageCode(): String = prefs.getString(PREF_UI_LANGUAGE, "system") ?: "system"
+
+    /** TMDB wants an xx-XX tag, not a bare xx code. "system" maps to the current locale so
+     *  Discover metadata follows the device language when no explicit override is set. */
+    internal fun tmdbLanguageTagFor(code: String): String = when (code) {
+        "system" -> java.util.Locale.getDefault().toLanguageTag().takeIf { it.length in 2..5 } ?: "en-US"
+        else -> if (code.contains("-")) code else "${code.lowercase()}-${code.uppercase()}"
+    }
+
+    /** Applies [code] to the running process (recreating the activity), and cascades it into
+     *  the audio/subtitle track prefs PlayerManager reads and the TMDB API language. The pref
+     *  write happens first so a recreation that lands mid-cascade still sees the new value. */
+    internal fun onUiLanguageSelected(code: String) {
+        prefs.edit().putString(PREF_UI_LANGUAGE, code).apply()
+        // Audio/subtitle defaults follow the UI language; the General-pane pickers remain for
+        // per-track overrides. "system" leaves them untouched - there's no single code to set.
+        if (code != "system") {
+            prefs.edit()
+                .putString(PREF_SUBTITLE_LANGUAGE, code)
+                .putString(PREF_AUDIO_LANGUAGE, code)
+                .apply()
+        }
+        applyUiLanguageOverride(code)
+    }
+
+    /** Applies the persisted UI language via AppCompatDelegate (per-app languages, works all
+     *  the way down to the minSdk). An empty list clears any override and follows the device. */
+    internal fun applyUiLanguageOverride(code: String) {
+        val locales = if (code == "system" || code.isBlank()) LocaleListCompat.getEmptyLocaleList()
+        else LocaleListCompat.forLanguageTags(code)
+        AppCompatDelegate.setApplicationLocales(locales)
+    }
+
     internal lateinit var playerDiagnostics: PlayerDiagnostics
     internal lateinit var database: LumoraDatabase
     internal lateinit var speedController: com.lumora.player.playback.PlaybackSpeedController
@@ -747,6 +798,11 @@ class MainActivity : AppCompatActivity() {
         applySystemBarInsets()
 
         prefs = getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+        // Re-apply the persisted UI language before any views inflate (AppCompatDelegate has
+        // its own storage, but the pref is the source of truth for the audio/subtitle/TMDB
+        // cascade, and the override here also covers fresh installs and restored backups).
+        applyUiLanguageOverride(uiLanguageCode())
+        tmdbClient.languageTag = tmdbLanguageTagFor(uiLanguageCode())
         // With no IPTV/Jellyfin provider, Live/Series/Films have nothing to show - land on
         // Discover (TMDB browse) instead of the usual Live tab. classifyAndShow's first-paint
         // dispatch reads this flag, so setting it here is enough; it's untouched afterwards,
@@ -792,7 +848,7 @@ class MainActivity : AppCompatActivity() {
         // reads that as "a pane already owns the screen" and refuses to show the status row at
         // all until something else explicitly hides it first.
         binding.contentRow.visibility = View.GONE
-        setStatus("Loading...", visible = true)
+        setStatus(getString(R.string.loading), visible = true)
         // Serve the cached catalog without waiting for plugin discovery: the JS-engine
         // scan of every installed script's manifest (discoverScripts) is real async work
         // that used to gate loadSavedProvider() entirely, so a warm cache still spent
@@ -849,10 +905,10 @@ class MainActivity : AppCompatActivity() {
             val info = withContext(Dispatchers.IO) { updater.checkForUpdate() } ?: return@launch
             if (!info.isUpdateAvailable || info.downloadUrl.isBlank()) return@launch
             AlertDialog.Builder(this@MainActivity)
-                .setTitle("Update available")
-                .setMessage("Lumora v${info.latestVersion} is available.\nCurrent: v${info.currentVersion}\n\n${info.releaseNotes.take(200)}")
-                .setPositiveButton("Update") { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
-                .setNegativeButton("Later", null)
+                .setTitle(getString(R.string.plug_update_available))
+                .setMessage(getString(R.string.plug_update_available_message, info.latestVersion, info.currentVersion, info.releaseNotes.take(200)))
+                .setPositiveButton(getString(R.string.update)) { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
+                .setNegativeButton(getString(R.string.plug_later), null)
                 .show()
         }
     }
@@ -862,12 +918,12 @@ class MainActivity : AppCompatActivity() {
     internal fun downloadAndInstallUpdate(downloadUrl: String, versionName: String) {
         val installer = AppUpdateInstaller(this)
         val downloadId = installer.downloadApk(downloadUrl, versionName)
-        Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.plug_downloading_update), Toast.LENGTH_SHORT).show()
         scope.launch {
             while (true) {
                 delay(1000)
                 if (installer.isDownloadFailed(downloadId)) {
-                    Toast.makeText(this@MainActivity, "Update download failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.plug_update_download_failed), Toast.LENGTH_SHORT).show()
                     break
                 }
                 if (installer.isDownloadComplete(downloadId)) {
@@ -882,7 +938,7 @@ class MainActivity : AppCompatActivity() {
                             installer.installApk(path)
                         }
                     } else {
-                        Toast.makeText(this@MainActivity, "Update download failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, getString(R.string.plug_update_download_failed), Toast.LENGTH_SHORT).show()
                     }
                     break
                 }
@@ -1513,7 +1569,7 @@ class MainActivity : AppCompatActivity() {
             REQUEST_EXPORT_BACKUP -> {
                 scope.launch {
                     val success = pendingBackupManager?.exportTo(uri) == true
-                    Toast.makeText(this@MainActivity, if (success) "Backup exported" else "Export failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, if (success) getString(R.string.plug_backup_exported) else getString(R.string.plug_export_failed), Toast.LENGTH_SHORT).show()
                     pendingBackupManager = null
                 }
             }
@@ -1529,7 +1585,7 @@ class MainActivity : AppCompatActivity() {
                     ) {
                         result = pendingBackupManager?.importFrom(uri, confirmed = true)
                     }
-                    val msg = result?.let { "Imported: ${it.providersImported} providers, ${it.epgSourcesImported} EPG sources, ${it.customGroupsImported} groups" } ?: "Import failed"
+                    val msg = result?.let { getString(R.string.plug_imported_summary, it.providersImported, it.epgSourcesImported, it.customGroupsImported) } ?: getString(R.string.plug_import_failed)
                     Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
                     pendingBackupManager = null
                 }
