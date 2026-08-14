@@ -40,6 +40,15 @@ import okhttp3.Request
 // ── Playback: controls, aspect, stream resolution, failover & overlays ──
 //
 // Extracted from MainActivity.kt; see that file's header.
+
+/** Backoff schedule for retrying a single-source live channel's exact URL after a hard
+ *  player error (see onPlayerError) - a provider-side throttle (HTTP 509 etc.) often clears
+ *  within seconds, and there is no other version to fail over to for that case. */
+private val LIVE_RETRY_DELAYS_MS = longArrayOf(5_000L, 15_000L, 30_000L)
+
+/** Auto-switches tryNextQualityVersion will make in a row before giving up on hopping and
+ *  falling through to the quiet same-URL backoff retry - see its own comment. */
+private const val MAX_LIVE_VERSION_SWITCHES = 2
 /**
  * The toolbar's refresh button: re-connect to every enabled provider, ignoring the cache.
  *
@@ -376,7 +385,13 @@ internal fun MainActivity.setupPlayerControls() {
             if (state == Player.STATE_BUFFERING) onBufferingStarted() else onBufferingEnded()
             if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
                 updateProgress(); updatePlayPauseIcon()
-                if (state == Player.STATE_READY) { currentStreamPlayed = true; maybeShowResumePrompt() }
+                if (state == Player.STATE_READY) {
+                    currentStreamPlayed = true
+                    liveRetryAttempt = 0
+                    liveVersionSwitchAttempt = 0
+                    currentVersionGroup.getOrNull(currentVersionIndex)?.let { clearStreamDead(it) }
+                    maybeShowResumePrompt()
+                }
             if (state == Player.STATE_ENDED) {
                 saveCurrentPlaybackPosition()
                 // The plain save above leaves a just-finished episode near-complete
@@ -424,10 +439,27 @@ internal fun MainActivity.setupPlayerControls() {
             resetStallTracking()
             blackFrameStreak = 0
             if (!tryNextQualityVersion()) {
+                val liveChannel = nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE && !it.isJellyfin }
                 // Jellyfin direct-play: one fresh-URL re-resolve before giving up - a
                 // transient server timeout or an expired direct-play URL often recovers.
                 if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
                     retryJellyfinPlayback()
+                } else if (liveChannel != null && liveRetryAttempt < LIVE_RETRY_DELAYS_MS.size) {
+                    // No other version to fail over to (a single-source channel), so retry
+                    // the exact same URL - HTTP 509 and similar provider-side throttles are
+                    // often transient and clear within seconds.
+                    val delayMs = LIVE_RETRY_DELAYS_MS[liveRetryAttempt]
+                    liveRetryAttempt++
+                    binding.bufferingSpinner.visibility = View.VISIBLE
+                    mainHandler.postDelayed({
+                        if (nowPlayingChannel?.id != liveChannel.id) return@postDelayed
+                        val current = currentVersionGroup.getOrNull(currentVersionIndex) ?: liveChannel
+                        playerManager.playUrl(
+                            current.url,
+                            current.streamUserAgent,
+                            preferAudioLanguage = false
+                        )
+                    }, delayMs)
                 } else {
                     // Every internal recovery is spent: version failover found nothing better
                     // and Jellyfin's re-resolve (if any) failed too. Another player on the
@@ -635,6 +667,8 @@ internal fun MainActivity.showPlayerFor(
     jellyfinPlaySession = null
     jellyfinPlayingItemId = null
     jellyfinRetryAttempted = false
+    liveRetryAttempt = 0
+    liveVersionSwitchAttempt = 0
     jellyfinChapters = emptyList()
     jellyfinTrickplay = null
     trickplayTileCache = null
@@ -870,6 +904,14 @@ internal fun MainActivity.isStreamDead(channel: Channel): Boolean {
     return true
 }
 
+/** Clears a dead mark once a stream actually plays - a same-URL backoff retry (see
+ *  onPlayerError) can recover from a transient failure that tryNextQualityVersion had
+ *  already marked dead for the full hour-long cooldown; leaving that mark in place would
+ *  make a future scan skip a version that just proved itself working. */
+internal fun MainActivity.clearStreamDead(channel: Channel) {
+    if (deadStreamUntil.remove(streamKey(channel)) != null) saveDeadStreams()
+}
+
 /** Retries playback with the next-best quality version of the current live channel, if
  *  any - the one being left behind failed (that's why this got called), so it's marked
  *  dead for a cooldown window instead of being tried again a few seconds later. */
@@ -907,10 +949,23 @@ internal fun MainActivity.retryJellyfinPlayback() {
 
 internal fun MainActivity.tryNextQualityVersion(message: String? = null): Boolean {
     if (nowPlayingChannel?.mediaType != MediaType.LIVE) return false
+    // Capped separately from the dead-stream scan below: a provider-wide throttle (the same
+    // account/IP getting 509'd) fails every version in the group in turn, each one briefly
+    // opening before getting cut - scanning the whole group on every failure then reads as
+    // the channel rapidly flipping instead of the quiet same-URL backoff retry it should
+    // fall through to. Reset on a confirmed STATE_READY or a fresh showPlayerFor.
+    if (liveVersionSwitchAttempt >= MAX_LIVE_VERSION_SWITCHES) return false
     currentVersionGroup.getOrNull(currentVersionIndex)?.let { markStreamDead(it) }
-    var nextIndex = currentVersionIndex + 1
-    while (nextIndex < currentVersionGroup.size && isStreamDead(currentVersionGroup[nextIndex])) nextIndex++
-    if (nextIndex >= currentVersionGroup.size) return false
+    // Scans the whole group, not just forward from the current index: marching only
+    // forward meant a channel that had already failed through to its last version could
+    // never come back to an earlier one even once its hour-long dead-mark (see
+    // DEAD_STREAM_COOLDOWN_MS) expired mid-session - tryNextQualityVersion would keep
+    // returning false forever after that point instead of ever re-trying it.
+    val nextIndex = currentVersionGroup.indices
+        .filterNot { it == currentVersionIndex }
+        .firstOrNull { !isStreamDead(currentVersionGroup[it]) }
+        ?: return false
+    liveVersionSwitchAttempt++
     switchToVersionIndex(nextIndex, message ?: getString(R.string.play_switching_alt_quality))
     return true
 }

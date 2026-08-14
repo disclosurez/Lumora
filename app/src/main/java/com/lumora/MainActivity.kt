@@ -629,6 +629,15 @@ class MainActivity : AppCompatActivity() {
     // One-shot fresh-URL retry guard for Jellyfin direct-play: a transient server timeout or
     // expired direct-play URL gets one re-resolve before the generic "Playback error".
     internal var jellyfinRetryAttempted = false
+    // Backoff retry count for a live channel with no other version to fail over to (see
+    // tryNextQualityVersion) - a transient server-side throttle (HTTP 509 etc.) is worth
+    // retrying the exact same URL for before giving up.
+    internal var liveRetryAttempt = 0
+    // Auto-switches used up within the current channel-watch session (see
+    // tryNextQualityVersion) - capped so a provider-wide throttle that fails every version
+    // in the group one after another doesn't read as the channel rapidly flipping; past the
+    // cap, onPlayerError falls through to the quiet same-URL backoff retry instead.
+    internal var liveVersionSwitchAttempt = 0
     internal var jellyfinPlayingItemId: String? = null
     internal var jellyfinChapters: List<JellyfinProvider.Chapter> = emptyList()
     internal var jellyfinTrickplay: JellyfinProvider.TrickplayInfo? = null
