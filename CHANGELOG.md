@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.0
+
+### Localization
+- **24 new languages added**: Arabic, Czech, Danish, German, Greek, Spanish, Finnish, Hindi, Croatian, Hungarian, Indonesian, Italian, Japanese, Korean, Dutch, Norwegian, Polish, Portuguese, Romanian, Russian, Swedish, Turkish, Ukrainian, and Chinese, on top of English and French.
+- **Category and shelf labels that never translated now do.** Newest, Continue Watching, Favourites, Other, Anime and the rest of the sidebar/shelf titles were hardcoded English strings, not string resources - two of them also broke the "hide this shelf" preference once localized, since it was matching on the literal English text.
+
+### Simple Mode
+- **Live TV and Home stay reachable in Simple Mode.** It used to hide every tab, including Live TV itself, leaving only Settings/Refresh on screen. Back now falls through to Home instead of exiting the app early.
+
+### Player
+- **Audio offset is now a real, adjustable A/V sync control**, reachable from the play/pause menu. Previously stored but never actually applied to playback.
+- **The Versions button only shows when there's actually another version to switch to** - live, film, and series version availability is checked upfront instead of the button always appearing and toasting "nothing else" on press.
+
 ## 3.9
 
 ### Live TV
