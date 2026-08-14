@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1
+
+### Xtream/IPTV
+- **Fixed a crash-on-launch OutOfMemoryError after adding an Xtream Codes provider.** Panels that return the live/VOD/series list as a bare JSON array at the root hit a costly org.json failure path - it fully parsed the array, then re-serialized the whole thing (the entire channel list) into a discarded error message while trying to describe the mismatch. Fixed by detecting the array up front instead of parsing-then-catching.
+
+### Scrapers
+- **AnimeSaturn scraping fixed** for the site's new layout (home, search, genres, episode lists, and playback all rebuilt around its current markup and embed protocol).
+- **MKissa's crypto handshake now refreshes and retries** instead of breaking outright when the site rotates its endpoint/build config, and packed playback URLs resolve correctly again.
+- **StreamWish and Upzone embeds no longer spawn popup ads** during their redirect hop.
+
 ## 4.0
 
 ### Localization

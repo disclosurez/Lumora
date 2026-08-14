@@ -478,18 +478,22 @@ class XtreamClient(private val client: OkHttpClient) {
                 Log.w(TAG, "Empty response body")
                 return null
             }
-            // Xtream sometimes wraps arrays at the root level
+            // Xtream's get_live_streams/get_vod_streams/get_series return a bare JSON array
+            // at the root on most panels - large ones can be tens of MB of channels. Peeking
+            // the first non-whitespace char picks the right parser up front: JSONObject(body)
+            // on array text doesn't fail cheaply, it fully parses the array and THEN throws,
+            // with org.json's mismatch message serializing that whole parsed array back to a
+            // string just to describe the error - an OOM-sized allocation nobody ever reads.
+            val firstToken = body.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 }?.let { body[it] }
             return try {
-                JSONObject(body)
-            } catch (e: JSONException) {
-                // Maybe it's a JSONArray wrapped in an object
-                try {
-                    val arr = JSONArray(body)
-                    JSONObject().apply { put("items", arr) }
-                } catch (e2: JSONException) {
-                    Log.w(TAG, "Invalid JSON response: ${body.take(200)}")
-                    null
+                if (firstToken == '[') {
+                    JSONObject().apply { put("items", JSONArray(body)) }
+                } else {
+                    JSONObject(body)
                 }
+            } catch (e: JSONException) {
+                Log.w(TAG, "Invalid JSON response: ${body.take(200)}")
+                null
             }
         } catch (e: Exception) {
             lastFetchError = e.message ?: e.javaClass.simpleName
