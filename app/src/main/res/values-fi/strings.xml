@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Asetukset</string>
+    <!-- Sovelluksen kieli (Yleinen-paneeli). "system" noudattaa laitteen kieltä ;
+         valitsimen merkinnät ovat kielten omia nimiä eikä niitä tarvitse kääntää. -->
+    <string name="settings_ui_language">Kieli</string>
+    <string name="settings_ui_language_caption">Kääntää koko sovelluksen — asettaa myös äänen, tekstitykset ja TMDB:n</string>
+    <string name="settings_type_m3u">Tyyppi: M3U</string>
+    <string name="m3u_url">M3U/M3U8-soittolistan URL-osoite</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Käyttäjänimi</string>
+    <string name="xtream_password">Salasana</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Tallenna</string>
+    <string name="cancel">Peruuta</string>
+    <string name="loading">Ladataan&#8230;</string>
+    <string name="live_badge">Live</string>
+
+    <!-- Palveluntarjoajatyypit -->
+    <string name="stalker_mac">MAC-osoite</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Soitin -->
+    <!-- Tallennus -->
+    <string name="recording_storage">Tallenteiden tallennustila</string>
+
+    <!-- Varmuuskopiointi ja palautus -->
+    <string name="backup_restore">Varmuuskopiointi &amp; palautus</string>
+    <string name="export_backup">Vie varmuuskopio</string>
+    <string name="import_backup">Tuo varmuuskopio</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG-lähteet</string>
+    <string name="add_epg_source">Lisää EPG-lähde</string>
+
+    <!-- Sisällönhallinta -->
+    <!-- VOD -->
+    <!-- Laatu -->
+    <!-- Virheet -->
+    <!-- Numeerinen syöttö -->
+    <!-- Seuraavaksi / Automaattinen jatko -->
+    <string name="up_next">Seuraavaksi</string>
+    <string name="play_now">Toista nyt</string>
+
+    <!-- Inkrementaalinen haku -->
+    <!-- A/V-synkronointi -->
+    <string name="av_offset">A/V-synkronoinnin siirtymä</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Haku</string>
+    <string name="tab_home">Koti</string>
+    <string name="tab_live_tv">Live-TV</string>
+    <!-- Kiinniotto : Xtream tv_archive -toisto (kanava → päivä → jo lähetetty ohjelma). -->
+    <string name="tab_catchup">Kiinniotto</string>
+    <string name="catchup_crumb_categories">Kiinniotto · %1$d kanavaa arkistolla</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d kanavaa</string>
+    <string name="catchup_crumb_days">%1$s · valitse päivä</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Tänään</string>
+    <string name="catchup_yesterday">Eilen</string>
+    <string name="catchup_loading">Ladataan opasta…</string>
+    <string name="catchup_no_guide">Ei opastietoja tälle päivälle — näytetään tuntikohtaiset lohkot.</string>
+    <string name="catchup_nothing_aired">Tänä päivänä ei ole vielä lähetetty mitään.</string>
+    <string name="catchup_no_provider">Ei voida toistaa — sen lähdepalveluntarjoajaa ei ole enää määritetty.</string>
+    <string name="catchup_hour_block">Tunnin lohko</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d päivä säilytetty</item>
+        <item quantity="other">%1$d päivää säilytetty</item>
+    </plurals>
+    <string name="series_tab">Sarjat</string>
+    <string name="films_tab">Elokuvat</string>
+    <string name="discover_tab">Tutki</string>
+    <string name="downloads_tab">Lataukset</string>
+    <string name="no_provider_configured">Palveluntarjoajaa ei ole määritetty</string>
+    <string name="press_settings_to_add_playlist">Paina Asetukset lisätäksesi soittolistan URL-osoitteen</string>
+    <string name="add_a_provider">Lisää palveluntarjoaja</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN-PALVELUNTARJOAJA</string>
+    <string name="startup_choose_public">JULKINEN SUORATOISTOSISÄLTÖ</string>
+    <string name="startup_choose_both">MOLEMMAT</string>
+    <string name="search_main_hint">Hae live-TV:stä, elokuvista &amp; sarjoista…</string>
+    <string name="no_downloads_yet">Ei vielä latauksia</string>
+    <string name="overview">Yleiskatsaus</string>
+    <string name="cast">Näyttelijät</string>
+    <string name="play">Toista</string>
+    <string name="find_stream">Etsi &amp; toista</string>
+    <string name="trailer">Traileri</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Uni</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Avaa kohteessa</string>
+
+    <!-- Näytetään autonäytöllä jokaisen istunnon alussa ja puhelimen asetuksissa.
+         Pidetään riittävän lyhyenä, jotta auton näyttö ei katkaise sitä kesken lauseen. -->
+    <string name="car_disclaimer">Älä katso videota ajon aikana.\n\nVideo toistuu vain, kun Lumora voi vahvistaa, että auto on pysähtynyt. Liikkeen havaitessa kuva sammuu ja ääni jatkuu.\n\nTarjotaan ”sellaisenaan”, ilman takuuta ja ilman vastuuta mistään menetyksestä, vahingosta, seuraamuksesta tai näiden hallintalaitteiden toimintahäiriöstä. Käytä laillisesti.</string>
+
+    <string name="legal_notice_title">Lakisääteinen &amp; turvallisuusilmoitus</string>
+    <string name="legal_notice">Lumora tarjotaan maksutta, ”sellaisenaan” ja ilman minkäänlaisia takuita, nimenomaisia tai hiljaisia, mukaan lukien mutta ei rajoittuen takuisiin myyntikelpoisuudesta, soveltuvuudesta tiettyyn tarkoitukseen ja kolmansien oikeuksien loukkaamattomuudesta.\n\nLain sallimassa enimmäislaajuudessa tekijät ja avustajat eivät vastaa mistään vaateesta, vahingosta, menetyksestä tai muusta vastuusta, joka aiheutuu sovelluksesta tai sen käytöstä tai liittyy siihen, mukaan lukien mutta ei rajoittuen: tietojen tai laitteiden menetys tai vahingoittuminen, palvelukatkokset, sovelluksen kaatumiset tai virheet, verkko- tai sisällöntarjoajasi veloittamat maksut taikka mikä tahansa seuraamus, sakko tai syyte, joka johtuu sovelluksen käytöstäsi.\n\nAjoneuvon käyttö: videon toistaminen ajoneuvossa on tarkoitettu vain pysäköidylle ajoneuvolle tai matkustajan näytölle. Videon katsominen ajon aikana on laitonta useimmissa lainkäyttöalueissa. Lumora yrittää havaita liikkeen ja poistaa videon käytöstä automaattisesti, mutta tämä havaitseminen riippuu laitteistosta, käyttöoikeuksista ja signaaleista, jotka ovat sovelluksen hallinnan ulkopuolella, ja se voi epäonnistua tai olla käytettävissä. Siihen ei saa luottaa. Kuljettaja on yksin vastuussa kaikkien sovellettavien tieliikennelakien noudattamisesta.\n\nSisältö: Lumora on soitin. Se ei isännöi, tarjoa eikä indeksoi omaa sisältöä. Kaikki striimit, luettelot ja metatiedot tulevat palveluista ja palveluntarjoajista, jotka määrität itse, ja olet yksin vastuussa tarvittavien oikeuksien tai tilausten hallussapidosta sekä näiden palvelujen ehtojen ja maasi lakien noudattamisesta.\n\nJakelu: tätä sovellusta ei jaeta Google Playn kautta, eikä se ole yhteydessä Googleen, Googlen hyväksymä tai Googlen sertifioima. Android, Android Auto ja Google Cast ovat Google LLC:n tavaramerkkejä.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versiot</string>
+    <string name="fit">Sovita</string>
+    <string name="audio">Ääni</string>
+    <string name="subtitles">Tekstitykset</string>
+    <string name="chapters">Luvut</string>
+    <string name="seek_preview">Siirtymisen esikatselu</string>
+    <string name="player_menu_title">Valikko</string>
+    <string name="player_menu">Soittimen valikko</string>
+    <string name="close_side_menu">Sulje valikko</string>
+    <string name="side_menu_loading">Ladataan…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Palveluntarjoajat</string>
+    <string name="playback">Toisto</string>
+    <string name="general">Yleinen</string>
+    <string name="filters">Suodattimet</string>
+    <string name="privacy">Yksityisyys</string>
+    <string name="downloads">Lataukset</string>
+    <string name="plugins">Plugins</string>
+    <string name="enabled">Käytössä</string>
+    <string name="update">Päivitä</string>
+    <string name="back_to_plugins">‹  Plugins</string>
+    <string name="about">Tietoja</string>
+    <string name="providers_description">Käytä useita palveluntarjoajia yhdessä - ota jokainen käyttöön tai pois käytöstä erikseen</string>
+    <string name="your_providers">PALVELUNTARJOAJASI</string>
+    <string name="no_iptv_providers_added_yet">IPTV-palveluntarjoajia ei ole vielä lisätty</string>
+    <string name="add_provider">+ Lisää palveluntarjoaja</string>
+    <string name="what_kind_of_provider">Millainen palveluntarjoaja tämä on?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Soittolistan linkki</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Kirjautumiskoodit</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC-osoite</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Mediaserveri</string>
+    <string name="change">Muuta</string>
+    <string name="show_phone_qr_pairing_code">Näytä puhelimen QR-pariliitoskoodi</string>
+    <string name="or_enter_manually">TAI SYÖTÄ MANUAALISESTI</string>
+    <string name="name">Nimi</string>
+    <string name="server_url">Palvelimen URL-osoite</string>
+    <string name="sign_in_with_quick_connect">Kirjaudu Quick Connectilla</string>
+    <string name="username_if_quick_connect_off">Käyttäjänimi (jos Quick Connect on pois päältä)</string>
+    <string name="playback_settings">Toistoasetukset</string>
+    <string name="hide_non_english">Piilota muut kuin englanninkieliset elokuvat/sarjat</string>
+    <string name="hide_adult_categories">Piilota aikuissisältökategoriat</string>
+    <!-- Kutistettu luokkapalkki: pilleri, joka tuo sen takaisin, ja kerran näytettävä vihje,
+         joka näkyy kutistuksen hetkellä, jotta paluutie ei ole koskaan etsittävä. -->
+    <string name="categories">Luokat</string>
+    <string name="show_categories">Näytä luokat</string>
+    <string name="categories_hidden_hint">Luokat piilotettu — napauta ”Luokat” näyttääksesi</string>
+    <!-- Kutistettu asetuspalkki: viimeinen navigointirivi, joka piilottaa sen, ja pilleri +
+         kerran näytettävä vihje, jotka tuovat sen takaisin - peilaa luokkapalkin kutistustoimintoja. -->
+    <string name="settings_nav_collapse">Kutista</string>
+    <string name="show_settings">Näytä asetukset</string>
+    <string name="settings_hidden_hint">Asetukset piilotettu — napauta ”Asetukset” näyttääksesi</string>
+    <string name="categorize_live">Luokittele live-TV</string>
+    <string name="categorize_vod">Luokittele elokuvat &amp; sarjat</string>
+    <string name="group_channels">Ryhmittele päällekkäiset kanavat</string>
+    <string name="set_parental_pin">Aseta vanhempien PIN-koodi</string>
+    <string name="clear_watch_history">Tyhjennä katseluhistoria</string>
+    <string name="plugins_description">Pieniä skriptejä, jotka lisäävät toimintoja - palveluntarjoajien löytäminen tai striimien etsiminen. Mikään ei asennu erillisenä sovelluksena; skripti toimii Lumoran sisällä, ja mitä tahansa se ehdottaa käytetään vain, jos vahvistat sen.</string>
+    <string name="add_a_plugin">LISÄÄ PLUGIN</string>
+    <string name="install_from_url">Lisää URL-osoitteesta</string>
+    <string name="enter_apk_link">Anna plugin-skriptin linkki</string>
+    <string name="installed">ASENNETTU</string>
+    <string name="no_plugins_installed">Ei asennettuja plugineja - selaa alla olevaa plugin-kauppaa</string>
+    <string name="plugin_stores">PLUGIN-KAUPAT</string>
+    <string name="add_plugin_store">+ Lisää plugin-kauppa</string>
+    <string name="browse">Selaa</string>
+    <string name="no_plugin_stores">Ei lisättyjä plugin-kauppoja</string>
+    <string name="results">TULOKSET</string>
+    <string name="version">Versio</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Sovellus</string>
+    <string name="about_platform_label">Alusta</string>
+    <string name="about_platform_value">Android · TV + puhelin</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Tarkista päivitykset</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Kirjoita hakeaksesi</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Sulje</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Muokkaa</string>
+    <string name="remove">Poista</string>
+    <!-- Palveluntarjoajakohtaiset sisältötyyppikytkimet palveluntarjoajan rivillä. Omistetut
+         id:t, vaikka ”Elokuvat”/”Sarjat” ovat olemassa välilehtinä (films_tab/series_tab) -
+         kytkentä yhdistää jokaisen valintaruudun näihin id:ihin ja välilehtimerkkijonojen
+         uudelleenkäyttö kytkisi ne toisiinsa. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Elokuvat</string>
+    <string name="provider_content_series">Sarjat</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Suorita</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESTATTU</string>
+    <string name="add">Lisää</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Näytä kaikki</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - katsotun tilan valintakytkimet -->
+    <string name="episode_mark_watched">Merkitse jakso katsotuksi</string>
+    <string name="episode_mark_unwatched">Merkitse jakso katsomattomaksi</string>
+    <string name="season_mark_watched">Merkitse kausi katsotuksi</string>
+    <string name="season_mark_unwatched">Merkitse kausi katsomattomaksi</string>
+
+    <!-- dialog_search.xml - hakukerros -->
+    <string name="search_overlay_hint">Hae live-TV:stä, elokuvista &amp; sarjoista…</string>
+    <string name="search_recents_label">Viimeaikaiset haut</string>
+    <string name="search_recents_clear">Tyhjennä</string>
+    <string name="search_filter_all">Kaikki</string>
+    <string name="search_filter_films">Elokuvat</string>
+    <string name="search_filter_series">Sarjat</string>
+    <!-- Tilatekstit, joiden välillä hakuisäntä vaihtaa. ”Ei tuloksia” tuo mukanaan kyselyn, ja
+         vihjerivi menee saman tilan TextView:n toiselle riville, kun se näytetään. -->
+    <string name="search_status_searching">Haetaan…</string>
+    <string name="search_status_no_results">Ei tuloksia haulle ”%1$s”</string>
+    <string name="search_status_no_results_hint">Kokeile vähemmillä kirjaimilla tai tarkista oikeinkirjoitus.</string>
+    <string name="search_status_count">%1$d/%2$d tulosta</string>
+
+    <!-- item_epg_result.xml - EPG-ohjelmien hakutuotteet -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - välimerkkikerroksen vaihto. \? välttelee alkuperäistä ?:ää -
+         muuten aapt lukisi ”?123”:n resurssiviittauksena. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - Tutki (TMDB) -haku -->
+    <string name="discover_search_hint">Hae elokuvia &amp; sarjoja…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - näytetään haaste-WebView:n yläpuolella TV:ssä,
+         jossa ei ole osoitinta ja valintaruutu on osuttava virtuaalikursorilla. -->
+    <string name="bypass_tv_instructions">SIIRRÄ KURSORI VALINTARUUDUN PÄÄLLE\nJA PAINA OK AVATAKSESI LUKITUS</string>
+
+    <!-- MainActivityScraper - lähdevalitsin. TMDB kertoo, mitä on olemassa; sivustoilta kysytään
+         vain, kuka voi striimata sen, ja isännät kuolevat riittävän usein, jotta yhden
+         epäonnistuminen on rutiinia. -->
+    <string name="scraper_dialog_title">Etsi striimi \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Etsitään lähteitä\u2026</string>
+    <string name="scraper_searching_sites">Haetaan sivustoilta\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Avataan %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s ei toiminut \u2014 kokeile toista lähdettä</string>
+    <string name="scraper_no_sources">Tälle nimikkeelle ei löytynyt lähteitä</string>
+    <string name="scraper_pick_manually">Valitse lähde</string>
+    <string name="scraper_attempt_detail">kautta %1$s \u00b7 yritys %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d lähde</item>
+        <item quantity="other">%1$d lähdettä</item>
+    </plurals>
+
+    <!-- MainActivitySettings - suoratoistosivustojen lähteet. -->
+    <string name="scraper_settings_title">Suoratoistosivustot</string>
+    <string name="scraper_settings_subtitle">Julkiset suoratoistosivustot, joista Etsi striimi voi hakea. Selaus pysyy Tutki-välilehdellä \u2014 niiltä kysytään vain, kuka voi striimata jo valitsemasi nimikkeen.</string>
+    <string name="scraper_enabled_title">Käytä suoratoistosivustoja</string>
+    <string name="scraper_enabled_subtitle">Tarjoaa Etsi striimi -toimintoa Tutki-nimikkeille</string>
+    <string name="scraper_sites_header">Haettavat sivustot</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Selvittää sivustojen verkkotunnukset salatun resolverin kautta ISP:si resolverin sijaan</string>
+    <string name="scraper_doh_system">Järjestelmän DNS</string>
+    <string name="scraper_extra_buffering_title">Lisäpuskurointi</string>
+    <string name="scraper_extra_buffering_subtitle">Puskuroi jopa 5 minuuttia etukäteen isännille, jotka toimittavat sisältöä purskeina. Käyttää enemmän muistia; astuu voimaan uudelleenkäynnistyksen jälkeen</string>
+    <string name="category_newest">Uusimmat</string>
+    <string name="category_continue_watching">Jatka katsomista</string>
+    <string name="category_other">Muut</string>
+    <string name="category_all">Kaikki</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Kutista luokat</string>
+    <string name="category_favourites">Suosikit</string>
+    <string name="category_group_into_categories">Ryhmittele luokkiin</string>
+    <string name="category_show_all_categories">Näytä kaikki luokat (klassinen luettelo)</string>
+    <string name="category_next_up">Seuraavaksi</string>
+    <string name="category_recently_played">Äskettäin toistetut</string>
+    <string name="category_favourite_channels">Suosikkikanavat</string>
+</resources>

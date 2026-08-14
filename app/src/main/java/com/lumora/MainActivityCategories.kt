@@ -236,12 +236,12 @@ internal fun MainActivity.refreshSeriesShelvesIfShowing() {
     val favoriteSeries = seriesList.filter { it.id in FavoritesStore.getFavoriteSeriesIds(this) }
     val newestSeries = newestByDate(seriesList)
     val shelves = shelvesFromCategoryRows(cachedSeriesCategoryRows, seriesList)
-        .let { s -> (if (newestSeries.isEmpty()) s else listOf(ContentShelf("Newest", newestSeries, categoryId = NEWEST_CATEGORY_ID)) + s) }
+        .let { s -> (if (newestSeries.isEmpty()) s else listOf(ContentShelf(getString(R.string.category_newest), newestSeries, categoryId = NEWEST_CATEGORY_ID)) + s) }
         .let { s ->
             val cw = seriesContinueItems()
-            if (cw.isEmpty()) s else listOf(ContentShelf("Continue Watching", cw)) + s
+            if (cw.isEmpty()) s else listOf(ContentShelf(getString(R.string.category_continue_watching), cw)) + s
         }
-        .let { s -> if (favoriteSeries.isEmpty()) s else listOf(ContentShelf("Favourites", favoriteSeries)) + s }
+        .let { s -> if (favoriteSeries.isEmpty()) s else listOf(ContentShelf(getString(R.string.category_favourites), favoriteSeries)) + s }
     seriesShelves = shelves
     seriesShelfAdapter.submitList(shelves)
 }
@@ -428,7 +428,7 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
             0,
             CategoryFilter(
                 id = NEWEST_CATEGORY_ID,
-                name = "Newest",
+                name = getString(R.string.category_newest),
                 count = newestByTab.size,
                 channelIds = newestByTab.map { it.id }.toSet(),
                 isDynamic = true
@@ -444,7 +444,7 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
                 0,
                 CategoryFilter(
                     id = CONTINUE_WATCHING_CATEGORY_ID,
-                    name = "Continue Watching",
+                    name = getString(R.string.category_continue_watching),
                     count = seriesContinue.size,
                     isDynamic = true
                 )
@@ -857,7 +857,7 @@ internal fun MainActivity.buildCategoryRows(
             childrenByParent[OTHER_CATEGORY_ID] = children
             val parent = CategoryFilter(
                 id = OTHER_CATEGORY_ID,
-                name = "Other",
+                name = getString(R.string.category_other),
                 count = members.sumOf { it.count },
                 pinned = pinned.contains(OTHER_CATEGORY_ID),
                 // The two resolution branches are either/or downstream, so channel ids are
@@ -882,7 +882,7 @@ internal fun MainActivity.buildCategoryRows(
         }
 
         val (pinnedRows, unpinnedRows) = cascadeRows.partition { it.pinned }
-        val allRow = CategoryFilter(id = null, name = "All", count = list.size)
+        val allRow = CategoryFilter(id = null, name = getString(R.string.category_all), count = list.size)
         // Live TV sorts "All" below the dynamic buckets - Favourites/pinned/buckets
         // are what people actually want first there. Other tabs have no buckets, so
         // "All" just stays at the top like before.
@@ -956,7 +956,7 @@ internal fun MainActivity.buildCategoryRows(
                 val isExpanded = expanded.contains(ANIME_CATEGORY_ID)
                 val parent = CategoryFilter(
                     id = ANIME_CATEGORY_ID,
-                    name = "Anime",
+                    name = getString(R.string.category_anime),
                     count = animeIds.size,
                     pinned = pinned.contains(ANIME_CATEGORY_ID),
                     channelIds = animeIds,
@@ -973,27 +973,27 @@ internal fun MainActivity.buildCategoryRows(
             // Sidebar collapse utility row, mirroring the classic-layout toggle
             // (count = -1 so no shelf/count machinery treats it as a category, and
             // it's in NON_PINNABLE_CATEGORY_IDS so it gets no star).
-            result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
+            result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = getString(R.string.category_collapse_categories), count = -1))
         }
         if (tab != 0) result.add(allRow)
         if (tab == 0) {
             val favoriteCount = list.count { it.id in favoriteChannelIds }
             if (favoriteCount > 0) {
-                result.add(CategoryFilter(id = FAVOURITES_CATEGORY_ID, name = "Favourites", count = favoriteCount))
-                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
+                result.add(CategoryFilter(id = FAVOURITES_CATEGORY_ID, name = getString(R.string.category_favourites), count = favoriteCount))
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = getString(R.string.category_collapse_categories), count = -1))
                 result.add(
                     CategoryFilter(
                         id = CLASSIC_LAYOUT_TOGGLE_ID,
-                        name = if (useClassicLayout) "Group into categories" else "Show all categories (classic list)",
+                        name = if (useClassicLayout) getString(R.string.category_group_into_categories) else getString(R.string.category_show_all_categories),
                         count = -1
                     )
                 )
             } else {
-                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = "Collapse categories", count = -1))
+                result.add(CategoryFilter(id = COLLAPSE_CATEGORIES_TOGGLE_ID, name = getString(R.string.category_collapse_categories), count = -1))
                 result.add(
                     CategoryFilter(
                         id = CLASSIC_LAYOUT_TOGGLE_ID,
-                        name = if (useClassicLayout) "Group into categories" else "Show all categories (classic list)",
+                        name = if (useClassicLayout) getString(R.string.category_group_into_categories) else getString(R.string.category_show_all_categories),
                         count = -1
                     )
                 )

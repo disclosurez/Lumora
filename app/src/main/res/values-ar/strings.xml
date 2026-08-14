@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">الإعدادات</string>
+    <!-- لغة واجهة التطبيق (لوحة الإعدادات العامة). «system» يتبع لغة الجهاز؛
+         خيارات القائمة أسماء بلغتها الأصلية ولا تحتاج إلى ترجمة. -->
+    <string name="settings_ui_language">اللغة</string>
+    <string name="settings_ui_language_caption">يترجم التطبيق بالكامل — ويضبط أيضاً الصوت والترجمة النصية وTMDB</string>
+    <string name="settings_type_m3u">النوع: M3U</string>
+    <string name="m3u_url">رابط قائمة التشغيل M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">اسم المستخدم</string>
+    <string name="xtream_password">كلمة المرور</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="loading">جارٍ التحميل&#8230;</string>
+    <string name="live_badge">مباشر</string>
+
+    <!-- أنواع المزوّدين -->
+    <string name="stalker_mac">عنوان MAC</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- المشغل -->
+    <!-- التسجيل -->
+    <string name="recording_storage">تخزين التسجيلات</string>
+
+    <!-- النسخ الاحتياطي والاستعادة -->
+    <string name="backup_restore">النسخ الاحتياطي والاستعادة</string>
+    <string name="export_backup">تصدير النسخة الاحتياطية</string>
+    <string name="import_backup">استيراد النسخة الاحتياطية</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">مصادر EPG</string>
+    <string name="add_epg_source">إضافة مصدر EPG</string>
+
+    <!-- إدارة المحتوى -->
+    <!-- VOD -->
+    <!-- الجودة -->
+    <!-- الأخطاء -->
+    <!-- إدخال رقمي -->
+    <!-- التالي / التشغيل التلقائي -->
+    <string name="up_next">التالي</string>
+    <string name="play_now">تشغيل الآن</string>
+
+    <!-- بحث تدريجي -->
+    <!-- مزامنة الصوت/الفيديو -->
+    <string name="av_offset">إزاحة مزامنة الصوت/الفيديو</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">بحث</string>
+    <string name="tab_home">الرئيسية</string>
+    <string name="tab_live_tv">البث المباشر</string>
+    <!-- الاستدراك: تشغيل أرشيف Xtream tv_archive (قناة ← يوم ← برنامج بُث مسبقاً). -->
+    <string name="tab_catchup">البرامج الفائتة</string>
+    <string name="catchup_crumb_categories">البرامج الفائتة · %1$d قناة لديها أرشيف</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d قناة</string>
+    <string name="catchup_crumb_days">%1$s · اختر يوماً</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">اليوم</string>
+    <string name="catchup_yesterday">أمس</string>
+    <string name="catchup_loading">جارٍ تحميل الدليل…</string>
+    <string name="catchup_no_guide">لا توجد بيانات دليل لهذا اليوم — يتم عرض فترات ساعة بساعة.</string>
+    <string name="catchup_nothing_aired">لم يُعرض أي شيء في هذا اليوم بعد.</string>
+    <string name="catchup_no_provider">لا يمكن تشغيل هذا — لم يعد المزوّد الذي جاء منه مُعدّاً بعد الآن.</string>
+    <string name="catchup_hour_block">فترة ساعة</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="zero">%1$d يوم محفوظ</item>
+        <item quantity="one">%1$d يوم محفوظ</item>
+        <item quantity="two">%1$d يومان محفوظان</item>
+        <item quantity="few">%1$d أيام محفوظة</item>
+        <item quantity="many">%1$d يوماً محفوظاً</item>
+        <item quantity="other">%1$d يوم محفوظ</item>
+    </plurals>
+    <string name="series_tab">المسلسلات</string>
+    <string name="films_tab">الأفلام</string>
+    <string name="discover_tab">اكتشف</string>
+    <string name="downloads_tab">التنزيلات</string>
+    <string name="no_provider_configured">لم يتم إعداد أي مزوّد</string>
+    <string name="press_settings_to_add_playlist">اضغط الإعدادات لإضافة رابط قائمة تشغيل</string>
+    <string name="add_a_provider">إضافة مزوّد</string>
+    <string name="startup_choose_provider">مزوّد IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">محتوى بث عام</string>
+    <string name="startup_choose_both">كليهما</string>
+    <string name="search_main_hint">ابحث في البث المباشر والأفلام والمسلسلات…</string>
+    <string name="no_downloads_yet">لا توجد تنزيلات بعد</string>
+    <string name="overview">نظرة عامة</string>
+    <string name="cast">طاقم التمثيل</string>
+    <string name="play">تشغيل</string>
+    <string name="find_stream">البحث والتشغيل</string>
+    <string name="trailer">العرض الترويجي</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">سكون</string>
+    <string name="diag">تشخيص</string>
+    <string name="open_in_external_player_short">فتح في</string>
+
+    <!-- يُعرض على شاشة السيارة في بداية كل جلسة، وفي الإعدادات على الهاتف.
+         يُبقى قصيراً بما يكفي حتى لا تقطعه وحدة الرأس في منتصف الجملة. -->
+    <string name="car_disclaimer">لا تشاهد الفيديو أثناء القيادة.\n\nلا يُشغَّل الفيديو إلا عندما يتأكد Lumora من أن السيارة متوقفة. عند أي حركة تنطفئ الصورة ويستمر الصوت.\n\nمقدَّم «كما هو»، دون أي ضمان ودون أي مسؤولية عن أي خسارة أو ضرر أو غرامة أو فشل في هذه الضوابط. استخدمه بما يتوافق مع القانون.</string>
+
+    <string name="legal_notice_title">إشعار قانوني وسلامة</string>
+    <string name="legal_notice">يُقدَّم Lumora مجاناً، «كما هو» ودون أي ضمان من أي نوع، صريح أو ضمني، بما في ذلك على سبيل المثال لا الحصر ضمانات القابلية للتسويق والملاءمة لغرض معين وعدم انتهاك حقوق الآخرين.\n\nفي أقصى حد يسمح به القانون، لا يتحمل المؤلفون والمساهمون أي مسؤولية عن أي مطالبة أو أضرار أو خسارة أو أي التزام آخر ينشأ عن التطبيق أو عن استخدامه أو فيما يتعلق بهما، بما في ذلك على سبيل المثال لا الحصر: فقدان أو تلف البيانات أو الأجهزة، انقطاع الخدمة، تعطل التطبيق أو أخطاؤه، الرسوم التي يفرضها مزود الشبكة أو مزودو المحتوى لديك، أو أي غرامة أو جزاء أو ملاحقة ناتجة عن استخدامك للتطبيق.\n\nالقيادة: تشغيل الفيديو داخل مركبة مخصص فقط لمركبة متوقفة أو لشاشة الراكب. مشاهدة الفيديو أثناء القيادة غير قانونية في معظم الولايات القضائية. يحاول Lumora اكتشاف الحركة وتعطيل الفيديو تلقائياً، لكن هذا الاكتشاف يعتمد على الأجهزة والأذونات والإشارات الخارجة عن سيطرة التطبيق، وقد يفشل أو يكون غير متاح. يجب ألا تعتمد عليه. يظل السائق وحده مسؤولاً عن الامتثال لجميع قوانين المرور المعمول بها.\n\nالمحتوى: Lumora هو مشغل. لا يستضيف ولا يوفّر ولا يفهرس أي محتوى خاص به. جميع البث والفهارس والبيانات الوصفية تأتي من الخدمات والمزوّدين الذين تقوم بإعدادهم بنفسك، وأنت وحدك المسؤول عن امتلاك الحقوق أو الاشتراكات اللازمة للوصول إليها، وعن الامتثال لشروط تلك الخدمات وقوانين بلدك.\n\nالتوزيع: لا يتم توزيع هذا التطبيق عبر Google Play ولا هو تابع لشركة Google أو مصرَّح به أو معتمَد منها. Android وAndroid Auto وGoogle Cast علامات تجارية لشركة Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">الإصدارات</string>
+    <string name="fit">ملاءمة</string>
+    <string name="audio">الصوت</string>
+    <string name="subtitles">الترجمة النصية</string>
+    <string name="chapters">الفصول</string>
+    <string name="seek_preview">معاينة التمرير</string>
+    <string name="player_menu_title">القائمة</string>
+    <string name="player_menu">قائمة المشغل</string>
+    <string name="close_side_menu">إغلاق القائمة</string>
+    <string name="side_menu_loading">جارٍ التحميل…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">المزوّدون</string>
+    <string name="playback">التشغيل</string>
+    <string name="general">عام</string>
+    <string name="filters">عوامل التصفية</string>
+    <string name="privacy">الخصوصية</string>
+    <string name="downloads">التنزيلات</string>
+    <string name="plugins">الإضافات</string>
+    <string name="enabled">مفعّل</string>
+    <string name="update">تحديث</string>
+    <string name="back_to_plugins">‹  الإضافات</string>
+    <string name="about">حول</string>
+    <string name="providers_description">شغّل عدة مزوّدين معاً - فعّل أو عطّل كل واحد على حدة</string>
+    <string name="your_providers">المزوّدون لديك</string>
+    <string name="no_iptv_providers_added_yet">لم تتم إضافة أي مزوّد IPTV بعد</string>
+    <string name="add_provider">+ إضافة مزوّد</string>
+    <string name="what_kind_of_provider">ما نوع هذا المزوّد؟</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">رابط قائمة التشغيل</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">رموز تسجيل الدخول</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">عنوان MAC</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">خادم الوسائط</string>
+    <string name="change">تغيير</string>
+    <string name="show_phone_qr_pairing_code">إظهار رمز اقتران الهاتف عبر QR</string>
+    <string name="or_enter_manually">أو أدخل يدوياً</string>
+    <string name="name">الاسم</string>
+    <string name="server_url">رابط الخادم</string>
+    <string name="sign_in_with_quick_connect">تسجيل الدخول عبر Quick Connect</string>
+    <string name="username_if_quick_connect_off">اسم المستخدم (إذا كان Quick Connect متوقفاً)</string>
+    <string name="playback_settings">إعدادات التشغيل</string>
+    <string name="hide_non_english">إخفاء الأفلام/المسلسلات غير الإنجليزية</string>
+    <string name="hide_adult_categories">إخفاء فئات البالغين</string>
+    <!-- شريط الفئات المطوي: الحبة التي تعيده، والتلميح لمرة واحدة الظاهر لحظة الطي
+         حتى لا يكون طريق العودة شيئاً تبحث عنه. -->
+    <string name="categories">الفئات</string>
+    <string name="show_categories">إظهار الفئات</string>
+    <string name="categories_hidden_hint">الفئات مخفية — انقر «الفئات» للإظهار</string>
+    <!-- شريط الإعدادات المطوي: آخر صف تنقل يخفيه، والحبة + التلميح لمرة واحدة اللذان
+         يعيدانه - مرآة لوظائف طي الشريط الجانبي للفئات. -->
+    <string name="settings_nav_collapse">طيّ</string>
+    <string name="show_settings">إظهار الإعدادات</string>
+    <string name="settings_hidden_hint">الإعدادات مخفية — انقر «الإعدادات» للإظهار</string>
+    <string name="categorize_live">تصنيف البث المباشر</string>
+    <string name="categorize_vod">تصنيف الأفلام والمسلسلات</string>
+    <string name="group_channels">تجميع القنوات المكررة</string>
+    <string name="set_parental_pin">تعيين رمز PIN للرقابة الأبوية</string>
+    <string name="clear_watch_history">مسح سجل المشاهدة</string>
+    <string name="plugins_description">نصوص برمجية صغيرة تضيف ميزات - البحث عن مزوّدين أو عن بث. لا يُثبَّت أي شيء كتطبيق منفصل؛ يعمل النص داخل Lumora، وأي شيء يقترحه لا يُستخدم إلا إذا أكدته.</string>
+    <string name="add_a_plugin">أضف إضافة</string>
+    <string name="install_from_url">إضافة من رابط</string>
+    <string name="enter_apk_link">أدخل رابط نص الإضافة</string>
+    <string name="installed">مثبّتة</string>
+    <string name="no_plugins_installed">لم يتم تثبيت أي إضافة - تصفح متجر إضافات أدناه</string>
+    <string name="plugin_stores">متاجر الإضافات</string>
+    <string name="add_plugin_store">+ إضافة متجر إضافات</string>
+    <string name="browse">تصفح</string>
+    <string name="no_plugin_stores">لم تتم إضافة أي متجر إضافات</string>
+    <string name="results">النتائج</string>
+    <string name="version">الإصدار</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">التطبيق</string>
+    <string name="about_platform_label">المنصة</string>
+    <string name="about_platform_value">Android · TV + هاتف</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">التحقق من التحديثات</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">اكتب للبحث</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">إغلاق</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">تعديل</string>
+    <string name="remove">إزالة</string>
+    <!-- مفاتيح نوع المحتوى لكل مزوّد على صف المزوّد. معرّفات مخصصة رغم وجود «أفلام»/«مسلسلات»
+         كعناوين تبويبات (films_tab/series_tab) - مسار الربط يربط كل خانة بهذه المعرّفات،
+         وإعادة استخدام نصوص التبويبات ستربط الاثنين معاً. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">أفلام</string>
+    <string name="provider_content_series">مسلسلات</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">تشغيل</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">مُختبر</string>
+    <string name="add">إضافة</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">عرض الكل</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - مفاتيح تحديد حالة المشاهدة -->
+    <string name="episode_mark_watched">تحديد الحلقة كمشاهدة</string>
+    <string name="episode_mark_unwatched">تحديد الحلقة كغير مشاهدة</string>
+    <string name="season_mark_watched">تحديد الموسم كمشاهد</string>
+    <string name="season_mark_unwatched">تحديد الموسم كغير مشاهد</string>
+
+    <!-- dialog_search.xml - طبقة البحث -->
+    <string name="search_overlay_hint">ابحث في البث المباشر والأفلام والمسلسلات…</string>
+    <string name="search_recents_label">عمليات البحث الأخيرة</string>
+    <string name="search_recents_clear">مسح</string>
+    <string name="search_filter_all">الكل</string>
+    <string name="search_filter_films">أفلام</string>
+    <string name="search_filter_series">مسلسلات</string>
+    <!-- نصوص الحالة التي يتبدل بينها مضيف البحث. «لا توجد نتائج» يحمل الاستعلام،
+         وسطر التلميح يذهب على سطر ثانٍ من نفس TextView للحالة عند عرضه. -->
+    <string name="search_status_searching">جارٍ البحث…</string>
+    <string name="search_status_no_results">لا توجد نتائج لـ «%1$s»</string>
+    <string name="search_status_no_results_hint">جرّب حروفاً أقل، أو تحقق من الإملاء.</string>
+    <string name="search_status_count">%1$d/%2$d نتيجة</string>
+
+    <!-- item_epg_result.xml - نتائج البحث عن برامج EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - مفتاح طبقة علامات الترقيم. \? يهرب ? الأولية -
+         وإلا لقرأ aapt «?123» كمرجع مورد. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - بحث اكتشف (TMDB) -->
+    <string name="discover_search_hint">ابحث في الأفلام والمسلسلات…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - يظهر فوق WebView التحدي على التلفاز،
+         حيث لا يوجد مؤشر ويجب إصابة خانة الاختيار بمؤشر افتراضي. -->
+    <string name="bypass_tv_instructions">حرّك المؤشر فوق خانة الاختيار\nواضغط OK لإلغاء القفل</string>
+
+    <!-- MainActivityScraper - منتقي المصدر. TMDB يقول ما الموجود؛ لا تُسأل المواقع إلا عن
+         القادر على بثه، والمضيفون يموتون كثيراً بما يكفي ليكون الفشل أمراً روتينياً. -->
+    <string name="scraper_dialog_title">البحث عن بث \u2014 %1$s</string>
+    <string name="scraper_finding_sources">جارٍ البحث عن مصادر\u2026</string>
+    <string name="scraper_searching_sites">جارٍ البحث في المواقع\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">فتح %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s لم يعمل \u2014 جرّب مصدراً آخر</string>
+    <string name="scraper_no_sources">لا توجد مصادر لهذا العنوان</string>
+    <string name="scraper_pick_manually">اختر مصدراً</string>
+    <string name="scraper_attempt_detail">عبر %1$s \u00b7 محاولة %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="zero">%1$d مصدر</item>
+        <item quantity="one">%1$d مصدر</item>
+        <item quantity="two">%1$d مصدران</item>
+        <item quantity="few">%1$d مصادر</item>
+        <item quantity="many">%1$d مصدراً</item>
+        <item quantity="other">%1$d مصدر</item>
+    </plurals>
+
+    <!-- MainActivitySettings - مصادر مواقع البث. -->
+    <string name="scraper_settings_title">مواقع البث</string>
+    <string name="scraper_settings_subtitle">مواقع بث عامة يمكن لـ«البحث عن بث» الاعتماد عليها. يبقى التصفح في «اكتشف» \u2014 لا تُسأل إلا عن إمكانية بث عنوان اخترته بالفعل.</string>
+    <string name="scraper_enabled_title">استخدام مواقع البث</string>
+    <string name="scraper_enabled_subtitle">يعرض «البحث عن بث» على عناوين «اكتشف»</string>
+    <string name="scraper_sites_header">مواقع للبحث</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">يحلّ نطاقات المواقع عبر محلل مشفر بدلاً من محلل مزوّد الإنترنت لديك</string>
+    <string name="scraper_doh_system">DNS النظام</string>
+    <string name="scraper_extra_buffering_title">تخزين مؤقت إضافي</string>
+    <string name="scraper_extra_buffering_subtitle">يخزن ما يصل إلى 5 دقائق مقدماً للمواقع التي ترسل على دفعات. يستهلك ذاكرة أكبر؛ يُطبق بعد إعادة التشغيل</string>
+    <string name="category_newest">الأحدث</string>
+    <string name="category_continue_watching">متابعة المشاهدة</string>
+    <string name="category_other">أخرى</string>
+    <string name="category_all">الكل</string>
+    <string name="category_anime">أنمي</string>
+    <string name="category_collapse_categories">طيّ الفئات</string>
+    <string name="category_favourites">المفضلة</string>
+    <string name="category_group_into_categories">تجميع في فئات</string>
+    <string name="category_show_all_categories">إظهار كل الفئات (قائمة كلاسيكية)</string>
+    <string name="category_next_up">التالي</string>
+    <string name="category_recently_played">تم تشغيلها مؤخراً</string>
+    <string name="category_favourite_channels">القنوات المفضلة</string>
+</resources>

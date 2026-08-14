@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">ترتیبات</string>
+    <!-- ایپ کا انٹرفیس زبان (جنرل سیٹنگز پینل)۔ «system» ڈیوائس کی زبان کی پیروی کرتا ہے؛
+         چننے کے اختیارات مقامی زبان کے نام ہیں اور انہیں ترجمے کی ضرورت نہیں۔ -->
+    <string name="settings_ui_language">زبان</string>
+    <string name="settings_ui_language_caption">پورے ایپ کا ترجمہ کرتا ہے — آڈیو، سب ٹائٹلز اور TMDB بھی سیٹ کرتا ہے</string>
+    <string name="settings_type_m3u">قسم: M3U</string>
+    <string name="m3u_url">M3U/M3U8 پلے لسٹ کا URL</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">صارف نام</string>
+    <string name="xtream_password">پاس ورڈ</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">محفوظ کریں</string>
+    <string name="cancel">منسوخ کریں</string>
+    <string name="loading">لوڈ ہو رہا ہے&#8230;</string>
+    <string name="live_badge">لائیو</string>
+
+    <!-- فراہم کنندگان کی اقسام -->
+    <string name="stalker_mac">MAC پتہ</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- پلیئر -->
+    <!-- ریکارڈنگ -->
+    <string name="recording_storage">ریکارڈنگ اسٹوریج</string>
+
+    <!-- بیک اپ اور بحالی -->
+    <string name="backup_restore">بیک اپ اور بحالی</string>
+    <string name="export_backup">بیک اپ برآمد کریں</string>
+    <string name="import_backup">بیک اپ درآمد کریں</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG ذرائع</string>
+    <string name="add_epg_source">EPG ذریعہ شامل کریں</string>
+
+    <!-- مواد کا انتظام -->
+    <!-- VOD -->
+    <!-- معیار -->
+    <!-- غلطیاں -->
+    <!-- عددی اندراج -->
+    <!-- اگلا / خودکار پیش رفت -->
+    <string name="up_next">اگلا</string>
+    <string name="play_now">ابھی چلائیں</string>
+
+    <!-- بڑھتی ہوئی تلاش -->
+    <!-- A/V ہم آہنگی -->
+    <string name="av_offset">A/V ہم آہنگی آفسیٹ</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">تلاش</string>
+    <string name="tab_home">ہوم</string>
+    <string name="tab_live_tv">لائیو ٹی وی</string>
+    <!-- کیچ اپ: Xtream tv_archive پلے بیک (چینل → دن → پروگرام جو پہلے ہی نشر ہو چکا ہے)۔ -->
+    <string name="tab_catchup">کیچ اپ</string>
+    <string name="catchup_crumb_categories">کیچ اپ · %1$d چینلز ایک آرکائیو کے ساتھ</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d چینلز</string>
+    <string name="catchup_crumb_days">%1$s · ایک دن منتخب کریں</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">آج</string>
+    <string name="catchup_yesterday">کل</string>
+    <string name="catchup_loading">گائیڈ لوڈ ہو رہی ہے…</string>
+    <string name="catchup_no_guide">اس دن کے لیے گائیڈ ڈیٹا موجود نہیں — گھنٹہ وار بلاکس دکھائے جا رہے ہیں۔</string>
+    <string name="catchup_nothing_aired">اس دن ابھی کچھ نشر نہیں ہوا۔</string>
+    <string name="catchup_no_provider">یہ چلایا نہیں جا سکتا — جس فراہم کنندہ سے یہ آیا تھا وہ اب ترتیب شدہ نہیں ہے۔</string>
+    <string name="catchup_hour_block">گھنٹہ وار بلاک</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d دن محفوظ رکھا گیا</item>
+        <item quantity="other">%1$d دن محفوظ رکھے گئے</item>
+    </plurals>
+    <string name="series_tab">سیریز</string>
+    <string name="films_tab">فلمیں</string>
+    <string name="discover_tab">دریافت کریں</string>
+    <string name="downloads_tab">ڈاؤن لوڈز</string>
+    <string name="no_provider_configured">کوئی فراہم کنندہ ترتیب شدہ نہیں</string>
+    <string name="press_settings_to_add_playlist">پلے لسٹ کا URL شامل کرنے کے لیے ترتیبات دبائیں</string>
+    <string name="add_a_provider">فراہم کنندہ شامل کریں</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN فراہم کنندہ</string>
+    <string name="startup_choose_public">عوامی اسٹریمنگ مواد</string>
+    <string name="startup_choose_both">دونوں</string>
+    <string name="search_main_hint">لائیو ٹی وی، فلمیں اور سیریز تلاش کریں…</string>
+    <string name="no_downloads_yet">ابھی کوئی ڈاؤن لوڈ نہیں</string>
+    <string name="overview">جائزہ</string>
+    <string name="cast">کاسٹ</string>
+    <string name="play">چلائیں</string>
+    <string name="find_stream">تلاش کریں اور چلائیں</string>
+    <string name="trailer">ٹریلر</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">سلیپ</string>
+    <string name="diag">ڈائیگ</string>
+    <string name="open_in_external_player_short">کھولیں</string>
+
+    <!-- ہر سیشن کے آغاز پر کار اسکرین پر اور فون پر ترتیبات میں دکھایا جاتا ہے۔
+         اتنا مختصر رکھا گیا ہے کہ ہیڈ یونٹ اسے جملے کے بیچ میں نہ کاٹے۔ -->
+    <string name="car_disclaimer">گاڑی چلاتے ہوئے ویڈیو نہ دیکھیں۔\n\nویڈیو صرف اس وقت چلتی ہے جب Lumora تصدیق کرے کہ گاڑی رکی ہوئی ہے۔ کسی بھی حرکت پر تصویر بند ہو جاتی ہے اور آواز جاری رہتی ہے۔\n\n«جیسا ہے» فراہم کیا جاتا ہے، بغیر کسی وارنٹی اور ان کنٹرولز کے کسی نقصان، خسارے، جرمانے یا ناکامی کی کوئی ذمہ داری کے بغیر۔ قانونی طور پر استعمال کریں۔</string>
+
+    <string name="legal_notice_title">قانونی اور حفاظتی نوٹس</string>
+    <string name="legal_notice">Lumora مفت فراہم کیا جاتا ہے، «جیسا ہے» اور کسی بھی قسم کی وارنٹی کے بغیر، واضح یا مضمر، بشمول لیکن ان تک محدود نہیں: تجارتی قابلیت، کسی خاص مقصد کے لیے موزونیت اور غیر خلاف ورزی کی وارنٹیاں۔\n\nقانون کے ذریعے اجازت دی گئی مکمل حد تک، مصنفین اور تعاون کنندگان کسی بھی دعوے، نقصان، خسارے یا دیگر ذمہ داری کے لیے ذمہ دار نہیں ہیں جو ایپ یا اس کے استعمال سے پیدا ہو یا اس سے منسلک ہو، بشمول لیکن ان تک محدود نہیں: ڈیٹا یا آلات کا نقصان یا خرابی، سروس میں خلل، ایپ کریش یا غلطیاں، آپ کے نیٹ ورک یا مواد فراہم کرنے والوں کی جانب سے وصول کیے جانے والے چارجز، یا ایپ کے آپ کے استعمال کے نتیجے میں کوئی جرمانہ، فائن یا مقدمہ۔\n\nڈرائیونگ: گاڑی میں ویڈیو پلے بیک صرف رکی ہوئی گاڑی یا مسافر ڈسپلے کے لیے ہے۔ گاڑی چلاتے ہوئے ویڈیو دیکھنا زیادہ تر دائرہ اختیار میں غیر قانونی ہے۔ Lumora حرکت کا پتہ لگانے اور ویڈیو خودکار طور پر بند کرنے کی کوشش کرتا ہے، لیکن یہ پتہ لگانا ہارڈ ویئر، اجازتوں اور ایپ کے کنٹرول سے باہر کے سگنلز پر منحصر ہے اور ناکام ہو سکتا ہے یا دستیاب نہیں ہو سکتا۔ آپ کو اس پر بھروسہ نہیں کرنا چاہیے۔ ڈرائیور تمام قابل اطلاق ٹریفک قوانین کی تعمیل کا واحد ذمہ دار رہتا ہے۔\n\nمواد: Lumora ایک پلیئر ہے۔ یہ اپنے پاس کسی مواد کی میزبانی، فراہمی یا اشاریہ نہیں کرتا۔ تمام اسٹریمز، کیٹلاگ اور میٹا ڈیٹا ان سروسز اور فراہم کنندگان سے آتے ہیں جنہیں آپ خود ترتیب دیتے ہیں، اور ان تک رسائی کے لیے ضروری حقوق یا سبسکرپشنز رکھنے کے ساتھ ساتھ ان سروسز کی شرائط اور اپنے ملک کے قوانین کی تعمیل کرنا آپ کی واحد ذمہ داری ہے۔\n\nتقسیم: یہ ایپ Google Play کے ذریعے تقسیم نہیں کی جاتی اور نہ ہی Google سے وابستہ، منظور شدہ یا تصدیق شدہ ہے۔ Android، Android Auto اور Google Cast Google LLC کے ٹریڈ مارک ہیں۔</string>
+    <string name="rec">REC</string>
+    <string name="versions">ورژنز</string>
+    <string name="fit">فٹ</string>
+    <string name="audio">آڈیو</string>
+    <string name="subtitles">سب ٹائٹلز</string>
+    <string name="chapters">ابواب</string>
+    <string name="seek_preview">سییک پیش نظارہ</string>
+    <string name="player_menu_title">مینو</string>
+    <string name="player_menu">پلیئر مینو</string>
+    <string name="close_side_menu">مینو بند کریں</string>
+    <string name="side_menu_loading">لوڈ ہو رہا ہے…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">فراہم کنندگان</string>
+    <string name="playback">پلے بیک</string>
+    <string name="general">عمومی</string>
+    <string name="filters">فلٹرز</string>
+    <string name="privacy">رازداری</string>
+    <string name="downloads">ڈاؤن لوڈز</string>
+    <string name="plugins">پلگ انز</string>
+    <string name="enabled">فعال</string>
+    <string name="update">اپ ڈیٹ</string>
+    <string name="back_to_plugins">‹  پلگ انز</string>
+    <string name="about">تعارف</string>
+    <string name="providers_description">متعدد فراہم کنندگان کو ساتھ چلائیں - ہر ایک کو الگ سے فعال یا غیر فعال کریں</string>
+    <string name="your_providers">آپ کے فراہم کنندگان</string>
+    <string name="no_iptv_providers_added_yet">ابھی کوئی IPTV فراہم کنندہ شامل نہیں کیا گیا</string>
+    <string name="add_provider">+ فراہم کنندہ شامل کریں</string>
+    <string name="what_kind_of_provider">یہ کس قسم کا فراہم کنندہ ہے؟</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">پلے لسٹ لنک</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">لاگ ان کوڈز</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC پتہ</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">میڈیا سرور</string>
+    <string name="change">تبدیل کریں</string>
+    <string name="show_phone_qr_pairing_code">فون کا QR جوڑا بنانے کا کوڈ دکھائیں</string>
+    <string name="or_enter_manually">یا دستی طور پر درج کریں</string>
+    <string name="name">نام</string>
+    <string name="server_url">سرور URL</string>
+    <string name="sign_in_with_quick_connect">Quick Connect سے سائن ان کریں</string>
+    <string name="username_if_quick_connect_off">صارف نام (اگر Quick Connect بند ہے)</string>
+    <string name="playback_settings">پلے بیک ترتیبات</string>
+    <string name="hide_non_english">غیر انگریزی فلمیں/سیریز چھپائیں</string>
+    <string name="hide_adult_categories">بالغ زمرے چھپائیں</string>
+    <!-- مطوی زمرہ ریل: وہ پل جو اسے واپس لاتا ہے، اور ایک بار کا اشارہ جو طے ہونے کے
+         لمحے دکھایا جاتا ہے تاکہ واپسی کا راستہ کبھی ڈھونڈنا نہ پڑے۔ -->
+    <string name="categories">زمرے</string>
+    <string name="show_categories">زمرے دکھائیں</string>
+    <string name="categories_hidden_hint">زمرے چھپے ہوئے ہیں — دکھانے کے لیے «زمرے» پر ٹیپ کریں</string>
+    <!-- مطوی ترتیبات ریل: آخری نیویگیشن صف جو اسے چھپاتی ہے، اور پل + ایک بار کا اشارہ
+         جو اسے واپس لاتے ہیں - زمرہ سائیڈ بار کے طے کرنے کے اختیارات کا آئینہ۔ -->
+    <string name="settings_nav_collapse">سکیڑیں</string>
+    <string name="show_settings">ترتیبات دکھائیں</string>
+    <string name="settings_hidden_hint">ترتیبات چھپی ہوئی ہیں — دکھانے کے لیے «ترتیبات» پر ٹیپ کریں</string>
+    <string name="categorize_live">لائیو ٹی وی کی درجہ بندی کریں</string>
+    <string name="categorize_vod">فلموں اور سیریز کی درجہ بندی کریں</string>
+    <string name="group_channels">ڈپلیکیٹ چینلز کو گروپ کریں</string>
+    <string name="set_parental_pin">پیرنٹل PIN مقرر کریں</string>
+    <string name="clear_watch_history">دیکھنے کی تاریخ صاف کریں</string>
+    <string name="plugins_description">چھوٹے اسکرپٹس جو خصوصیات شامل کرتے ہیں - فراہم کنندگان تلاش کرنا، یا اسٹریمز تلاش کرنا۔ کوئی چیز الگ ایپ کے طور پر انسٹال نہیں ہوتی؛ ایک اسکرپٹ Lumora کے اندر چلتا ہے، اور جو کچھ یہ تجویز کرتا ہے وہ صرف آپ کی تصدیق پر استعمال ہوتا ہے۔</string>
+    <string name="add_a_plugin">پلگ ان شامل کریں</string>
+    <string name="install_from_url">URL سے شامل کریں</string>
+    <string name="enter_apk_link">پلگ ان اسکرپٹ کا لنک درج کریں</string>
+    <string name="installed">انسٹال شدہ</string>
+    <string name="no_plugins_installed">کوئی پلگ ان انسٹال نہیں - نیچے پلگ ان اسٹور براؤز کریں</string>
+    <string name="plugin_stores">پلگ ان اسٹورز</string>
+    <string name="add_plugin_store">+ پلگ ان اسٹور شامل کریں</string>
+    <string name="browse">براؤز کریں</string>
+    <string name="no_plugin_stores">کوئی پلگ ان اسٹور شامل نہیں</string>
+    <string name="results">نتائج</string>
+    <string name="version">ورژن</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">ایپ</string>
+    <string name="about_platform_label">پلیٹ فارم</string>
+    <string name="about_platform_value">Android · TV + فون</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">اپ ڈیٹس کی جانچ کریں</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">تلاش کرنے کے لیے ٹائپ کریں</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">بند کریں</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">ترمیم کریں</string>
+    <string name="remove">ہٹائیں</string>
+    <!-- فراہم کنندہ کی صف پر فی فراہم کنندہ مواد کی قسم کے ٹوگلز۔ مخصوص ids حالانکہ
+         «فلمیں»/«سیریز» ٹیب لیبل کے طور پر موجود ہیں (films_tab/series_tab) - وائرنگ لین
+         ہر چیک باکس کو انہی ids سے جوڑتی ہے اور ٹیب سٹرنگز کو دوبارہ استعمال کرنا دونوں کو
+         جوڑ دے گا۔ -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">فلمیں</string>
+    <string name="provider_content_series">سیریز</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">چلائیں</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">آزمودہ</string>
+    <string name="add">شامل کریں</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">سب دیکھیں</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - دیکھے جانے کی حالت کے چیک ٹوگلز -->
+    <string name="episode_mark_watched">قسط کو دیکھی ہوئی نشان زد کریں</string>
+    <string name="episode_mark_unwatched">قسط کو نہ دیکھی ہوئی نشان زد کریں</string>
+    <string name="season_mark_watched">سیزن کو دیکھا ہوا نشان زد کریں</string>
+    <string name="season_mark_unwatched">سیزن کو نہ دیکھا ہوا نشان زد کریں</string>
+
+    <!-- dialog_search.xml - تلاش اوورلے -->
+    <string name="search_overlay_hint">لائیو ٹی وی، فلمیں اور سیریز تلاش کریں…</string>
+    <string name="search_recents_label">حالیہ تلاشیں</string>
+    <string name="search_recents_clear">صاف کریں</string>
+    <string name="search_filter_all">سب</string>
+    <string name="search_filter_films">فلمیں</string>
+    <string name="search_filter_series">سیریز</string>
+    <!-- اسٹیٹس ٹیکسٹ جن کے درمیان تلاش میزبان سوئچ کرتا ہے۔ کوئی نتائج نہیں میں استفسار
+         ہوتا ہے، اور اشارے کی لائن دکھائے جانے پر اسی اسٹیٹس TextView کی دوسری لائن پر جاتی ہے۔ -->
+    <string name="search_status_searching">تلاش جاری ہے…</string>
+    <string name="search_status_no_results">«%1$s» کے لیے کوئی نتائج نہیں</string>
+    <string name="search_status_no_results_hint">کم حروف آزمائیں، یا ہجے چیک کریں۔</string>
+    <string name="search_status_count">%1$d/%2$d نتائج</string>
+
+    <!-- item_epg_result.xml - EPG پروگرام تلاش کے نتائج -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - اوقاف کی پرت کا ٹوگل۔ \? ابتدائی ? کو escape کرتا ہے -
+         ورنہ aapt «?123» کو وسائل کا حوالہ پڑھ لیتا۔ -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - دریافت کریں (TMDB) تلاش -->
+    <string name="discover_search_hint">فلمیں اور سیریز تلاش کریں…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - TV پر چیلنج WebView کے اوپر دکھایا جاتا ہے،
+         جہاں کوئی پوائنٹر نہیں ہوتا اور چیک باکس کو ورچوئل کرسر سے نشانہ بنانا ہوتا ہے۔ -->
+    <string name="bypass_tv_instructions">کرسر کو چیک باکس پر لے جائیں\nاور غیر مقفل کرنے کے لیے OK دبائیں</string>
+
+    <!-- MainActivityScraper - ذریعہ چننے والا۔ TMDB بتاتا ہے کہ کیا موجود ہے؛ سائٹس سے صرف
+         پوچھا جاتا ہے کہ کون اسے اسٹریم کر سکتا ہے، اور ہوسٹ اکثر مر جاتے ہیں کہ ناکامی معمول ہے۔ -->
+    <string name="scraper_dialog_title">اسٹریم تلاش کریں \u2014 %1$s</string>
+    <string name="scraper_finding_sources">ذرائع تلاش کیے جا رہے ہیں\u2026</string>
+    <string name="scraper_searching_sites">سائٹس تلاش کی جا رہی ہیں\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">%1$s کھولا جا رہا ہے\u2026</string>
+    <string name="scraper_source_failed">%1$s کام نہیں کیا \u2014 دوسرا ذریعہ آزمائیں</string>
+    <string name="scraper_no_sources">اس عنوان کے لیے کوئی ذریعہ نہیں ملا</string>
+    <string name="scraper_pick_manually">ذریعہ منتخب کریں</string>
+    <string name="scraper_attempt_detail">%1$s کے ذریعے \u00b7 کوشش %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d ذریعہ</item>
+        <item quantity="other">%1$d ذرائع</item>
+    </plurals>
+
+    <!-- MainActivitySettings - اسٹریمنگ سائٹس کے ذرائع۔ -->
+    <string name="scraper_settings_title">اسٹریمنگ سائٹس</string>
+    <string name="scraper_settings_subtitle">عوامی اسٹریمنگ سائٹس جن سے اسٹریم تلاش کریں حاصل کر سکتا ہے۔ براؤزنگ دریافت کریں پر رہتی ہے \u2014 ان سے صرف یہ پوچھا جاتا ہے کہ آپ کے منتخب کردہ عنوان کو کون اسٹریم کر سکتا ہے۔</string>
+    <string name="scraper_enabled_title">اسٹریمنگ سائٹس استعمال کریں</string>
+    <string name="scraper_enabled_subtitle">دریافت کریں کے عنوانات پر اسٹریم تلاش کریں پیش کرتا ہے</string>
+    <string name="scraper_sites_header">تلاش کرنے کے لیے سائٹس</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">آپ کے ISP کے بجائے ایک خفیہ کردہ ریزالور کے ذریعے سائٹ ڈومینز حل کرتا ہے</string>
+    <string name="scraper_doh_system">سسٹم DNS</string>
+    <string name="scraper_extra_buffering_title">اضافی بفرنگ</string>
+    <string name="scraper_extra_buffering_subtitle">ان میزبانوں کے لیے 5 منٹ تک آگے بفر کرتا ہے جو برسٹ میں ڈیلیور کرتے ہیں۔ زیادہ میموری استعمال کرتا ہے؛ ری اسٹارٹ کے بعد لاگو ہوتا ہے</string>
+    <string name="category_newest">تازہ ترین</string>
+    <string name="category_continue_watching">دیکھنا جاری رکھیں</string>
+    <string name="category_other">دیگر</string>
+    <string name="category_all">سب</string>
+    <string name="category_anime">اینیمی</string>
+    <string name="category_collapse_categories">زمرے سکیڑیں</string>
+    <string name="category_favourites">پسندیدہ</string>
+    <string name="category_group_into_categories">زمروں میں گروپ کریں</string>
+    <string name="category_show_all_categories">تمام زمرے دکھائیں (کلاسک فہرست)</string>
+    <string name="category_next_up">اگلا</string>
+    <string name="category_recently_played">حال ہی میں چلائی گئیں</string>
+    <string name="category_favourite_channels">پسندیدہ چینلز</string>
+</resources>

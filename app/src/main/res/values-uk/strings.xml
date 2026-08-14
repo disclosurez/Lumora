@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Налаштування</string>
+    <!-- Мова інтерфейсу застосунку (панель «Загальні»). «system» відповідає мові пристрою;
+         пункти вибору — це назви мов рідною мовою, їх не потрібно перекладати. -->
+    <string name="settings_ui_language">Мова</string>
+    <string name="settings_ui_language_caption">Перекладає весь застосунок — також налаштовує аудіо, субтитри та TMDB</string>
+    <string name="settings_type_m3u">Тип: M3U</string>
+    <string name="m3u_url">URL плейлиста M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Ім\'я користувача</string>
+    <string name="xtream_password">Пароль</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Зберегти</string>
+    <string name="cancel">Скасувати</string>
+    <string name="loading">Завантаження&#8230;</string>
+    <string name="live_badge">Наживо</string>
+
+    <!-- Типи постачальників -->
+    <string name="stalker_mac">MAC-адреса</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Плеєр -->
+    <!-- Запис -->
+    <string name="recording_storage">Сховище записів</string>
+
+    <!-- Резервне копіювання та відновлення -->
+    <string name="backup_restore">Резервне копіювання та відновлення</string>
+    <string name="export_backup">Експортувати резервну копію</string>
+    <string name="import_backup">Імпортувати резервну копію</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">Джерела EPG</string>
+    <string name="add_epg_source">Додати джерело EPG</string>
+
+    <!-- Керування контентом -->
+    <!-- VOD -->
+    <!-- Якість -->
+    <!-- Помилки -->
+    <!-- Введення цифр -->
+    <!-- Далі / Автоперехід -->
+    <string name="up_next">Далі</string>
+    <string name="play_now">Відтворити зараз</string>
+
+    <!-- Інкрементальний пошук -->
+    <!-- Синхронізація A/V -->
+    <string name="av_offset">Зсув A/V</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Пошук</string>
+    <string name="tab_home">Головна</string>
+    <string name="tab_live_tv">Живе ТБ</string>
+    <!-- Catch Up: відтворення tv_archive Xtream (канал → день → програма, що вже вийшла в ефір). -->
+    <string name="tab_catchup">Catch Up</string>
+    <string name="catchup_crumb_categories">Catch Up · %1$d каналів з архівом</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d каналів</string>
+    <string name="catchup_crumb_days">%1$s · оберіть день</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Сьогодні</string>
+    <string name="catchup_yesterday">Вчора</string>
+    <string name="catchup_loading">Завантаження телепрограми…</string>
+    <string name="catchup_no_guide">Немає даних телепрограми на цей день — показуємо погодинні блоки.</string>
+    <string name="catchup_nothing_aired">Цього дня ще нічого не виходило в ефір.</string>
+    <string name="catchup_no_provider">Це не можна відтворити — постачальник, з якого воно надійшло, більше не налаштований.</string>
+    <string name="catchup_hour_block">Погодинний блок</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d день збережено</item>
+        <item quantity="few">%1$d дні збережено</item>
+        <item quantity="many">%1$d днів збережено</item>
+        <item quantity="other">%1$d днів збережено</item>
+    </plurals>
+    <string name="series_tab">Серіали</string>
+    <string name="films_tab">Фільми</string>
+    <string name="discover_tab">Відкриття</string>
+    <string name="downloads_tab">Завантаження</string>
+    <string name="no_provider_configured">Постачальника не налаштовано</string>
+    <string name="press_settings_to_add_playlist">Натисніть «Налаштування», щоб додати URL плейлиста</string>
+    <string name="add_a_provider">Додати постачальника</string>
+    <string name="startup_choose_provider">ПОСТАЧАЛЬНИК IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">ПУБЛІЧНИЙ СТРИМІНГОВИЙ КОНТЕНТ</string>
+    <string name="startup_choose_both">ОБИДВА</string>
+    <string name="search_main_hint">Пошук у живому ТБ, фільмах і серіалах…</string>
+    <string name="no_downloads_yet">Завантажень ще немає</string>
+    <string name="overview">Огляд</string>
+    <string name="cast">Акторський склад</string>
+    <string name="play">Відтворити</string>
+    <string name="find_stream">Знайти та відтворити</string>
+    <string name="trailer">Трейлер</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Сон</string>
+    <string name="diag">Діагностика</string>
+    <string name="open_in_external_player_short">Відкрити в</string>
+
+    <!-- Показується на екрані автомобіля на початку кожної сесії та в налаштуваннях на телефоні.
+         Текст досить короткий, щоб головний пристрій авто не обрізав його на півслові. -->
+    <string name="car_disclaimer">Не дивіться відео під час водіння.\n\nВідео відтворюється лише тоді, коли Lumora підтверджує, що автомобіль зупинено. За будь-якого руху зображення вимикається, а звук продовжується.\n\nНадається «як є», без гарантій і без відповідальності за будь-які збитки, втрати, штрафи чи збої цих елементів керування. Використовуйте законно.</string>
+
+    <string name="legal_notice_title">Правове та безпекове повідомлення</string>
+    <string name="legal_notice">Lumora надається безкоштовно, «як є» та без будь-яких гарантій, явних чи неявних, зокрема, але не обмежуючись, гарантій придатності до продажу, придатності для певної мети та недоторканності прав третіх осіб.\n\nУ найповнішій мірі, дозволеній законом, автори та дописувачі не несуть жодної відповідальності за будь-які вимоги, збитки, втрати чи іншу відповідальність, що виникають у зв\'язку із застосунком або його використанням, зокрема, але не обмежуючись: втратою або пошкодженням даних чи пристроїв, перериванням обслуговування, збоями чи помилками застосунку, платежами вашого оператора зв\'язку чи постачальників контенту, а також будь-якими штрафами, санкціями чи судовим переслідуванням, що виникли внаслідок використання застосунку.\n\nВодіння: відтворення відео в автомобілі призначене лише для припаркованого автомобіля або для екрана пасажира. Перегляд відео під час водіння заборонено законом у більшості юрисдикцій. Lumora намагається виявляти рух і автоматично вимикати відео, але це виявлення залежить від обладнання, дозволів і сигналів, поза контролем застосунку, і може не спрацювати або бути недоступним. Не покладайтеся на нього. Водій несе повну відповідальність за дотримання всіх чинних правил дорожнього руху.\n\nКонтент: Lumora — це плеєр. Він не розміщує, не надає та не індексує власний контент. Усі потоки, каталоги та метадані надходять із сервісів і постачальників, які ви налаштовуєте самостійно, і саме ви відповідаєте за наявність прав чи підписок, необхідних для доступу до них, а також за дотримання умов цих сервісів і законів вашої країни.\n\nПоширення: цей застосунок не поширюється через Google Play і не пов\'язаний із Google, не схвалений і не сертифікований компанією Google. Android, Android Auto і Google Cast є торговельними марками Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Версії</string>
+    <string name="fit">Підігнати</string>
+    <string name="audio">Аудіо</string>
+    <string name="subtitles">Субтитри</string>
+    <string name="chapters">Розділи</string>
+    <string name="seek_preview">Попередній перегляд перемотування</string>
+    <string name="player_menu_title">Меню</string>
+    <string name="player_menu">Меню плеєра</string>
+    <string name="close_side_menu">Закрити меню</string>
+    <string name="side_menu_loading">Завантаження…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Постачальники</string>
+    <string name="playback">Відтворення</string>
+    <string name="general">Загальні</string>
+    <string name="filters">Фільтри</string>
+    <string name="privacy">Конфіденційність</string>
+    <string name="downloads">Завантаження</string>
+    <string name="plugins">Плагіни</string>
+    <string name="enabled">Увімкнено</string>
+    <string name="update">Оновити</string>
+    <string name="back_to_plugins">‹  Плагіни</string>
+    <string name="about">Про застосунок</string>
+    <string name="providers_description">Запускайте кілька постачальників разом - кожного можна вмикати або вимикати незалежно</string>
+    <string name="your_providers">ВАШІ ПОСТАЧАЛЬНИКИ</string>
+    <string name="no_iptv_providers_added_yet">IPTV-постачальників ще не додано</string>
+    <string name="add_provider">+ Додати постачальника</string>
+    <string name="what_kind_of_provider">Який це тип постачальника?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Посилання на плейлист</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Коди входу</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC-адреса</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Медіасервер</string>
+    <string name="change">Змінити</string>
+    <string name="show_phone_qr_pairing_code">Показати QR-код сполучення з телефоном</string>
+    <string name="or_enter_manually">АБО ввести вручну</string>
+    <string name="name">Назва</string>
+    <string name="server_url">URL сервера</string>
+    <string name="sign_in_with_quick_connect">Увійти через Quick Connect</string>
+    <string name="username_if_quick_connect_off">Ім\'я користувача (якщо Quick Connect вимкнено)</string>
+    <string name="playback_settings">Налаштування відтворення</string>
+    <string name="hide_non_english">Приховати неангломовні фільми/серіали</string>
+    <string name="hide_adult_categories">Приховати дорослі категорії</string>
+    <!-- Згорнута панель категорій: кнопка-пігулка, що повертає її, та одноразова підказка, яка
+         з\'являється в момент згортання, щоб шлях назад ніколи не доводилося шукати. -->
+    <string name="categories">Категорії</string>
+    <string name="show_categories">Показати категорії</string>
+    <string name="categories_hidden_hint">Категорії приховано — торкніться «Категорії», щоб показати</string>
+    <!-- Згорнута панель налаштувань: останній рядок навігації, що ховає її, та кнопка-пігулка +
+         одноразова підказка, що повертають її назад - дзеркальне відображення функцій згортання
+         бічної панелі категорій. -->
+    <string name="settings_nav_collapse">Згорнути</string>
+    <string name="show_settings">Показати налаштування</string>
+    <string name="settings_hidden_hint">Налаштування приховано — торкніться «Налаштування», щоб показати</string>
+    <string name="categorize_live">Категоризувати живе ТБ</string>
+    <string name="categorize_vod">Категоризувати фільми та серіали</string>
+    <string name="group_channels">Групувати канали-дублікати</string>
+    <string name="set_parental_pin">Встановити батьківський PIN</string>
+    <string name="clear_watch_history">Очистити історію переглядів</string>
+    <string name="plugins_description">Невеликі скрипти, що додають функції - пошук постачальників або пошук стрімів. Нічого не встановлюється як окрема програма; скрипт працює всередині Lumora, і все, що він пропонує, використовується лише за вашим підтвердженням.</string>
+    <string name="add_a_plugin">ДОДАТИ ПЛАГІН</string>
+    <string name="install_from_url">Додати з URL</string>
+    <string name="enter_apk_link">Введіть посилання на скрипт плагіна</string>
+    <string name="installed">ВСТАНОВЛЕНО</string>
+    <string name="no_plugins_installed">Плагіни не встановлено - перегляньте магазин плагінів нижче</string>
+    <string name="plugin_stores">МАГАЗИНИ ПЛАГІНІВ</string>
+    <string name="add_plugin_store">+ Додати магазин плагінів</string>
+    <string name="browse">Переглянути</string>
+    <string name="no_plugin_stores">Магазини плагінів не додано</string>
+    <string name="results">РЕЗУЛЬТАТИ</string>
+    <string name="version">Версія</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Застосунок</string>
+    <string name="about_platform_label">Платформа</string>
+    <string name="about_platform_value">Android · TV + телефон</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Перевірити оновлення</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Введіть текст для пошуку</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Закрити</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Редагувати</string>
+    <string name="remove">Видалити</string>
+    <!-- Перемикачі типу контенту для кожного постачальника в його рядку. Окремі id, навіть попри те,
+         що «Фільми»/«Серіали» вже існують як підписи вкладок (films_tab/series_tab) - шар зв\'язку
+         прив\'язує кожен прапорець до цих id, і використання текстів вкладок поєднало б їх між собою. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Фільми</string>
+    <string name="provider_content_series">Серіали</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Запустити</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">ПЕРЕВІРЕНО</string>
+    <string name="add">Додати</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Показати всі</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - прапорці стану перегляду -->
+    <string name="episode_mark_watched">Позначити серію як переглянуту</string>
+    <string name="episode_mark_unwatched">Позначити серію як непереглянуту</string>
+    <string name="season_mark_watched">Позначити сезон як переглянутий</string>
+    <string name="season_mark_unwatched">Позначити сезон як непереглянутий</string>
+
+    <!-- dialog_search.xml - оверлей пошуку -->
+    <string name="search_overlay_hint">Пошук у живому ТБ, фільмах і серіалах…</string>
+    <string name="search_recents_label">Нещодавні пошуки</string>
+    <string name="search_recents_clear">Очистити</string>
+    <string name="search_filter_all">Усі</string>
+    <string name="search_filter_films">Фільми</string>
+    <string name="search_filter_series">Серіали</string>
+    <!-- Тексти статусу, між якими перемикає хост пошуку. «Немає результатів» містить запит, а
+         рядок підказки під час показу йде другим рядком того самого статусного TextView. -->
+    <string name="search_status_searching">Пошук…</string>
+    <string name="search_status_no_results">Немає результатів для «%1$s»</string>
+    <string name="search_status_no_results_hint">Спробуйте менше літер або перевірте написання.</string>
+    <string name="search_status_count">%1$d/%2$d результатів</string>
+
+    <!-- item_epg_result.xml - результати пошуку програм EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - перемикання шару пунктуації. \? екранує початковий ? -
+         інакше aapt прочитав би "?123" як посилання на ресурс. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - пошук у «Відкриттях» (TMDB) -->
+    <string name="discover_search_hint">Пошук фільмів і серіалів…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - показується над WebView перевірки на ТБ,
+         де немає вказівника, і прапорець доводиться натискати віртуальним курсором. -->
+    <string name="bypass_tv_instructions">НАВЕДІТЬ КУРСОР НА ПРАПОРЕЦЬ\nІ НАТИСНІТЬ OK, ЩОБ РОЗБЛОКУВАТИ</string>
+
+    <!-- MainActivityScraper - вибір джерела. TMDB каже, що існує; у сайтів лише питають,
+         хто може його транслювати, а хостери зникають досить часто,
+         тож невдача одного з них — звичайна справа. -->
+    <string name="scraper_dialog_title">Знайти стрім \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Пошук джерел\u2026</string>
+    <string name="scraper_searching_sites">Пошук на сайтах\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Відкриваємо %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s не спрацювало \u2014 спробуйте інше джерело</string>
+    <string name="scraper_no_sources">Для цього заголовка джерел не знайдено</string>
+    <string name="scraper_pick_manually">Обрати джерело</string>
+    <string name="scraper_attempt_detail">через %1$s \u00b7 спроба %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d джерело</item>
+        <item quantity="few">%1$d джерела</item>
+        <item quantity="many">%1$d джерел</item>
+        <item quantity="other">%1$d джерел</item>
+    </plurals>
+
+    <!-- MainActivitySettings - джерела зі стримінгових сайтів. -->
+    <string name="scraper_settings_title">Стримінгові сайти</string>
+    <string name="scraper_settings_subtitle">Публічні стримінгові сайти, з яких може брати «Знайти та відтворити». Перегляд залишається у «Відкриттях» \u2014 у них лише питають, хто може транслювати заголовок, який ви вже обрали.</string>
+    <string name="scraper_enabled_title">Використовувати стримінгові сайти</string>
+    <string name="scraper_enabled_subtitle">Пропонує «Знайти та відтворити» для заголовків у «Відкриттях»</string>
+    <string name="scraper_sites_header">Сайти для пошуку</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Розв\'язує домени сайтів через зашифрований резолвер, а не через DNS вашого провайдера</string>
+    <string name="scraper_doh_system">Системний DNS</string>
+    <string name="scraper_extra_buffering_title">Додаткове буферизування</string>
+    <string name="scraper_extra_buffering_subtitle">Буферизує до 5 хвилин наперед для хостерів, які віддають контент порціями. Використовує більше пам\'яті; застосовується після перезапуску</string>
+    <string name="category_newest">Найновіші</string>
+    <string name="category_continue_watching">Продовжити перегляд</string>
+    <string name="category_other">Інше</string>
+    <string name="category_all">Усі</string>
+    <string name="category_anime">Аніме</string>
+    <string name="category_collapse_categories">Згорнути категорії</string>
+    <string name="category_favourites">Улюблене</string>
+    <string name="category_group_into_categories">Згрупувати в категорії</string>
+    <string name="category_show_all_categories">Показати всі категорії (класичний список)</string>
+    <string name="category_next_up">Далі</string>
+    <string name="category_recently_played">Нещодавно відтворене</string>
+    <string name="category_favourite_channels">Улюблені канали</string>
+</resources>

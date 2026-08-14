@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Ρυθμίσεις</string>
+    <!-- Γλώσσα διεπαφής εντός εφαρμογής (παράθυρο Γενικά). "system" ακολουθεί τη γλώσσα της συσκευής·
+         οι επιλογές του επιλογέα είναι ονόματα στη μητρική γλώσσα και δεν χρειάζονται μετάφραση. -->
+    <string name="settings_ui_language">Γλώσσα</string>
+    <string name="settings_ui_language_caption">Μεταφράζει ολόκληρη την εφαρμογή — ρυθμίζει επίσης τον ήχο, τους υπότιτλους και το TMDB</string>
+    <string name="settings_type_m3u">Τύπος: M3U</string>
+    <string name="m3u_url">Διεύθυνση URL λίστας αναπαραγωγής M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Όνομα χρήστη</string>
+    <string name="xtream_password">Κωδικός πρόσβασης</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Αποθήκευση</string>
+    <string name="cancel">Ακύρωση</string>
+    <string name="loading">Φόρτωση&#8230;</string>
+    <string name="live_badge">Ζωντανά</string>
+
+    <!-- Τύποι παρόχων -->
+    <string name="stalker_mac">Διεύθυνση MAC</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Αναπαραγωγή -->
+    <!-- Εγγραφή -->
+    <string name="recording_storage">Αποθήκευση εγγραφών</string>
+
+    <!-- Δημιουργία αντιγράφων ασφαλείας &amp; επαναφορά -->
+    <string name="backup_restore">Δημιουργία αντιγράφων ασφαλείας &amp; επαναφορά</string>
+    <string name="export_backup">Εξαγωγή αντιγράφου ασφαλείας</string>
+    <string name="import_backup">Εισαγωγή αντιγράφου ασφαλείας</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">Πηγές EPG</string>
+    <string name="add_epg_source">Προσθήκη πηγής EPG</string>
+
+    <!-- Διαχείριση περιεχομένου -->
+    <!-- VOD -->
+    <!-- Ποιότητα -->
+    <!-- Σφάλματα -->
+    <!-- Αριθμητική εισαγωγή -->
+    <!-- Επόμενο / Αυτόματη μετάβαση -->
+    <string name="up_next">Επόμενο</string>
+    <string name="play_now">Αναπαραγωγή τώρα</string>
+
+    <!-- Προοδευτική αναζήτηση -->
+    <!-- Συγχρονισμός A/V -->
+    <string name="av_offset">Μετατόπιση συγχρονισμού ήχου/εικόνας</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Αναζήτηση</string>
+    <string name="tab_home">Αρχική</string>
+    <string name="tab_live_tv">Ζωντανή TV</string>
+    <!-- Catch Up: αναπαραγωγή tv_archive Xtream (κανάλι → ημέρα → πρόγραμμα που έχει ήδη μεταδοθεί). -->
+    <string name="tab_catchup">Αναδρομική προβολή</string>
+    <string name="catchup_crumb_categories">Αναδρομική προβολή · %1$d κανάλια με αρχείο</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d κανάλια</string>
+    <string name="catchup_crumb_days">%1$s · επιλέξτε μια ημέρα</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Σήμερα</string>
+    <string name="catchup_yesterday">Χθες</string>
+    <string name="catchup_loading">Φόρτωση οδηγού…</string>
+    <string name="catchup_no_guide">Δεν υπάρχουν δεδομένα οδηγού για αυτή την ημέρα — εμφανίζονται ωριαία μπλοκ.</string>
+    <string name="catchup_nothing_aired">Δεν έχει μεταδοθεί τίποτα ακόμα αυτή την ημέρα.</string>
+    <string name="catchup_no_provider">Δεν είναι δυνατή η αναπαραγωγή — ο πάροχος από τον οποίο προήλθε δεν είναι πλέον διαμορφωμένος.</string>
+    <string name="catchup_hour_block">Ωριαίο μπλοκ</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d ημέρα διατηρήθηκε</item>
+        <item quantity="other">%1$d ημέρες διατηρήθηκαν</item>
+    </plurals>
+    <string name="series_tab">Σειρές</string>
+    <string name="films_tab">Ταινίες</string>
+    <string name="discover_tab">Ανακάλυψη</string>
+    <string name="downloads_tab">Λήψεις</string>
+    <string name="no_provider_configured">Δεν έχει διαμορφωθεί πάροχος</string>
+    <string name="press_settings_to_add_playlist">Πατήστε Ρυθμίσεις για να προσθέσετε μια διεύθυνση URL λίστας αναπαραγωγής</string>
+    <string name="add_a_provider">Προσθήκη παρόχου</string>
+    <string name="startup_choose_provider">ΠΑΡΟΧΟΣ IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">ΔΗΜΟΣΙΟ ΠΕΡΙΕΧΟΜΕΝΟ ΡΟΗΣ</string>
+    <string name="startup_choose_both">ΚΑΙ ΤΑ ΔΥΟ</string>
+    <string name="search_main_hint">Αναζήτηση σε ζωντανή TV, ταινίες &amp; σειρές…</string>
+    <string name="no_downloads_yet">Δεν υπάρχουν λήψεις ακόμα</string>
+    <string name="overview">Επισκόπηση</string>
+    <string name="cast">Καστ</string>
+    <string name="play">Αναπαραγωγή</string>
+    <string name="find_stream">Εύρεση &amp; αναπαραγωγή</string>
+    <string name="trailer">Τρέιλερ</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Ύπνος</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Άνοιγμα σε</string>
+
+    <!-- Εμφανίζεται στην οθόνη του αυτοκινήτου στην αρχή κάθε συνεδρίας, και στις ρυθμίσεις στο
+         τηλέφωνο. Διατηρείται αρκετά σύντομο ώστε η κεντρική μονάδα να μην το κόβει στη μέση
+         της πρότασης. -->
+    <string name="car_disclaimer">Μην παρακολουθείτε βίντεο ενώ οδηγείτε.\n\nΤο βίντεο αναπαράγεται μόνο όταν η Lumora μπορεί να επιβεβαιώσει ότι το αυτοκίνητο είναι σταματημένο. Σε οποιαδήποτε κίνηση, η εικόνα σβήνει και ο ήχος συνεχίζεται.\n\nΠαρέχεται «ως έχει», χωρίς καμία εγγύηση και χωρίς ευθύνη για οποιαδήποτε απώλεια, ζημιά, ποινή ή αποτυχία αυτών των χειριστηρίων. Χρησιμοποιήστε το σύμφωνα με τον νόμο.</string>
+
+    <string name="legal_notice_title">Νομική σημείωση &amp; σημείωση ασφαλείας</string>
+    <string name="legal_notice">Η Lumora παρέχεται δωρεάν, «ως έχει» και χωρίς εγγύηση κανενός είδους, ρητή ή σιωπηρή, συμπεριλαμβανομένων ενδεικτικά των εγγυήσεων εμπορευσιμότητας, καταλληλότητας για συγκεκριμένο σκοπό και μη παραβίασης δικαιωμάτων τρίτων.\n\nΣτον μέγιστο βαθμό που επιτρέπει ο νόμος, οι συγγραφείς και οι συνεισφέροντες δεν φέρουν καμία ευθύνη για οποιαδήποτε αξίωση, ζημιά, απώλεια ή άλλη υποχρέωση που προκύπτει από την εφαρμογή ή τη χρήση της ή σχετίζεται με αυτές, συμπεριλαμβανομένων ενδεικτικά: απώλειας ή ζημιάς δεδομένων ή συσκευών, διακοπής υπηρεσίας, καταρρεύσεων ή σφαλμάτων της εφαρμογής, χρεώσεων από το δίκτυο ή τους παρόχους περιεχομένου σας, ή οποιασδήποτε ποινής, προστίμου ή δίωξης που προκύπτει από τη χρήση της εφαρμογής.\n\nΟδήγηση: η αναπαραγωγή βίντεο σε όχημα προορίζεται μόνο για σταθμευμένο όχημα ή για οθόνη συνεπιβάτη. Η παρακολούθηση βίντεο κατά την οδήγηση είναι παράνομη στις περισσότερες δικαιοδοσίες. Η Lumora προσπαθεί να ανιχνεύσει την κίνηση και να απενεργοποιήσει αυτόματα το βίντεο, αλλά αυτή η ανίχνευση εξαρτάται από υλικό, άδειες και σήματα εκτός του ελέγχου της εφαρμογής και ενδέχεται να αποτύχει ή να μην είναι διαθέσιμη. Δεν πρέπει να βασίζεστε σε αυτήν. Ο οδηγός παραμένει αποκλειστικά υπεύθυνος για τη συμμόρφωση με όλους τους ισχύοντες νόμους οδικής κυκλοφορίας.\n\nΠεριεχόμενο: Η Lumora είναι μια εφαρμογή αναπαραγωγής. Δεν φιλοξενεί, δεν παρέχει και δεν ευρετηριάζει δικό της περιεχόμενο. Όλες οι ροές, οι κατάλογοι και τα μεταδεδομένα προέρχονται από υπηρεσίες και παρόχους που διαμορφώνετε εσείς οι ίδιοι, και είστε αποκλειστικά υπεύθυνοι για την κατοχή των δικαιωμάτων ή συνδρομών που απαιτούνται για την πρόσβαση σε αυτά και για τη συμμόρφωση με τους όρους αυτών των υπηρεσιών και τους νόμους της χώρας σας.\n\nΔιανομή: αυτή η εφαρμογή δεν διανέμεται μέσω του Google Play και δεν συνδέεται, δεν υποστηρίζεται και δεν πιστοποιείται από την Google. Τα Android, Android Auto και Google Cast είναι εμπορικά σήματα της Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Εκδόσεις</string>
+    <string name="fit">Προσαρμογή</string>
+    <string name="audio">Ήχος</string>
+    <string name="subtitles">Υπότιτλοι</string>
+    <string name="chapters">Κεφάλαια</string>
+    <string name="seek_preview">Προεπισκόπηση αναζήτησης</string>
+    <string name="player_menu_title">Μενού</string>
+    <string name="player_menu">Μενού αναπαραγωγής</string>
+    <string name="close_side_menu">Κλείσιμο μενού</string>
+    <string name="side_menu_loading">Φόρτωση…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Πάροχοι</string>
+    <string name="playback">Αναπαραγωγή</string>
+    <string name="general">Γενικά</string>
+    <string name="filters">Φίλτρα</string>
+    <string name="privacy">Απόρρητο</string>
+    <string name="downloads">Λήψεις</string>
+    <string name="plugins">Πρόσθετα</string>
+    <string name="enabled">Ενεργοποιημένο</string>
+    <string name="update">Ενημέρωση</string>
+    <string name="back_to_plugins">‹  Πρόσθετα</string>
+    <string name="about">Σχετικά</string>
+    <string name="providers_description">Εκτελέστε πολλούς παρόχους μαζί - ενεργοποιήστε ή απενεργοποιήστε τον καθένα ανεξάρτητα</string>
+    <string name="your_providers">ΟΙ ΠΑΡΟΧΟΙ ΣΑΣ</string>
+    <string name="no_iptv_providers_added_yet">Δεν έχουν προστεθεί ακόμα πάροχοι IPTV</string>
+    <string name="add_provider">+ Προσθήκη παρόχου</string>
+    <string name="what_kind_of_provider">Τι είδους πάροχος είναι αυτός;</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Σύνδεσμος λίστας αναπαραγωγής</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Κωδικοί σύνδεσης</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">Διεύθυνση MAC</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Διακομιστής πολυμέσων</string>
+    <string name="change">Αλλαγή</string>
+    <string name="show_phone_qr_pairing_code">Εμφάνιση κωδικού σύζευξης QR τηλεφώνου</string>
+    <string name="or_enter_manually">Ή ΕΙΣΑΓΩΓΗ ΜΕ ΧΕΙΡΟΚΙΝΗΤΟ ΤΡΟΠΟ</string>
+    <string name="name">Όνομα</string>
+    <string name="server_url">URL διακομιστή</string>
+    <string name="sign_in_with_quick_connect">Σύνδεση με το Quick Connect</string>
+    <string name="username_if_quick_connect_off">Όνομα χρήστη (εάν το Quick Connect είναι απενεργοποιημένο)</string>
+    <string name="playback_settings">Ρυθμίσεις αναπαραγωγής</string>
+    <string name="hide_non_english">Απόκρυψη μη αγγλικών ταινιών/σειρών</string>
+    <string name="hide_adult_categories">Απόκρυψη κατηγοριών ενηλίκων</string>
+    <!-- Συμπτυγμένη σειρά κατηγοριών: το κουμπί-χάπι που την επαναφέρει, και η υπόδειξη που
+         εμφανίζεται μία φορά τη στιγμή της σύμπτυξης ώστε ο τρόπος επιστροφής να μην χρειάζεται
+         ποτέ αναζήτηση. -->
+    <string name="categories">Κατηγορίες</string>
+    <string name="show_categories">Εμφάνιση κατηγοριών</string>
+    <string name="categories_hidden_hint">Οι κατηγορίες είναι κρυμμένες — πατήστε «Κατηγορίες» για εμφάνιση</string>
+    <!-- Συμπτυγμένη σειρά ρυθμίσεων: η τελευταία σειρά πλοήγησης που την κρύβει, και το χάπι +
+         η υπόδειξη που την επαναφέρουν - αντικατοπτρίζει τις επιλογές σύμπτυξης της πλευρικής
+         στήλης κατηγοριών. -->
+    <string name="settings_nav_collapse">Σύμπτυξη</string>
+    <string name="show_settings">Εμφάνιση ρυθμίσεων</string>
+    <string name="settings_hidden_hint">Οι ρυθμίσεις είναι κρυμμένες — πατήστε «Ρυθμίσεις» για εμφάνιση</string>
+    <string name="categorize_live">Κατηγοριοποίηση ζωντανής TV</string>
+    <string name="categorize_vod">Κατηγοριοποίηση ταινιών &amp; σειρών</string>
+    <string name="group_channels">Ομαδοποίηση διπλότυπων καναλιών</string>
+    <string name="set_parental_pin">Ορισμός γονικού PIN</string>
+    <string name="clear_watch_history">Εκκαθάριση ιστορικού παρακολούθησης</string>
+    <string name="plugins_description">Μικρά σενάρια που προσθέτουν λειτουργίες - εύρεση παρόχων ή αναζήτηση ροών. Τίποτα δεν εγκαθίσταται ως ξεχωριστή εφαρμογή· ένα σενάριο εκτελείται μέσα στη Lumora και οτιδήποτε προτείνει χρησιμοποιείται μόνο εάν το επιβεβαιώσετε.</string>
+    <string name="add_a_plugin">ΠΡΟΣΘΗΚΗ ΠΡΟΣΘΕΤΟΥ</string>
+    <string name="install_from_url">Προσθήκη από URL</string>
+    <string name="enter_apk_link">Εισαγάγετε έναν σύνδεσμο σεναρίου πρόσθετου</string>
+    <string name="installed">ΕΓΚΑΤΕΣΤΗΜΕΝΟ</string>
+    <string name="no_plugins_installed">Δεν υπάρχουν εγκατεστημένα πρόσθετα - περιηγηθείτε σε ένα κατάστημα πρόσθετων παρακάτω</string>
+    <string name="plugin_stores">ΚΑΤΑΣΤΗΜΑΤΑ ΠΡΟΣΘΕΤΩΝ</string>
+    <string name="add_plugin_store">+ Προσθήκη καταστήματος πρόσθετων</string>
+    <string name="browse">Περιήγηση</string>
+    <string name="no_plugin_stores">Δεν έχουν προστεθεί καταστήματα πρόσθετων</string>
+    <string name="results">ΑΠΟΤΕΛΕΣΜΑΤΑ</string>
+    <string name="version">Έκδοση</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Εφαρμογή</string>
+    <string name="about_platform_label">Πλατφόρμα</string>
+    <string name="about_platform_value">Android · TV + τηλέφωνο</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Έλεγχος ενημερώσεων</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Πληκτρολογήστε για αναζήτηση</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Κλείσιμο</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Επεξεργασία</string>
+    <string name="remove">Αφαίρεση</string>
+    <!-- Διακόπτες τύπου περιεχομένου ανά πάροχο στη σειρά του παρόχου. Ειδικά id παρόλο που
+         «Ταινίες»/«Σειρές» υπάρχουν ως ετικέτες καρτελών (films_tab/series_tab) - το κύκλωμα
+         συνδέει κάθε πλαίσιο ελέγχου με αυτά τα id και η επαναχρησιμοποίηση των συμβολοσειρών
+         καρτελών θα συνέδεε τα δύο. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Ταινίες</string>
+    <string name="provider_content_series">Σειρές</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Εκτέλεση</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">ΔΟΚΙΜΑΣΜΕΝΟ</string>
+    <string name="add">Προσθήκη</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Προβολή όλων</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - διακόπτες κατάστασης παρακολούθησης -->
+    <string name="episode_mark_watched">Επισήμανση επεισοδίου ως παρακολουθημένου</string>
+    <string name="episode_mark_unwatched">Επισήμανση επεισοδίου ως μη παρακολουθημένου</string>
+    <string name="season_mark_watched">Επισήμανση σεζόν ως παρακολουθημένης</string>
+    <string name="season_mark_unwatched">Επισήμανση σεζόν ως μη παρακολουθημένης</string>
+
+    <!-- dialog_search.xml - επικάλυψη αναζήτησης -->
+    <string name="search_overlay_hint">Αναζήτηση σε ζωντανή TV, ταινίες &amp; σειρές…</string>
+    <string name="search_recents_label">Πρόσφατες αναζητήσεις</string>
+    <string name="search_recents_clear">Εκκαθάριση</string>
+    <string name="search_filter_all">Όλα</string>
+    <string name="search_filter_films">Ταινίες</string>
+    <string name="search_filter_series">Σειρές</string>
+    <!-- Κείμενα κατάστασης που εναλλάσσει ο κεντρικός υπολογιστής αναζήτησης. Το «Χωρίς
+         αποτελέσματα» φέρει το ερώτημα, και η γραμμή υπόδειξης πηγαίνει σε δεύτερη γραμμή του
+         ίδιου TextView κατάστασης όταν εμφανίζεται. -->
+    <string name="search_status_searching">Αναζήτηση…</string>
+    <string name="search_status_no_results">Δεν υπάρχουν αποτελέσματα για «%1$s»</string>
+    <string name="search_status_no_results_hint">Δοκιμάστε λιγότερα γράμματα ή ελέγξτε την ορθογραφία.</string>
+    <string name="search_status_count">%1$d/%2$d αποτελέσματα</string>
+
+    <!-- item_epg_result.xml - αποτελέσματα αναζήτησης προγραμμάτων EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - εναλλαγή επιπέδου στίξης. Το \? διαφεύγει το αρχικό ? -
+         διαφορετικά το aapt θα διάβαζε το «?123» ως αναφορά πόρου. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - αναζήτηση Ανακάλυψης (TMDB) -->
+    <string name="discover_search_hint">Αναζήτηση ταινιών &amp; σειρών…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - εμφανίζεται πάνω από το WebView πρόκλησης στην TV,
+         όπου δεν υπάρχει δείκτης και το πλαίσιο ελέγχου πρέπει να πατηθεί με εικονικό δρομέα. -->
+    <string name="bypass_tv_instructions">ΜΕΤΑΚΙΝΗΣΤΕ ΤΟΝ ΔΡΟΜΕΑ ΠΑΝΩ ΑΠΟ ΤΟ ΠΛΑΙΣΙΟ ΕΛΕΓΧΟΥ\nΚΑΙ ΠΑΤΗΣΤΕ ΟΚ ΓΙΑ ΞΕΚΛΕΙΔΩΜΑ</string>
+
+    <!-- MainActivityScraper - ο επιλογέας πηγής. Το TMDB λέει τι υπάρχει· οι ιστότοποι ερωτώνται
+         μόνο ποιος μπορεί να το μεταδώσει, και οι οικοδεσπότες πεθαίνουν αρκετά συχνά ώστε η
+         αποτυχία ενός να είναι συνηθισμένη. -->
+    <string name="scraper_dialog_title">Εύρεση ροής \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Αναζήτηση πηγών\u2026</string>
+    <string name="scraper_searching_sites">Αναζήτηση σε ιστότοπους\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Άνοιγμα %1$s\u2026</string>
+    <string name="scraper_source_failed">Το %1$s δεν λειτούργησε \u2014 δοκιμάστε άλλη πηγή</string>
+    <string name="scraper_no_sources">Δεν βρέθηκαν πηγές για αυτόν τον τίτλο</string>
+    <string name="scraper_pick_manually">Επιλογή πηγής</string>
+    <string name="scraper_attempt_detail">μέσω %1$s \u00b7 προσπάθεια %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d πηγή</item>
+        <item quantity="other">%1$d πηγές</item>
+    </plurals>
+
+    <!-- MainActivitySettings - πηγές ιστοτόπων ροής. -->
+    <string name="scraper_settings_title">Ιστότοποι ροής</string>
+    <string name="scraper_settings_subtitle">Δημόσιοι ιστότοποι ροής από τους οποίους μπορεί να αντλήσει η Εύρεση ροής. Η περιήγηση παραμένει στην Ανακάλυψη \u2014 σε αυτούς τίθεται μόνο το ερώτημα ποιος μπορεί να μεταδώσει έναν τίτλο που έχετε ήδη επιλέξει.</string>
+    <string name="scraper_enabled_title">Χρήση ιστοτόπων ροής</string>
+    <string name="scraper_enabled_subtitle">Προσφέρει την Εύρεση ροής σε τίτλους της Ανακάλυψης</string>
+    <string name="scraper_sites_header">Ιστότοποι προς αναζήτηση</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Επιλύει τα ονόματα τομέων των ιστοτόπων μέσω κρυπτογραφημένου επιλυτή αντί για αυτόν του ISP σας</string>
+    <string name="scraper_doh_system">DNS συστήματος</string>
+    <string name="scraper_extra_buffering_title">Επιπλέον προσωρινή αποθήκευση</string>
+    <string name="scraper_extra_buffering_subtitle">Προσωρινά αποθηκεύει έως και 5 λεπτά μπροστά για οικοδεσπότες που παραδίδουν κατά ριπές. Χρησιμοποιεί περισσότερη μνήμη· εφαρμόζεται μετά από επανεκκίνηση</string>
+    <string name="category_newest">Νεότερα</string>
+    <string name="category_continue_watching">Συνέχεια παρακολούθησης</string>
+    <string name="category_other">Άλλα</string>
+    <string name="category_all">Όλα</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Σύμπτυξη κατηγοριών</string>
+    <string name="category_favourites">Αγαπημένα</string>
+    <string name="category_group_into_categories">Ομαδοποίηση σε κατηγορίες</string>
+    <string name="category_show_all_categories">Εμφάνιση όλων των κατηγοριών (κλασική λίστα)</string>
+    <string name="category_next_up">Επόμενο</string>
+    <string name="category_recently_played">Πρόσφατη αναπαραγωγή</string>
+    <string name="category_favourite_channels">Αγαπημένα κανάλια</string>
+</resources>

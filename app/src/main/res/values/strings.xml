@@ -267,4 +267,16 @@
     <string name="scraper_doh_system">System DNS</string>
     <string name="scraper_extra_buffering_title">Extra buffering</string>
     <string name="scraper_extra_buffering_subtitle">Buffers up to 5 minutes ahead for hosts that deliver in bursts. Uses more memory; applies after a restart</string>
+    <string name="category_newest">Newest</string>
+    <string name="category_continue_watching">Continue Watching</string>
+    <string name="category_other">Other</string>
+    <string name="category_all">All</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Collapse categories</string>
+    <string name="category_favourites">Favourites</string>
+    <string name="category_group_into_categories">Group into categories</string>
+    <string name="category_show_all_categories">Show all categories (classic list)</string>
+    <string name="category_next_up">Next Up</string>
+    <string name="category_recently_played">Recently Played</string>
+    <string name="category_favourite_channels">Favourite Channels</string>
 </resources>

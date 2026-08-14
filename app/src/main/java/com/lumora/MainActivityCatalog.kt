@@ -424,7 +424,7 @@ internal fun MainActivity.deriveFilmsSeriesHalf(list: List<Channel>): MainActivi
     // The old buildShelves() count-sorting is gone - shelf order IS the sidebar's row
     // order. Films keeps its single "Newest" prepend, exactly as before.
     val filmShelvesLocal = shelvesFromCategoryRows(filmCategoryRows.rows, films)
-        .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf("Newest", newestFilms, categoryId = NEWEST_CATEGORY_ID)) + shelves }
+        .let { shelves -> if (newestFilms.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_newest), newestFilms, categoryId = NEWEST_CATEGORY_ID)) + shelves }
 
     val series: List<Channel>
     val seriesVers: Map<String, List<Channel>>
@@ -466,14 +466,14 @@ internal fun MainActivity.deriveFilmsSeriesHalf(list: List<Channel>): MainActivi
     // the sidebar order (Favourites > Continue Watching > Newest > categories).
     val seriesShelvesLocal = shelvesFromCategoryRows(seriesCategoryRows.rows, series)
         .let { shelves ->
-            (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf("Newest", newestSeries, categoryId = NEWEST_CATEGORY_ID)) + shelves)
+            (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_newest), newestSeries, categoryId = NEWEST_CATEGORY_ID)) + shelves)
         }
         .let { shelves ->
             val cw = seriesContinueItems()
-            if (cw.isEmpty()) shelves else listOf(ContentShelf("Continue Watching", cw)) + shelves
+            if (cw.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_continue_watching), cw)) + shelves
         }
         .let { shelves ->
-            if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf("Favourites", favoriteSeries)) + shelves
+            if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_favourites), favoriteSeries)) + shelves
         }
 
     perf("deriveFilmsSeriesHalf", startedAt, "${films.size} films / ${series.size} series")

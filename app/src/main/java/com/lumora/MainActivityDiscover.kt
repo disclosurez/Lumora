@@ -608,7 +608,7 @@ internal fun MainActivity.clearContinueWatching() {
             serverIds.forEach { id -> runCatching { client.clearUserData(id) } }
         }
     }
-    getHiddenHomeShelves().let { if (it.remove("Continue Watching")) prefs.edit().putStringSet("hidden_home_shelves", it).apply() }
+    getHiddenHomeShelves().let { if (it.remove(getString(R.string.category_continue_watching))) prefs.edit().putStringSet("hidden_home_shelves", it).apply() }
     getHiddenCategories(1).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(1), it).apply() }
     getHiddenCategories(2).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(2), it).apply() }
     homeShelfAdapter.submitList(buildHomeShelves())
@@ -741,17 +741,17 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
     val continueItems = (serverContinue + localContinue + upNext)
         .distinctBy { it.id.ifBlank { it.url } }
         .filterNot(::isAdultHomeItem)
-    if (continueItems.isNotEmpty()) shelves.add(ContentShelf("Continue Watching", continueItems))
+    if (continueItems.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_continue_watching), continueItems))
 
     // "Next Up" is the row that makes a series library usable - the next unwatched episode
     // of everything in flight, straight from the server's own tracking.
     val nextUpItems = jellyfinNextUpItems.filterNot(::isAdultHomeItem)
-    if (nextUpItems.isNotEmpty()) shelves.add(ContentShelf("Next Up", nextUpItems))
+    if (nextUpItems.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_next_up), nextUpItems))
 
     val recentItems = RecentlyPlayedStore.getRecentIds(this)
         .mapNotNull { id -> liveChannels.firstOrNull { it.id == id } }
         .filterNot(::isAdultHomeItem)
-    if (recentItems.isNotEmpty()) shelves.add(ContentShelf("Recently Played", recentItems))
+    if (recentItems.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_recently_played), recentItems))
 
     // Favourited live channels get their own Home row. Long-pressing a channel in the
     // guide has always favourited it, but the result was only ever visible as the
@@ -759,14 +759,14 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
     // nothing at all, so the favourites looked like they hadn't saved.
     val favChannelIds = FavoritesStore.getFavoriteChannelIds(this)
     val favChannels = liveChannels.filter { it.id in favChannelIds }.filterNot(::isAdultHomeItem)
-    if (favChannels.isNotEmpty()) shelves.add(ContentShelf("Favourite Channels", favChannels))
+    if (favChannels.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_favourite_channels), favChannels))
 
     // One shelf for both, since favourite VOD is stored in a single set (see
     // FavoritesStore.KEY_FAVORITE_SERIES) - a favourited film used to be saved and then
     // never shown anywhere, because only seriesList was searched for the ids.
     val favIds = FavoritesStore.getFavoriteSeriesIds(this)
     val favItems = (seriesList + filmList).filter { it.id in favIds }.filterNot(::isAdultHomeItem)
-    if (favItems.isNotEmpty()) shelves.add(ContentShelf("Favorites", favItems))
+    if (favItems.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_favourites), favItems))
 
     return shelves.filter { it.title !in hidden }
 }

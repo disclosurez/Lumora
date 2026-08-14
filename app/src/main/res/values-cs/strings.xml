@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Nastavení</string>
+    <!-- Jazyk rozhraní aplikace (panel Obecné). „system" sleduje jazyk zařízení;
+         položky výběru jsou nativní názvy jazyků a není třeba je překládat. -->
+    <string name="settings_ui_language">Jazyk</string>
+    <string name="settings_ui_language_caption">Překládá celou aplikaci — nastavuje také zvuk, titulky a TMDB</string>
+    <string name="settings_type_m3u">Typ: M3U</string>
+    <string name="m3u_url">URL playlistu M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Uživatelské jméno</string>
+    <string name="xtream_password">Heslo</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Uložit</string>
+    <string name="cancel">Zrušit</string>
+    <string name="loading">Načítání&#8230;</string>
+    <string name="live_badge">Živě</string>
+
+    <!-- Typy poskytovatelů -->
+    <string name="stalker_mac">Adresa MAC</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Přehrávač -->
+    <!-- Nahrávání -->
+    <string name="recording_storage">Úložiště nahrávek</string>
+
+    <!-- Zálohování a obnova -->
+    <string name="backup_restore">Zálohování a obnova</string>
+    <string name="export_backup">Exportovat zálohu</string>
+    <string name="import_backup">Importovat zálohu</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">Zdroje EPG</string>
+    <string name="add_epg_source">Přidat zdroj EPG</string>
+
+    <!-- Správa obsahu -->
+    <!-- VOD -->
+    <!-- Kvalita -->
+    <!-- Chyby -->
+    <!-- Číselný vstup -->
+    <!-- Následující / Automatické pokračování -->
+    <string name="up_next">Následuje</string>
+    <string name="play_now">Přehrát nyní</string>
+
+    <!-- Postupné vyhledávání -->
+    <!-- Synchronizace A/V -->
+    <string name="av_offset">Posun A/V</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Hledat</string>
+    <string name="tab_home">Domů</string>
+    <string name="tab_live_tv">Živá TV</string>
+    <!-- Zpětné zhlédnutí: přehrávání tv_archive Xtream (kanál → den → pořad, který už byl odvysílán). -->
+    <string name="tab_catchup">Zpětné zhlédnutí</string>
+    <string name="catchup_crumb_categories">Zpětné zhlédnutí · %1$d kanálů s archivem</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d kanálů</string>
+    <string name="catchup_crumb_days">%1$s · vyberte den</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Dnes</string>
+    <string name="catchup_yesterday">Včera</string>
+    <string name="catchup_loading">Načítání průvodce…</string>
+    <string name="catchup_no_guide">Pro tento den nejsou žádná data průvodce — zobrazují se hodinové bloky.</string>
+    <string name="catchup_nothing_aired">V tento den se zatím nic nevysílalo.</string>
+    <string name="catchup_no_provider">Toto nelze přehrát — poskytovatel, ze kterého položka pochází, už není nakonfigurován.</string>
+    <string name="catchup_hour_block">Hodinový blok</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d den uchován</item>
+        <item quantity="few">%1$d dny uchovány</item>
+        <item quantity="many">%1$d dní uchováno</item>
+        <item quantity="other">%1$d dní uchováno</item>
+    </plurals>
+    <string name="series_tab">Seriály</string>
+    <string name="films_tab">Filmy</string>
+    <string name="discover_tab">Objevovat</string>
+    <string name="downloads_tab">Stažené</string>
+    <string name="no_provider_configured">Není nakonfigurován žádný poskytovatel</string>
+    <string name="press_settings_to_add_playlist">Stiskněte Nastavení a přidejte URL playlistu</string>
+    <string name="add_a_provider">Přidat poskytovatele</string>
+    <string name="startup_choose_provider">POSKYTOVATEL IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">VEŘEJNÝ STREAMOVACÍ OBSAH</string>
+    <string name="startup_choose_both">OBOJÍ</string>
+    <string name="search_main_hint">Hledat v živé TV, filmech a seriálech…</string>
+    <string name="no_downloads_yet">Zatím zde nejsou žádné soubory ke stažení</string>
+    <string name="overview">Přehled</string>
+    <string name="cast">Obsazení</string>
+    <string name="play">Přehrát</string>
+    <string name="find_stream">Najít a přehrát</string>
+    <string name="trailer">Upoutávka</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Spánek</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Otevřít v</string>
+
+    <!-- Zobrazuje se na obrazovce auta na začátku každé relace a v Nastavení v telefonu.
+         Je dostatečně krátké, aby ho displej v autě nezkrátil uprostřed věty. -->
+    <string name="car_disclaimer">Nesledujte video při řízení.\n\nVideo se přehrává pouze tehdy, když Lumora potvrdí, že vozidlo stojí. Při jakémkoli pohybu se obraz vypne a zvuk pokračuje.\n\nPoskytováno „tak, jak je", bez záruky a bez odpovědnosti za jakoukoli ztrátu, škodu, pokutu nebo selhání těchto ovládacích prvků. Používejte v souladu se zákonem.</string>
+
+    <string name="legal_notice_title">Právní a bezpečnostní oznámení</string>
+    <string name="legal_notice">Lumora je poskytována zdarma, „tak, jak je", bez jakékoli záruky, výslovné ani předpokládané, včetně, ale bez omezení na, záruk prodejnosti, vhodnosti pro konkrétní účel a neporušování práv třetích stran.\n\nV nejvyšším rozsahu povoleném zákonem autoři a přispěvatelé nepřijímají žádnou odpovědnost za jakékoli nároky, škody, ztráty ani jinou odpovědnost vzniklou v souvislosti s aplikací nebo jejím používáním, včetně, ale bez omezení na: ztrátu nebo poškození dat či zařízení, přerušení služby, pády nebo chyby aplikace, poplatky účtované vaším poskytovatelem připojení nebo poskytovateli obsahu, nebo jakoukoli pokutu, sankci či trestní stíhání vyplývající z používání aplikace.\n\nŘízení: přehrávání videa ve vozidle je určeno pouze pro stojící vozidlo nebo pro displej spolujezdce. Sledování videa při řízení je ve většině jurisdikcí nezákonné. Lumora se pokouší automaticky detekovat pohyb a vypnout video, ale tato detekce závisí na hardwaru, oprávněních a signálech mimo kontrolu aplikace a může selhat nebo být nedostupná. Nespoléhejte se na ni. Řidič zůstává výhradně odpovědný za dodržování všech platných pravidel silničního provozu.\n\nObsah: Lumora je přehrávač. Nehostuje, neposkytuje ani neindexuje žádný vlastní obsah. Všechny streamy, katalogy a metadata pocházejí ze služeb a poskytovatelů, které si sami nakonfigurujete, a vy jste výhradně odpovědní za to, že máte práva nebo předplatné potřebné k přístupu k nim, a za dodržování podmínek těchto služeb a zákonů své země.\n\nDistribuce: tato aplikace není distribuována prostřednictvím Google Play a není přidružena ke společnosti Google, ani jí není schválena nebo certifikována. Android, Android Auto a Google Cast jsou ochranné známky společnosti Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Verze</string>
+    <string name="fit">Přizpůsobit</string>
+    <string name="audio">Zvuk</string>
+    <string name="subtitles">Titulky</string>
+    <string name="chapters">Kapitoly</string>
+    <string name="seek_preview">Náhled při přetáčení</string>
+    <string name="player_menu_title">Menu</string>
+    <string name="player_menu">Menu přehrávače</string>
+    <string name="close_side_menu">Zavřít menu</string>
+    <string name="side_menu_loading">Načítání…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Poskytovatelé</string>
+    <string name="playback">Přehrávání</string>
+    <string name="general">Obecné</string>
+    <string name="filters">Filtry</string>
+    <string name="privacy">Soukromí</string>
+    <string name="downloads">Stažené soubory</string>
+    <string name="plugins">Pluginy</string>
+    <string name="enabled">Povoleno</string>
+    <string name="update">Aktualizovat</string>
+    <string name="back_to_plugins">‹  Pluginy</string>
+    <string name="about">O aplikaci</string>
+    <string name="providers_description">Spouštějte více poskytovatelů najednou - každého lze zapnout nebo vypnout nezávisle</string>
+    <string name="your_providers">VAŠI POSKYTOVATELÉ</string>
+    <string name="no_iptv_providers_added_yet">Zatím nebyli přidáni žádní poskytovatelé IPTV</string>
+    <string name="add_provider">+ Přidat poskytovatele</string>
+    <string name="what_kind_of_provider">O jaký typ poskytovatele jde?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Odkaz na playlist</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Přihlašovací kódy</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">Adresa MAC</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Mediální server</string>
+    <string name="change">Změnit</string>
+    <string name="show_phone_qr_pairing_code">Zobrazit QR kód pro spárování telefonu</string>
+    <string name="or_enter_manually">NEBO zadat ručně</string>
+    <string name="name">Název</string>
+    <string name="server_url">URL serveru</string>
+    <string name="sign_in_with_quick_connect">Přihlásit se přes Quick Connect</string>
+    <string name="username_if_quick_connect_off">Uživatelské jméno (pokud je Quick Connect vypnutý)</string>
+    <string name="playback_settings">Nastavení přehrávání</string>
+    <string name="hide_non_english">Skrýt neanglické filmy/seriály</string>
+    <string name="hide_adult_categories">Skrýt kategorie pro dospělé</string>
+    <!-- Sbalený pruh kategorií: pilulka, která jej vrátí zpět, a jednorázová nápověda zobrazená
+         v okamžiku sbalení, aby nebylo nikdy nutné zpáteční cestu hledat. -->
+    <string name="categories">Kategorie</string>
+    <string name="show_categories">Zobrazit kategorie</string>
+    <string name="categories_hidden_hint">Kategorie skryté — klepnutím na „Kategorie" je zobrazíte</string>
+    <!-- Sbalený pruh nastavení: poslední řádek navigace, který jej skryje, a pilulka + jednorázová
+         nápověda, které jej vrátí zpět - zrcadlí funkce sbalení bočního pruhu kategorií. -->
+    <string name="settings_nav_collapse">Sbalit</string>
+    <string name="show_settings">Zobrazit nastavení</string>
+    <string name="settings_hidden_hint">Nastavení skrytá — klepnutím na „Nastavení" je zobrazíte</string>
+    <string name="categorize_live">Kategorizovat živou TV</string>
+    <string name="categorize_vod">Kategorizovat filmy a seriály</string>
+    <string name="group_channels">Seskupit duplicitní kanály</string>
+    <string name="set_parental_pin">Nastavit rodičovský PIN</string>
+    <string name="clear_watch_history">Vymazat historii sledování</string>
+    <string name="plugins_description">Malé skripty, které přidávají funkce - hledání poskytovatelů nebo vyhledávání streamů. Nic se neinstaluje jako samostatná aplikace; skript běží uvnitř Lumory a cokoli navrhne, se použije pouze tehdy, pokud to potvrdíte.</string>
+    <string name="add_a_plugin">PŘIDAT PLUGIN</string>
+    <string name="install_from_url">Přidat z URL</string>
+    <string name="enter_apk_link">Zadejte odkaz na skript pluginu</string>
+    <string name="installed">NAINSTALOVÁNO</string>
+    <string name="no_plugins_installed">Žádné pluginy nejsou nainstalované - níže procházejte obchod s pluginy</string>
+    <string name="plugin_stores">OBCHODY S PLUGINY</string>
+    <string name="add_plugin_store">+ Přidat obchod s pluginy</string>
+    <string name="browse">Procházet</string>
+    <string name="no_plugin_stores">Žádné obchody s pluginy nejsou přidány</string>
+    <string name="results">VÝSLEDKY</string>
+    <string name="version">Verze</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Aplikace</string>
+    <string name="about_platform_label">Platforma</string>
+    <string name="about_platform_value">Android · TV + telefon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Zkontrolovat aktualizace</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Pište pro vyhledání</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Zavřít</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Upravit</string>
+    <string name="remove">Odebrat</string>
+    <!-- Přepínače typu obsahu pro jednotlivé poskytovatele na řádku poskytovatele. Vlastní id, i když
+         „Filmy"/„Seriály" existují jako popisky karet (films_tab/series_tab) - propojovací vrstva
+         váže každé zaškrtávací políčko na tato id a použití textů karet by obojí propojilo. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Filmy</string>
+    <string name="provider_content_series">Seriály</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Spustit</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">OTESTOVÁNO</string>
+    <string name="add">Přidat</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Zobrazit vše</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - přepínače stavu zhlédnutí -->
+    <string name="episode_mark_watched">Označit epizodu jako zhlédnutou</string>
+    <string name="episode_mark_unwatched">Označit epizodu jako nezhlédnutou</string>
+    <string name="season_mark_watched">Označit sezónu jako zhlédnutou</string>
+    <string name="season_mark_unwatched">Označit sezónu jako nezhlédnutou</string>
+
+    <!-- dialog_search.xml - vyhledávací překryv -->
+    <string name="search_overlay_hint">Hledat v živé TV, filmech a seriálech…</string>
+    <string name="search_recents_label">Nedávná hledání</string>
+    <string name="search_recents_clear">Vymazat</string>
+    <string name="search_filter_all">Vše</string>
+    <string name="search_filter_films">Filmy</string>
+    <string name="search_filter_series">Seriály</string>
+    <!-- Stavové texty, mezi kterými hostitel vyhledávání přepíná. „Žádné výsledky" nese dotaz a
+         řádek nápovědy se při zobrazení umístí na druhý řádek stejného stavového TextView. -->
+    <string name="search_status_searching">Hledání…</string>
+    <string name="search_status_no_results">Žádné výsledky pro „%1$s"</string>
+    <string name="search_status_no_results_hint">Zkuste méně písmen nebo zkontrolujte pravopis.</string>
+    <string name="search_status_count">%1$d/%2$d výsledků</string>
+
+    <!-- item_epg_result.xml - výsledky vyhledávání pořadů EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - přepínání vrstvy interpunkce. \? escapuje úvodní ? -
+         aapt by jinak četl "?123" jako odkaz na zdroj. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - vyhledávání v Objevovat (TMDB) -->
+    <string name="discover_search_hint">Hledat filmy a seriály…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - zobrazuje se nad WebView s výzvou na TV,
+         kde není ukazatel a na zaškrtávací políčko se musí kliknout virtuálním kurzorem. -->
+    <string name="bypass_tv_instructions">PŘESUŇTE KURZOR NA ZAŠKRTÁVACÍ POLÍČKO\nA STISKNĚTE OK PRO ODEMKNUTÍ</string>
+
+    <!-- MainActivityScraper - výběr zdroje. TMDB říká, co existuje; webům se pokládá
+         pouze otázka, kdo to může streamovat, a hostitelé zanikají tak často,
+         že neúspěch jednoho je běžný. -->
+    <string name="scraper_dialog_title">Najít stream \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Hledání zdrojů\u2026</string>
+    <string name="scraper_searching_sites">Prohledávají se weby\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Otevírá se %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s nefungoval \u2014 zkuste jiný zdroj</string>
+    <string name="scraper_no_sources">Pro tento titul nebyly nalezeny žádné zdroje</string>
+    <string name="scraper_pick_manually">Vybrat zdroj</string>
+    <string name="scraper_attempt_detail">přes %1$s \u00b7 pokus %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d zdroj</item>
+        <item quantity="few">%1$d zdroje</item>
+        <item quantity="many">%1$d zdrojů</item>
+        <item quantity="other">%1$d zdrojů</item>
+    </plurals>
+
+    <!-- MainActivitySettings - zdroje streamovacích webů. -->
+    <string name="scraper_settings_title">Streamovací weby</string>
+    <string name="scraper_settings_subtitle">Veřejné streamovací weby, ze kterých může Najít a přehrát čerpat. Procházení zůstává v Objevovat \u2014 tyto weby jsou tázány pouze na to, kdo může streamovat titul, který jste si už vybrali.</string>
+    <string name="scraper_enabled_title">Používat streamovací weby</string>
+    <string name="scraper_enabled_subtitle">Nabízí Najít a přehrát u titulů v Objevovat</string>
+    <string name="scraper_sites_header">Weby k prohledání</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Domény webů řeší přes šifrovaný resolver místo resolveru vašeho ISP</string>
+    <string name="scraper_doh_system">Systémový DNS</string>
+    <string name="scraper_extra_buffering_title">Extra vyrovnávací paměť</string>
+    <string name="scraper_extra_buffering_subtitle">Načítá až 5 minut dopředu pro hostitele, kteří doručují po dávkách. Využívá více paměti; projeví se po restartu</string>
+    <string name="category_newest">Nejnovější</string>
+    <string name="category_continue_watching">Pokračovat ve sledování</string>
+    <string name="category_other">Ostatní</string>
+    <string name="category_all">Vše</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Sbalit kategorie</string>
+    <string name="category_favourites">Oblíbené</string>
+    <string name="category_group_into_categories">Seskupit do kategorií</string>
+    <string name="category_show_all_categories">Zobrazit všechny kategorie (klasický seznam)</string>
+    <string name="category_next_up">Následuje</string>
+    <string name="category_recently_played">Nedávno přehráno</string>
+    <string name="category_favourite_channels">Oblíbené kanály</string>
+</resources>

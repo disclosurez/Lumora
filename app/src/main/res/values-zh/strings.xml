@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">设置</string>
+    <!-- 应用内界面语言（通用设置面板）。"system" 跟随设备语言；
+         选择器条目为各语言的原生显示名称，无需翻译。 -->
+    <string name="settings_ui_language">语言</string>
+    <string name="settings_ui_language_caption">翻译整个应用 —— 同时设置音频、字幕和 TMDB</string>
+    <string name="settings_type_m3u">类型：M3U</string>
+    <string name="m3u_url">M3U/M3U8 播放列表 URL</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">用户名</string>
+    <string name="xtream_password">密码</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="loading">正在加载&#8230;</string>
+    <string name="live_badge">直播</string>
+
+    <!-- 提供商类型 -->
+    <string name="stalker_mac">MAC 地址</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- 播放器 -->
+    <!-- 录制 -->
+    <string name="recording_storage">录制存储</string>
+
+    <!-- 备份与恢复 -->
+    <string name="backup_restore">备份和恢复</string>
+    <string name="export_backup">导出备份</string>
+    <string name="import_backup">导入备份</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG 源</string>
+    <string name="add_epg_source">添加 EPG 源</string>
+
+    <!-- 内容管理 -->
+    <!-- VOD -->
+    <!-- 画质 -->
+    <!-- 错误 -->
+    <!-- 数字输入 -->
+    <!-- 接下来播放 / 自动续播 -->
+    <string name="up_next">接下来播放</string>
+    <string name="play_now">立即播放</string>
+
+    <!-- 增量搜索 -->
+    <!-- 音视频同步 -->
+    <string name="av_offset">A/V 同步偏移</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">搜索</string>
+    <string name="tab_home">首页</string>
+    <string name="tab_live_tv">直播电视</string>
+    <!-- 回看：Xtream tv_archive 播放（频道 → 日期 → 已播出的节目）。 -->
+    <string name="tab_catchup">回看</string>
+    <string name="catchup_crumb_categories">回看 · %1$d 个有存档的频道</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d 个频道</string>
+    <string name="catchup_crumb_days">%1$s · 选择日期</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">今天</string>
+    <string name="catchup_yesterday">昨天</string>
+    <string name="catchup_loading">正在加载节目单…</string>
+    <string name="catchup_no_guide">该日没有节目单数据 —— 按小时块显示。</string>
+    <string name="catchup_nothing_aired">该日尚无任何播出内容。</string>
+    <string name="catchup_no_provider">无法播放 —— 其来源提供商已不再配置。</string>
+    <string name="catchup_hour_block">小时块</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="other">%1$d 天保留</item>
+    </plurals>
+    <string name="series_tab">剧集</string>
+    <string name="films_tab">电影</string>
+    <string name="discover_tab">发现</string>
+    <string name="downloads_tab">下载</string>
+    <string name="no_provider_configured">未配置提供商</string>
+    <string name="press_settings_to_add_playlist">打开设置以添加播放列表 URL</string>
+    <string name="add_a_provider">添加提供商</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN 提供商</string>
+    <string name="startup_choose_public">公共流媒体内容</string>
+    <string name="startup_choose_both">两者都要</string>
+    <string name="search_main_hint">搜索直播电视、电影和剧集…</string>
+    <string name="no_downloads_yet">暂无下载</string>
+    <string name="overview">概览</string>
+    <string name="cast">演员</string>
+    <string name="play">播放</string>
+    <string name="find_stream">查找并播放</string>
+    <string name="trailer">预告片</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">睡眠</string>
+    <string name="diag">诊断</string>
+    <string name="open_in_external_player_short">打开方式</string>
+
+    <!-- 每次会话开始时显示在车载屏幕上，也显示在手机上的设置中。
+         文本保持简短，以免车载主机在句子中间截断。 -->
+    <string name="car_disclaimer">驾驶时请勿观看视频。\n\n只有当 Lumora 确认车辆已停稳时，视频才会播放。一旦车辆有任何移动，画面将关闭而声音继续。\n\n本功能"按现状"提供，不作任何担保，对任何损失、损害、处罚或这些控件的失效不承担任何责任。请合法使用。</string>
+
+    <string name="legal_notice_title">法律与安全声明</string>
+    <string name="legal_notice">Lumora 免费提供，"按现状"且不含任何明示或暗示的担保，包括但不限于适销性、特定用途适用性及不侵权的担保。\n\n在法律允许的最大范围内，作者和贡献者不对因本应用或其使用引起或与之相关的任何索赔、损害、损失或其他责任承担责任，包括但不限于：数据或设备丢失或损坏、服务中断、应用崩溃或错误、您的网络或内容提供商产生的费用，或因您使用本应用而产生的任何处罚、罚款或起诉。\n\n驾驶：在车辆中播放视频仅适用于车辆静止时或乘客显示屏。在大多数司法管辖区，驾驶时观看视频属违法行为。Lumora 会尝试检测运动并自动禁用视频，但此检测依赖应用控制之外的硬件、权限和信号，可能失败或不可用。您不得依赖此功能。驾驶员仍然全权负责遵守所有适用的道路交通法规。\n\n内容：Lumora 是一个播放器。它本身不托管、不提供、不索引任何内容。所有流、目录和元数据均来自您自行配置的服务和提供商，您须自行负责持有访问它们所需的权利或订阅，并遵守这些服务的条款和您所在国家的法律。\n\n分发：本应用不通过 Google Play 分发，与 Google 无关联、未经 Google 认可或认证。Android、Android Auto 和 Google Cast 是 Google LLC 的商标。</string>
+    <string name="rec">REC</string>
+    <string name="versions">版本</string>
+    <string name="fit">适应</string>
+    <string name="audio">音频</string>
+    <string name="subtitles">字幕</string>
+    <string name="chapters">章节</string>
+    <string name="seek_preview">拖动预览</string>
+    <string name="player_menu_title">菜单</string>
+    <string name="player_menu">播放器菜单</string>
+    <string name="close_side_menu">关闭菜单</string>
+    <string name="side_menu_loading">正在加载…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">提供商</string>
+    <string name="playback">播放</string>
+    <string name="general">通用</string>
+    <string name="filters">筛选</string>
+    <string name="privacy">隐私</string>
+    <string name="downloads">下载</string>
+    <string name="plugins">插件</string>
+    <string name="enabled">已启用</string>
+    <string name="update">更新</string>
+    <string name="back_to_plugins">‹  插件</string>
+    <string name="about">关于</string>
+    <string name="providers_description">同时运行多个提供商 - 可分别启用或禁用每个提供商</string>
+    <string name="your_providers">我的提供商</string>
+    <string name="no_iptv_providers_added_yet">尚未添加 IPTV 提供商</string>
+    <string name="add_provider">+ 添加提供商</string>
+    <string name="what_kind_of_provider">这是什么类型的提供商？</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">播放列表链接</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">登录代码</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC 地址</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">媒体服务器</string>
+    <string name="change">更改</string>
+    <string name="show_phone_qr_pairing_code">显示手机 QR 配对码</string>
+    <string name="or_enter_manually">或手动输入</string>
+    <string name="name">名称</string>
+    <string name="server_url">服务器 URL</string>
+    <string name="sign_in_with_quick_connect">使用 Quick Connect 登录</string>
+    <string name="username_if_quick_connect_off">用户名（如果 Quick Connect 关闭）</string>
+    <string name="playback_settings">播放设置</string>
+    <string name="hide_non_english">隐藏非英语电影/剧集</string>
+    <string name="hide_adult_categories">隐藏成人分类</string>
+    <!-- 折叠的分类栏：用于恢复显示的分类胶囊，以及折叠时显示的一次性提示，
+         这样返回路径无需费力寻找。 -->
+    <string name="categories">分类</string>
+    <string name="show_categories">显示分类</string>
+    <string name="categories_hidden_hint">分类已隐藏 —— 点按"分类"以显示</string>
+    <!-- 折叠的设置栏：隐藏它的最后一行导航，以及将其恢复显示的胶囊和一次性提示
+         —— 与分类侧边栏的折叠交互方式一致。 -->
+    <string name="settings_nav_collapse">收起</string>
+    <string name="show_settings">显示设置</string>
+    <string name="settings_hidden_hint">设置已隐藏 —— 点按"设置"以显示</string>
+    <string name="categorize_live">对直播电视进行分类</string>
+    <string name="categorize_vod">对电影和剧集进行分类</string>
+    <string name="group_channels">合并重复频道</string>
+    <string name="set_parental_pin">设置家长 PIN 码</string>
+    <string name="clear_watch_history">清除观看历史</string>
+    <string name="plugins_description">添加功能的小型脚本 - 查找提供商或搜索流。无需安装为独立应用；脚本在 Lumora 内部运行，其提出的任何内容仅在您确认后才会使用。</string>
+    <string name="add_a_plugin">添加插件</string>
+    <string name="install_from_url">从 URL 添加</string>
+    <string name="enter_apk_link">输入插件脚本链接</string>
+    <string name="installed">已安装</string>
+    <string name="no_plugins_installed">未安装插件 - 请在下方浏览插件商店</string>
+    <string name="plugin_stores">插件商店</string>
+    <string name="add_plugin_store">+ 添加插件商店</string>
+    <string name="browse">浏览</string>
+    <string name="no_plugin_stores">尚未添加插件商店</string>
+    <string name="results">结果</string>
+    <string name="version">版本</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">应用</string>
+    <string name="about_platform_label">平台</string>
+    <string name="about_platform_value">Android · TV + 手机</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">检查更新</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">输入以搜索</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">关闭</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">编辑</string>
+    <string name="remove">移除</string>
+    <!-- 提供商行上按提供商划分的内容类型开关。即使"电影"/"剧集"已作为标签页标签存在
+         （films_tab/series_tab），仍使用专用 id——绑定层按这些 id 关联每个复选框，
+         复用标签页字符串会耦合两者。 -->
+    <string name="provider_content_tv">电视</string>
+    <string name="provider_content_movies">电影</string>
+    <string name="provider_content_series">剧集</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">运行</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">已测试</string>
+    <string name="add">添加</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">查看全部</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - 已观看状态勾选开关 -->
+    <string name="episode_mark_watched">将剧集标记为已观看</string>
+    <string name="episode_mark_unwatched">将剧集标记为未观看</string>
+    <string name="season_mark_watched">将季标记为已观看</string>
+    <string name="season_mark_unwatched">将季标记为未观看</string>
+
+    <!-- dialog_search.xml - 搜索浮层 -->
+    <string name="search_overlay_hint">搜索直播电视、电影和剧集…</string>
+    <string name="search_recents_label">最近搜索</string>
+    <string name="search_recents_clear">清除</string>
+    <string name="search_filter_all">全部</string>
+    <string name="search_filter_films">电影</string>
+    <string name="search_filter_series">剧集</string>
+    <!-- 搜索宿主在状态文本之间切换。"无结果"携带查询内容，提示行显示在
+         同一个状态 TextView 的第二行。 -->
+    <string name="search_status_searching">正在搜索…</string>
+    <string name="search_status_no_results">未找到"%1$s"的结果</string>
+    <string name="search_status_no_results_hint">试试更少的字母，或检查拼写。</string>
+    <string name="search_status_count">%1$d/%2$d 条结果</string>
+
+    <!-- item_epg_result.xml - EPG 节目搜索结果 -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - 标点层切换。\? 转义开头的 ?——
+         否则 aapt 会将 "?123" 读作资源引用。 -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - 发现（TMDB）搜索 -->
+    <string name="discover_search_hint">搜索电影和剧集…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - 在电视上的验证 WebView 上方显示，
+         因为没有指针，复选框必须用虚拟光标点击。 -->
+    <string name="bypass_tv_instructions">将光标移到复选框上方\n然后按 OK 解锁</string>
+
+    <!-- MainActivityScraper - 源选择器。TMDB 告知有哪些内容；仅询问站点谁能提供流媒体，
+         主机经常失效，失败一个很常见。 -->
+    <string name="scraper_dialog_title">查找流 \u2014 %1$s</string>
+    <string name="scraper_finding_sources">正在查找源\u2026</string>
+    <string name="scraper_searching_sites">正在搜索站点\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">正在打开 %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s 不起作用 \u2014 请尝试其他源</string>
+    <string name="scraper_no_sources">未找到该标题的来源</string>
+    <string name="scraper_pick_manually">选择源</string>
+    <string name="scraper_attempt_detail">通过 %1$s \u00b7 第 %2$d 次尝试</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="other">%1$d 个来源</item>
+    </plurals>
+
+    <!-- MainActivitySettings - 流媒体站点源。 -->
+    <string name="scraper_settings_title">流媒体站点</string>
+    <string name="scraper_settings_subtitle">公共流媒体站点，"查找流"可从中获取内容。浏览仍停留在"发现"页面 \u2014 这些站点仅在您已选定的标题下被询问谁可以播放。</string>
+    <string name="scraper_enabled_title">使用流媒体站点</string>
+    <string name="scraper_enabled_subtitle">在"发现"标题上提供"查找流"选项</string>
+    <string name="scraper_sites_header">要搜索的站点</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">通过加密解析器解析站点域名，而非使用您的 ISP 的解析器</string>
+    <string name="scraper_doh_system">系统 DNS</string>
+    <string name="scraper_extra_buffering_title">额外缓冲</string>
+    <string name="scraper_extra_buffering_subtitle">为分批投递内容的主机提前缓冲最多 5 分钟。占用更多内存；重启后生效</string>
+    <string name="category_newest">最新</string>
+    <string name="category_continue_watching">继续观看</string>
+    <string name="category_other">其他</string>
+    <string name="category_all">全部</string>
+    <string name="category_anime">动漫</string>
+    <string name="category_collapse_categories">收起分类</string>
+    <string name="category_favourites">收藏</string>
+    <string name="category_group_into_categories">按分类分组</string>
+    <string name="category_show_all_categories">显示全部分类（经典列表）</string>
+    <string name="category_next_up">接下来播放</string>
+    <string name="category_recently_played">最近播放</string>
+    <string name="category_favourite_channels">收藏频道</string>
+</resources>

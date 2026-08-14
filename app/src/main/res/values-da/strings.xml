@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Indstillinger</string>
+    <!-- Appens brugersprog (ruden Generelt). «system» følger enhedens sprog;
+         valgene i vælgeren er visningsnavne på modersmålet og behøver ikke oversættelse. -->
+    <string name="settings_ui_language">Sprog</string>
+    <string name="settings_ui_language_caption">Oversætter hele appen — sætter også lyd, undertekster og TMDB</string>
+    <string name="settings_type_m3u">Type: M3U</string>
+    <string name="m3u_url">M3U/M3U8-afspilningsliste-URL</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Brugernavn</string>
+    <string name="xtream_password">Adgangskode</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Gem</string>
+    <string name="cancel">Annullér</string>
+    <string name="loading">Indlæser&#8230;</string>
+    <string name="live_badge">Direkte</string>
+
+    <!-- Udbyder-typer -->
+    <string name="stalker_mac">MAC-adresse</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Afspiller -->
+    <!-- Optagelse -->
+    <string name="recording_storage">Optagelseslagring</string>
+
+    <!-- Sikkerhedskopi og gendannelse -->
+    <string name="backup_restore">Sikkerhedskopi &amp; gendannelse</string>
+    <string name="export_backup">Eksportér sikkerhedskopi</string>
+    <string name="import_backup">Importér sikkerhedskopi</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG-kilder</string>
+    <string name="add_epg_source">Tilføj EPG-kilde</string>
+
+    <!-- Indholdsstyring -->
+    <!-- VOD -->
+    <!-- Kvalitet -->
+    <!-- Fejl -->
+    <!-- Numerisk indtastning -->
+    <!-- Næste / automatisk videre -->
+    <string name="up_next">Næste</string>
+    <string name="play_now">Afspil nu</string>
+
+    <!-- Inkrementel søgning -->
+    <!-- A/V-synkronisering -->
+    <string name="av_offset">A/V-synkroniseringsforskydning</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Søg</string>
+    <string name="tab_home">Hjem</string>
+    <string name="tab_live_tv">Direkte TV</string>
+    <!-- Catch Up: Xtream tv_archive-afspilning (kanal → dag → program, der allerede er sendt). -->
+    <string name="tab_catchup">Se igen</string>
+    <string name="catchup_crumb_categories">Se igen · %1$d kanaler med arkiv</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d kanaler</string>
+    <string name="catchup_crumb_days">%1$s · vælg en dag</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">I dag</string>
+    <string name="catchup_yesterday">I går</string>
+    <string name="catchup_loading">Indlæser guide…</string>
+    <string name="catchup_no_guide">Ingen guidedata for denne dag — viser timeblokke.</string>
+    <string name="catchup_nothing_aired">Intet er blevet sendt denne dag endnu.</string>
+    <string name="catchup_no_provider">Kan ikke afspilles — udbyderen, den kommer fra, er ikke længere konfigureret.</string>
+    <string name="catchup_hour_block">Timeblok</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d dag beholdt</item>
+        <item quantity="other">%1$d dage beholdt</item>
+    </plurals>
+    <string name="series_tab">Serier</string>
+    <string name="films_tab">Film</string>
+    <string name="discover_tab">Opdag</string>
+    <string name="downloads_tab">Downloads</string>
+    <string name="no_provider_configured">Ingen udbyder konfigureret</string>
+    <string name="press_settings_to_add_playlist">Tryk på Indstillinger for at tilføje en afspilningsliste-URL</string>
+    <string name="add_a_provider">Tilføj en udbyder</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN-UDBYDER</string>
+    <string name="startup_choose_public">OFFENTLIGT STREAMINGINDHOLD</string>
+    <string name="startup_choose_both">BEGGE</string>
+    <string name="search_main_hint">Søg i direkte TV, film &amp; serier…</string>
+    <string name="no_downloads_yet">Ingen downloads endnu</string>
+    <string name="overview">Oversigt</string>
+    <string name="cast">Medvirkende</string>
+    <string name="play">Afspil</string>
+    <string name="find_stream">Find &amp; afspil</string>
+    <string name="trailer">Trailer</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Søvn</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Åbn i</string>
+
+    <!-- Vises på bilskærmen i starten af hver session og i Indstillinger på telefonen.
+         Kort nok til, at bilens skærm ikke klipper midt i en sætning. -->
+    <string name="car_disclaimer">Se ikke video, mens du kører.\n\nVideo afspilles kun, mens Lumora kan bekræfte, at bilen holder stille. Ved enhver bevægelse slukkes billedet, og lyden fortsætter.\n\nLeveres «som den er», uden garanti og uden ansvar for tab, skade, bøde eller svigt i disse kontroller. Brug den i overensstemmelse med loven.</string>
+
+    <string name="legal_notice_title">Juridisk og sikkerhedsmæssig meddelelse</string>
+    <string name="legal_notice">Lumora leveres gratis, «som den er» og uden garantier af nogen art, hverken udtrykte eller underforståede, herunder, men ikke begrænset til garantier om salgbarhed, egnethed til et bestemt formål og ikke-krænkelse af tredjeparters rettigheder.\n\nI det omfang loven tillader, påtager forfatterne og bidragyderne sig intet ansvar for krav, skader, tab eller andre forpligtelser, der opstår fra eller i forbindelse med appen eller brugen af den, herunder, men ikke begrænset til: tab af eller skade på data eller enheder, afbrydelse af tjenesten, nedbrud eller fejl i appen, gebyrer opkrævet af dit netværk eller dine indholdsudbydere, eller enhver bøde, forelæg eller retsforfølgelse som følge af din brug af appen.\n\nKørsel: videoafspilning i et køretøj er kun beregnet til et stillestående køretøj eller en passagerskærm. At se video, mens man kører, er ulovligt i de fleste jurisdiktioner. Lumora forsøger at registrere bevægelse og deaktivere videoen automatisk, men denne registrering afhænger af hardware, tilladelser og signaler uden for appens kontrol og kan fejle eller være utilgængelig. Du må ikke stole på den. Føreren er alene ansvarlig for at overholde alle gældende færdselslove.\n\nIndhold: Lumora er en afspiller. Den hoster, leverer og indekserer ikke noget eget indhold. Alle streams, kataloger og metadata kommer fra tjenester og udbydere, du selv konfigurerer, og du er alene ansvarlig for at have de rettigheder eller abonnementer, der kræves for at få adgang til dem, og for at overholde vilkårene for disse tjenester og lovene i dit land.\n\nDistribution: denne app distribueres ikke via Google Play og er ikke tilknyttet, godkendt eller certificeret af Google. Android, Android Auto og Google Cast er varemærker tilhørende Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versioner</string>
+    <string name="fit">Tilpas</string>
+    <string name="audio">Lyd</string>
+    <string name="subtitles">Undertekster</string>
+    <string name="chapters">Kapitler</string>
+    <string name="seek_preview">Forhåndsvisning af søgning</string>
+    <string name="player_menu_title">Menu</string>
+    <string name="player_menu">Afspillermenu</string>
+    <string name="close_side_menu">Luk menuen</string>
+    <string name="side_menu_loading">Indlæser…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Udbyder</string>
+    <string name="playback">Afspilning</string>
+    <string name="general">Generelt</string>
+    <string name="filters">Filtre</string>
+    <string name="privacy">Privatliv</string>
+    <string name="downloads">Downloads</string>
+    <string name="plugins">Plugins</string>
+    <string name="enabled">Aktiveret</string>
+    <string name="update">Opdater</string>
+    <string name="back_to_plugins">‹  Plugins</string>
+    <string name="about">Om</string>
+    <string name="providers_description">Kør flere udbydere sammen - aktiver eller deaktiver hver enkelt uafhængigt</string>
+    <string name="your_providers">DINE UDBYDERE</string>
+    <string name="no_iptv_providers_added_yet">Ingen IPTV-udbydere tilføjet endnu</string>
+    <string name="add_provider">+ Tilføj udbyder</string>
+    <string name="what_kind_of_provider">Hvilken slags udbyder er dette?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Afspilningsliste-link</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Login-koder</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC-adresse</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Medieserver</string>
+    <string name="change">Skift</string>
+    <string name="show_phone_qr_pairing_code">Vis telefonens QR-parringskode</string>
+    <string name="or_enter_manually">ELLER INDTAST MANUELT</string>
+    <string name="name">Navn</string>
+    <string name="server_url">Server-URL</string>
+    <string name="sign_in_with_quick_connect">Log ind med Quick Connect</string>
+    <string name="username_if_quick_connect_off">Brugernavn (hvis Quick Connect er slået fra)</string>
+    <string name="playback_settings">Afspilningsindstillinger</string>
+    <string name="hide_non_english">Skjul film/serier, der ikke er på engelsk</string>
+    <string name="hide_adult_categories">Skjul voksenkategorier</string>
+    <!-- Sammenklappet kategorirække: pillen, der bringer den tilbage, og det engangs-hint,
+         der vises i sammenklapningsøjeblikket, så vejen tilbage aldrig skal søges efter. -->
+    <string name="categories">Kategorier</string>
+    <string name="show_categories">Vis kategorier</string>
+    <string name="categories_hidden_hint">Kategorier skjult — tryk på «Kategorier» for at vise</string>
+    <!-- Sammenklappet Indstillinger-række: den sidste navigationsrække, der skjuler den, og
+         pillen + hintet, der bringer den tilbage - spejler kategorisidelinjens klapfunktioner. -->
+    <string name="settings_nav_collapse">Klap sammen</string>
+    <string name="show_settings">Vis indstillinger</string>
+    <string name="settings_hidden_hint">Indstillinger skjult — tryk på «Indstillinger» for at vise</string>
+    <string name="categorize_live">Kategorisér direkte TV</string>
+    <string name="categorize_vod">Kategorisér film &amp; serier</string>
+    <string name="group_channels">Gruppér duplikatkanaler</string>
+    <string name="set_parental_pin">Angiv forældre-PIN</string>
+    <string name="clear_watch_history">Ryd visningshistorik</string>
+    <string name="plugins_description">Små scripts, der tilføjer funktioner - finde udbydere eller søge efter streams. Intet installeres som en separat app; et script kører inde i Lumora, og alt, hvad det foreslår, bruges kun, hvis du bekræfter det.</string>
+    <string name="add_a_plugin">TILFØJ ET PLUGIN</string>
+    <string name="install_from_url">Tilføj fra URL</string>
+    <string name="enter_apk_link">Angiv et link til plugin-scriptet</string>
+    <string name="installed">INSTALLERET</string>
+    <string name="no_plugins_installed">Ingen plugins installeret - gennemse en plugin-butik nedenfor</string>
+    <string name="plugin_stores">PLUGIN-BUTIKKER</string>
+    <string name="add_plugin_store">+ Tilføj en plugin-butik</string>
+    <string name="browse">Gennemse</string>
+    <string name="no_plugin_stores">Ingen plugin-butikker tilføjet</string>
+    <string name="results">RESULTATER</string>
+    <string name="version">Version</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">App</string>
+    <string name="about_platform_label">Platform</string>
+    <string name="about_platform_value">Android · TV + telefon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Søg efter opdateringer</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Skriv for at søge</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Luk</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Redigér</string>
+    <string name="remove">Fjern</string>
+    <!-- Indholdstype-kontakter pr. udbyder på udbyderrækken. Dedikerede id\'er, selvom
+         «Film»/«Serier» findes som faneetiketter (films_tab/series_tab) - ledningsbanen
+         knytter hver afkrydsningsboks til disse id\'er, og genbrug af fanestrengene ville
+         forbinde de to. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Film</string>
+    <string name="provider_content_series">Serier</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Kør</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESTET</string>
+    <string name="add">Tilføj</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Se alle</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - kontakter for set-status -->
+    <string name="episode_mark_watched">Markér afsnit som set</string>
+    <string name="episode_mark_unwatched">Markér afsnit som uset</string>
+    <string name="season_mark_watched">Markér sæson som set</string>
+    <string name="season_mark_unwatched">Markér sæson som uset</string>
+
+    <!-- dialog_search.xml - søgeoverlejring -->
+    <string name="search_overlay_hint">Søg i direkte TV, film &amp; serier…</string>
+    <string name="search_recents_label">Seneste søgninger</string>
+    <string name="search_recents_clear">Ryd</string>
+    <string name="search_filter_all">Alle</string>
+    <string name="search_filter_films">Film</string>
+    <string name="search_filter_series">Serier</string>
+    <!-- Statustekster, som søgeværten skifter mellem. «Ingen resultater» bærer forespørgslen,
+         og hint-linjen går på en anden linje i samme status-TextView, når den vises. -->
+    <string name="search_status_searching">Søger…</string>
+    <string name="search_status_no_results">Ingen resultater for «%1$s»</string>
+    <string name="search_status_no_results_hint">Prøv med færre bogstaver, eller tjek stavningen.</string>
+    <string name="search_status_count">%1$d/%2$d resultater</string>
+
+    <!-- item_epg_result.xml - EPG-søgeresultater for programmer -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - kontakt for tegnsætningslag. \? escape\'er det indledende ? -
+         ellers ville aapt læse «?123» som en ressourcehenvisning. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - Opdag-søgning (TMDB) -->
+    <string name="discover_search_hint">Søg i film &amp; serier…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - vises over udfordrings-WebView\'et på TV,
+         hvor der ikke er nogen peger, og afkrydsningsboksen skal rammes med en virtuel markør. -->
+    <string name="bypass_tv_instructions">FLYT MARKØREN OVER AFKRYDNINGSFELTET\nOG TRYK OK FOR AT LÅSE OP</string>
+
+    <!-- MainActivityScraper - kildevælgeren. TMDB fortæller, hvad der findes; siderne bliver
+         kun spurgt om, hvem der kan streame det, og værter dør ofte nok til, at en, der
+         fejler, er almindeligt. -->
+    <string name="scraper_dialog_title">Find stream \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Finder kilder\u2026</string>
+    <string name="scraper_searching_sites">Søger på sider\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Åbner %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s virkede ikke \u2014 prøv en anden kilde</string>
+    <string name="scraper_no_sources">Ingen kilder fundet til denne titel</string>
+    <string name="scraper_pick_manually">Vælg en kilde</string>
+    <string name="scraper_attempt_detail">via %1$s \u00b7 forsøg %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d kilde</item>
+        <item quantity="other">%1$d kilder</item>
+    </plurals>
+
+    <!-- MainActivitySettings - streaming-sidekilder. -->
+    <string name="scraper_settings_title">Streaming-sider</string>
+    <string name="scraper_settings_subtitle">Offentlige streaming-sider, som Find stream kan trække fra. Gennemsyn forbliver på Opdag \u2014 de bliver kun spurgt om, hvem der kan streame en titel, du allerede har valgt.</string>
+    <string name="scraper_enabled_title">Brug streaming-sider</string>
+    <string name="scraper_enabled_subtitle">Tilbyder Find stream på Opdag-titler</string>
+    <string name="scraper_sites_header">Sider at søge i</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Opløser sidedomæner gennem en krypteret opløser i stedet for din ISP\'s</string>
+    <string name="scraper_doh_system">System-DNS</string>
+    <string name="scraper_extra_buffering_title">Ekstra buffering</string>
+    <string name="scraper_extra_buffering_subtitle">Buffer op til 5 minutter i forvejen for værter, der leverer i rykk. Bruger mere hukommelse; gælder efter en genstart</string>
+    <string name="category_newest">Nyeste</string>
+    <string name="category_continue_watching">Fortsæt med at se</string>
+    <string name="category_other">Andet</string>
+    <string name="category_all">Alle</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Klap kategorier sammen</string>
+    <string name="category_favourites">Favoritter</string>
+    <string name="category_group_into_categories">Gruppér i kategorier</string>
+    <string name="category_show_all_categories">Vis alle kategorier (klassisk liste)</string>
+    <string name="category_next_up">Næste</string>
+    <string name="category_recently_played">Senest afspillet</string>
+    <string name="category_favourite_channels">Favoritkanaler</string>
+</resources>

@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Configurações</string>
+    <!-- Idioma da interface (painel Geral). "system" segue o idioma do dispositivo ;
+         as entradas do seletor são os nomes nativos dos idiomas e não precisam de tradução. -->
+    <string name="settings_ui_language">Idioma</string>
+    <string name="settings_ui_language_caption">Traduz o aplicativo inteiro — também define áudio, legendas e TMDB</string>
+    <string name="settings_type_m3u">Tipo: M3U</string>
+    <string name="m3u_url">URL da lista de reprodução M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Nome de usuário</string>
+    <string name="xtream_password">Senha</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Salvar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="loading">Carregando&#8230;</string>
+    <string name="live_badge">Ao vivo</string>
+
+    <!-- Tipos de provedor -->
+    <string name="stalker_mac">Endereço MAC</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Reprodutor -->
+    <!-- Gravação -->
+    <string name="recording_storage">Armazenamento de gravações</string>
+
+    <!-- Backup e restauração -->
+    <string name="backup_restore">Backup &amp; restauração</string>
+    <string name="export_backup">Exportar backup</string>
+    <string name="import_backup">Importar backup</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">Fontes de EPG</string>
+    <string name="add_epg_source">Adicionar fonte de EPG</string>
+
+    <!-- Gerenciamento de conteúdo -->
+    <!-- VOD -->
+    <!-- Qualidade -->
+    <!-- Erros -->
+    <!-- Entrada numérica -->
+    <!-- A seguir / Avanço automático -->
+    <string name="up_next">A seguir</string>
+    <string name="play_now">Reproduzir agora</string>
+
+    <!-- Busca incremental -->
+    <!-- Sincronização A/V -->
+    <string name="av_offset">Deslocamento de sincronização A/V</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Pesquisar</string>
+    <string name="tab_home">Início</string>
+    <string name="tab_live_tv">TV ao vivo</string>
+    <!-- Recuperar : reprodução de tv_archive do Xtream (canal → dia → programa que já foi ao ar). -->
+    <string name="tab_catchup">Recuperar</string>
+    <string name="catchup_crumb_categories">Recuperar · %1$d canais com arquivo</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d canais</string>
+    <string name="catchup_crumb_days">%1$s · escolha um dia</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Hoje</string>
+    <string name="catchup_yesterday">Ontem</string>
+    <string name="catchup_loading">Carregando guia…</string>
+    <string name="catchup_no_guide">Sem dados do guia para este dia — mostrando blocos por hora.</string>
+    <string name="catchup_nothing_aired">Nada foi transmitido neste dia ainda.</string>
+    <string name="catchup_no_provider">Não é possível reproduzir — o provedor de origem não está mais configurado.</string>
+    <string name="catchup_hour_block">Bloco de hora</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d dia mantido</item>
+        <item quantity="other">%1$d dias mantidos</item>
+    </plurals>
+    <string name="series_tab">Séries</string>
+    <string name="films_tab">Filmes</string>
+    <string name="discover_tab">Descobrir</string>
+    <string name="downloads_tab">Downloads</string>
+    <string name="no_provider_configured">Nenhum provedor configurado</string>
+    <string name="press_settings_to_add_playlist">Pressione Configurações para adicionar uma URL de lista de reprodução</string>
+    <string name="add_a_provider">Adicionar um provedor</string>
+    <string name="startup_choose_provider">PROVEDOR IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">CONTEÚDO DE STREAMING PÚBLICO</string>
+    <string name="startup_choose_both">AMBOS</string>
+    <string name="search_main_hint">Pesquisar TV ao vivo, filmes &amp; séries…</string>
+    <string name="no_downloads_yet">Nenhum download ainda</string>
+    <string name="overview">Visão geral</string>
+    <string name="cast">Elenco</string>
+    <string name="play">Reproduzir</string>
+    <string name="find_stream">Encontrar &amp; reproduzir</string>
+    <string name="trailer">Trailer</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Dormir</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Abrir em</string>
+
+    <!-- Exibido na tela do carro no início de cada sessão e nas Configurações no
+         telefone. Mantido curto o suficiente para que a central do carro não o corte
+         no meio de uma frase. -->
+    <string name="car_disclaimer">Não assista a vídeos enquanto dirige.\n\nO vídeo só é reproduzido quando o Lumora confirma que o carro está parado. Ao menor movimento, a imagem é desligada e o som continua.\n\nFornecido “no estado em que se encontra”, sem garantia e sem responsabilidade por qualquer perda, dano, penalidade ou falha destes controles. Use de forma legal.</string>
+
+    <string name="legal_notice_title">Aviso legal &amp; de segurança</string>
+    <string name="legal_notice">O Lumora é fornecido gratuitamente, “no estado em que se encontra” e sem garantia de qualquer tipo, expressa ou implícita, incluindo, mas não se limitando a garantias de comercialização, adequação a uma finalidade específica e não violação de direitos.\n\nNa máxima extensão permitida por lei, os autores e colaboradores não aceitam responsabilidade por qualquer reivindicação, dano, perda ou outra obrigação decorrente do aplicativo ou de seu uso ou a ele relacionada, incluindo, mas não se limitando a: perda ou dano de dados ou dispositivos, interrupção de serviço, falhas ou erros do aplicativo, cobranças incorridas por sua operadora de rede ou provedores de conteúdo, ou qualquer penalidade, multa ou processo resultante do seu uso do aplicativo.\n\nCondução: a reprodução de vídeo em um veículo destina-se apenas a um veículo parado ou a uma tela de passageiro. Assistir a vídeos enquanto dirige é ilegal na maioria das jurisdições. O Lumora tenta detectar movimento e desativar o vídeo automaticamente, mas essa detecção depende de hardware, permissões e sinais fora do controle do aplicativo e pode falhar ou ficar indisponível. Você não deve confiar nela. O motorista permanece o único responsável pelo cumprimento de todas as leis de trânsito aplicáveis.\n\nConteúdo: o Lumora é um reprodutor. Ele não hospeda, fornece ou indexa conteúdo próprio. Todos os streams, catálogos e metadados vêm de serviços e provedores que você mesmo configura, e você é o único responsável por deter os direitos ou assinaturas necessários para acessá-los e por cumprir os termos desses serviços e as leis do seu país.\n\nDistribuição: este aplicativo não é distribuído pela Google Play e não é afiliado, endossado ou certificado pela Google. Android, Android Auto e Google Cast são marcas comerciais do Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versões</string>
+    <string name="fit">Ajustar</string>
+    <string name="audio">Áudio</string>
+    <string name="subtitles">Legendas</string>
+    <string name="chapters">Capítulos</string>
+    <string name="seek_preview">Pré-visualização de busca</string>
+    <string name="player_menu_title">Menu</string>
+    <string name="player_menu">Menu do reprodutor</string>
+    <string name="close_side_menu">Fechar menu</string>
+    <string name="side_menu_loading">Carregando…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Provedores</string>
+    <string name="playback">Reprodução</string>
+    <string name="general">Geral</string>
+    <string name="filters">Filtros</string>
+    <string name="privacy">Privacidade</string>
+    <string name="downloads">Downloads</string>
+    <string name="plugins">Plugins</string>
+    <string name="enabled">Ativado</string>
+    <string name="update">Atualizar</string>
+    <string name="back_to_plugins">‹  Plugins</string>
+    <string name="about">Sobre</string>
+    <string name="providers_description">Execute vários provedores juntos - ative ou desative cada um de forma independente</string>
+    <string name="your_providers">SEUS PROVEDORES</string>
+    <string name="no_iptv_providers_added_yet">Nenhum provedor IPTV adicionado ainda</string>
+    <string name="add_provider">+ Adicionar provedor</string>
+    <string name="what_kind_of_provider">Que tipo de provedor é este?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Link da lista de reprodução</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Códigos de login</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">Endereço MAC</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Servidor de mídia</string>
+    <string name="change">Alterar</string>
+    <string name="show_phone_qr_pairing_code">Mostrar código de pareamento QR do telefone</string>
+    <string name="or_enter_manually">OU INSERIR MANUALMENTE</string>
+    <string name="name">Nome</string>
+    <string name="server_url">URL do servidor</string>
+    <string name="sign_in_with_quick_connect">Entrar com Quick Connect</string>
+    <string name="username_if_quick_connect_off">Nome de usuário (se o Quick Connect estiver desativado)</string>
+    <string name="playback_settings">Configurações de reprodução</string>
+    <string name="hide_non_english">Ocultar filmes/séries que não estão em inglês</string>
+    <string name="hide_adult_categories">Ocultar categorias adultas</string>
+    <!-- Trilho de categorias recolhido: a pílula que o traz de volta e a dica única exibida
+         no momento do recolhimento, para que o caminho de volta nunca precise ser procurado. -->
+    <string name="categories">Categorias</string>
+    <string name="show_categories">Mostrar categorias</string>
+    <string name="categories_hidden_hint">Categorias ocultas — toque em “Categorias” para mostrar</string>
+    <!-- Trilho de Configurações recolhido: a última linha de navegação que o oculta, e a pílula +
+         dica única que o trazem de volta - espelha os recursos de recolhimento da barra lateral de
+         categorias. -->
+    <string name="settings_nav_collapse">Recolher</string>
+    <string name="show_settings">Mostrar configurações</string>
+    <string name="settings_hidden_hint">Configurações ocultas — toque em “Configurações” para mostrar</string>
+    <string name="categorize_live">Categorizar TV ao vivo</string>
+    <string name="categorize_vod">Categorizar filmes &amp; séries</string>
+    <string name="group_channels">Agrupar canais duplicados</string>
+    <string name="set_parental_pin">Definir PIN parental</string>
+    <string name="clear_watch_history">Limpar histórico de exibição</string>
+    <string name="plugins_description">Pequenos scripts que adicionam recursos - encontrar provedores ou pesquisar streams. Nada é instalado como um aplicativo separado; um script é executado dentro do Lumora, e tudo o que ele propõe só é usado se você confirmar.</string>
+    <string name="add_a_plugin">ADICIONAR UM PLUGIN</string>
+    <string name="install_from_url">Adicionar a partir de URL</string>
+    <string name="enter_apk_link">Insira um link de script de plugin</string>
+    <string name="installed">INSTALADO</string>
+    <string name="no_plugins_installed">Nenhum plugin instalado - navegue por uma loja de plugins abaixo</string>
+    <string name="plugin_stores">LOJAS DE PLUGINS</string>
+    <string name="add_plugin_store">+ Adicionar uma loja de plugins</string>
+    <string name="browse">Navegar</string>
+    <string name="no_plugin_stores">Nenhuma loja de plugins adicionada</string>
+    <string name="results">RESULTADOS</string>
+    <string name="version">Versão</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Aplicativo</string>
+    <string name="about_platform_label">Plataforma</string>
+    <string name="about_platform_value">Android · TV + telefone</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Verificar atualizações</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Digite para pesquisar</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Fechar</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Editar</string>
+    <string name="remove">Remover</string>
+    <!-- Alternâncias de tipo de conteúdo por provedor na linha do provedor. IDs dedicados mesmo
+         que “Filmes”/“Séries” existam como rótulos de abas (films_tab/series_tab) - a ligação
+         associa cada caixa de seleção a esses IDs, e reutilizar as strings das abas acoplaria
+         as duas. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Filmes</string>
+    <string name="provider_content_series">Séries</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Executar</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESTADO</string>
+    <string name="add">Adicionar</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Ver tudo</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - alternâncias do estado assistido -->
+    <string name="episode_mark_watched">Marcar episódio como assistido</string>
+    <string name="episode_mark_unwatched">Marcar episódio como não assistido</string>
+    <string name="season_mark_watched">Marcar temporada como assistida</string>
+    <string name="season_mark_unwatched">Marcar temporada como não assistida</string>
+
+    <!-- dialog_search.xml - sobreposição de busca -->
+    <string name="search_overlay_hint">Pesquisar TV ao vivo, filmes &amp; séries…</string>
+    <string name="search_recents_label">Pesquisas recentes</string>
+    <string name="search_recents_clear">Limpar</string>
+    <string name="search_filter_all">Tudo</string>
+    <string name="search_filter_films">Filmes</string>
+    <string name="search_filter_series">Séries</string>
+    <!-- Textos de status que o host de busca alterna. “Sem resultados” carrega a consulta, e a
+         linha de dica vai para uma segunda linha do mesmo TextView de status quando exibida. -->
+    <string name="search_status_searching">Pesquisando…</string>
+    <string name="search_status_no_results">Nenhum resultado para “%1$s”</string>
+    <string name="search_status_no_results_hint">Tente menos letras ou verifique a ortografia.</string>
+    <string name="search_status_count">%1$d/%2$d resultados</string>
+
+    <!-- item_epg_result.xml - resultados de busca de programas EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - alternância da camada de pontuação. \? escapa o ? inicial -
+         caso contrário, o aapt leria “?123” como uma referência de recurso. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - busca no Descobrir (TMDB) -->
+    <string name="discover_search_hint">Pesquisar filmes &amp; séries…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - exibido acima do WebView de desafio na TV,
+         onde não há ponteiro e a caixa de seleção precisa ser atingida com um cursor virtual. -->
+    <string name="bypass_tv_instructions">MOVA O CURSOR SOBRE A CAIXA DE SELEÇÃO\nE PRESSIONE OK PARA DESBLOQUEAR</string>
+
+    <!-- MainActivityScraper - o seletor de fontes. O TMDB informa o que existe; os sites são
+         consultados apenas sobre quem pode transmitir, e os hosts morrem com frequência
+         suficiente para que a falha de um seja rotina. -->
+    <string name="scraper_dialog_title">Encontrar stream \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Encontrando fontes\u2026</string>
+    <string name="scraper_searching_sites">Pesquisando sites\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Abrindo %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s não funcionou \u2014 tente outra fonte</string>
+    <string name="scraper_no_sources">Nenhuma fonte encontrada para este título</string>
+    <string name="scraper_pick_manually">Escolher uma fonte</string>
+    <string name="scraper_attempt_detail">via %1$s \u00b7 tentativa %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d fonte</item>
+        <item quantity="other">%1$d fontes</item>
+    </plurals>
+
+    <!-- MainActivitySettings - fontes de sites de streaming. -->
+    <string name="scraper_settings_title">Sites de streaming</string>
+    <string name="scraper_settings_subtitle">Sites de streaming públicos de onde o Encontrar stream pode extrair. A navegação permanece em Descobrir \u2014 eles são consultados apenas sobre quem pode transmitir um título que você já escolheu.</string>
+    <string name="scraper_enabled_title">Usar sites de streaming</string>
+    <string name="scraper_enabled_subtitle">Oferece Encontrar stream nos títulos de Descobrir</string>
+    <string name="scraper_sites_header">Sites para pesquisar</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Resolve os domínios dos sites por meio de um resolvedor criptografado em vez do seu ISP</string>
+    <string name="scraper_doh_system">DNS do sistema</string>
+    <string name="scraper_extra_buffering_title">Buffer extra</string>
+    <string name="scraper_extra_buffering_subtitle">Armazena em buffer até 5 minutos de antecedência para hosts que entregam em rajadas. Usa mais memória; entra em vigor após uma reinicialização</string>
+    <string name="category_newest">Mais recentes</string>
+    <string name="category_continue_watching">Continuar assistindo</string>
+    <string name="category_other">Outros</string>
+    <string name="category_all">Tudo</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Recolher categorias</string>
+    <string name="category_favourites">Favoritos</string>
+    <string name="category_group_into_categories">Agrupar em categorias</string>
+    <string name="category_show_all_categories">Mostrar todas as categorias (lista clássica)</string>
+    <string name="category_next_up">A seguir</string>
+    <string name="category_recently_played">Reproduzidos recentemente</string>
+    <string name="category_favourite_channels">Canais favoritos</string>
+</resources>

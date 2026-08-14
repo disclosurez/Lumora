@@ -272,4 +272,16 @@
     <string name="scraper_doh_system">DNS système</string>
     <string name="scraper_extra_buffering_title">Mise en mémoire tampon supplémentaire</string>
     <string name="scraper_extra_buffering_subtitle">Met en mémoire tampon jusqu\'à 5 minutes d\'avance pour les hébergeurs qui livrent par rafales. Utilise plus de mémoire ; s\'applique après un redémarrage</string>
+    <string name="category_newest">Plus récents</string>
+    <string name="category_continue_watching">Reprendre la lecture</string>
+    <string name="category_other">Autre</string>
+    <string name="category_all">Tout</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Réduire les catégories</string>
+    <string name="category_favourites">Favoris</string>
+    <string name="category_group_into_categories">Regrouper en catégories</string>
+    <string name="category_show_all_categories">Afficher toutes les catégories (liste classique)</string>
+    <string name="category_next_up">À suivre</string>
+    <string name="category_recently_played">Lus récemment</string>
+    <string name="category_favourite_channels">Chaînes favorites</string>
 </resources>

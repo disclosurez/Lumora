@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Postavke</string>
+    <!-- Jezik sučelja aplikacije (ploča Općenito). "system" prati jezik uređaja;
+         stavke na popisu su nazivi na izvornom jeziku i ne treba ih prevoditi. -->
+    <string name="settings_ui_language">Jezik</string>
+    <string name="settings_ui_language_caption">Prevodi cijelu aplikaciju — također postavlja audio, titlove i TMDB</string>
+    <string name="settings_type_m3u">Vrsta: M3U</string>
+    <string name="m3u_url">URL popisa za reprodukciju M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Korisničko ime</string>
+    <string name="xtream_password">Lozinka</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Spremi</string>
+    <string name="cancel">Odustani</string>
+    <string name="loading">Učitavanje&#8230;</string>
+    <string name="live_badge">Uživo</string>
+
+    <!-- Vrste pružatelja -->
+    <string name="stalker_mac">MAC adresa</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Reproduktor -->
+    <!-- Snimanje -->
+    <string name="recording_storage">Pohrana snimaka</string>
+
+    <!-- Sigurnosna kopija i vraćanje -->
+    <string name="backup_restore">Sigurnosna kopija i vraćanje</string>
+    <string name="export_backup">Izvezi sigurnosnu kopiju</string>
+    <string name="import_backup">Uvezi sigurnosnu kopiju</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG izvori</string>
+    <string name="add_epg_source">Dodaj EPG izvor</string>
+
+    <!-- Upravljanje sadržajem -->
+    <!-- VOD -->
+    <!-- Kvaliteta -->
+    <!-- Pogreške -->
+    <!-- Numerički unos -->
+    <!-- Sljedeće / automatsko napredovanje -->
+    <string name="up_next">Sljedeće</string>
+    <string name="play_now">Reproduciraj sada</string>
+
+    <!-- Postupno pretraživanje -->
+    <!-- A/V sinkronizacija -->
+    <string name="av_offset">A/V sinkronizacijski pomak</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Pretraži</string>
+    <string name="tab_home">Početna</string>
+    <string name="tab_live_tv">TV uživo</string>
+    <!-- Nadoknada: Xtream tv_archive reprodukcija (kanal → dan → program koji je već emitiran). -->
+    <string name="tab_catchup">Nadoknada</string>
+    <string name="catchup_crumb_categories">Nadoknada · %1$d kanala s arhivom</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d kanala</string>
+    <string name="catchup_crumb_days">%1$s · odaberite dan</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Danas</string>
+    <string name="catchup_yesterday">Jučer</string>
+    <string name="catchup_loading">Učitavanje vodiča…</string>
+    <string name="catchup_no_guide">Nema podataka vodiča za ovaj dan — prikazuju se satni blokovi.</string>
+    <string name="catchup_nothing_aired">Na ovaj dan još ništa nije emitirano.</string>
+    <string name="catchup_no_provider">Ne može se reproducirati — pružatelj od kojeg dolazi više nije konfiguriran.</string>
+    <string name="catchup_hour_block">Satni blok</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d dan sačuvan</item>
+        <item quantity="few">%1$d dana sačuvana</item>
+        <item quantity="other">%1$d dana sačuvano</item>
+    </plurals>
+    <string name="series_tab">Serije</string>
+    <string name="films_tab">Filmovi</string>
+    <string name="discover_tab">Otkrij</string>
+    <string name="downloads_tab">Preuzimanja</string>
+    <string name="no_provider_configured">Nije konfiguriran nijedan pružatelj</string>
+    <string name="press_settings_to_add_playlist">Pritisnite Postavke za dodavanje URL-a popisa</string>
+    <string name="add_a_provider">Dodaj pružatelja</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN PRUŽATELJ</string>
+    <string name="startup_choose_public">JAVNI STREAMING SADRŽAJ</string>
+    <string name="startup_choose_both">OBOJE</string>
+    <string name="search_main_hint">Pretraži TV uživo, filmove &amp; serije…</string>
+    <string name="no_downloads_yet">Još nema preuzimanja</string>
+    <string name="overview">Pregled</string>
+    <string name="cast">Glumačka postava</string>
+    <string name="play">Reproduciraj</string>
+    <string name="find_stream">Pronađi &amp; reproduciraj</string>
+    <string name="trailer">Najava</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Spavanje</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Otvori u</string>
+
+    <!-- Prikazuje se na zaslonu automobila na početku svake sesije i u postavkama na telefonu.
+         Dovoljno kratko da ih zaslon automobila neće prekinuti usred rečenice. -->
+    <string name="car_disclaimer">Ne gledajte video dok vozite.\n\nVideo se reproducira samo dok Lumora može potvrditi da je automobil zaustavljen. Pri svakom pokretu slika se gasi, a zvuk se nastavlja.\n\nIsporučuje se „takav kakav jest", bez jamstva i bez odgovornosti za bilo kakav gubitak, štetu, kaznu ili kvar ovih kontrola. Koristite u skladu sa zakonom.</string>
+
+    <string name="legal_notice_title">Pravna obavijest i obavijest o sigurnosti</string>
+    <string name="legal_notice">Lumora se pruža besplatno, „takav kakav jest" i bez jamstva bilo koje vrste, izričitog ili implicitnog, uključujući, ali ne ograničavajući se na jamstva o tržišnoj vrijednosti, prikladnosti za određenu namjenu i nekršenju prava trećih strana.\n\nU najvećoj mjeri dopuštenoj zakonom, autori i suradnici ne prihvaćaju odgovornost za bilo kakve zahtjeve, štete, gubitke ili druge obveze koje proizlaze iz aplikacije ili njezine upotrebe ili su u vezi s njom, uključujući, ali ne ograničavajući se na: gubitak ili oštećenje podataka ili uređaja, prekid usluge, rušenje ili pogreške aplikacije, naknade koje naplate vaša mreža ili pružatelji sadržaja, ili bilo kakvu kaznu, novčanu kaznu ili kazneni progon proizašao iz vaše upotrebe aplikacije.\n\nVožnja: reprodukcija videa u vozilu namijenjena je samo za zaustavljeno vozilo ili zaslon suvozača. Gledanje videa tijekom vožnje nezakonito je u većini jurisdikcija. Lumora pokušava otkriti pokret i automatski onemogućiti video, ali to otkrivanje ovisi o hardveru, dopuštenjima i signalima izvan kontrole aplikacije te može zakazati ili biti nedostupno. Ne smijete se oslanjati na to. Vozač ostaje isključivo odgovoran za poštivanje svih važećih zakona o cestovnom prometu.\n\nSadržaj: Lumora je reproduktor. Ne hostira, ne pruža i ne indeksira vlastiti sadržaj. Svi tokovi, katalozi i metapodaci dolaze iz usluga i pružatelja koje sami konfigurirate te ste isključivo odgovorni za posjedovanje prava ili pretplata potrebnih za pristup njima i za poštivanje uvjeta tih usluga i zakona svoje zemlje.\n\nDistribucija: ova se aplikacija ne distribuira putem Google Playa te nije povezana s Googleom niti je Google odobrava ili ovjerava. Android, Android Auto i Google Cast zaštitni su znakovi tvrtke Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Verzije</string>
+    <string name="fit">Prilagodi</string>
+    <string name="audio">Zvuk</string>
+    <string name="subtitles">Titlovi</string>
+    <string name="chapters">Poglavlja</string>
+    <string name="seek_preview">Pregled pretraživanja</string>
+    <string name="player_menu_title">Izbornik</string>
+    <string name="player_menu">Izbornik reproduktora</string>
+    <string name="close_side_menu">Zatvori izbornik</string>
+    <string name="side_menu_loading">Učitavanje…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Pružatelji</string>
+    <string name="playback">Reprodukcija</string>
+    <string name="general">Općenito</string>
+    <string name="filters">Filtri</string>
+    <string name="privacy">Privatnost</string>
+    <string name="downloads">Preuzimanja</string>
+    <string name="plugins">Dodaci</string>
+    <string name="enabled">Omogućeno</string>
+    <string name="update">Ažuriraj</string>
+    <string name="back_to_plugins">‹  Dodaci</string>
+    <string name="about">O aplikaciji</string>
+    <string name="providers_description">Pokrenite više pružatelja zajedno - svaki uključite ili isključite neovisno</string>
+    <string name="your_providers">VAŠI PRUŽATELJI</string>
+    <string name="no_iptv_providers_added_yet">Još nisu dodani IPTV pružatelji</string>
+    <string name="add_provider">+ Dodaj pružatelja</string>
+    <string name="what_kind_of_provider">Kakav je to pružatelj?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Poveznica popisa</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Kôdovi za prijavu</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC adresa</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Medijski poslužitelj</string>
+    <string name="change">Promijeni</string>
+    <string name="show_phone_qr_pairing_code">Prikaži QR kôd za uparivanje s telefonom</string>
+    <string name="or_enter_manually">ILI UNESITE RUČNO</string>
+    <string name="name">Naziv</string>
+    <string name="server_url">URL poslužitelja</string>
+    <string name="sign_in_with_quick_connect">Prijavite se putem Quick Connecta</string>
+    <string name="username_if_quick_connect_off">Korisničko ime (ako je Quick Connect isključen)</string>
+    <string name="playback_settings">Postavke reprodukcije</string>
+    <string name="hide_non_english">Sakrij filmove/serije koji nisu na engleskom</string>
+    <string name="hide_adult_categories">Sakrij kategorije za odrasle</string>
+    <!-- Sažeta traka kategorija: pločica koja je vraća i jednokratna uputa prikazana
+         u trenutku sažimanja kako povratak nikad ne bi trebalo tražiti. -->
+    <string name="categories">Kategorije</string>
+    <string name="show_categories">Prikaži kategorije</string>
+    <string name="categories_hidden_hint">Kategorije su skrivene — dodirnite „Kategorije" za prikaz</string>
+    <!-- Sažeta traka postavki: zadnji red za navigaciju koji je skriva, te pločica + jednokratna
+         uputa koje je vraćaju - zrcali mogućnosti sažimanja bočne trake kategorija. -->
+    <string name="settings_nav_collapse">Sažmi</string>
+    <string name="show_settings">Prikaži postavke</string>
+    <string name="settings_hidden_hint">Postavke su skrivene — dodirnite „Postavke" za prikaz</string>
+    <string name="categorize_live">Razvrstaj TV uživo</string>
+    <string name="categorize_vod">Razvrstaj filmove &amp; serije</string>
+    <string name="group_channels">Grupiraj duplikate kanala</string>
+    <string name="set_parental_pin">Postavi roditeljski PIN</string>
+    <string name="clear_watch_history">Očisti povijest gledanja</string>
+    <string name="plugins_description">Mali skripti koji dodaju značajke - pronalaženje pružatelja ili traženje tokova. Ništa se ne instalira kao zasebna aplikacija; skripta se izvodi unutar Lumore, a sve što predloži koristi se samo ako to potvrdite.</string>
+    <string name="add_a_plugin">DODAJ DODATAK</string>
+    <string name="install_from_url">Dodaj s URL-a</string>
+    <string name="enter_apk_link">Unesite poveznicu skripte dodatka</string>
+    <string name="installed">INSTALIRANO</string>
+    <string name="no_plugins_installed">Nema instaliranih dodataka - pregledajte trgovinu dodataka u nastavku</string>
+    <string name="plugin_stores">TRGOVINE DODATAKA</string>
+    <string name="add_plugin_store">+ Dodaj trgovinu dodataka</string>
+    <string name="browse">Pregledaj</string>
+    <string name="no_plugin_stores">Nema dodanih trgovina dodataka</string>
+    <string name="results">REZULTATI</string>
+    <string name="version">Verzija</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Aplikacija</string>
+    <string name="about_platform_label">Platforma</string>
+    <string name="about_platform_value">Android · TV + telefon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Provjeri ažuriranja</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Upišite za pretragu</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Zatvori</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Uredi</string>
+    <string name="remove">Ukloni</string>
+    <!-- Preklopnici vrste sadržaja po pružatelju na retku pružatelja. Namjenski ID-ovi iako
+         "Filmovi"/"Serije" postoje kao oznake kartica (films_tab/series_tab) - ožičenje veže
+         svaku kućicu uz ove ID-ove, a ponovna upotreba kartičnih nizova povezala bi ih. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Filmovi</string>
+    <string name="provider_content_series">Serije</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Pokreni</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESTIRANO</string>
+    <string name="add">Dodaj</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Pogledaj sve</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - preklopnici oznake pogledano -->
+    <string name="episode_mark_watched">Označi epizodu kao gledanu</string>
+    <string name="episode_mark_unwatched">Označi epizodu kao negledanu</string>
+    <string name="season_mark_watched">Označi sezonu kao gledanu</string>
+    <string name="season_mark_unwatched">Označi sezonu kao negledanu</string>
+
+    <!-- dialog_search.xml - sloj pretrage -->
+    <string name="search_overlay_hint">Pretraži TV uživo, filmove &amp; serije…</string>
+    <string name="search_recents_label">Nedavna pretraživanja</string>
+    <string name="search_recents_clear">Očisti</string>
+    <string name="search_filter_all">Sve</string>
+    <string name="search_filter_films">Filmovi</string>
+    <string name="search_filter_series">Serije</string>
+    <!-- Statusni tekstovi među kojima domaćin pretrage mijenja. "Nema rezultata" nosi upit, a
+         redak upute ide u drugi redak istog statusnog TextViewa kada je prikazan. -->
+    <string name="search_status_searching">Pretraživanje…</string>
+    <string name="search_status_no_results">Nema rezultata za „%1$s"</string>
+    <string name="search_status_no_results_hint">Pokušajte s manje slova ili provjerite pravopis.</string>
+    <string name="search_status_count">%1$d/%2$d rezultata</string>
+
+    <!-- item_epg_result.xml - rezultati EPG pretrage programa -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - prebacivanje sloja interpunkcije. \? izbjegava početni ? -
+         aapt bi inače pročitao "?123" kao referencu na resurs. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - pretraga Otkrij (TMDB) -->
+    <string name="discover_search_hint">Pretraži filmove &amp; serije…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - prikazuje se iznad izazovnog WebViewa na TV-u,
+         gdje nema pokazivača i kućicu treba pogoditi virtualnim kursorom. -->
+    <string name="bypass_tv_instructions">POMAKNITE POKAZIVAČ IZNAD OKVIRA ZA POTVRDU\nI PRITISNITE OK ZA OTKLJUČAVANJE</string>
+
+    <!-- MainActivityScraper - birač izvora. TMDB kaže što postoji; stranice se pita samo
+         tko to može emitirati, a hostovi dovoljno često padaju da je neuspjeh jednog uobičajen. -->
+    <string name="scraper_dialog_title">Pronađi tok \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Pronalaženje izvora\u2026</string>
+    <string name="scraper_searching_sites">Pretraživanje stranica\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Otvaranje %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s nije uspjelo \u2014 pokušajte s drugim izvorom</string>
+    <string name="scraper_no_sources">Nema pronađenih izvora za ovaj naslov</string>
+    <string name="scraper_pick_manually">Odaberite izvor</string>
+    <string name="scraper_attempt_detail">putem %1$s \u00b7 pokušaj %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d izvor</item>
+        <item quantity="few">%1$d izvora</item>
+        <item quantity="other">%1$d izvora</item>
+    </plurals>
+
+    <!-- MainActivitySettings - izvori stranica za strujanje. -->
+    <string name="scraper_settings_title">Stranice za strujanje</string>
+    <string name="scraper_settings_subtitle">Javne stranice za strujanje koje Pronađi tok može koristiti. Pregledavanje ostaje na Otkrij \u2014 njih se pita samo tko može reproducirati naslov koji ste već odabrali.</string>
+    <string name="scraper_enabled_title">Koristi stranice za strujanje</string>
+    <string name="scraper_enabled_subtitle">Nudi Pronađi tok na naslovima na Otkrij</string>
+    <string name="scraper_sites_header">Stranice za pretraživanje</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Razrješava domene stranica putem šifriranog razrješivača umjesto preko vašeg ISP-a</string>
+    <string name="scraper_doh_system">Sustavni DNS</string>
+    <string name="scraper_extra_buffering_title">Dodatno međuspremanje</string>
+    <string name="scraper_extra_buffering_subtitle">Međusprema do 5 minuta unaprijed za poslužitelje koji isporučuju u serijama. Koristi više memorije; primjenjuje se nakon ponovnog pokretanja</string>
+    <string name="category_newest">Najnovije</string>
+    <string name="category_continue_watching">Nastavi gledati</string>
+    <string name="category_other">Ostalo</string>
+    <string name="category_all">Sve</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Sažmi kategorije</string>
+    <string name="category_favourites">Favoriti</string>
+    <string name="category_group_into_categories">Grupiraj u kategorije</string>
+    <string name="category_show_all_categories">Prikaži sve kategorije (klasični popis)</string>
+    <string name="category_next_up">Sljedeće</string>
+    <string name="category_recently_played">Nedavno reproducirano</string>
+    <string name="category_favourite_channels">Favoritni kanali</string>
+</resources>

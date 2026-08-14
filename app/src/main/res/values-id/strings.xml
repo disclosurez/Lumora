@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Pengaturan</string>
+    <!-- Bahasa UI aplikasi (panel Umum). "system" mengikuti bahasa perangkat ; entri pemilih
+         adalah nama dalam bahasa aslinya dan tidak perlu diterjemahkan. -->
+    <string name="settings_ui_language">Bahasa</string>
+    <string name="settings_ui_language_caption">Menerjemahkan seluruh aplikasi — juga mengatur audio, subtitle, dan TMDB</string>
+    <string name="settings_type_m3u">Tipe: M3U</string>
+    <string name="m3u_url">URL Daftar Putar M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Nama pengguna</string>
+    <string name="xtream_password">Kata sandi</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Simpan</string>
+    <string name="cancel">Batal</string>
+    <string name="loading">Memuat&#8230;</string>
+    <string name="live_badge">Langsung</string>
+
+    <!-- Jenis penyedia -->
+    <string name="stalker_mac">Alamat MAC</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Pemutar -->
+    <!-- Rekaman -->
+    <string name="recording_storage">Penyimpanan rekaman</string>
+
+    <!-- Cadangkan dan pulihkan -->
+    <string name="backup_restore">Cadangkan &amp; pulihkan</string>
+    <string name="export_backup">Ekspor cadangan</string>
+    <string name="import_backup">Impor cadangan</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">Sumber EPG</string>
+    <string name="add_epg_source">Tambah sumber EPG</string>
+
+    <!-- Manajemen Konten -->
+    <!-- VOD -->
+    <!-- Kualitas -->
+    <!-- Kesalahan -->
+    <!-- Masukan Angka -->
+    <!-- Berikutnya / Lanjut Otomatis -->
+    <string name="up_next">Berikutnya</string>
+    <string name="play_now">Putar sekarang</string>
+
+    <!-- Pencarian Inkremental -->
+    <!-- Sinkronisasi A/V -->
+    <string name="av_offset">Offset sinkronisasi A/V</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Cari</string>
+    <string name="tab_home">Beranda</string>
+    <string name="tab_live_tv">TV langsung</string>
+    <!-- Catch Up : pemutaran tv_archive Xtream (saluran → hari → program yang sudah tayang). -->
+    <string name="tab_catchup">Catch Up</string>
+    <string name="catchup_crumb_categories">Catch Up · %1$d saluran dengan arsip</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d saluran</string>
+    <string name="catchup_crumb_days">%1$s · pilih hari</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Hari ini</string>
+    <string name="catchup_yesterday">Kemarin</string>
+    <string name="catchup_loading">Memuat panduan…</string>
+    <string name="catchup_no_guide">Tidak ada data panduan untuk hari ini — menampilkan blok per jam.</string>
+    <string name="catchup_nothing_aired">Belum ada yang ditayangkan pada hari ini.</string>
+    <string name="catchup_no_provider">Tidak dapat memutar ini — penyedia asalnya tidak lagi dikonfigurasi.</string>
+    <string name="catchup_hour_block">Blok per jam</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="other">%1$d hari disimpan</item>
+    </plurals>
+    <string name="series_tab">Serial</string>
+    <string name="films_tab">Film</string>
+    <string name="discover_tab">Jelajah</string>
+    <string name="downloads_tab">Unduhan</string>
+    <string name="no_provider_configured">Tidak ada penyedia yang dikonfigurasi</string>
+    <string name="press_settings_to_add_playlist">Tekan Pengaturan untuk menambahkan URL daftar putar</string>
+    <string name="add_a_provider">Tambah Penyedia</string>
+    <string name="startup_choose_provider">PENYEDIA IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">KONTEN STREAMING PUBLIK</string>
+    <string name="startup_choose_both">KEDUANYA</string>
+    <string name="search_main_hint">Cari TV langsung, film &amp; serial…</string>
+    <string name="no_downloads_yet">Belum ada unduhan</string>
+    <string name="overview">Ringkasan</string>
+    <string name="cast">Pemeran</string>
+    <string name="play">Putar</string>
+    <string name="find_stream">Temukan &amp; putar</string>
+    <string name="trailer">Trailer</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Tidur</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Buka di</string>
+
+    <!-- Ditampilkan di layar mobil di awal setiap sesi, dan di Pengaturan di ponsel. Dibuat cukup
+         pendek agar head unit tidak memotongnya di tengah kalimat. -->
+    <string name="car_disclaimer">Jangan menonton video saat mengemudi.\n\nVideo hanya diputar saat Lumora dapat memastikan mobil berhenti. Saat ada gerakan, gambar mati dan suara tetap berlanjut.\n\nDisediakan “sebagaimana adanya”, tanpa jaminan dan tanpa tanggung jawab atas segala kerugian, kerusakan, denda, atau kegagalan kontrol ini. Gunakan sesuai hukum.</string>
+
+    <string name="legal_notice_title">Pemberitahuan hukum &amp; keselamatan</string>
+    <string name="legal_notice">Lumora disediakan gratis, “sebagaimana adanya” dan tanpa jaminan apa pun, tersurat maupun tersirat, termasuk tetapi tidak terbatas pada jaminan kelayakan untuk diperdagangkan, kesesuaian untuk tujuan tertentu, dan tidak melanggar hak pihak lain.\n\nSejauh yang diizinkan oleh hukum, penulis dan kontributor tidak bertanggung jawab atas segala klaim, kerusakan, kerugian, atau tanggung jawab lain yang timbul dari atau terkait dengan aplikasi atau penggunaannya, termasuk tetapi tidak terbatas pada: kehilangan atau kerusakan data atau perangkat, gangguan layanan, crash atau kesalahan aplikasi, biaya yang dikenakan oleh penyedia jaringan atau konten Anda, atau hukuman, denda, atau tuntutan hukum apa pun yang diakibatkan oleh penggunaan aplikasi Anda.\n\nMengemudi: pemutaran video di dalam kendaraan hanya ditujukan untuk kendaraan yang berhenti atau layar penumpang. Menonton video saat mengemudi adalah melanggar hukum di sebagian besar yurisdiksi. Lumora berupaya mendeteksi gerakan dan menonaktifkan video secara otomatis, tetapi deteksi ini bergantung pada perangkat keras, izin, dan sinyal di luar kendali aplikasi dan dapat gagal atau tidak tersedia. Anda tidak boleh mengandalkannya. Pengemudi tetap bertanggung jawab penuh atas kepatuhan terhadap semua undang-undang lalu lintas yang berlaku.\n\nKonten: Lumora adalah pemutar. Lumora tidak menghosting, menyediakan, atau mengindeks konten apa pun miliknya sendiri. Semua streaming, katalog, dan metadata berasal dari layanan dan penyedia yang Anda konfigurasi sendiri, dan Anda bertanggung jawab penuh untuk memiliki hak atau langganan yang diperlukan untuk mengaksesnya, serta mematuhi ketentuan layanan tersebut dan hukum negara Anda.\n\nDistribusi: aplikasi ini tidak didistribusikan melalui Google Play dan tidak berafiliasi dengan, didukung oleh, atau disertifikasi oleh Google. Android, Android Auto, dan Google Cast adalah merek dagang Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versi</string>
+    <string name="fit">Sesuaikan</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Subtitle</string>
+    <string name="chapters">Bab</string>
+    <string name="seek_preview">Pratinjau pemindaian</string>
+    <string name="player_menu_title">Menu</string>
+    <string name="player_menu">Menu pemutar</string>
+    <string name="close_side_menu">Tutup menu</string>
+    <string name="side_menu_loading">Memuat…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Penyedia</string>
+    <string name="playback">Pemutaran</string>
+    <string name="general">Umum</string>
+    <string name="filters">Filter</string>
+    <string name="privacy">Privasi</string>
+    <string name="downloads">Unduhan</string>
+    <string name="plugins">Plugin</string>
+    <string name="enabled">Diaktifkan</string>
+    <string name="update">Perbarui</string>
+    <string name="back_to_plugins">‹  Plugin</string>
+    <string name="about">Tentang</string>
+    <string name="providers_description">Jalankan beberapa penyedia sekaligus - aktifkan atau nonaktifkan masing-masing secara independen</string>
+    <string name="your_providers">PENYEDIA ANDA</string>
+    <string name="no_iptv_providers_added_yet">Belum ada penyedia IPTV yang ditambahkan</string>
+    <string name="add_provider">+ Tambah Penyedia</string>
+    <string name="what_kind_of_provider">Penyedia jenis apa ini?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Tautan daftar putar</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Kode masuk</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">Alamat MAC</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Server media</string>
+    <string name="change">Ubah</string>
+    <string name="show_phone_qr_pairing_code">Tampilkan kode pemasangan QR ponsel</string>
+    <string name="or_enter_manually">ATAU MASUKKAN SECARA MANUAL</string>
+    <string name="name">Nama</string>
+    <string name="server_url">URL Server</string>
+    <string name="sign_in_with_quick_connect">Masuk dengan Quick Connect</string>
+    <string name="username_if_quick_connect_off">Nama pengguna (jika Quick Connect nonaktif)</string>
+    <string name="playback_settings">Pengaturan pemutaran</string>
+    <string name="hide_non_english">Sembunyikan film/serial non-Inggris</string>
+    <string name="hide_adult_categories">Sembunyikan kategori dewasa</string>
+    <!-- Rel kategori yang diciutkan: pil yang mengembalikannya, dan petunjuk sekali tampil yang
+         muncul pada saat diciutkan agar jalan kembali tidak perlu dicari. -->
+    <string name="categories">Kategori</string>
+    <string name="show_categories">Tampilkan kategori</string>
+    <string name="categories_hidden_hint">Kategori disembunyikan — ketuk “Kategori” untuk menampilkan</string>
+    <!-- Rel Pengaturan yang diciutkan: baris navigasi terakhir yang menyembunyikannya, dan pil +
+         petunjuk sekali tampil yang mengembalikannya - mencerminkan fitur ciut rel kategori. -->
+    <string name="settings_nav_collapse">Ciutkan</string>
+    <string name="show_settings">Tampilkan pengaturan</string>
+    <string name="settings_hidden_hint">Pengaturan disembunyikan — ketuk “Pengaturan” untuk menampilkan</string>
+    <string name="categorize_live">Kategorikan TV langsung</string>
+    <string name="categorize_vod">Kategorikan film &amp; serial</string>
+    <string name="group_channels">Kelompokkan saluran duplikat</string>
+    <string name="set_parental_pin">Tetapkan PIN orang tua</string>
+    <string name="clear_watch_history">Hapus riwayat tontonan</string>
+    <string name="plugins_description">Skrip kecil yang menambahkan fitur - menemukan penyedia, atau mencari streaming. Tidak ada yang diinstal sebagai aplikasi terpisah; skrip berjalan di dalam Lumora, dan apa pun yang diajukan hanya digunakan jika Anda mengonfirmasinya.</string>
+    <string name="add_a_plugin">TAMBAH PLUGIN</string>
+    <string name="install_from_url">Tambah dari URL</string>
+    <string name="enter_apk_link">Masukkan tautan skrip plugin</string>
+    <string name="installed">TERPASANG</string>
+    <string name="no_plugins_installed">Tidak ada plugin yang terpasang - jelajahi toko plugin di bawah ini</string>
+    <string name="plugin_stores">TOKO PLUGIN</string>
+    <string name="add_plugin_store">+ Tambah toko plugin</string>
+    <string name="browse">Jelajah</string>
+    <string name="no_plugin_stores">Tidak ada toko plugin yang ditambahkan</string>
+    <string name="results">HASIL</string>
+    <string name="version">Versi</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Aplikasi</string>
+    <string name="about_platform_label">Platform</string>
+    <string name="about_platform_value">Android · TV + ponsel</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Periksa Pembaruan</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Ketik untuk mencari</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Tutup</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Edit</string>
+    <string name="remove">Hapus</string>
+    <!-- Sakelar jenis konten per penyedia pada baris penyedia. ID khusus meskipun “Film”/“Serial”
+         sudah ada sebagai label tab (films_tab/series_tab) - jalur kabel mengaitkan setiap kotak
+         centang ke ID ini dan menggunakan ulang string tab akan menggabungkan keduanya. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Film</string>
+    <string name="provider_content_series">Serial</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Jalankan</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TERUJI</string>
+    <string name="add">Tambah</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Lihat Semua</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - sakelar status ditonton -->
+    <string name="episode_mark_watched">Tandai episode sebagai ditonton</string>
+    <string name="episode_mark_unwatched">Tandai episode sebagai belum ditonton</string>
+    <string name="season_mark_watched">Tandai musim sebagai ditonton</string>
+    <string name="season_mark_unwatched">Tandai musim sebagai belum ditonton</string>
+
+    <!-- dialog_search.xml - overlay pencarian -->
+    <string name="search_overlay_hint">Cari TV langsung, film &amp; serial…</string>
+    <string name="search_recents_label">Pencarian terakhir</string>
+    <string name="search_recents_clear">Hapus</string>
+    <string name="search_filter_all">Semua</string>
+    <string name="search_filter_films">Film</string>
+    <string name="search_filter_series">Serial</string>
+    <!-- Teks status yang dialihkan host pencarian. “Tanpa hasil” membawa kueri, dan baris petunjuk
+         berada di baris kedua dari TextView status yang sama saat ditampilkan. -->
+    <string name="search_status_searching">Mencari…</string>
+    <string name="search_status_no_results">Tidak ada hasil untuk “%1$s”</string>
+    <string name="search_status_no_results_hint">Coba lebih sedikit huruf, atau periksa ejaannya.</string>
+    <string name="search_status_count">%1$d/%2$d hasil</string>
+
+    <!-- item_epg_result.xml - hasil pencarian program EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - sakelar lapisan tanda baca. \? meng-escape ? di awal - jika
+         tidak, aapt akan membaca “?123” sebagai referensi sumber daya. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - pencarian Jelajah (TMDB) -->
+    <string name="discover_search_hint">Cari film &amp; serial…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - ditampilkan di atas WebView tantangan di TV,
+         tempat tidak ada penunjuk dan kotak centang harus dipukul dengan kursor virtual. -->
+    <string name="bypass_tv_instructions">GERAKKAN KURSOR KE KOTAK CENTANG\nDAN TEKAN OK UNTUK MEMBUKA KUNCI</string>
+
+    <!-- MainActivityScraper - pemilih sumber. TMDB memberi tahu apa yang ada; situs hanya ditanya
+         siapa yang dapat streaming, dan host cukup sering mati sehingga kegagalan satu situs adalah
+         hal biasa. -->
+    <string name="scraper_dialog_title">Temukan streaming \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Mencari sumber\u2026</string>
+    <string name="scraper_searching_sites">Mencari di situs\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Membuka %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s tidak berfungsi \u2014 coba sumber lain</string>
+    <string name="scraper_no_sources">Tidak ada sumber yang ditemukan untuk judul ini</string>
+    <string name="scraper_pick_manually">Pilih sumber</string>
+    <string name="scraper_attempt_detail">via %1$s \u00b7 percobaan %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="other">%1$d sumber</item>
+    </plurals>
+
+    <!-- MainActivitySettings - sumber situs streaming. -->
+    <string name="scraper_settings_title">Situs streaming</string>
+    <string name="scraper_settings_subtitle">Situs streaming publik yang dapat diambil oleh Temukan streaming. Penjelajahan tetap di Jelajah \u2014 mereka hanya ditanya siapa yang dapat melakukan streaming judul yang sudah Anda pilih.</string>
+    <string name="scraper_enabled_title">Gunakan situs streaming</string>
+    <string name="scraper_enabled_subtitle">Menawarkan Temukan streaming pada judul Jelajah</string>
+    <string name="scraper_sites_header">Situs untuk dicari</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Menyelesaikan domain situs melalui resolver terenkripsi, bukan resolver ISP Anda</string>
+    <string name="scraper_doh_system">DNS sistem</string>
+    <string name="scraper_extra_buffering_title">Buffering ekstra</string>
+    <string name="scraper_extra_buffering_subtitle">Menyangga hingga 5 menit ke depan untuk host yang mengirimkan dalam ledakan. Menggunakan lebih banyak memori; berlaku setelah memulai ulang</string>
+    <string name="category_newest">Terbaru</string>
+    <string name="category_continue_watching">Lanjutkan Menonton</string>
+    <string name="category_other">Lainnya</string>
+    <string name="category_all">Semua</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Ciutkan kategori</string>
+    <string name="category_favourites">Favorit</string>
+    <string name="category_group_into_categories">Kelompokkan ke dalam kategori</string>
+    <string name="category_show_all_categories">Tampilkan semua kategori (daftar klasik)</string>
+    <string name="category_next_up">Berikutnya</string>
+    <string name="category_recently_played">Baru Diputar</string>
+    <string name="category_favourite_channels">Saluran Favorit</string>
+</resources>

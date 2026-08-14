@@ -111,7 +111,32 @@ internal const val PREF_UI_LANGUAGE = "ui_language"
 internal val UI_LANGUAGES = listOf(
     "system" to "System default",
     "en" to "English",
-    "fr" to "Français"
+    "fr" to "Français",
+    "de" to "Deutsch",
+    "es" to "Español",
+    "it" to "Italiano",
+    "sv" to "Svenska",
+    "fi" to "Suomi",
+    "pt" to "Português",
+    "tr" to "Türkçe",
+    "hr" to "Hrvatski",
+    "el" to "Ελληνικά",
+    "ru" to "Русский",
+    "ar" to "العربية",
+    "ur" to "اردو",
+    "zh" to "中文",
+    "ja" to "日本語",
+    "hi" to "हिन्दी",
+    "nl" to "Nederlands",
+    "pl" to "Polski",
+    "ko" to "한국어",
+    "ro" to "Română",
+    "no" to "Norsk",
+    "da" to "Dansk",
+    "cs" to "Čeština",
+    "hu" to "Magyar",
+    "id" to "Indonesia",
+    "uk" to "Українська"
 )
 internal const val PREF_PARENTAL_PIN = "parental_pin"
 /** Package of the video app external playback always uses; absent = ask each time. */
@@ -702,20 +727,20 @@ class MainActivity : AppCompatActivity() {
         onItemClick = { item -> onHomeItemClick(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinShelfCategory(1, shelf) },
-        onHideClick = { shelf -> if (shelf.title == "Continue Watching") clearContinueWatching() else toggleHiddenShelfCategory(1, shelf) },
+        onHideClick = { shelf -> if (shelf.title == getString(R.string.category_continue_watching)) clearContinueWatching() else toggleHiddenShelfCategory(1, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     internal val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinShelfCategory(2, shelf) },
-        onHideClick = { shelf -> if (shelf.title == "Continue Watching") clearContinueWatching() else toggleHiddenShelfCategory(2, shelf) },
+        onHideClick = { shelf -> if (shelf.title == getString(R.string.category_continue_watching)) clearContinueWatching() else toggleHiddenShelfCategory(2, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
     )
     internal val homeShelfAdapter = ShelfAdapter(
         onItemClick = { item -> onHomeItemClick(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
-        onHideClick = { shelf -> if (shelf.title == "Continue Watching") clearContinueWatching() else toggleHiddenHomeShelf(shelf.title) },
+        onHideClick = { shelf -> if (shelf.title == getString(R.string.category_continue_watching)) clearContinueWatching() else toggleHiddenHomeShelf(shelf.title) },
         showPinButton = false
     )
     // Single-category selection swaps to these - a vertical, scrollable grid instead of

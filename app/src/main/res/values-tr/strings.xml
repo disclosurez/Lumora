@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Ayarlar</string>
+    <!-- Uygulama içi arayüz dili (Genel ayarlar bölmesi). "system" cihaz dilini izler;
+         seçicideki girdiler ana dildeki görünen adlardır ve çevrilmeleri gerekmez. -->
+    <string name="settings_ui_language">Dil</string>
+    <string name="settings_ui_language_caption">Uygulamanın tamamını çevirir — ayrıca ses, altyazı ve TMDB\'yi de ayarlar</string>
+    <string name="settings_type_m3u">Tür: M3U</string>
+    <string name="m3u_url">M3U/M3U8 Oynatma Listesi URL\'si</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Kullanıcı adı</string>
+    <string name="xtream_password">Parola</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Kaydet</string>
+    <string name="cancel">İptal</string>
+    <string name="loading">Yükleniyor&#8230;</string>
+    <string name="live_badge">Canlı</string>
+
+    <!-- Sağlayıcı türleri -->
+    <string name="stalker_mac">MAC Adresi</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Oynatıcı -->
+    <!-- Kayıt -->
+    <string name="recording_storage">Kayıt Depolama</string>
+
+    <!-- Yedekleme ve Geri Yükleme -->
+    <string name="backup_restore">Yedekleme ve Geri Yükleme</string>
+    <string name="export_backup">Yedeği dışa aktar</string>
+    <string name="import_backup">Yedeği içe aktar</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG Kaynakları</string>
+    <string name="add_epg_source">EPG kaynağı ekle</string>
+
+    <!-- İçerik Yönetimi -->
+    <!-- VOD -->
+    <!-- Kalite -->
+    <!-- Hatalar -->
+    <!-- Sayısal Giriş -->
+    <!-- Sıradaki / Otomatik İlerleme -->
+    <string name="up_next">Sırada</string>
+    <string name="play_now">Şimdi Oynat</string>
+
+    <!-- Artımlı Arama -->
+    <!-- A/V Senkronu -->
+    <string name="av_offset">A/V senkron kayması</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Ara</string>
+    <string name="tab_home">Ana Sayfa</string>
+    <string name="tab_live_tv">Canlı TV</string>
+    <!-- Geç İzleme: Xtream tv_archive oynatımı (kanal → gün → daha önce yayınlanmış program). -->
+    <string name="tab_catchup">Geç İzleme</string>
+    <string name="catchup_crumb_categories">Geç İzleme · arşivi olan %1$d kanal</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d kanal</string>
+    <string name="catchup_crumb_days">%1$s · bir gün seçin</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Bugün</string>
+    <string name="catchup_yesterday">Dün</string>
+    <string name="catchup_loading">Rehber yükleniyor…</string>
+    <string name="catchup_no_guide">Bu güne ait rehber verisi yok — saatlik bloklar gösteriliyor.</string>
+    <string name="catchup_nothing_aired">Bu günde henüz hiçbir şey yayınlanmadı.</string>
+    <string name="catchup_no_provider">Bu oynatılamıyor — geldiği sağlayıcı artık yapılandırılmamış.</string>
+    <string name="catchup_hour_block">Saatlik blok</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d gün saklandı</item>
+        <item quantity="other">%1$d gün saklandı</item>
+    </plurals>
+    <string name="series_tab">Diziler</string>
+    <string name="films_tab">Filmler</string>
+    <string name="discover_tab">Keşfet</string>
+    <string name="downloads_tab">İndirilenler</string>
+    <string name="no_provider_configured">Sağlayıcı yapılandırılmamış</string>
+    <string name="press_settings_to_add_playlist">Oynatma listesi URL\'si eklemek için Ayarlar\'a basın</string>
+    <string name="add_a_provider">Sağlayıcı Ekle</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN SAĞLAYICISI</string>
+    <string name="startup_choose_public">GENEL AKIŞ İÇERİĞİ</string>
+    <string name="startup_choose_both">HER İKİSİ</string>
+    <string name="search_main_hint">Canlı TV, filmler &amp; dizilerde ara…</string>
+    <string name="no_downloads_yet">Henüz indirme yok</string>
+    <string name="overview">Genel Bakış</string>
+    <string name="cast">Oyuncu Kadrosu</string>
+    <string name="play">Oynat</string>
+    <string name="find_stream">Akışı Bul &amp; Oynat</string>
+    <string name="trailer">Fragman</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Uyku</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Şurada aç</string>
+
+    <!-- Her oturumun başında araç ekranında ve telefonda Ayarlar'da gösterilir.
+         Araç ünitesinin ortasında kesmeyeceği kadar kısa tutulmuştur. -->
+    <string name="car_disclaimer">Sürüş sırasında video izlemeyin.\n\nVideo yalnızca Lumora aracın durduğunu doğrulayabildiğinde oynar. Herhangi bir hareket anında görüntü kapanır ve ses devam eder.\n\n“Olduğu gibi” sunulur; garanti yoktur ve bu kontrollerden kaynaklanan herhangi bir kayıp, hasar, ceza veya arıza için sorumluluk kabul edilmez. Yasaya uygun şekilde kullanın.</string>
+
+    <string name="legal_notice_title">Yasal ve güvenlik bildirimi</string>
+    <string name="legal_notice">Lumora ücretsiz olarak, “olduğu gibi” ve açık veya zımni her türlü garanti olmaksızın sunulur; ticari elverişlilik, belirli bir amaca uygunluk ve üçüncü kişi haklarını ihlal etmeme garantileri dahil ancak bunlarla sınırlı olmamak üzere.\n\nYasanın izin verdiği en geniş ölçüde, yazarlar ve katkıda bulunanlar; uygulamadan veya kullanımından kaynaklanan ya da bunlarla bağlantılı tüm talepler, hasarlar, kayıplar ve diğer yükümlülükler için sorumluluk kabul etmez; bunlar dahil ancak bunlarla sınırlı olmamak üzere: veri veya cihaz kaybı ya da hasarı, hizmet kesintisi, uygulama çökmeleri veya hataları, ağ veya içerik sağlayıcılarınızın yansıttığı ücretler ya da uygulamayı kullanımınızdan doğan herhangi bir ceza, para cezası veya kovuşturma.\n\nSürüş: araç içinde video oynatımı yalnızca aracın durması veya yolcu ekranı kullanımı içindir. Sürüş sırasında video izlemek çoğu yargı bölgesinde yasa dışıdır. Lumora hareketi algılayıp videoyu otomatik olarak kapatmayı dener, ancak bu algılama uygulamanın kontrolü dışındaki donanıma, izinlere ve sinyallere bağlıdır; başarısız olabilir ya da kullanılamayabilir. Buna güvenmemelisiniz. Sürücü, geçerli tüm trafik kurallarına uyulmasından tek başına sorumludur.\n\nİçerik: Lumora bir oynatıcıdır. Kendi içeriğini barındırmaz, sağlamaz ve dizinlemez. Tüm akışlar, kataloglar ve meta veriler, kendinizin yapılandırdığı servislerden ve sağlayıcılardan gelir; bunlara erişmek için gerekli haklara veya aboneliklere sahip olmaktan, bu servislerin koşullarına ve ülkenizin yasalarına uymaktan yalnızca siz sorumlusunuz.\n\nDağıtım: bu uygulama Google Play üzerinden dağıtılmaz; Google ile bağlantılı değildir, Google tarafından desteklenmez veya onaylanmaz. Android, Android Auto ve Google Cast, Google LLC\'nin ticari markalarıdır.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Sürümler</string>
+    <string name="fit">Sığdır</string>
+    <string name="audio">Ses</string>
+    <string name="subtitles">Altyazılar</string>
+    <string name="chapters">Bölümler</string>
+    <string name="seek_preview">Arama önizlemesi</string>
+    <string name="player_menu_title">Menü</string>
+    <string name="player_menu">Oynatıcı menüsü</string>
+    <string name="close_side_menu">Menüyü kapat</string>
+    <string name="side_menu_loading">Yükleniyor…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Sağlayıcılar</string>
+    <string name="playback">Oynatma</string>
+    <string name="general">Genel</string>
+    <string name="filters">Filtreler</string>
+    <string name="privacy">Gizlilik</string>
+    <string name="downloads">İndirmeler</string>
+    <string name="plugins">Eklentiler</string>
+    <string name="enabled">Etkin</string>
+    <string name="update">Güncelle</string>
+    <string name="back_to_plugins">‹  Eklentiler</string>
+    <string name="about">Hakkında</string>
+    <string name="providers_description">Birden fazla sağlayıcıyı birlikte çalıştırın - her birini bağımsız olarak etkinleştirin veya devre dışı bırakın</string>
+    <string name="your_providers">SAĞLAYICILARINIZ</string>
+    <string name="no_iptv_providers_added_yet">Henüz IPTV sağlayıcısı eklenmedi</string>
+    <string name="add_provider">+ Sağlayıcı Ekle</string>
+    <string name="what_kind_of_provider">Bu ne tür bir sağlayıcı?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Oynatma listesi bağlantısı</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Giriş kodları</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC adresi</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Medya sunucusu</string>
+    <string name="change">Değiştir</string>
+    <string name="show_phone_qr_pairing_code">Telefon QR eşleştirme kodunu göster</string>
+    <string name="or_enter_manually">VEYA MANUEL GİRİN</string>
+    <string name="name">Ad</string>
+    <string name="server_url">Sunucu URL\'si</string>
+    <string name="sign_in_with_quick_connect">Quick Connect ile oturum açın</string>
+    <string name="username_if_quick_connect_off">Kullanıcı adı (Quick Connect kapalıysa)</string>
+    <string name="playback_settings">Oynatma ayarları</string>
+    <string name="hide_non_english">İngilizce olmayan filmleri/dizileri gizle</string>
+    <string name="hide_adult_categories">Yetişkin kategorilerini gizle</string>
+    <!-- Daraltılmış kategori şeridi: onu geri getiren hap ve daraltma anında gösterilen
+         tek seferlik ipucu; geri dönüş yolu asla aranmak zorunda kalınmaz. -->
+    <string name="categories">Kategoriler</string>
+    <string name="show_categories">Kategorileri göster</string>
+    <string name="categories_hidden_hint">Kategoriler gizli — “Kategoriler”e dokunarak gösterin</string>
+    <!-- Daraltılmış Ayarlar şeridi: onu gizleyen son gezinme satırı ve geri getiren hap +
+         tek seferlik ipucu - kategori kenar çubuğunun daraltma öğelerini yansıtır. -->
+    <string name="settings_nav_collapse">Daralt</string>
+    <string name="show_settings">Ayarları göster</string>
+    <string name="settings_hidden_hint">Ayarlar gizli — “Ayarlar”a dokunarak gösterin</string>
+    <string name="categorize_live">Canlı TV\'yi kategorize et</string>
+    <string name="categorize_vod">Filmleri &amp; dizileri kategorize et</string>
+    <string name="group_channels">Yinelenen kanalları grupla</string>
+    <string name="set_parental_pin">Ebeveyn PIN\'i ayarla</string>
+    <string name="clear_watch_history">İzleme geçmişini temizle</string>
+    <string name="plugins_description">Özellikler ekleyen küçük betikler - sağlayıcı bulma veya akış arama. Hiçbir şey ayrı bir uygulama olarak kurulmaz; bir betik Lumora içinde çalışır ve önerdiği her şey yalnızca siz onaylarsanız kullanılır.</string>
+    <string name="add_a_plugin">EKLENTİ EKLE</string>
+    <string name="install_from_url">URL\'den Ekle</string>
+    <string name="enter_apk_link">Bir eklenti betiği bağlantısı girin</string>
+    <string name="installed">KURULU</string>
+    <string name="no_plugins_installed">Kurulu eklenti yok - aşağıdan bir eklenti mağazasına göz atın</string>
+    <string name="plugin_stores">EKLENTİ MAĞAZALARI</string>
+    <string name="add_plugin_store">+ Eklenti mağazası ekle</string>
+    <string name="browse">Göz At</string>
+    <string name="no_plugin_stores">Eklenti mağazası eklenmedi</string>
+    <string name="results">SONUÇLAR</string>
+    <string name="version">Sürüm</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Uygulama</string>
+    <string name="about_platform_label">Platform</string>
+    <string name="about_platform_value">Android · TV + telefon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Güncellemeleri Kontrol Et</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Aramak için yazın</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Kapat</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Düzenle</string>
+    <string name="remove">Kaldır</string>
+    <!-- Sağlayıcı satırındaki içerik türü anahtarları. "Filmler"/"Diziler" sekme etiketleri
+         olarak (films_tab/series_tab) mevcut olsa da özel kimlikler kullanılır - bağlantı
+         hattı her onay kutusunu bu kimliklere bağlar ve sekme dizelerini yeniden kullanmak
+         ikisini birbirine bağlardı. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Filmler</string>
+    <string name="provider_content_series">Diziler</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Çalıştır</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TEST EDİLDİ</string>
+    <string name="add">Ekle</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Tümünü Gör</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - izlenme durumu onay anahtarları -->
+    <string name="episode_mark_watched">Bölümü izlendi olarak işaretle</string>
+    <string name="episode_mark_unwatched">Bölümü izlenmedi olarak işaretle</string>
+    <string name="season_mark_watched">Sezonu izlendi olarak işaretle</string>
+    <string name="season_mark_unwatched">Sezonu izlenmedi olarak işaretle</string>
+
+    <!-- dialog_search.xml - arama katmanı -->
+    <string name="search_overlay_hint">Canlı TV, filmler &amp; dizilerde ara…</string>
+    <string name="search_recents_label">Son aramalar</string>
+    <string name="search_recents_clear">Temizle</string>
+    <string name="search_filter_all">Tümü</string>
+    <string name="search_filter_films">Filmler</string>
+    <string name="search_filter_series">Diziler</string>
+    <!-- Arama ana bilgisayarının geçiş yaptığı durum metinleri. "Sonuç yok" sorguyu taşır ve
+         ipucu satırı gösterildiğinde aynı durum TextView\'inin ikinci satırına gider. -->
+    <string name="search_status_searching">Aranıyor…</string>
+    <string name="search_status_no_results">"%1$s" için sonuç yok</string>
+    <string name="search_status_no_results_hint">Daha az harf deneyin veya yazımı kontrol edin.</string>
+    <string name="search_status_count">%1$d/%2$d sonuç</string>
+
+    <!-- item_epg_result.xml - EPG program arama sonuçları -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - noktalama katmanı anahtarı. \? baştaki ? işaretini kaçırır -
+         aapt aksi takdirde "?123"ü bir kaynak başvurusu olarak okur. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - Keşfet (TMDB) araması -->
+    <string name="discover_search_hint">Filmlerde &amp; dizilerde ara…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - TV'de zorluk WebView\'inin üzerinde
+         gösterilir; burada işaretçi yoktur ve onay kutusuna sanal imleçle vurulması gerekir. -->
+    <string name="bypass_tv_instructions">İMLECİ ONAY KUTUSUNUN ÜZERİNE GETİRİN\nVE KİLİDİ AÇMAK İÇİN TAMAM TUŞUNA BASIN</string>
+
+    <!-- MainActivityScraper - kaynak seçici. TMDB neyin var olduğunu söyler; sitelere yalnızca
+         kimin yayınlayabileceği sorulur ve sunucular yeterince sık öldüğünden birinin başarısız
+         olması olağandır. -->
+    <string name="scraper_dialog_title">Akış Bul \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Kaynaklar aranıyor\u2026</string>
+    <string name="scraper_searching_sites">Siteler aranıyor\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">%1$s açılıyor\u2026</string>
+    <string name="scraper_source_failed">%1$s çalışmadı \u2014 başka bir kaynak deneyin</string>
+    <string name="scraper_no_sources">Bu başlık için kaynak bulunamadı</string>
+    <string name="scraper_pick_manually">Bir kaynak seçin</string>
+    <string name="scraper_attempt_detail">%1$s üzerinden \u00b7 deneme %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d kaynak</item>
+        <item quantity="other">%1$d kaynak</item>
+    </plurals>
+
+    <!-- MainActivitySettings - akış sitesi kaynakları. -->
+    <string name="scraper_settings_title">Akış siteleri</string>
+    <string name="scraper_settings_subtitle">Akış Bul\'un yararlanabileceği genel akış siteleri. Gezinme Keşfet\'te kalır \u2014 bunlara yalnızca daha önce seçtiğiniz bir başlığı kimin yayınlayabileceği sorulur.</string>
+    <string name="scraper_enabled_title">Akış sitelerini kullan</string>
+    <string name="scraper_enabled_subtitle">Keşfet başlıklarında Akış Bul\'u sunar</string>
+    <string name="scraper_sites_header">Aranacak siteler</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Site alan adlarını ISP\'nizin yerine şifreli bir çözümleyici üzerinden çözer</string>
+    <string name="scraper_doh_system">Sistem DNS\'i</string>
+    <string name="scraper_extra_buffering_title">Ekstra arabellek</string>
+    <string name="scraper_extra_buffering_subtitle">Aralıklı teslim eden sunucular için 5 dakikaya kadar önden arabellek oluşturur. Daha fazla bellek kullanır; yeniden başlatma sonrasında uygulanır</string>
+    <string name="category_newest">En Yeni</string>
+    <string name="category_continue_watching">İzlemeye Devam Et</string>
+    <string name="category_other">Diğer</string>
+    <string name="category_all">Tümü</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Kategorileri daralt</string>
+    <string name="category_favourites">Favoriler</string>
+    <string name="category_group_into_categories">Kategorilere grupla</string>
+    <string name="category_show_all_categories">Tüm kategorileri göster (klasik liste)</string>
+    <string name="category_next_up">Sırada</string>
+    <string name="category_recently_played">Son Oynatılanlar</string>
+    <string name="category_favourite_channels">Favori Kanallar</string>
+</resources>

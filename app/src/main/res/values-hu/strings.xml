@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Beállítások</string>
+    <!-- Az alkalmazás felületi nyelve (Általános beállítások panel). A „system" az eszköz nyelvét követi;
+         a választó elemei anyanyelvi megnevezések, ezeket nem kell lefordítani. -->
+    <string name="settings_ui_language">Nyelv</string>
+    <string name="settings_ui_language_caption">Lefordítja az egész alkalmazást — beállítja az audiót, a feliratokat és a TMDB-t is</string>
+    <string name="settings_type_m3u">Típus: M3U</string>
+    <string name="m3u_url">M3U/M3U8 lejátszási lista URL-je</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Felhasználónév</string>
+    <string name="xtream_password">Jelszó</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Mentés</string>
+    <string name="cancel">Mégse</string>
+    <string name="loading">Betöltés&#8230;</string>
+    <string name="live_badge">Élő</string>
+
+    <!-- Szolgáltatótípusok -->
+    <string name="stalker_mac">MAC-cím</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Lejátszó -->
+    <!-- Felvétel -->
+    <string name="recording_storage">Felvételek tárolása</string>
+
+    <!-- Biztonsági mentés és visszaállítás -->
+    <string name="backup_restore">Biztonsági mentés és visszaállítás</string>
+    <string name="export_backup">Biztonsági mentés exportálása</string>
+    <string name="import_backup">Biztonsági mentés importálása</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG-források</string>
+    <string name="add_epg_source">EPG-forrás hozzáadása</string>
+
+    <!-- Tartalomkezelés -->
+    <!-- VOD -->
+    <!-- Minőség -->
+    <!-- Hibák -->
+    <!-- Számbevitel -->
+    <!-- Következik / Automatikus továbblépés -->
+    <string name="up_next">Következik</string>
+    <string name="play_now">Lejátszás most</string>
+
+    <!-- Növekményes keresés -->
+    <!-- A/V-szinkron -->
+    <string name="av_offset">A/V eltolás</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Keresés</string>
+    <string name="tab_home">Kezdőlap</string>
+    <string name="tab_live_tv">Élő TV</string>
+    <!-- Visszanézés: Xtream tv_archive lejátszás (csatorna → nap → már leadott műsor). -->
+    <string name="tab_catchup">Visszanézés</string>
+    <string name="catchup_crumb_categories">Visszanézés · %1$d csatorna archívummal</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d csatorna</string>
+    <string name="catchup_crumb_days">%1$s · válasszon napot</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Ma</string>
+    <string name="catchup_yesterday">Tegnap</string>
+    <string name="catchup_loading">Műsorújság betöltése…</string>
+    <string name="catchup_no_guide">Nincs műsorújság-adat erre a napra — órás blokkok jelennek meg.</string>
+    <string name="catchup_nothing_aired">Ezen a napon még semmi sem került adásba.</string>
+    <string name="catchup_no_provider">Ez nem játszható le — a származási szolgáltató már nincs beállítva.</string>
+    <string name="catchup_hour_block">Órás blokk</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d nap megőrizve</item>
+        <item quantity="other">%1$d nap megőrizve</item>
+    </plurals>
+    <string name="series_tab">Sorozatok</string>
+    <string name="films_tab">Filmek</string>
+    <string name="discover_tab">Felfedezés</string>
+    <string name="downloads_tab">Letöltések</string>
+    <string name="no_provider_configured">Nincs szolgáltató beállítva</string>
+    <string name="press_settings_to_add_playlist">Nyomja meg a Beállításokat egy lejátszási lista URL hozzáadásához</string>
+    <string name="add_a_provider">Szolgáltató hozzáadása</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN SZOLGÁLTATÓ</string>
+    <string name="startup_choose_public">NYILVÁNOS STREAMELT TARTALOM</string>
+    <string name="startup_choose_both">MINDKETTŐ</string>
+    <string name="search_main_hint">Élő TV, filmek és sorozatok keresése…</string>
+    <string name="no_downloads_yet">Még nincs letöltés</string>
+    <string name="overview">Áttekintés</string>
+    <string name="cast">Szereplők</string>
+    <string name="play">Lejátszás</string>
+    <string name="find_stream">Keresés és lejátszás</string>
+    <string name="trailer">Előzetes</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Alvás</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Megnyitás itt:</string>
+
+    <!-- Minden munkamenet elején megjelenik az autós képernyőn, valamint a telefon Beállításai között.
+         Elég rövid ahhoz, hogy a fejegység ne vágja el félmondatban. -->
+    <string name="car_disclaimer">Ne nézzen videót vezetés közben.\n\nA videó csak akkor játsszák le, ha a Lumora megerősíti, hogy az autó áll. Bármilyen mozgásnál a kép kikapcsol, a hang viszont folytatódik.\n\n„Mindenféle garancia nélkül" biztosított, minden garancia és felelősség kizárásával bármilyen veszteségért, kárért, bírságért vagy a vezérlők meghibásodásáért. Használja jogszerűen.</string>
+
+    <string name="legal_notice_title">Jogi és biztonsági közlemény</string>
+    <string name="legal_notice">A Lumora ingyenesen, „mindenféle garancia nélkül" érhető el, kifejezett vagy hallgatólagos garanciák nélkül, ideértve többek között az eladhatóságra, az adott célra való alkalmasságra és a jogérvényesítés hiányára vonatkozó garanciákat.\n\nA törvény által megengedett legteljesebb mértékben a szerzők és közreműködők semmilyen felelősséget nem vállalnak semmilyen igényért, kárért, veszteségért vagy más kötelezettségért, amely az alkalmazásból vagy annak használatából ered, ideértve többek között: adatok vagy eszközök elvesztését vagy sérülését, a szolgáltatás megszakadását, az alkalmazás összeomlását vagy hibáit, a hálózati vagy tartalomszolgáltatók által felszámított díjakat, vagy az alkalmazás használatából eredő bármilyen büntetést, pénzbírságot vagy büntetőeljárást.\n\nVezetés: a videolejátszás járműben kizárólag álló járműben vagy utaskijelzőn történő megtekintésre szolgál. A legtöbb joghatóságban törvénytelen vezetés közben videót nézni. A Lumora megpróbálja érzékelni a mozgást, és automatikusan kikapcsolni a videót, de ez az érzékelés az alkalmazás ellenőrzésén kívül eső hardvertől, engedélyektől és jelektől függ, ezért meghibásodhat vagy nem áll rendelkezésre. Nem szabad rá hagyatkoznia. A vezető kizárólag felelős az összes vonatkozó közlekedési szabály betartásáért.\n\nTartalom: a Lumora egy lejátszó. Nem tárol, nem szolgáltat és nem indexel saját tartalmat. Minden stream, katalógus és metaadat az Ön által beállított szolgáltatásokból és szolgáltatóktól származik, és Ön kizárólag felelős azért, hogy rendelkezzen a hozzáféréshez szükséges jogokkal vagy előfizetésekkel, valamint azért, hogy betartsa ezen szolgáltatások feltételeit és országa törvényeit.\n\nTerjesztés: ez az alkalmazás nem a Google Playen keresztül kerül terjesztésre, és nem áll kapcsolatban a Google-lel, nem hagyta jóvá a Google, és nem is tanúsítja az. Az Android, az Android Auto és a Google Cast a Google LLC védjegyei.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Verziók</string>
+    <string name="fit">Igazítás</string>
+    <string name="audio">Hang</string>
+    <string name="subtitles">Feliratok</string>
+    <string name="chapters">Fejezetek</string>
+    <string name="seek_preview">Keresési előnézet</string>
+    <string name="player_menu_title">Menü</string>
+    <string name="player_menu">Lejátszó menü</string>
+    <string name="close_side_menu">Menü bezárása</string>
+    <string name="side_menu_loading">Betöltés…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Szolgáltatók</string>
+    <string name="playback">Lejátszás</string>
+    <string name="general">Általános</string>
+    <string name="filters">Szűrők</string>
+    <string name="privacy">Adatvédelem</string>
+    <string name="downloads">Letöltések</string>
+    <string name="plugins">Bővítmények</string>
+    <string name="enabled">Engedélyezve</string>
+    <string name="update">Frissítés</string>
+    <string name="back_to_plugins">‹  Bővítmények</string>
+    <string name="about">Névjegy</string>
+    <string name="providers_description">Több szolgáltatót is futtathat együtt - mindegyiket egymástól függetlenül engedélyezheti vagy letilthatja</string>
+    <string name="your_providers">AZ ÖN SZOLGÁLTATÓI</string>
+    <string name="no_iptv_providers_added_yet">Még nincs hozzáadva IPTV-szolgáltató</string>
+    <string name="add_provider">+ Szolgáltató hozzáadása</string>
+    <string name="what_kind_of_provider">Milyen típusú szolgáltató ez?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Lejátszási lista hivatkozása</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Bejelentkezési kódok</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC-cím</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Médiaszerver</string>
+    <string name="change">Módosítás</string>
+    <string name="show_phone_qr_pairing_code">Telefon QR-párosítási kódjának megjelenítése</string>
+    <string name="or_enter_manually">VAGY adja meg manuálisan</string>
+    <string name="name">Név</string>
+    <string name="server_url">Szerver URL</string>
+    <string name="sign_in_with_quick_connect">Bejelentkezés a Quick Connecttel</string>
+    <string name="username_if_quick_connect_off">Felhasználónév (ha a Quick Connect ki van kapcsolva)</string>
+    <string name="playback_settings">Lejátszási beállítások</string>
+    <string name="hide_non_english">Nem angol nyelvű filmek/sorozatok elrejtése</string>
+    <string name="hide_adult_categories">Felnőtt kategóriák elrejtése</string>
+    <!-- Összecsukott kategóriasáv: a visszahozó gombocska, és az összecsukás pillanatában megjelenő
+         egyszeri tipp, hogy a visszafelé vezető út soha ne legyen keresgélés tárgya. -->
+    <string name="categories">Kategóriák</string>
+    <string name="show_categories">Kategóriák megjelenítése</string>
+    <string name="categories_hidden_hint">Kategóriák elrejtve — koppintson a „Kategóriák" elemre a megjelenítéshez</string>
+    <!-- Összecsukott beállítássáv: az utolsó navigációs sor, amely elrejti, és a gombocska + egyszeri
+         tipp, amelyek visszahozzák - a kategóriasáv összecsukási funkcióinak tükörképe. -->
+    <string name="settings_nav_collapse">Összecsukás</string>
+    <string name="show_settings">Beállítások megjelenítése</string>
+    <string name="settings_hidden_hint">Beállítások elrejtve — koppintson a „Beállítások" elemre a megjelenítéshez</string>
+    <string name="categorize_live">Élő TV kategorizálása</string>
+    <string name="categorize_vod">Filmek és sorozatok kategorizálása</string>
+    <string name="group_channels">Duplikált csatornák csoportosítása</string>
+    <string name="set_parental_pin">Szülői PIN beállítása</string>
+    <string name="clear_watch_history">Nézési előzmények törlése</string>
+    <string name="plugins_description">Kis szkriptek, amelyek funkciókat adnak hozzá - szolgáltatók keresése vagy streamelési források keresése. Semmi nem települ külön alkalmazásként; a szkript a Lumora belsejében fut, és amit javasol, az csak akkor kerül felhasználásra, ha Ön megerősíti.</string>
+    <string name="add_a_plugin">BŐVÍTMÉNY HOZZÁADÁSA</string>
+    <string name="install_from_url">Hozzáadás URL-ről</string>
+    <string name="enter_apk_link">Adja meg a bővítményszkript linkjét</string>
+    <string name="installed">TELEPÍTVE</string>
+    <string name="no_plugins_installed">Nincs telepített bővítmény - lentebb böngésszen egy bővítményboltban</string>
+    <string name="plugin_stores">BŐVÍTMÉNYBOLTOK</string>
+    <string name="add_plugin_store">+ Bővítménybolt hozzáadása</string>
+    <string name="browse">Böngészés</string>
+    <string name="no_plugin_stores">Nincs hozzáadva bővítménybolt</string>
+    <string name="results">EREDMÉNYEK</string>
+    <string name="version">Verzió</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Alkalmazás</string>
+    <string name="about_platform_label">Platform</string>
+    <string name="about_platform_value">Android · TV + telefon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Frissítések keresése</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Írjon a kereséshez</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Bezárás</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Szerkesztés</string>
+    <string name="remove">Eltávolítás</string>
+    <!-- Szolgáltatónkénti tartalomtípus-kapcsolók a szolgáltató sorában. Dedikált azonosítók annak
+         ellenére, hogy a „Filmek"/„Sorozatok" létezik fülcímeként (films_tab/series_tab) - a bekötési
+         réteg minden jelölőnégyzetet ezekhez az azonosítókhoz köt, és a fülszövegek újrahasználata
+         összekapcsolná a kettőt. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Filmek</string>
+    <string name="provider_content_series">Sorozatok</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Futtatás</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESZTELVE</string>
+    <string name="add">Hozzáadás</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Összes megtekintése</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - a megtekintettségi állapot jelölőnégyzetei -->
+    <string name="episode_mark_watched">Epizód megjelölése megtekintettként</string>
+    <string name="episode_mark_unwatched">Epizód megjelölése nem megtekintettként</string>
+    <string name="season_mark_watched">Évad megjelölése megtekintettként</string>
+    <string name="season_mark_unwatched">Évad megjelölése nem megtekintettként</string>
+
+    <!-- dialog_search.xml - keresési átfedés -->
+    <string name="search_overlay_hint">Élő TV, filmek és sorozatok keresése…</string>
+    <string name="search_recents_label">Legutóbbi keresések</string>
+    <string name="search_recents_clear">Törlés</string>
+    <string name="search_filter_all">Mind</string>
+    <string name="search_filter_films">Filmek</string>
+    <string name="search_filter_series">Sorozatok</string>
+    <!-- Állapotszövegek, amelyek között a keresés gazdája vált. A „Nincs találat" hordozza a lekérdezést,
+         és a tippsor megjelenítéskor ugyanannak az állapot-TextView-nak a második sorába kerül. -->
+    <string name="search_status_searching">Keresés…</string>
+    <string name="search_status_no_results">Nincs találat erre: „%1$s"</string>
+    <string name="search_status_no_results_hint">Próbáljon kevesebb betűt, vagy ellenőrizze a helyesírást.</string>
+    <string name="search_status_count">%1$d/%2$d találat</string>
+
+    <!-- item_epg_result.xml - EPG műsorkeresési találatok -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - írásjelek rétegének kapcsolója. A \? kimenekíti a kezdő ? jelet -
+         aapt egyébként "?123" erőforrás-hivatkozként olvasná. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - Felfedezés (TMDB) keresés -->
+    <string name="discover_search_hint">Filmek és sorozatok keresése…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - a TV-n a kihívás WebView fölött jelenik meg,
+         ahol nincs mutató, és a jelölőnégyzetet virtuális kurzorral kell eltalálni. -->
+    <string name="bypass_tv_instructions">MOZGASSA A KURZORT A JELÖLŐNÉGYZETRE\nÉS NYOMJA MEG AZ OK GOMBOT A FELOLDÁSHOZ</string>
+
+    <!-- MainActivityScraper - a forrásválasztó. A TMDB megmondja, mi létezik; a webhelyeket csak arról
+         kérdezik, ki tudja streamelni, és a hosztok elég gyakran halnak meg ahhoz,
+         hogy egy meghibásodás rutin legyen. -->
+    <string name="scraper_dialog_title">Stream keresése \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Források keresése\u2026</string>
+    <string name="scraper_searching_sites">Webhelyek keresése\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Megnyitás: %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s nem működött \u2014 próbáljon másik forrást</string>
+    <string name="scraper_no_sources">Ehhez a címhez nem található forrás</string>
+    <string name="scraper_pick_manually">Forrás kiválasztása</string>
+    <string name="scraper_attempt_detail">via %1$s \u00b7 %2$d. kísérlet</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d forrás</item>
+        <item quantity="other">%1$d forrás</item>
+    </plurals>
+
+    <!-- MainActivitySettings - streamelő webhelyek forrásai. -->
+    <string name="scraper_settings_title">Streamelő webhelyek</string>
+    <string name="scraper_settings_subtitle">Nyilvános streamelő webhelyek, amelyekből a Keresés és lejátszás meríthet. A böngészés a Felfedezésnél marad \u2014 ezeket csak arról kérdezik, hogy ki tudja streamelni a már kiválasztott címet.</string>
+    <string name="scraper_enabled_title">Streamelő webhelyek használata</string>
+    <string name="scraper_enabled_subtitle">Keresés és lejátszás felajánlása a Felfedezés címeinél</string>
+    <string name="scraper_sites_header">Keresendő webhelyek</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">A webhelyek domainjeit titkosított resolverrel oldja fel az internetszolgáltatóé helyett</string>
+    <string name="scraper_doh_system">Rendszer-DNS</string>
+    <string name="scraper_extra_buffering_title">Extra pufferelés</string>
+    <string name="scraper_extra_buffering_subtitle">Akár 5 percet is előre pufferel azoknál a hosztoknál, amelyek adagokban szállítanak. Több memóriát használ; újraindítás után lép életbe</string>
+    <string name="category_newest">Legújabb</string>
+    <string name="category_continue_watching">Továbbnézés</string>
+    <string name="category_other">Egyéb</string>
+    <string name="category_all">Mind</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Kategóriák összecsukása</string>
+    <string name="category_favourites">Kedvencek</string>
+    <string name="category_group_into_categories">Kategóriákba csoportosítás</string>
+    <string name="category_show_all_categories">Összes kategória megjelenítése (klasszikus lista)</string>
+    <string name="category_next_up">Következik</string>
+    <string name="category_recently_played">Legutóbb lejátszott</string>
+    <string name="category_favourite_channels">Kedvenc csatornák</string>
+</resources>

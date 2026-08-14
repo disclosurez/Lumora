@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">설정</string>
+    <!-- 앱 UI 언어(일반 설정 창). "system"은 기기 언어를 따르며, 선택기의 항목은 해당 언어의
+         고유 명칭이므로 번역할 필요가 없습니다. -->
+    <string name="settings_ui_language">언어</string>
+    <string name="settings_ui_language_caption">앱 전체를 번역하며 오디오, 자막, TMDB 설정도 함께 지정합니다</string>
+    <string name="settings_type_m3u">유형: M3U</string>
+    <string name="m3u_url">M3U/M3U8 재생목록 URL</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">사용자 이름</string>
+    <string name="xtream_password">비밀번호</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">저장</string>
+    <string name="cancel">취소</string>
+    <string name="loading">로드 중&#8230;</string>
+    <string name="live_badge">라이브</string>
+
+    <!-- 제공업체 유형 -->
+    <string name="stalker_mac">MAC 주소</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- 플레이어 -->
+    <!-- 녹화 -->
+    <string name="recording_storage">녹화 저장소</string>
+
+    <!-- 백업 및 복원 -->
+    <string name="backup_restore">백업 &amp; 복원</string>
+    <string name="export_backup">백업 내보내기</string>
+    <string name="import_backup">백업 가져오기</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG 소스</string>
+    <string name="add_epg_source">EPG 소스 추가</string>
+
+    <!-- 콘텐츠 관리 -->
+    <!-- VOD -->
+    <!-- 화질 -->
+    <!-- 오류 -->
+    <!-- 숫자 입력 -->
+    <!-- 다음에 볼 콘텐츠 / 자동 재생 -->
+    <string name="up_next">다음에 볼 콘텐츠</string>
+    <string name="play_now">지금 재생</string>
+
+    <!-- 증분 검색 -->
+    <!-- A/V 동기화 -->
+    <string name="av_offset">A/V 동기화 오프셋</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">검색</string>
+    <string name="tab_home">홈</string>
+    <string name="tab_live_tv">실시간 TV</string>
+    <!-- 다시 보기 : Xtream tv_archive 재생(채널 → 날짜 → 이미 방영된 프로그램). -->
+    <string name="tab_catchup">다시 보기</string>
+    <string name="catchup_crumb_categories">다시 보기 · 아카이브가 있는 채널 %1$d개</string>
+    <string name="catchup_crumb_channels_in">%1$s · 채널 %2$d개</string>
+    <string name="catchup_crumb_days">%1$s · 날짜 선택</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">오늘</string>
+    <string name="catchup_yesterday">어제</string>
+    <string name="catchup_loading">가이드 로드 중…</string>
+    <string name="catchup_no_guide">이 날짜에 대한 가이드 데이터가 없습니다 — 시간대별 블록을 표시합니다.</string>
+    <string name="catchup_nothing_aired">이 날에는 아직 방송된 콘텐츠가 없습니다.</string>
+    <string name="catchup_no_provider">재생할 수 없습니다 — 해당 콘텐츠의 제공업체가 더 이상 구성되어 있지 않습니다.</string>
+    <string name="catchup_hour_block">시간대별 블록</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="other">%1$d일 보관됨</item>
+    </plurals>
+    <string name="series_tab">시리즈</string>
+    <string name="films_tab">영화</string>
+    <string name="discover_tab">발견</string>
+    <string name="downloads_tab">다운로드</string>
+    <string name="no_provider_configured">구성된 제공업체 없음</string>
+    <string name="press_settings_to_add_playlist">재생목록 URL을 추가하려면 설정을 누르세요</string>
+    <string name="add_a_provider">제공업체 추가</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN 제공업체</string>
+    <string name="startup_choose_public">공개 스트리밍 콘텐츠</string>
+    <string name="startup_choose_both">둘 다</string>
+    <string name="search_main_hint">실시간 TV, 영화 &amp; 시리즈 검색…</string>
+    <string name="no_downloads_yet">아직 다운로드 없음</string>
+    <string name="overview">개요</string>
+    <string name="cast">출연진</string>
+    <string name="play">재생</string>
+    <string name="find_stream">찾기 &amp; 재생</string>
+    <string name="trailer">예고편</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">절전</string>
+    <string name="diag">진단</string>
+    <string name="open_in_external_player_short">다음에서 열기</string>
+
+    <!-- 모든 세션이 시작될 때 차량 화면과 휴대전화의 설정에 표시됩니다. 차량 내비게이션이 문장
+         중간에 자르지 않도록 충분히 짧게 유지합니다. -->
+    <string name="car_disclaimer">운전 중에는 영상을 시청하지 마세요.\n\n영상은 Lumora가 차량이 정지 상태임을 확인할 수 있을 때에만 재생됩니다. 움직임이 감지되면 화면이 꺼지고 소리는 계속됩니다.\n\n이 앱은 “있는 그대로” 제공되며, 보증이 없고 손실, 손상, 처벌 또는 이러한 컨트롤의 오작동에 대해 어떠한 책임도 지지 않습니다. 법에 따라 사용하세요.</string>
+
+    <string name="legal_notice_title">법적 &amp; 안전 고지</string>
+    <string name="legal_notice">Lumora는 무료로 제공되며, “있는 그대로” 제공되고 명시적 또는 묵시적 보증 없이 제공됩니다. 여기에는 상품성, 특정 목적에의 적합성 및 권리 침해 없음에 대한 보증이 포함되지만 이에 국한되지 않습니다.\n\n법이 허용하는 최대 범위 내에서 저자와 기여자는 앱 또는 그 사용으로 인해 발생하거나 이와 관련된 모든 청구, 손해, 손실 또는 기타 책임에 대해 책임을 지지 않습니다. 여기에는 데이터 또는 기기의 손실이나 손상, 서비스 중단, 앱 충돌 또는 오류, 네트워크 또는 콘텐츠 제공업체가 부과하는 요금, 또는 앱 사용으로 인한 모든 처벌, 벌금 또는 기소가 포함되지만 이에 국한되지 않습니다.\n\n운전: 차량 내 영상 재생은 정지된 차량 또는 승객용 화면에서만 사용하도록 되어 있습니다. 운전 중 영상 시청은 대부분의 국가에서 불법입니다. Lumora는 움직임을 감지하여 영상을 자동으로 끄도록 시도하지만, 이 감지는 앱이 통제할 수 없는 하드웨어, 권한 및 신호에 의존하며 실패하거나 사용할 수 없을 수도 있습니다. 이에 의존해서는 안 됩니다. 운전자는 모든 관련 도로교통법을 준수할 전적인 책임을 집니다.\n\n콘텐츠: Lumora는 플레이어입니다. 자체 콘텐츠를 호스팅, 제공 또는 색인하지 않습니다. 모든 스트림, 카탈로그 및 메타데이터는 사용자가 직접 구성하는 서비스와 제공업체에서 제공되며, 접근에 필요한 권리 또는 구독을 보유하고 해당 서비스의 약관과 해당 국가의 법률을 준수할 책임은 전적으로 사용자에게 있습니다.\n\n배포: 이 앱은 Google Play를 통해 배포되지 않으며 Google과 제휴하거나 Google의 승인 또는 인증을 받지 않았습니다. Android, Android Auto 및 Google Cast는 Google LLC의 상표입니다.</string>
+    <string name="rec">REC</string>
+    <string name="versions">버전</string>
+    <string name="fit">맞추기</string>
+    <string name="audio">오디오</string>
+    <string name="subtitles">자막</string>
+    <string name="chapters">챕터</string>
+    <string name="seek_preview">탐색 미리보기</string>
+    <string name="player_menu_title">메뉴</string>
+    <string name="player_menu">플레이어 메뉴</string>
+    <string name="close_side_menu">메뉴 닫기</string>
+    <string name="side_menu_loading">로드 중…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">제공업체</string>
+    <string name="playback">재생</string>
+    <string name="general">일반</string>
+    <string name="filters">필터</string>
+    <string name="privacy">개인정보</string>
+    <string name="downloads">다운로드</string>
+    <string name="plugins">플러그인</string>
+    <string name="enabled">사용 중</string>
+    <string name="update">업데이트</string>
+    <string name="back_to_plugins">‹  플러그인</string>
+    <string name="about">정보</string>
+    <string name="providers_description">여러 제공업체를 함께 실행하세요 - 각각을 개별적으로 활성화 또는 비활성화할 수 있습니다</string>
+    <string name="your_providers">내 제공업체</string>
+    <string name="no_iptv_providers_added_yet">아직 추가된 IPTV 제공업체가 없습니다</string>
+    <string name="add_provider">+ 제공업체 추가</string>
+    <string name="what_kind_of_provider">어떤 종류의 제공업체인가요?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">재생목록 링크</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">로그인 코드</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC 주소</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">미디어 서버</string>
+    <string name="change">변경</string>
+    <string name="show_phone_qr_pairing_code">휴대전화 QR 페어링 코드 표시</string>
+    <string name="or_enter_manually">또는 수동으로 입력</string>
+    <string name="name">이름</string>
+    <string name="server_url">서버 URL</string>
+    <string name="sign_in_with_quick_connect">Quick Connect로 로그인</string>
+    <string name="username_if_quick_connect_off">사용자 이름(Quick Connect가 꺼져 있는 경우)</string>
+    <string name="playback_settings">재생 설정</string>
+    <string name="hide_non_english">비영어 영화/시리즈 숨기기</string>
+    <string name="hide_adult_categories">성인 카테고리 숨기기</string>
+    <!-- 접힌 카테고리 레일: 카테고리를 다시 표시하는 알약 버튼과, 접힘 시점에 표시되어
+         되돌아갈 방법을 찾지 않도록 하는 일회성 힌트입니다. -->
+    <string name="categories">카테고리</string>
+    <string name="show_categories">카테고리 표시</string>
+    <string name="categories_hidden_hint">카테고리가 숨겨져 있습니다 — “카테고리”를 눌러 표시하세요</string>
+    <!-- 접힌 설정 레일: 설정을 숨기는 마지막 탐색 행과, 설정을 다시 표시하는 알약 + 일회성
+         힌트 - 카테고리 사이드바의 접기 기능을 그대로 반영합니다. -->
+    <string name="settings_nav_collapse">접기</string>
+    <string name="show_settings">설정 표시</string>
+    <string name="settings_hidden_hint">설정이 숨겨져 있습니다 — “설정”을 눌러 표시하세요</string>
+    <string name="categorize_live">실시간 TV 분류</string>
+    <string name="categorize_vod">영화 &amp; 시리즈 분류</string>
+    <string name="group_channels">중복 채널 그룹화</string>
+    <string name="set_parental_pin">자녀 보호 PIN 설정</string>
+    <string name="clear_watch_history">시청 기록 지우기</string>
+    <string name="plugins_description">기능을 추가하는 작은 스크립트 - 제공업체를 찾거나 스트림을 검색합니다. 별도의 앱으로 설치되는 것은 없으며, 스크립트는 Lumora 내부에서 실행되고, 스크립트가 제안하는 모든 것은 사용자가 확인한 경우에만 사용됩니다.</string>
+    <string name="add_a_plugin">플러그인 추가</string>
+    <string name="install_from_url">URL에서 추가</string>
+    <string name="enter_apk_link">플러그인 스크립트 링크 입력</string>
+    <string name="installed">설치됨</string>
+    <string name="no_plugins_installed">설치된 플러그인이 없습니다 - 아래의 플러그인 스토어를 둘러보세요</string>
+    <string name="plugin_stores">플러그인 스토어</string>
+    <string name="add_plugin_store">+ 플러그인 스토어 추가</string>
+    <string name="browse">둘러보기</string>
+    <string name="no_plugin_stores">추가된 플러그인 스토어 없음</string>
+    <string name="results">결과</string>
+    <string name="version">버전</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">앱</string>
+    <string name="about_platform_label">플랫폼</string>
+    <string name="about_platform_value">Android · TV + 휴대전화</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">업데이트 확인</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">검색어 입력</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">닫기</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">편집</string>
+    <string name="remove">제거</string>
+    <!-- 제공업체 행의 콘텐츠 유형별 토글입니다. “영화”/“시리즈”가 탭 라벨(films_tab/series_tab)로
+         이미 존재하지만 전용 id를 사용합니다 - 연결 계층이 각 체크박스를 이 id에 연결하며 탭
+         문자열을 재사용하면 둘이 결합되기 때문입니다. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">영화</string>
+    <string name="provider_content_series">시리즈</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">실행</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">테스트됨</string>
+    <string name="add">추가</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">모두 보기</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - 시청 상태 체크 토글 -->
+    <string name="episode_mark_watched">에피소드를 본 것으로 표시</string>
+    <string name="episode_mark_unwatched">에피소드를 안 본 것으로 표시</string>
+    <string name="season_mark_watched">시즌을 본 것으로 표시</string>
+    <string name="season_mark_unwatched">시즌을 안 본 것으로 표시</string>
+
+    <!-- dialog_search.xml - 검색 오버레이 -->
+    <string name="search_overlay_hint">실시간 TV, 영화 &amp; 시리즈 검색…</string>
+    <string name="search_recents_label">최근 검색어</string>
+    <string name="search_recents_clear">지우기</string>
+    <string name="search_filter_all">전체</string>
+    <string name="search_filter_films">영화</string>
+    <string name="search_filter_series">시리즈</string>
+    <!-- 검색 호스트가 전환하는 상태 텍스트입니다. “결과 없음”은 검색어를 표시하며, 힌트 줄은
+         표시될 때 동일한 상태 TextView의 두 번째 줄에 표시됩니다. -->
+    <string name="search_status_searching">검색 중…</string>
+    <string name="search_status_no_results">“%1$s”에 대한 결과 없음</string>
+    <string name="search_status_no_results_hint">글자를 더 적게 입력하거나 철자를 확인해 보세요.</string>
+    <string name="search_status_count">결과 %1$d/%2$d</string>
+
+    <!-- item_epg_result.xml - EPG 프로그램 검색 결과 -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - 문장 부호 레이어 전환. \?는 맨 앞의 ?를 이스케이프합니다 -
+         그렇지 않으면 aapt가 “?123”을 리소스 참조로 읽습니다. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - 발견(TMDB) 검색 -->
+    <string name="discover_search_hint">영화 &amp; 시리즈 검색…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - TV에서 챌린지 WebView 위에 표시됩니다.
+         포인터가 없어 가상 커서로 체크박스를 선택해야 합니다. -->
+    <string name="bypass_tv_instructions">체크박스 위로 커서를 이동한 다음\nOK를 눌러 잠금 해제</string>
+
+    <!-- MainActivityScraper - 소스 선택기입니다. TMDB는 어떤 콘텐츠가 존재하는지 알려주고,
+         사이트에는 누가 스트리밍할 수 있는지만 질문합니다. 호스트는 자주 죽기 때문에 하나가
+         실패하는 것은 일상입니다. -->
+    <string name="scraper_dialog_title">스트림 찾기 \u2014 %1$s</string>
+    <string name="scraper_finding_sources">소스 찾는 중\u2026</string>
+    <string name="scraper_searching_sites">사이트 검색 중\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">%1$s 여는 중\u2026</string>
+    <string name="scraper_source_failed">%1$s가 작동하지 않았습니다 \u2014 다른 소스를 시도하세요</string>
+    <string name="scraper_no_sources">이 제목에 대한 소스를 찾을 수 없습니다</string>
+    <string name="scraper_pick_manually">소스 선택</string>
+    <string name="scraper_attempt_detail">%1$s 경유 \u00b7 시도 %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="other">소스 %1$d개</item>
+    </plurals>
+
+    <!-- MainActivitySettings - 스트리밍 사이트 소스. -->
+    <string name="scraper_settings_title">스트리밍 사이트</string>
+    <string name="scraper_settings_subtitle">스트림 찾기가 참조할 수 있는 공개 스트리밍 사이트. 탐색은 발견 탭에 유지됩니다 \u2014 사이트는 이미 선택한 제목을 누가 스트리밍할 수 있는지에 대해서만 질문을 받습니다.</string>
+    <string name="scraper_enabled_title">스트리밍 사이트 사용</string>
+    <string name="scraper_enabled_subtitle">발견 탭의 제목에 스트림 찾기를 제공</string>
+    <string name="scraper_sites_header">검색할 사이트</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">ISP의 리졸버 대신 암호화된 리졸버를 통해 사이트 도메인을 확인합니다</string>
+    <string name="scraper_doh_system">시스템 DNS</string>
+    <string name="scraper_extra_buffering_title">추가 버퍼링</string>
+    <string name="scraper_extra_buffering_subtitle">버스트로 전송하는 호스트를 위해 최대 5분까지 미리 버퍼링합니다. 더 많은 메모리를 사용하며, 재시작 후 적용됩니다</string>
+    <string name="category_newest">최신</string>
+    <string name="category_continue_watching">계속 시청</string>
+    <string name="category_other">기타</string>
+    <string name="category_all">전체</string>
+    <string name="category_anime">애니메이션</string>
+    <string name="category_collapse_categories">카테고리 접기</string>
+    <string name="category_favourites">즐겨찾기</string>
+    <string name="category_group_into_categories">카테고리로 그룹화</string>
+    <string name="category_show_all_categories">모든 카테고리 표시(클래식 목록)</string>
+    <string name="category_next_up">다음에 볼 콘텐츠</string>
+    <string name="category_recently_played">최근 재생</string>
+    <string name="category_favourite_channels">즐겨찾는 채널</string>
+</resources>

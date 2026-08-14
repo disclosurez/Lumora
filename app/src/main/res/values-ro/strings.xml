@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Setări</string>
+    <!-- Limba interfeței aplicației (panoul General). "system" urmează limba dispozitivului;
+         opțiunile selectorului sunt nume afișate în limba maternă și nu trebuie traduse. -->
+    <string name="settings_ui_language">Limbă</string>
+    <string name="settings_ui_language_caption">Traduce întreaga aplicație — setează și audio, subtitrările și TMDB</string>
+    <string name="settings_type_m3u">Tip: M3U</string>
+    <string name="m3u_url">URL listă de redare M3U/M3U8</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Nume de utilizator</string>
+    <string name="xtream_password">Parolă</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Salvează</string>
+    <string name="cancel">Anulează</string>
+    <string name="loading">Se încarcă&#8230;</string>
+    <string name="live_badge">În direct</string>
+
+    <!-- Tipuri de furnizori -->
+    <string name="stalker_mac">Adresă MAC</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Player -->
+    <!-- Înregistrare -->
+    <string name="recording_storage">Stocare înregistrări</string>
+
+    <!-- Backup și restaurare -->
+    <string name="backup_restore">Backup și restaurare</string>
+    <string name="export_backup">Exportă backup</string>
+    <string name="import_backup">Importă backup</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">Surse EPG</string>
+    <string name="add_epg_source">Adaugă sursă EPG</string>
+
+    <!-- Gestionarea conținutului -->
+    <!-- VOD -->
+    <!-- Calitate -->
+    <!-- Erori -->
+    <!-- Introducere numerică -->
+    <!-- În continuare / redare automată -->
+    <string name="up_next">În continuare</string>
+    <string name="play_now">Redă acum</string>
+
+    <!-- Căutare incrementală -->
+    <!-- Sincronizare A/V -->
+    <string name="av_offset">Decalaj sincronizare A/V</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Căutare</string>
+    <string name="tab_home">Acasă</string>
+    <string name="tab_live_tv">TV în direct</string>
+    <!-- Catch Up: redarea tv_archive Xtream (canal → zi → program deja difuzat). -->
+    <string name="tab_catchup">Recuperare</string>
+    <string name="catchup_crumb_categories">Recuperare · %1$d canale cu arhivă</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d canale</string>
+    <string name="catchup_crumb_days">%1$s · alegeți o zi</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Azi</string>
+    <string name="catchup_yesterday">Ieri</string>
+    <string name="catchup_loading">Se încarcă ghidul…</string>
+    <string name="catchup_no_guide">Nu există date de ghid pentru această zi — se afișează blocuri orare.</string>
+    <string name="catchup_nothing_aired">În această zi nu s-a difuzat încă nimic.</string>
+    <string name="catchup_no_provider">Nu poate fi redat — furnizorul de la care provine nu mai este configurat.</string>
+    <string name="catchup_hour_block">Bloc orar</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d zi păstrată</item>
+        <item quantity="few">%1$d zile păstrate</item>
+        <item quantity="other">%1$d de zile păstrate</item>
+    </plurals>
+    <string name="series_tab">Seriale</string>
+    <string name="films_tab">Filme</string>
+    <string name="discover_tab">Descoperă</string>
+    <string name="downloads_tab">Descărcări</string>
+    <string name="no_provider_configured">Niciun furnizor configurat</string>
+    <string name="press_settings_to_add_playlist">Apăsați Setări pentru a adăuga un URL de listă de redare</string>
+    <string name="add_a_provider">Adaugă un furnizor</string>
+    <string name="startup_choose_provider">FURNIZOR IPTV/JELLYFIN</string>
+    <string name="startup_choose_public">CONȚINUT DE STREAMING PUBLIC</string>
+    <string name="startup_choose_both">AMBELE</string>
+    <string name="search_main_hint">Căutați în TV live, filme &amp; seriale…</string>
+    <string name="no_downloads_yet">Încă nu există descărcări</string>
+    <string name="overview">Prezentare generală</string>
+    <string name="cast">Distribuție</string>
+    <string name="play">Redă</string>
+    <string name="find_stream">Găsește &amp; redă</string>
+    <string name="trailer">Trailer</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Somn</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Deschide în</string>
+
+    <!-- Afișat pe ecranul mașinii la începutul fiecărei sesiuni și în Setări pe telefon.
+         Păstrat suficient de scurt pentru ca unitatea de bord să nu îl trunchieze la mijlocul
+         unei propoziții. -->
+    <string name="car_disclaimer">Nu vizionați video în timp ce conduceți.\n\nVideo se redă doar cât timp Lumora poate confirma că mașina este oprită. La orice mișcare, imaginea se stinge, iar sunetul continuă.\n\nFurnizat „ca atare", fără garanție și fără răspundere pentru orice pierdere, daună, penalitate sau defecțiune a acestor comenzi. Folosiți-l în mod legal.</string>
+
+    <string name="legal_notice_title">Aviz legal și de siguranță</string>
+    <string name="legal_notice">Lumora este oferită gratuit, „ca atare" și fără nicio garanție, expresă sau implicită, inclusiv, fără a se limita la, garanțiile de vandabilitate, de adecvare pentru un scop anume și de neîncălcare a drepturilor terților.\n\nÎn cea mai mare măsură permisă de lege, autorii și contribuitorii nu își asumă nicio răspundere pentru vreo pretenție, daună, pierdere sau altă obligație care decurge din aplicație sau din utilizarea acesteia ori în legătură cu acestea, inclusiv, fără a se limita la: pierderea sau deteriorarea datelor ori a dispozitivelor, întreruperea serviciului, blocările sau erorile aplicației, costurile facturate de rețeaua sau furnizorii dvs. de conținut, sau orice penalitate, amendă ori urmărire penală rezultată din utilizarea aplicației.\n\nConducerea: redarea video într-un vehicul este destinată doar unui vehicul staționar sau unui ecran pentru pasageri. Vizionarea video în timpul conducerii este ilegală în majoritatea jurisdicțiilor. Lumora încearcă să detecteze mișcarea și să dezactiveze automat video, dar această detecție depinde de hardware, permisiuni și semnale aflate în afara controlului aplicației și poate eșua sau fi indisponibilă. Nu trebuie să vă bazați pe ea. Șoferul rămâne singurul responsabil de respectarea tuturor legilor rutiere aplicabile.\n\nConținut: Lumora este un player. Nu găzduiește, nu oferă și nu indexează niciun conținut propriu. Toate fluxurile, cataloagele și metadatele provin de la serviciile și furnizorii pe care îi configurați dvs., iar dvs. sunteți singurul responsabil pentru deținerea drepturilor sau abonamentelor necesare accesului la acestea și pentru respectarea condițiilor acestor servicii și a legilor țării dvs.\n\nDistribuție: această aplicație nu este distribuită prin Google Play și nu este afiliată, aprobată sau certificată de Google. Android, Android Auto și Google Cast sunt mărci comerciale ale Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versiuni</string>
+    <string name="fit">Potrivește</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Subtitrări</string>
+    <string name="chapters">Capitole</string>
+    <string name="seek_preview">Previzualizare căutare</string>
+    <string name="player_menu_title">Meniu</string>
+    <string name="player_menu">Meniu player</string>
+    <string name="close_side_menu">Închide meniul</string>
+    <string name="side_menu_loading">Se încarcă…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Furnizori</string>
+    <string name="playback">Redare</string>
+    <string name="general">General</string>
+    <string name="filters">Filtre</string>
+    <string name="privacy">Confidențialitate</string>
+    <string name="downloads">Descărcări</string>
+    <string name="plugins">Pluginuri</string>
+    <string name="enabled">Activat</string>
+    <string name="update">Actualizează</string>
+    <string name="back_to_plugins">‹  Pluginuri</string>
+    <string name="about">Despre</string>
+    <string name="providers_description">Rulați mai mulți furnizori împreună - activați sau dezactivați fiecare independent</string>
+    <string name="your_providers">FURNIZORII DVS.</string>
+    <string name="no_iptv_providers_added_yet">Nu s-au adăugat încă furnizori IPTV</string>
+    <string name="add_provider">+ Adaugă furnizor</string>
+    <string name="what_kind_of_provider">Ce fel de furnizor este acesta?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Link listă de redare</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Coduri de autentificare</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">Adresă MAC</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Server media</string>
+    <string name="change">Schimbă</string>
+    <string name="show_phone_qr_pairing_code">Afișează codul QR de asociere cu telefonul</string>
+    <string name="or_enter_manually">SAU INTRODUCEȚI MANUAL</string>
+    <string name="name">Nume</string>
+    <string name="server_url">URL server</string>
+    <string name="sign_in_with_quick_connect">Conectați-vă cu Quick Connect</string>
+    <string name="username_if_quick_connect_off">Nume de utilizator (dacă Quick Connect este dezactivat)</string>
+    <string name="playback_settings">Setări de redare</string>
+    <string name="hide_non_english">Ascunde filmele/serialele care nu sunt în engleză</string>
+    <string name="hide_adult_categories">Ascunde categoriile pentru adulți</string>
+    <!-- Banda de categorii restrânsă: pastila care o readuce și indiciul unic afișat
+         în momentul restrângerii, astfel încât drumul înapoi să nu fie niciodată de căutat. -->
+    <string name="categories">Categorii</string>
+    <string name="show_categories">Afișează categoriile</string>
+    <string name="categories_hidden_hint">Categoriile sunt ascunse — atingeți „Categorii" pentru afișare</string>
+    <!-- Banda de Setări restrânsă: ultimul rând de navigare care o ascunde, plus pastila și
+         indiciul unic care o readuc - oglindește opțiunile de restrângere ale barei de categorii. -->
+    <string name="settings_nav_collapse">Restrânge</string>
+    <string name="show_settings">Afișează setările</string>
+    <string name="settings_hidden_hint">Setările sunt ascunse — atingeți „Setări" pentru afișare</string>
+    <string name="categorize_live">Categorizează TV-ul live</string>
+    <string name="categorize_vod">Categorizează filmele &amp; serialele</string>
+    <string name="group_channels">Grupează canalele duplicate</string>
+    <string name="set_parental_pin">Setează codul PIN parental</string>
+    <string name="clear_watch_history">Șterge istoricul de vizionare</string>
+    <string name="plugins_description">Scripturi mici care adaugă funcționalități - găsirea furnizorilor sau căutarea de fluxuri. Nimic nu se instalează ca aplicație separată; un script rulează în interiorul Lumora, iar orice propune este folosit doar dacă îl confirmați.</string>
+    <string name="add_a_plugin">ADĂUGĂ UN PLUGIN</string>
+    <string name="install_from_url">Adaugă din URL</string>
+    <string name="enter_apk_link">Introduceți un link către scriptul pluginului</string>
+    <string name="installed">INSTALAT</string>
+    <string name="no_plugins_installed">Niciun plugin instalat - răsfoiți mai jos un magazin de pluginuri</string>
+    <string name="plugin_stores">MAGAZINE DE PLUGINURI</string>
+    <string name="add_plugin_store">+ Adaugă un magazin de pluginuri</string>
+    <string name="browse">Răsfoiește</string>
+    <string name="no_plugin_stores">Nu s-au adăugat magazine de pluginuri</string>
+    <string name="results">REZULTATE</string>
+    <string name="version">Versiune</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">Aplicație</string>
+    <string name="about_platform_label">Platformă</string>
+    <string name="about_platform_value">Android · TV + telefon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Verifică actualizări</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Tastați pentru a căuta</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Închide</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Editează</string>
+    <string name="remove">Elimină</string>
+    <!-- Comutatoare de tip de conținut per furnizor pe rândul furnizorului. ID-uri dedicate
+         chiar dacă „Filme"/„Seriale" există ca etichete de file (films_tab/series_tab) -
+         conexiunea leagă fiecare casetă de aceste ID-uri, iar refolosirea șirurilor de file
+         ar cupla cele două. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Filme</string>
+    <string name="provider_content_series">Seriale</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Rulează</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">TESTAT</string>
+    <string name="add">Adaugă</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Vezi tot</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - comutatoare de stare vizionat -->
+    <string name="episode_mark_watched">Marchează episodul ca vizionat</string>
+    <string name="episode_mark_unwatched">Marchează episodul ca nevizionat</string>
+    <string name="season_mark_watched">Marchează sezonul ca vizionat</string>
+    <string name="season_mark_unwatched">Marchează sezonul ca nevizionat</string>
+
+    <!-- dialog_search.xml - suprapunere de căutare -->
+    <string name="search_overlay_hint">Căutați în TV live, filme &amp; seriale…</string>
+    <string name="search_recents_label">Căutări recente</string>
+    <string name="search_recents_clear">Șterge</string>
+    <string name="search_filter_all">Tot</string>
+    <string name="search_filter_films">Filme</string>
+    <string name="search_filter_series">Seriale</string>
+    <!-- Textele de stare între care comută gazda căutării. „Fără rezultate" poartă interogarea,
+         iar linia de indiciu merge pe a doua linie a aceluiași TextView de stare când e afișată. -->
+    <string name="search_status_searching">Se caută…</string>
+    <string name="search_status_no_results">Niciun rezultat pentru „%1$s"</string>
+    <string name="search_status_no_results_hint">Încercați mai puține litere sau verificați ortografia.</string>
+    <string name="search_status_count">%1$d/%2$d rezultate</string>
+
+    <!-- item_epg_result.xml - rezultate de căutare programe EPG -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - comutarea stratului de punctuație. \? escapează ?-ul inițial -
+         altfel aapt ar citi „?123" ca referință de resursă. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - căutare Descoperă (TMDB) -->
+    <string name="discover_search_hint">Căutați filme &amp; seriale…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - afișat deasupra WebView-ului de provocare
+         pe TV, unde nu există indicator, iar caseta trebuie atinsă cu un cursor virtual. -->
+    <string name="bypass_tv_instructions">MUTAȚI CURSORUL PESTE CĂSUȚA DE BIFARE\nȘI APĂSAȚI OK PENTRU A DEBLOCA</string>
+
+    <!-- MainActivityScraper - selectorul de surse. TMDB spune ce există; site-urile sunt
+         întrebate doar cine poate difuza, iar gazdele mor destul de des încât un eșec este
+         ceva obișnuit. -->
+    <string name="scraper_dialog_title">Găsește fluxul \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Se caută surse\u2026</string>
+    <string name="scraper_searching_sites">Se caută pe site-uri\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">Se deschide %1$s\u2026</string>
+    <string name="scraper_source_failed">%1$s nu a funcționat \u2014 încercați altă sursă</string>
+    <string name="scraper_no_sources">Nu s-au găsit surse pentru acest titlu</string>
+    <string name="scraper_pick_manually">Alegeți o sursă</string>
+    <string name="scraper_attempt_detail">prin %1$s \u00b7 încercarea %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d sursă</item>
+        <item quantity="few">%1$d surse</item>
+        <item quantity="other">%1$d de surse</item>
+    </plurals>
+
+    <!-- MainActivitySettings - surse de site-uri de streaming. -->
+    <string name="scraper_settings_title">Site-uri de streaming</string>
+    <string name="scraper_settings_subtitle">Site-uri publice de streaming de unde poate lua Găsește fluxul. Navigarea rămâne pe Descoperă \u2014 ele sunt întrebate doar cine poate difuza un titlu pe care l-ați ales deja.</string>
+    <string name="scraper_enabled_title">Folosește site-uri de streaming</string>
+    <string name="scraper_enabled_subtitle">Oferă Găsește fluxul pentru titlurile de pe Descoperă</string>
+    <string name="scraper_sites_header">Site-uri de căutat</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Rezolvă domeniile site-urilor printr-un rezolvator criptat în locul ISP-ului dvs.</string>
+    <string name="scraper_doh_system">DNS de sistem</string>
+    <string name="scraper_extra_buffering_title">Buffer suplimentar</string>
+    <string name="scraper_extra_buffering_subtitle">Face buffer cu până la 5 minute în avans pentru gazdele care livrează în rafale. Folosește mai multă memorie; se aplică după o repornire</string>
+    <string name="category_newest">Cele mai noi</string>
+    <string name="category_continue_watching">Continuă vizionarea</string>
+    <string name="category_other">Altele</string>
+    <string name="category_all">Toate</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Restrânge categoriile</string>
+    <string name="category_favourites">Favorite</string>
+    <string name="category_group_into_categories">Grupează în categorii</string>
+    <string name="category_show_all_categories">Afișează toate categoriile (listă clasică)</string>
+    <string name="category_next_up">În continuare</string>
+    <string name="category_recently_played">Redate recent</string>
+    <string name="category_favourite_channels">Canale favorite</string>
+</resources>

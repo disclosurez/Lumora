@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="settings">Instellingen</string>
+    <!-- Taal van de app (paneel Algemeen). "system" volgt de taal van het apparaat ;
+         de items in de kiezer zijn namen in de eigen taal en hoeven niet vertaald te worden. -->
+    <string name="settings_ui_language">Taal</string>
+    <string name="settings_ui_language_caption">Vertaalt de hele app — stelt ook audio, ondertitels en TMDB in</string>
+    <string name="settings_type_m3u">Type: M3U</string>
+    <string name="m3u_url">URL van M3U/M3U8-afspeellijst</string>
+    <string name="m3u_url_hint">https://example.com/playlist.m3u</string>
+    <string name="xtream_username">Gebruikersnaam</string>
+    <string name="xtream_password">Wachtwoord</string>
+    <string name="user_agent">User-Agent (optional)</string>
+    <string name="user_agent_hint">VLC/3.0.18</string>
+    <string name="save">Opslaan</string>
+    <string name="cancel">Annuleren</string>
+    <string name="loading">Laden&#8230;</string>
+    <string name="live_badge">Live</string>
+
+    <!-- Soorten providers -->
+    <string name="stalker_mac">MAC-adres</string>
+    <string name="stalker_mac_hint">00:1A:2B:3C:4D:5E</string>
+
+    <!-- Speler -->
+    <!-- Opname -->
+    <string name="recording_storage">Opslag voor opnames</string>
+
+    <!-- Back-up en herstellen -->
+    <string name="backup_restore">Back-up &amp; herstellen</string>
+    <string name="export_backup">Back-up exporteren</string>
+    <string name="import_backup">Back-up importeren</string>
+
+    <!-- EPG -->
+    <string name="epg_sources">EPG-bronnen</string>
+    <string name="add_epg_source">EPG-bron toevoegen</string>
+
+    <!-- Contentbeheer -->
+    <!-- VOD -->
+    <!-- Kwaliteit -->
+    <!-- Fouten -->
+    <!-- Numerieke invoer -->
+    <!-- Volgende / Automatisch doorspelen -->
+    <string name="up_next">Volgende</string>
+    <string name="play_now">Nu afspelen</string>
+
+    <!-- Inkrementaal zoeken -->
+    <!-- A/V-sync -->
+    <string name="av_offset">A/V-sync-offset</string>
+
+    <!-- activity_main.xml -->
+    <string name="search">Zoeken</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_live_tv">Live-tv</string>
+    <!-- Inhalen : afspelen van Xtream tv_archive (kanaal → dag → programma dat al is uitgezonden). -->
+    <string name="tab_catchup">Inhalen</string>
+    <string name="catchup_crumb_categories">Inhalen · %1$d kanalen met een archief</string>
+    <string name="catchup_crumb_channels_in">%1$s · %2$d kanalen</string>
+    <string name="catchup_crumb_days">%1$s · kies een dag</string>
+    <string name="catchup_crumb_programmes">%1$s · %2$s</string>
+    <string name="catchup_today">Vandaag</string>
+    <string name="catchup_yesterday">Gisteren</string>
+    <string name="catchup_loading">Gids laden…</string>
+    <string name="catchup_no_guide">Geen gidsgegevens voor deze dag — uurlijkse blokken worden getoond.</string>
+    <string name="catchup_nothing_aired">Op deze dag is nog niets uitgezonden.</string>
+    <string name="catchup_no_provider">Kan dit niet afspelen — de provider waar het vandaan komt is niet meer geconfigureerd.</string>
+    <string name="catchup_hour_block">Uurlijks blok</string>
+    <plurals name="catchup_days_kept">
+        <item quantity="one">%1$d dag bewaard</item>
+        <item quantity="other">%1$d dagen bewaard</item>
+    </plurals>
+    <string name="series_tab">Series</string>
+    <string name="films_tab">Films</string>
+    <string name="discover_tab">Ontdekken</string>
+    <string name="downloads_tab">Downloads</string>
+    <string name="no_provider_configured">Geen provider geconfigureerd</string>
+    <string name="press_settings_to_add_playlist">Druk op Instellingen om een afspeellijst-URL toe te voegen</string>
+    <string name="add_a_provider">Provider toevoegen</string>
+    <string name="startup_choose_provider">IPTV/JELLYFIN-PROVIDER</string>
+    <string name="startup_choose_public">PUBLIEKE STREAMINHOUD</string>
+    <string name="startup_choose_both">BEIDE</string>
+    <string name="search_main_hint">Zoek in live-tv, films &amp; series…</string>
+    <string name="no_downloads_yet">Nog geen downloads</string>
+    <string name="overview">Overzicht</string>
+    <string name="cast">Cast</string>
+    <string name="play">Afspelen</string>
+    <string name="find_stream">Zoek &amp; speel</string>
+    <string name="trailer">Trailer</string>
+    <string name="speed_default">1.0x</string>
+    <string name="sleep_timer_button">Slaap</string>
+    <string name="diag">Diag</string>
+    <string name="open_in_external_player_short">Openen in</string>
+
+    <!-- Wordt aan het begin van elke sessie op het autoscherm getoond en in Instellingen op
+         de telefoon. Kort genoeg gehouden zodat een head unit het niet midden in een zin
+         afkapt. -->
+    <string name="car_disclaimer">Kijk geen video terwijl je rijdt.\n\nVideo wordt alleen afgespeeld wanneer Lumora kan bevestigen dat de auto stilstaat. Bij elke beweging gaat het beeld uit en blijft het geluid doorgaan.\n\nWordt geleverd “zoals het is”, zonder garantie en zonder aansprakelijkheid voor enig verlies, schade, boete of het falen van deze bedieningselementen. Gebruik dit legaal.</string>
+
+    <string name="legal_notice_title">Juridische &amp; veiligheidsmededeling</string>
+    <string name="legal_notice">Lumora wordt gratis aangeboden, “zoals het is” en zonder enige garantie, expliciet of impliciet, waaronder maar niet beperkt tot garanties van verkoopbaarheid, geschiktheid voor een bepaald doel en niet-inbreuk.\n\nVoor zover de wet dit toestaat, aanvaarden de auteurs en bijdragers geen aansprakelijkheid voor enige vordering, schade, verlies of andere aansprakelijkheid die voortvloeit uit of verband houdt met de app of het gebruik ervan, waaronder maar niet beperkt tot: verlies van of schade aan gegevens of apparaten, onderbreking van de dienst, crashes of fouten van de app, kosten die door je netwerk- of contentprovider in rekening worden gebracht, of enige boete, straf of vervolging als gevolg van je gebruik van de app.\n\nRijden: het afspelen van video in een voertuig is uitsluitend bedoeld voor een stilstaand voertuig of een passagiersscherm. Tijdens het rijden naar video kijken is in de meeste rechtsgebieden illegaal. Lumora probeert beweging te detecteren en de video automatisch uit te schakelen, maar deze detectie is afhankelijk van hardware, machtigingen en signalen buiten de controle van de app en kan mislukken of niet beschikbaar zijn. Je mag er niet op vertrouwen. De bestuurder blijft als enige verantwoordelijk voor naleving van alle toepasselijke verkeerswetten.\n\nInhoud: Lumora is een speler. Het host, verstrekt en indexeert geen eigen inhoud. Alle streams, catalogi en metadata komen van diensten en providers die je zelf configureert, en je bent als enige verantwoordelijk voor het bezitten van de rechten of abonnementen die nodig zijn om er toegang toe te krijgen, en voor het naleven van de voorwaarden van die diensten en de wetten van je land.\n\nDistributie: deze app wordt niet via Google Play gedistribueerd en is niet verbonden met, goedgekeurd door of gecertificeerd door Google. Android, Android Auto en Google Cast zijn handelsmerken van Google LLC.</string>
+    <string name="rec">REC</string>
+    <string name="versions">Versies</string>
+    <string name="fit">Passend maken</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Ondertitels</string>
+    <string name="chapters">Hoofdstukken</string>
+    <string name="seek_preview">Voorbeeld van zoeken</string>
+    <string name="player_menu_title">Menu</string>
+    <string name="player_menu">Speler-menu</string>
+    <string name="close_side_menu">Menu sluiten</string>
+    <string name="side_menu_loading">Laden…</string>
+
+    <!-- activity_settings.xml -->
+    <string name="providers">Providers</string>
+    <string name="playback">Afspelen</string>
+    <string name="general">Algemeen</string>
+    <string name="filters">Filters</string>
+    <string name="privacy">Privacy</string>
+    <string name="downloads">Downloads</string>
+    <string name="plugins">Plugins</string>
+    <string name="enabled">Ingeschakeld</string>
+    <string name="update">Bijwerken</string>
+    <string name="back_to_plugins">‹  Plugins</string>
+    <string name="about">Over</string>
+    <string name="providers_description">Voer meerdere providers samen uit - schakel elk afzonderlijk in of uit</string>
+    <string name="your_providers">JOUW PROVIDERS</string>
+    <string name="no_iptv_providers_added_yet">Nog geen IPTV-providers toegevoegd</string>
+    <string name="add_provider">+ Provider toevoegen</string>
+    <string name="what_kind_of_provider">Wat voor provider is dit?</string>
+    <string name="provider_type_m3u">M3U/M3U8</string>
+    <string name="playlist_link">Afspeellijst-link</string>
+    <string name="provider_type_xtream">Xtream</string>
+    <string name="login_codes">Inlogcodes</string>
+    <string name="provider_type_stalker">Stalker</string>
+    <string name="mac_address">MAC-adres</string>
+    <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="media_server">Mediaserver</string>
+    <string name="change">Wijzigen</string>
+    <string name="show_phone_qr_pairing_code">QR-koppelcode van telefoon tonen</string>
+    <string name="or_enter_manually">OF HANDMATIG INVULLEN</string>
+    <string name="name">Naam</string>
+    <string name="server_url">Server-URL</string>
+    <string name="sign_in_with_quick_connect">Inloggen met Quick Connect</string>
+    <string name="username_if_quick_connect_off">Gebruikersnaam (als Quick Connect uit staat)</string>
+    <string name="playback_settings">Afspeelinstellingen</string>
+    <string name="hide_non_english">Niet-Engelse films/series verbergen</string>
+    <string name="hide_adult_categories">Volwassen categorieën verbergen</string>
+    <!-- Ingeklapte categorierail: de pil die hem terugbrengt, en de eenmalige hint die op het
+         moment van inklappen wordt getoond, zodat de weg terug nooit hoeft te worden gezocht. -->
+    <string name="categories">Categorieën</string>
+    <string name="show_categories">Categorieën tonen</string>
+    <string name="categories_hidden_hint">Categorieën verborgen — tik op “Categorieën” om te tonen</string>
+    <!-- Ingeklapte instellingenrail: de laatste navigatierij die hem verbergt, en de pil +
+         eenmalige hint die hem terugbrengen - spiegelbeeld van het inklapgedrag van de
+         categoriezijbalk. -->
+    <string name="settings_nav_collapse">Samenvouwen</string>
+    <string name="show_settings">Instellingen tonen</string>
+    <string name="settings_hidden_hint">Instellingen verborgen — tik op “Instellingen” om te tonen</string>
+    <string name="categorize_live">Live-tv categoriseren</string>
+    <string name="categorize_vod">Films &amp; series categoriseren</string>
+    <string name="group_channels">Dubbele kanalen groeperen</string>
+    <string name="set_parental_pin">Ouderlijke pincode instellen</string>
+    <string name="clear_watch_history">Kijkgeschiedenis wissen</string>
+    <string name="plugins_description">Kleine scripts die functies toevoegen - providers vinden of zoeken naar streams. Er wordt niets als aparte app geïnstalleerd; een script draait binnen Lumora, en alles wat het voorstelt wordt alleen gebruikt als je het bevestigt.</string>
+    <string name="add_a_plugin">EEN PLUGIN TOEVOEGEN</string>
+    <string name="install_from_url">Toevoegen vanaf URL</string>
+    <string name="enter_apk_link">Voer een plugin-scriptlink in</string>
+    <string name="installed">GEÏNSTALLEERD</string>
+    <string name="no_plugins_installed">Geen plugins geïnstalleerd - blader hieronder door een pluginwinkel</string>
+    <string name="plugin_stores">PLUGINWINKELS</string>
+    <string name="add_plugin_store">+ Een pluginwinkel toevoegen</string>
+    <string name="browse">Bladeren</string>
+    <string name="no_plugin_stores">Geen pluginwinkels toegevoegd</string>
+    <string name="results">RESULTATEN</string>
+    <string name="version">Versie</string>
+    <string name="github">GitHub</string>
+    <string name="github_url">github.com/disclosurez/Lumora</string>
+    <string name="about_app_label">App</string>
+    <string name="about_platform_label">Platform</string>
+    <string name="about_platform_value">Android · tv + telefoon</string>
+    <string name="discord">Discord</string>
+    <string name="discord_url">https://discord.gg/cNKYGhQWvq</string>
+    <string name="check_for_updates">Controleren op updates</string>
+
+    <!-- dialog_search.xml -->
+    <string name="type_to_search">Typ om te zoeken</string>
+
+    <!-- dialog_qr_pairing.xml -->
+    <string name="close">Sluiten</string>
+
+    <!-- item_iptv_provider_row.xml -->
+    <string name="edit">Bewerken</string>
+    <string name="remove">Verwijderen</string>
+    <!-- Inhoudstype-schakelaars per provider op de providerrij. Toegewijde id\'s ook al bestaan
+         “Films”/“Series” als tablabels (films_tab/series_tab) - de bedrading koppelt elk
+         selectievakje aan deze id\'s en het hergebruiken van de tabteksten zou de twee aan elkaar
+         koppelen. -->
+    <string name="provider_content_tv">TV</string>
+    <string name="provider_content_movies">Films</string>
+    <string name="provider_content_series">Series</string>
+
+    <!-- item_plugin_row.xml -->
+    <string name="run">Uitvoeren</string>
+
+    <!-- item_plugin_candidate_row.xml -->
+    <string name="tested">GETEST</string>
+    <string name="add">Toevoegen</string>
+
+    <!-- item_shelf.xml -->
+    <string name="see_all">Alles tonen</string>
+
+    <!-- item_episode.xml / item_season_chip.xml - schakelaars voor bekeken-status -->
+    <string name="episode_mark_watched">Aflevering als bekeken markeren</string>
+    <string name="episode_mark_unwatched">Aflevering als onbekeken markeren</string>
+    <string name="season_mark_watched">Seizoen als bekeken markeren</string>
+    <string name="season_mark_unwatched">Seizoen als onbekeken markeren</string>
+
+    <!-- dialog_search.xml - zoekoverlay -->
+    <string name="search_overlay_hint">Zoek in live-tv, films &amp; series…</string>
+    <string name="search_recents_label">Recente zoekopdrachten</string>
+    <string name="search_recents_clear">Wissen</string>
+    <string name="search_filter_all">Alles</string>
+    <string name="search_filter_films">Films</string>
+    <string name="search_filter_series">Series</string>
+    <!-- Statusteksten waartussen de zoekhost schakelt. “Geen resultaten” draagt de zoekopdracht,
+         en de hintregel gaat naar een tweede regel van dezelfde status-TextView wanneer die wordt
+         getoond. -->
+    <string name="search_status_searching">Zoeken…</string>
+    <string name="search_status_no_results">Geen resultaten voor “%1$s”</string>
+    <string name="search_status_no_results_hint">Probeer minder letters, of controleer de spelling.</string>
+    <string name="search_status_count">%1$d/%2$d resultaten</string>
+
+    <!-- item_epg_result.xml - zoekresultaten voor EPG-programma\'s -->
+    <string name="epg_badge">EPG</string>
+
+    <!-- ui/OnScreenKeyboard.kt - schakelaar voor leestekenlaag. \? escaped de leidende ? - aapt
+         zou “?123” anders als een resourceverwijzing lezen. -->
+    <string name="keyboard_shift">\?123</string>
+    <string name="keyboard_abc">ABC</string>
+
+    <!-- activity_main.xml / dialog_discover_search.xml - zoeken in Ontdekken (TMDB) -->
+    <string name="discover_search_hint">Zoek films &amp; series…</string>
+
+    <!-- com.lumora.scraper.utils.WebViewResolver - wordt boven de challenge-WebView op tv
+         getoond, waar er geen aanwijzer is en het selectievakje met een virtuele cursor moet
+         worden geraakt. -->
+    <string name="bypass_tv_instructions">VERPLAATS DE CURSOR OVER HET VAKJE\nEN DRUK OP OK OM TE ONTGRENDELEN</string>
+
+    <!-- MainActivityScraper - de bronkiezer. TMDB zegt wat er bestaat; aan de sites wordt alleen
+         gevraagd wie het kan streamen, en hosts gaan vaak genoeg dood dat het falen van één site
+         routine is. -->
+    <string name="scraper_dialog_title">Stream zoeken \u2014 %1$s</string>
+    <string name="scraper_finding_sources">Bronnen zoeken\u2026</string>
+    <string name="scraper_searching_sites">Sites doorzoeken\u2026 %1$d/%2$d</string>
+    <string name="scraper_opening_source">%1$s openen\u2026</string>
+    <string name="scraper_source_failed">%1$s werkte niet \u2014 probeer een andere bron</string>
+    <string name="scraper_no_sources">Geen bronnen gevonden voor deze titel</string>
+    <string name="scraper_pick_manually">Kies een bron</string>
+    <string name="scraper_attempt_detail">via %1$s \u00b7 poging %2$d</string>
+    <plurals name="scraper_sources_found">
+        <item quantity="one">%1$d bron</item>
+        <item quantity="other">%1$d bronnen</item>
+    </plurals>
+
+    <!-- MainActivitySettings - bronnen van streaming-sites. -->
+    <string name="scraper_settings_title">Streaming-sites</string>
+    <string name="scraper_settings_subtitle">Publieke streaming-sites waar Stream zoeken uit kan putten. Bladeren blijft op Ontdekken \u2014 ze worden alleen gevraagd wie een titel kan streamen die je al hebt gekozen.</string>
+    <string name="scraper_enabled_title">Streaming-sites gebruiken</string>
+    <string name="scraper_enabled_subtitle">Biedt Stream zoeken aan op Ontdekken-titels</string>
+    <string name="scraper_sites_header">Te doorzoeken sites</string>
+    <string name="scraper_doh_title">DNS-over-HTTPS</string>
+    <string name="scraper_doh_subtitle">Lost sitedomeinen op via een versleutelde resolver in plaats van die van je ISP</string>
+    <string name="scraper_doh_system">Systeem-DNS</string>
+    <string name="scraper_extra_buffering_title">Extra buffering</string>
+    <string name="scraper_extra_buffering_subtitle">Buffert tot 5 minuten vooruit voor hosts die in bursts leveren. Gebruikt meer geheugen; geldt na een herstart</string>
+    <string name="category_newest">Nieuwste</string>
+    <string name="category_continue_watching">Verder kijken</string>
+    <string name="category_other">Overig</string>
+    <string name="category_all">Alles</string>
+    <string name="category_anime">Anime</string>
+    <string name="category_collapse_categories">Categorieën samenvouwen</string>
+    <string name="category_favourites">Favorieten</string>
+    <string name="category_group_into_categories">Groeperen in categorieën</string>
+    <string name="category_show_all_categories">Alle categorieën tonen (klassieke lijst)</string>
+    <string name="category_next_up">Volgende</string>
+    <string name="category_recently_played">Recent afgespeeld</string>
+    <string name="category_favourite_channels">Favoriete kanalen</string>
+</resources>
