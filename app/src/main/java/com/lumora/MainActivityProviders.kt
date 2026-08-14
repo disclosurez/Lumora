@@ -79,22 +79,22 @@ internal fun MainActivity.setBrowseTabsVisible(visible: Boolean) {
 }
 
 /** Settings' LEFT target, which depends on what is actually on screen to its left:
- *  Downloads (phone), else Search, else nothing left of it at all. An explicit
- *  nextFocusLeftId pointing at a GONE view resolves to nothing and eats the press, so it
- *  can't be left to the XML default. */
+ *  Downloads (phone), else Search, else Home (simple mode's rightmost tab), else nothing
+ *  left of it at all. An explicit nextFocusLeftId pointing at a GONE view resolves to
+ *  nothing and eats the press, so it can't be left to the XML default. */
 internal fun MainActivity.updateChromeFocusChain() {
     binding.btnSettings.nextFocusLeftId = when {
         binding.tabDownloads.visibility == View.VISIBLE -> R.id.tabDownloads
         binding.btnSearch.visibility == View.VISIBLE -> R.id.btnSearch
+        binding.tabHome.visibility == View.VISIBLE -> R.id.tabHome
         else -> R.id.btnSettings
     }
 }
 
-/** Simple mode is "TV only": Live TV (with Catch Up reachable through its own small chip,
- *  not a tab) and nothing else. The bar would only ever hold the single Live tab, which is
- *  worth no space, so it is hidden entirely and the EPG/live content shifts up into the
- *  freed space, which is what simple mode always did. The toolbar above it stays, so
- *  Settings stays reachable. */
+/** Simple mode is "TV only": Live TV and Home stay reachable (Catch Up through its own
+ *  small chip, not a tab), Series/Films/Discover/Downloads/Search go - there is nothing to
+ *  browse there once VOD is off. The toolbar above the bar stays, so Settings/Refresh
+ *  stay reachable too. */
 internal fun MainActivity.isSimpleMode(): Boolean = prefs.getBoolean(PREF_SIMPLE_MODE, false)
 
 /** VOD is dropped at fetch time; the manual toggle and simple mode both turn it off,
@@ -145,18 +145,24 @@ internal fun MainActivity.applySimpleModeUi() {
     // (with no providers the empty state owns the screen and selectTab would fight it).
     val chromeUp = hasProviderEnabled() || hasProviderlessSource()
     if (simple) {
-        // Every browsing tab goes, Live TV included - it would be the bar's only item,
-        // worth no space - leaving just Settings/Refresh, the same screen the old "hide
-        // the tab bar" produced now that those two live inside the scroller. Catch Up
+        // Series/Films/Discover/Downloads/Search go; Live TV and Home stay. Catch Up
         // stays reachable through its own chip, gated below same as normal mode.
         setBrowseTabsVisible(false)
+        binding.tabLive.visibility = if (chromeUp) View.VISIBLE else View.GONE
+        binding.tabHome.visibility = if (chromeUp) View.VISIBLE else View.GONE
         if (chromeUp) updateCatchupTabVisibility()
-        // Live TV is the only pane reachable in simple mode - Home/Discover/Downloads
-        // (and any Series/Movies drill) land back on it instead of leaving a hidden pane
-        // on screen.
-        if (chromeUp && (showingHome || showingDiscover || showingDownloads || activeTab != 0)) {
+        // Series/Films/Discover/Downloads are unreachable now - land back on Live instead
+        // of leaving a hidden pane on screen. Home is a legitimate destination, left alone.
+        if (chromeUp && !showingHome && (showingDiscover || showingDownloads || activeTab == 1 || activeTab == 2)) {
             if (!showingCatchup) selectTab(0)
         }
+        // Live <-> Home <-> Settings: the tabs between them (Series/Films/Discover/Search/
+        // Downloads) are all GONE, and an unrouted nextFocusId pointing at a GONE view eats
+        // the D-pad press rather than skipping it.
+        binding.tabLive.nextFocusLeftId = R.id.tabLive
+        binding.tabLive.nextFocusRightId = R.id.tabHome
+        binding.tabHome.nextFocusLeftId = R.id.tabLive
+        binding.tabHome.nextFocusRightId = R.id.btnSettings
     } else {
         setBrowseTabsVisible(chromeUp)
         if (chromeUp) {

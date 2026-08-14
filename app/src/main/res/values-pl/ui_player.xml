@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">Przesunięcie audio</string>
+    <string name="play_audio_offset_default">A/V: 0 ms</string>
+    <string name="play_audio_offset_label">A/V: %1$d ms</string>
+    <string name="play_audio_offset_hint">Dodatnia wartość opóźnia dźwięk, ujemna go przyspiesza</string>
+</resources>

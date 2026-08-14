@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">音频偏移</string>
+    <string name="play_audio_offset_default">A/V: 0ms</string>
+    <string name="play_audio_offset_label">A/V: %1$dms</string>
+    <string name="play_audio_offset_hint">正值延迟音频，负值提前音频</string>
+</resources>

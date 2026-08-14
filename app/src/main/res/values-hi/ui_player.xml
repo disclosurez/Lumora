@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">ऑडियो ऑफ़सेट</string>
+    <string name="play_audio_offset_default">A/V: 0ms</string>
+    <string name="play_audio_offset_label">A/V: %1$dms</string>
+    <string name="play_audio_offset_hint">धनात्मक मान ऑडियो को देरी से चलाता है, ऋणात्मक उसे आगे बढ़ाता है</string>
+</resources>

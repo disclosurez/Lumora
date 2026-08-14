@@ -139,6 +139,34 @@ internal fun MainActivity.setupPlayerControls() {
             .show()
     }
 
+    // Audio offset control - see AvOffsetRenderersFactory for how the shift is actually
+    // applied. Global only (matches Speed/Sleep Timer): a viewer's HDMI/speaker lag is a
+    // property of their setup, not of any one channel.
+    val avOffsetManager = com.lumora.player.playback.AvOffsetManager(this)
+    binding.btnAudioOffset.text = getString(R.string.play_audio_offset_label, playerManager.getAvOffsetMs())
+    binding.btnAudioOffset.setOnClickListener {
+        val offsets = intArrayOf(-1000, -500, -250, -100, -50, 0, 50, 100, 250, 500, 1000)
+        val labels = offsets.map { getString(R.string.play_audio_offset_label, it) }.toTypedArray()
+        val current = playerManager.getAvOffsetMs()
+        var checkedIndex = offsets.indexOf(current)
+        if (checkedIndex == -1) {
+            // A value that isn't one of the presets (never set through this dialog before)
+            // still needs a visible selection - nearest preset by absolute distance.
+            checkedIndex = offsets.indices.minByOrNull { kotlin.math.abs(offsets[it] - current) } ?: 5
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.play_audio_offset))
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                val offsetMs = offsets[which]
+                playerManager.setAvOffsetMs(offsetMs)
+                avOffsetManager.save(offsetMs)
+                binding.btnAudioOffset.text = getString(R.string.play_audio_offset_label, offsetMs)
+                dialog.dismiss()
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
     // Sleep timer
     sleepTimer = com.lumora.player.playback.SleepTimer(playerManager.getExoPlayer()).apply {
         onTickCallback = { display -> binding.btnSleepTimer.text = display }
@@ -611,6 +639,7 @@ internal fun MainActivity.showPlayerFor(
     jellyfinTrickplay = null
     trickplayTileCache = null
     updateChaptersButtonVisibility()
+    updateVersionsButtonVisibility()
     hideTrickplayPreview()
 
     when {
@@ -941,6 +970,32 @@ internal fun MainActivity.focusOverlayNeighbour(direction: Int): Boolean {
     return target.requestFocus(direction)
 }
 
+/** Whether [showVersionPicker] would actually find something to list, mirroring its own
+ *  three-way check without opening the dialog - so the button can be hidden rather than
+ *  opening only to toast "nothing else to switch to". Series playback sets
+ *  currentSeriesVersionContext AFTER its showPlayerFor call returns (see the Lists.kt/
+ *  showSeriesVersionPicker call sites), so callers there re-invoke this once it's set
+ *  rather than relying on the one inside showPlayerFor. */
+internal fun MainActivity.updateVersionsButtonVisibility() {
+    val playing = nowPlayingChannel
+    val hasVersions = when {
+        playing == null -> false
+        playing.mediaType == MediaType.LIVE -> currentVersionGroup.size > 1
+        currentSeriesVersionContext != null -> {
+            val (series, group) = currentSeriesVersionContext!!
+            group.size > 1 || canFindStream(series)
+        }
+        else -> {
+            val group = filmVersions[playing.id]
+                ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
+                ?: emptyList()
+            group.size > 1 || canFindStream(playing)
+        }
+    }
+    binding.btnLiveVersions.visibility = if (hasVersions) View.VISIBLE else View.GONE
+    relinkPlayerButtonRowFocus()
+}
+
 internal fun MainActivity.relinkPlayerButtonRowFocus() {
     val row = binding.playerTrackButtons
     val visible = (0 until row.childCount)
@@ -1096,6 +1151,7 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
                 currentEpisodeQueue = newQueue
                 currentEpisodeQueueIndex = newQueue.indexOfFirst { it.id == match.id }
                 currentSeriesVersionContext = target to group
+                updateVersionsButtonVisibility()
             }
         }
         .setNegativeButton(getString(R.string.cancel), null)

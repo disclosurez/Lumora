@@ -2133,10 +2133,29 @@
                                 android:focusable="true"
                                 android:gravity="center"
                                 android:nextFocusUp="@id/seekBar"
-                                android:nextFocusRight="@id/btnSleepTimer"
+                                android:nextFocusRight="@id/btnAudioOffset"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
                                 android:text="@string/speed_default"
+                                android:textAllCaps="true"
+                                android:textColor="@color/text_primary"
+                                android:textSize="@dimen/text_tiny" />
+
+                            <TextView
+                                android:id="@+id/btnAudioOffset"
+                                android:layout_width="wrap_content"
+                                android:layout_height="30dp"
+                                android:layout_marginEnd="4dp"
+                                android:background="@drawable/bg_toolbar_button"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:nextFocusUp="@id/seekBar"
+                                android:nextFocusLeft="@id/btnSpeed"
+                                android:nextFocusRight="@id/btnSleepTimer"
+                                android:paddingHorizontal="8dp"
+                                android:stateListAnimator="@animator/focus_scale"
+                                android:text="@string/play_audio_offset_default"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
                                 android:textSize="@dimen/text_tiny" />
@@ -2151,7 +2170,7 @@
                                 android:focusable="true"
                                 android:gravity="center"
                                 android:nextFocusUp="@id/seekBar"
-                                android:nextFocusLeft="@id/btnSpeed"
+                                android:nextFocusLeft="@id/btnAudioOffset"
                                 android:nextFocusRight="@id/btnCast"
                                 android:paddingHorizontal="8dp"
                                 android:stateListAnimator="@animator/focus_scale"
@@ -2252,7 +2271,8 @@
                                 android:text="@string/versions"
                                 android:textAllCaps="true"
                                 android:textColor="@color/text_primary"
-                                android:textSize="@dimen/text_tiny" />
+                                android:textSize="@dimen/text_tiny"
+                                android:visibility="gone" />
 
                             <TextView
                                 android:id="@+id/btnAspectRatio"

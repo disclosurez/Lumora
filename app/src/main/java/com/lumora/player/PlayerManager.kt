@@ -17,6 +17,8 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import com.lumora.player.playback.AvOffsetManager
+import com.lumora.player.playback.AvOffsetRenderersFactory
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -26,7 +28,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 class PlayerManager(
     private val context: Context
 ) {
+    // Microseconds, read live by AvOffsetRenderersFactory's video renderer on every output
+    // frame - updating it takes effect immediately, no player rebuild needed.
+    private var avOffsetUs: Long = AvOffsetManager(context).load().toLong() * 1000L
+
     private val player: ExoPlayer = ExoPlayer.Builder(context)
+        .setRenderersFactory(AvOffsetRenderersFactory(context) { avOffsetUs })
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -573,6 +580,14 @@ class PlayerManager(
 
     /** Get the underlying ExoPlayer instance for advanced use. */
     fun getExoPlayer(): ExoPlayer = player
+
+    /** Current A/V offset in milliseconds (positive delays audio, negative advances it). */
+    fun getAvOffsetMs(): Int = (avOffsetUs / 1000L).toInt()
+
+    /** Applies immediately - the renderer reads [avOffsetUs] on every output frame. */
+    fun setAvOffsetMs(offsetMs: Int) {
+        avOffsetUs = offsetMs.toLong() * 1000L
+    }
 
     companion object {
         /** Pref key for the extra-buffering toggle, shared with the scraper settings screen. */

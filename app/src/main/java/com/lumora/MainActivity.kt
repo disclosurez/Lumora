@@ -1132,9 +1132,6 @@ class MainActivity : AppCompatActivity() {
         // is very easy to do by accident.
         else if (showingHome) return false
         else if (!isAtSectionTop()) goToSectionTop()
-        // Simple mode has no Home level above the section - Live TV at its top IS the
-        // top, so Back leaves the app from there instead of bouncing into a hidden Home.
-        else if (isSimpleMode()) return false
         else goHomeFromBack()
         return true
     }

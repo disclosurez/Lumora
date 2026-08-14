@@ -732,6 +732,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                     currentEpisodeQueue = queue
                     currentEpisodeQueueIndex = queue.indexOf(chosen)
                     currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
+                    updateVersionsButtonVisibility()
                 }
             }
         },
@@ -987,6 +988,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 currentEpisodeQueue = ordered
                 currentEpisodeQueueIndex = ordered.indexOf(target)
                 currentSeriesVersionContext = item to (seriesGroup ?: listOf(item))
+                updateVersionsButtonVisibility()
             }
         }
     }

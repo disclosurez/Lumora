@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">Зміщення звуку</string>
+    <string name="play_audio_offset_default">A/V: 0 мс</string>
+    <string name="play_audio_offset_label">A/V: %1$d мс</string>
+    <string name="play_audio_offset_hint">Додатне значення затримує звук, від\'ємне випереджає</string>
+</resources>

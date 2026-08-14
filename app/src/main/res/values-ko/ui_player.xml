@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">오디오 오프셋</string>
+    <string name="play_audio_offset_default">A/V: 0ms</string>
+    <string name="play_audio_offset_label">A/V: %1$dms</string>
+    <string name="play_audio_offset_hint">양수는 오디오를 지연시키고 음수는 앞당깁니다</string>
+</resources>

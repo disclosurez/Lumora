@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">Смещение звука</string>
+    <string name="play_audio_offset_default">A/V: 0 мс</string>
+    <string name="play_audio_offset_label">A/V: %1$d мс</string>
+    <string name="play_audio_offset_hint">Положительное значение задерживает звук, отрицательное опережает</string>
+</resources>

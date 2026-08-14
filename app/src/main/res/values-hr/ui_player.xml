@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="play_audio_offset">Pomak zvuka</string>
+    <string name="play_audio_offset_default">A/V: 0 ms</string>
+    <string name="play_audio_offset_label">A/V: %1$d ms</string>
+    <string name="play_audio_offset_hint">Pozitivno kasni zvuk, negativno ga ubrzava</string>
+</resources>

@@ -10,6 +10,10 @@
     <string name="play_speed_1_5">1.5x</string>
     <string name="play_speed_2_0">2.0x</string>
     <string name="play_speed_label">%1$.1fx</string>
+    <string name="play_audio_offset">Décalage audio</string>
+    <string name="play_audio_offset_default">A/V : 0ms</string>
+    <string name="play_audio_offset_label">A/V : %1$dms</string>
+    <string name="play_audio_offset_hint">Positif retarde l\'audio, négatif l\'avance</string>
     <string name="play_sleep_timer">Minuteur de veille</string>
     <string name="play_sleep_off">Désactivé</string>
     <string name="play_sleep_15_min">15 min</string>
