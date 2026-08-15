@@ -26,8 +26,10 @@ import com.lumora.util.normalizeServerUrl
 import com.lumora.data.local.entity.EpgSourceEntity
 import com.lumora.data.backup.BackupManager
 import com.lumora.data.remote.jellyfin.JellyfinProvider
+import com.lumora.data.remote.plex.PlexProvider
 import com.lumora.data.update.AppUpdateChecker
 import kotlinx.coroutines.*
+import kotlin.coroutines.resume
 import java.util.Locale
 
 // ── Provider settings, EPG sources & backup ──
@@ -117,6 +119,107 @@ internal suspend fun MainActivity.performJellyfinQuickConnect(
         .putBoolean("jellyfin_provider_enabled", true)
         .apply()
     return true
+}
+
+// ── Plex sign-in (plex.tv PIN + QR) ────────────
+
+/**
+ * Runs a full Plex sign-in and, on success, persists the slot.
+ *
+ * Plex has no per-server login, so this is an account flow: mint a PIN at plex.tv, show it
+ * (as a QR to scan and as a code to type at plex.tv/link), poll until the user finishes
+ * signing in on their phone, then ask the account which servers it can reach, let the user
+ * pick when there's more than one, and probe that server's published endpoints for one that
+ * actually answers from this network. What gets stored is the *server's* token - a shared
+ * server issues its own, and the account token won't open it.
+ *
+ * [existing] is for the phone-pairing path, which has already started a PIN and shown its
+ * code on the phone - starting a second one here would mint a different code than what is on
+ * that screen. [onQr] receives the QR bitmap (null when the caller shows no QR, e.g. the
+ * phone-pairing path where the phone already carries the link).
+ */
+internal suspend fun MainActivity.performPlexSignIn(
+    existing: PlexProvider.PinLogin? = null,
+    onQr: (android.graphics.Bitmap?) -> Unit = {},
+    onCode: (String?) -> Unit = {},
+    onStatus: (String) -> Unit
+): Boolean {
+    val plex = newPlexProvider()
+    val pin = existing ?: run {
+        onStatus(getString(R.string.sett_plex_starting))
+        withContext(Dispatchers.IO) { plex.startPinLogin() }
+            ?: run { onStatus(plex.lastAuthError ?: getString(R.string.sett_plex_couldnt_start)); return false }
+    }
+    onQr(runCatching { QrPairingManager.createQrBitmap(pin.authUrl) }.getOrNull())
+    // Callers that have somewhere to put the code on its own show it there and take the
+    // instruction line; the ones that only have a single status line (the phone-pairing
+    // pane) get the code inlined into that line instead.
+    onCode(pin.code)
+    onStatus(getString(R.string.sett_plex_link_instructions))
+
+    // Three minutes: the user has to pick up a phone, scan, and sign in to plex.tv, possibly
+    // with two-factor. Two minutes (the Quick Connect window) proved tight for that.
+    val deadline = System.currentTimeMillis() + 180_000L
+    var accountToken: String? = null
+    while (System.currentTimeMillis() < deadline) {
+        delay(2000)
+        accountToken = withContext(Dispatchers.IO) { plex.pollPin(pin.id) }
+        if (accountToken != null) break
+        // An expired PIN answers 404 forever, so stop rather than spin out the full window.
+        if (plex.lastAuthError != null) break
+    }
+    if (accountToken == null) {
+        onCode(null)
+        onStatus(plex.lastAuthError ?: getString(R.string.sett_plex_timed_out))
+        return false
+    }
+    // The code and the QR are spent the moment the PIN is claimed - leaving them up while
+    // the server list loads invites a second, pointless trip to plex.tv.
+    onQr(null)
+    onCode(null)
+
+    onStatus(getString(R.string.sett_plex_finding_servers))
+    val servers = withContext(Dispatchers.IO) { plex.fetchServers(accountToken) }
+    if (servers.isEmpty()) {
+        onStatus(plex.lastAuthError ?: getString(R.string.sett_plex_no_servers))
+        return false
+    }
+    val server = if (servers.size == 1) servers.first() else choosePlexServer(servers) ?: return false
+
+    onStatus(getString(R.string.sett_plex_connecting_server, server.name))
+    val base = withContext(Dispatchers.IO) { plex.pickConnection(server) }
+    if (base == null) {
+        onStatus(getString(R.string.sett_plex_unreachable, server.name))
+        return false
+    }
+
+    prefs.edit()
+        .putString("plex_url", base)
+        .putString("plex_token", server.accessToken)
+        // Kept so the server list can be re-read later (to switch servers) without a second
+        // sign-in - the per-server token can't list an account's resources.
+        .putString("plex_account_token", accountToken)
+        .putString("plex_server_name", server.name)
+        .putBoolean("plex_provider_enabled", true)
+        .apply()
+    onStatus(getString(R.string.sett_plex_signed_in, server.name))
+    return true
+}
+
+/** Server picker for an account with more than one. Suspends until the user chooses; null
+ *  when they dismiss it, which cancels the sign-in rather than guessing a server. */
+private suspend fun MainActivity.choosePlexServer(
+    servers: List<PlexProvider.PlexServerInfo>
+): PlexProvider.PlexServerInfo? = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+    val labels = servers.map { server ->
+        if (server.owned) server.name else "${server.name} (shared)"
+    }.toTypedArray()
+    val dialog = AlertDialog.Builder(this)
+        .setTitle(getString(R.string.sett_plex_choose_server))
+        .setItems(labels) { _, which -> if (cont.isActive) cont.resume(servers[which]) }
+        .setOnCancelListener { if (cont.isActive) cont.resume(null) }
+        .show()
+    cont.invokeOnCancellation { runCatching { dialog.dismiss() } }
 }
 
 /** A Filters-pane checkbox with a dimmed caption line under its title - the other filter
@@ -298,6 +401,7 @@ internal fun MainActivity.showProviderSettings() {
     val typeXtream = dialogView.findViewById<View>(R.id.settingsTypeXtream)
     val typeStalker = dialogView.findViewById<View>(R.id.settingsTypeStalker)
     val typeJellyfin = dialogView.findViewById<View>(R.id.settingsTypeJellyfin)
+    val typePlex = dialogView.findViewById<View>(R.id.settingsTypePlex)
     val showQrButton = dialogView.findViewById<View>(R.id.settingsShowQrButton)
     val manualDivider = dialogView.findViewById<View>(R.id.settingsManualDivider)
     val nameSection = dialogView.findViewById<View>(R.id.settingsNameSection)
@@ -310,6 +414,7 @@ internal fun MainActivity.showProviderSettings() {
     val xtreamGroup = dialogView.findViewById<View>(R.id.settingsXtreamGroup)
     val stalkerGroup = dialogView.findViewById<View>(R.id.settingsStalkerGroup)
     val jellyfinGroup = dialogView.findViewById<View>(R.id.settingsJellyfinGroup)
+    val plexGroup = dialogView.findViewById<View>(R.id.settingsPlexGroup)
     val m3uUrl = dialogView.findViewById<EditText>(R.id.settingsM3uUrl)
     val uaInput = dialogView.findViewById<EditText>(R.id.settingsUserAgent)
     val xtreamUrl = dialogView.findViewById<EditText>(R.id.settingsXtreamUrl)
@@ -322,6 +427,11 @@ internal fun MainActivity.showProviderSettings() {
     val jellyfinPass = dialogView.findViewById<EditText>(R.id.settingsJellyfinPass)
     val jellyfinQuickConnectLabel = dialogView.findViewById<TextView>(R.id.settingsJellyfinQuickConnectLabel)
     val jellyfinQuickConnectButton = dialogView.findViewById<View>(R.id.settingsJellyfinQuickConnect)
+    val plexSignInButton = dialogView.findViewById<View>(R.id.settingsPlexSignIn)
+    val plexSignInLabel = dialogView.findViewById<TextView>(R.id.settingsPlexSignInLabel)
+    val plexQrImage = dialogView.findViewById<ImageView>(R.id.settingsPlexQr)
+    val plexCode = dialogView.findViewById<TextView>(R.id.settingsPlexCode)
+    val plexStatus = dialogView.findViewById<TextView>(R.id.settingsPlexStatus)
     val hideNonEnglish = dialogView.findViewById<CheckBox>(R.id.settingsHideNonEnglish)
     val clearHistory = dialogView.findViewById<View>(R.id.settingsClearHistory)
 
@@ -385,6 +495,40 @@ internal fun MainActivity.showProviderSettings() {
         }
     }
 
+    // Plex sign-in. Runs entirely on the TV: QR up, poll, server picker, done - there is
+    // nothing to type, so this button is the whole Plex form.
+    var plexSignInJob: Job? = null
+    plexSignInButton.setOnClickListener {
+        if (plexSignInJob?.isActive == true) return@setOnClickListener
+        plexStatus.visibility = View.VISIBLE
+        plexSignInJob = scope.launch {
+            var lastMsg = ""
+            val ok = performPlexSignIn(
+                onQr = { bitmap ->
+                    plexQrImage.setImageBitmap(bitmap)
+                    plexQrImage.visibility = if (bitmap == null) View.GONE else View.VISIBLE
+                },
+                onCode = { code ->
+                    plexCode.text = code.orEmpty()
+                    plexCode.visibility = if (code == null) View.GONE else View.VISIBLE
+                }
+            ) { msg -> lastMsg = msg; plexStatus.text = msg }
+            plexSignInLabel.text = getString(R.string.sign_in_with_plex)
+            plexQrImage.visibility = View.GONE
+            plexCode.visibility = View.GONE
+            if (ok) {
+                dialog.dismiss()
+                Toast.makeText(this@showProviderSettings, lastMsg, Toast.LENGTH_SHORT).show()
+                loadAllConfiguredProviders(forceRefresh = true)
+            } else {
+                Toast.makeText(this@showProviderSettings, lastMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** PIN minted while handling the phone's POST, awaiting the "plex_pin" callback that
+     *  follows it on the UI thread. */
+    var pendingPlexPin: PlexProvider.PinLogin? = null
     var serverRunning = false
     // One form shared by every provider type, incl. Jellyfin - it used to be a
     // separate always-visible section, but that meant asking for its server/user/pass
@@ -396,12 +540,16 @@ internal fun MainActivity.showProviderSettings() {
     // name, type-specific fields) stays hidden until then.
     var currentType: String? = null
     var editingProviderId: String? = null
-    val typeCards = mapOf("m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker, "jellyfin" to typeJellyfin)
+    val typeCards = mapOf(
+        "m3u" to typeM3u, "xtream" to typeXtream, "stalker" to typeStalker,
+        "jellyfin" to typeJellyfin, "plex" to typePlex
+    )
     val typeLabels = mapOf(
         "m3u" to getString(R.string.provider_type_m3u),
         "xtream" to getString(R.string.provider_type_xtream),
         "stalker" to getString(R.string.sett_stalker_portal),
-        "jellyfin" to getString(R.string.provider_type_jellyfin)
+        "jellyfin" to getString(R.string.provider_type_jellyfin),
+        "plex" to getString(R.string.provider_type_plex)
     )
 
     // Every place this form shows/hides a section, the view that was holding d-pad focus
@@ -426,12 +574,20 @@ internal fun MainActivity.showProviderSettings() {
         typeSummary.visibility = View.VISIBLE
         typeSummaryLabel.text = getString(R.string.sett_type_summary, typeLabels[type] ?: "")
         iptvFieldsSection.visibility = View.VISIBLE
-        nameSection.visibility = if (type == "jellyfin") View.GONE else View.VISIBLE
+        // Neither media server takes a user-facing name: each is one fixed slot, named
+        // after the product.
+        nameSection.visibility = if (type == "jellyfin" || type == "plex") View.GONE else View.VISIBLE
         m3uGroup.visibility = if (type == "m3u") View.VISIBLE else View.GONE
         xtreamGroup.visibility = if (type == "xtream") View.VISIBLE else View.GONE
         stalkerGroup.visibility = if (type == "stalker") View.VISIBLE else View.GONE
         jellyfinGroup.visibility = if (type == "jellyfin") View.VISIBLE else View.GONE
+        plexGroup.visibility = if (type == "plex") View.VISIBLE else View.GONE
         // Stalker portals identify a device by its MAC - leave blank for user to fill.
+        // Plex is deliberately not QR-eligible here, even though it is the most QR-driven type
+        // of the lot: its own sign-in *is* a QR (of plex.tv/link), so offering the phone-
+        // pairing QR alongside it put two different QR codes on screen at once, pointing at
+        // two different places, with nothing to say which one to scan. The phone-pairing form
+        // still offers Plex in its dropdown for anyone who arrives there from another type.
         val qrEligible = type in listOf("m3u", "xtream", "stalker", "jellyfin")
         showQrButton.visibility = if (qrEligible) View.VISIBLE else View.GONE
         manualDivider.visibility = if (qrEligible) View.VISIBLE else View.GONE
@@ -459,6 +615,7 @@ internal fun MainActivity.showProviderSettings() {
         xtreamGroup.visibility = View.GONE
         stalkerGroup.visibility = View.GONE
         jellyfinGroup.visibility = View.GONE
+        plexGroup.visibility = View.GONE
         // Same reasoning as in selectType() - typeSummary (holding focus) just went
         // GONE, so explicitly hand focus to the now-visible first card.
         focusWhenReady(typeM3u)
@@ -552,6 +709,41 @@ internal fun MainActivity.showProviderSettings() {
                     dialog.dismiss()
                     loadAllConfiguredProviders(forceRefresh = true)
                 }
+                "plex_pin" -> {
+                    // The PIN was minted inside onPlexPinLogin below (so the phone could show
+                    // and open it); this side resumes the same sign-in from it - polling,
+                    // server pick, endpoint probe - rather than starting a second one.
+                    val pin = pendingPlexPin ?: return@runOnUiThread
+                    pendingPlexPin = null
+                    qrStatus.text = getString(R.string.sett_plex_scan_code, pin.code)
+                    scope.launch {
+                        var lastMsg = ""
+                        // This pane has one line and no QR - the phone already carries both,
+                        // having just loaded the page. While the code is unclaimed that line
+                        // holds the code, because someone who walks away from the phone page
+                        // still needs it; step updates take the line over once it is spent.
+                        var codeShowing = true
+                        val ok = performPlexSignIn(
+                            existing = pin,
+                            onCode = { code ->
+                                codeShowing = code != null
+                                if (code != null) qrStatus.text = getString(R.string.sett_plex_scan_code, code)
+                            },
+                            onStatus = { msg ->
+                                lastMsg = msg
+                                if (!codeShowing) qrStatus.text = msg
+                            }
+                        )
+                        if (ok) {
+                            stopQrServer()
+                            dialog.dismiss()
+                            Toast.makeText(this@showProviderSettings, lastMsg, Toast.LENGTH_SHORT).show()
+                            loadAllConfiguredProviders(forceRefresh = true)
+                        } else {
+                            qrStatus.text = lastMsg
+                        }
+                    }
+                }
                 "jellyfin_quickconnect" -> {
                     val url = form["serverUrl"] ?: return@runOnUiThread
                     val code = form["code"] ?: return@runOnUiThread
@@ -572,6 +764,19 @@ internal fun MainActivity.showProviderSettings() {
                     }
                 }
             }
+        }
+    }
+
+    qrManager.onPlexPinLogin = {
+        // Minted here, held for the "plex_pin" branch above: both screens have to be showing
+        // the same code, and the TV has to poll the very PIN the phone was sent to.
+        val plex = newPlexProvider()
+        val pin = withContext(Dispatchers.IO) { plex.startPinLogin() }
+        if (pin != null) {
+            pendingPlexPin = pin
+            QrPairingManager.PlexPinStart(pin.code, pin.authUrl, null)
+        } else {
+            QrPairingManager.PlexPinStart(null, null, plex.lastAuthError ?: getString(R.string.sett_plex_couldnt_start))
         }
     }
 
@@ -642,6 +847,7 @@ internal fun MainActivity.showProviderSettings() {
             xtreamGroup.visibility = View.GONE
             stalkerGroup.visibility = View.GONE
             jellyfinGroup.visibility = View.GONE
+            plexGroup.visibility = View.GONE
         }
         val type = existing?.type ?: "m3u"
         m3uUrl.setText(if (type == "m3u") existing?.url ?: "" else "")
@@ -679,10 +885,26 @@ internal fun MainActivity.showProviderSettings() {
         iptvFormSection.visibility = View.VISIBLE
     }
 
+    // Plex, like Jellyfin, isn't in IptvProviderStore (single fixed slot, loose prefs - see
+    // hasPlexConfigured()). Unlike Jellyfin there is nothing to pre-fill: "editing" a Plex
+    // slot means signing in again, which is also how you switch to a different server on the
+    // account.
+    fun openPlexEditForm() {
+        editingProviderId = null
+        addIptvProviderButton.visibility = View.GONE
+        iptvListSection.visibility = View.GONE
+        iptvFormTitle.text = getString(R.string.sett_editing_plex)
+        iptvFormTitle.visibility = View.VISIBLE
+        providerNameInput.setText("")
+        selectType("plex")
+        iptvFormSection.visibility = View.VISIBLE
+    }
+
     fun renderIptvProviderList() {
         iptvProviderListContainer.removeAllViews()
         val list = IptvProviderStore.load(prefs)
-        iptvProviderListEmpty.visibility = if (list.isEmpty() && !hasJellyfinConfigured()) View.VISIBLE else View.GONE
+        iptvProviderListEmpty.visibility =
+            if (list.isEmpty() && !hasJellyfinConfigured() && !hasPlexConfigured()) View.VISIBLE else View.GONE
         for (cfg in list) {
             val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
             val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
@@ -778,6 +1000,67 @@ internal fun MainActivity.showProviderSettings() {
             }
             iptvProviderListContainer.addView(row)
         }
+        if (hasPlexConfigured()) {
+            val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
+            val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
+            enabledBox.isChecked = isPlexEnabled()
+            row.setOnClickListener {
+                val checked = !enabledBox.isChecked
+                enabledBox.isChecked = checked
+                prefs.edit().putBoolean("plex_provider_enabled", checked).apply()
+                applyProviderToggle(checked) { it.isPlex }
+            }
+            fun bindPlexBox(box: CheckBox, key: String, checked: Boolean) {
+                box.isChecked = checked
+                box.setOnClickListener {
+                    prefs.edit().putBoolean(key, box.isChecked).apply()
+                    if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
+                }
+            }
+            // No TV box: the Plex slot never produces live channels (Plex Live TV is a
+            // tuner-session flow Lumora's live model can't express), so a checkbox for it
+            // would toggle nothing. Disabled rather than hidden, so the row still lines up
+            // with its siblings' three columns.
+            val tvBox = row.findViewById<CheckBox>(R.id.rowTvBox)
+            tvBox.isChecked = false
+            tvBox.isEnabled = false
+            // Read the STORED flags (like the provider rows), not the effective gates: the
+            // effective gates fold in the global VOD switch, so a slot that allows movies
+            // while the app-level gate is on would render its Movies box unchecked and look
+            // broken.
+            bindPlexBox(row.findViewById(R.id.rowMoviesBox), "plex_movies_enabled", prefs.getBoolean("plex_movies_enabled", true))
+            bindPlexBox(row.findViewById(R.id.rowSeriesBox), "plex_series_enabled", prefs.getBoolean("plex_series_enabled", true))
+            row.findViewById<TextView>(R.id.rowName).text = getString(R.string.provider_type_plex)
+            row.findViewById<TextView>(R.id.rowDetail).text = getString(
+                R.string.sett_provider_row_detail,
+                getString(R.string.provider_type_plex),
+                prefs.getString("plex_server_name", null) ?: prefs.getString("plex_url", "") ?: ""
+            )
+            row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openPlexEditForm() }
+            row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.sett_remove_plex_confirm))
+                    .setMessage(getString(R.string.sett_remove_plex_message))
+                    .setPositiveButton(getString(R.string.remove)) { _, _ ->
+                        // plex_client_id deliberately survives: it identifies this install to
+                        // plex.tv, and minting a new one on every remove/re-add would litter
+                        // the user's Plex device list with a fresh entry each time.
+                        prefs.edit().remove("plex_url").remove("plex_token")
+                            .remove("plex_account_token").remove("plex_server_name")
+                            .remove("plex_provider_enabled")
+                            .remove("plex_movies_enabled").remove("plex_series_enabled").apply()
+                        plexClient = null
+                        plexResumeItems = emptyList()
+                        plexNextUpItems = emptyList()
+                        renderIptvProviderList()
+                        focusWhenReady(addIptvProviderButton)
+                        loadAllConfiguredProviders(forceRefresh = true)
+                    }
+                    .setNegativeButton(getString(R.string.cancel), null)
+                    .show()
+            }
+            iptvProviderListContainer.addView(row)
+        }
     }
 
     addIptvProviderButton.setOnClickListener { openIptvForm(null) }
@@ -790,7 +1073,7 @@ internal fun MainActivity.showProviderSettings() {
     // First run, nothing configured at all yet - the empty list + tiny "+ Add" button
     // would leave the user staring at nothing to interact with, so open the form
     // immediately (matches the old single-slot behavior of showing fields right away).
-    if (IptvProviderStore.load(prefs).isEmpty() && !hasJellyfinConfigured()) {
+    if (IptvProviderStore.load(prefs).isEmpty() && !hasJellyfinConfigured() && !hasPlexConfigured()) {
         openIptvForm(null)
     }
 
@@ -1317,6 +1600,16 @@ internal fun MainActivity.showProviderSettings() {
                     .putString("jellyfin_pass", jellyfinPass.text.toString().trim())
                     .putBoolean("jellyfin_provider_enabled", true)
                     .apply()
+            }
+            "plex" -> {
+                // Nothing to save: the Plex slot is written by the sign-in itself (see
+                // performPlexSignIn), because a Plex account - not a typed URL - is what
+                // says which servers exist and what token opens them. Save with no session
+                // yet would silently create a half-configured slot, so say so instead.
+                if (!hasPlexConfigured()) {
+                    Toast.makeText(this, getString(R.string.sign_in_with_plex), Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
             }
         }
         

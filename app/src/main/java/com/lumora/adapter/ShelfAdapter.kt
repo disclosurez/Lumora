@@ -76,7 +76,7 @@ class ShelfAdapter(
         fun bind(shelf: ContentShelf) {
             current = shelf
             titleText.text = "${shelf.title} (${shelf.items.size})"
-            // Pin star hidden for shelves whose category is inert (Newest / Jellyfin /
+            // Pin star hidden for shelves whose category is inert (Newest / Jellyfin / Plex /
             // classic toggle) - pinning them does nothing, so a star would read as broken.
             if (showPinButton && shelf.categoryId !in NON_PINNABLE_CATEGORY_IDS) {
                 pinButton.visibility = View.VISIBLE

@@ -132,6 +132,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC 地址</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">媒体服务器</string>
     <string name="change">更改</string>
     <string name="show_phone_qr_pairing_code">显示手机 QR 配对码</string>
@@ -139,6 +140,8 @@
     <string name="name">名称</string>
     <string name="server_url">服务器 URL</string>
     <string name="sign_in_with_quick_connect">使用 Quick Connect 登录</string>
+    <string name="sign_in_with_plex">使用 Plex 登录</string>
+    <string name="plex_signin_blurb">登录你的 Plex 帐户即可浏览服务器上的电影和剧集。用手机扫描二维码，或前往 plex.tv/link 输入该代码。</string>
     <string name="username_if_quick_connect_off">用户名（如果 Quick Connect 关闭）</string>
     <string name="playback_settings">播放设置</string>
     <string name="hide_non_english">隐藏非英语电影/剧集</string>

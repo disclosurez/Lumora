@@ -467,12 +467,14 @@ internal fun MainActivity.setupPlayerControls() {
             resetStallTracking()
             blackFrameStreak = 0
             if (!tryNextQualityVersion()) {
-                val liveChannel = nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE && !it.isJellyfin }
-                val vodChannel = nowPlayingChannel?.takeIf { it.mediaType != MediaType.LIVE && !it.isJellyfin }
-                // Jellyfin direct-play: one fresh-URL re-resolve before giving up - a
+                val liveChannel = nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE && !it.isOwnLibrary }
+                val vodChannel = nowPlayingChannel?.takeIf { it.mediaType != MediaType.LIVE && !it.isOwnLibrary }
+                // Media-server direct-play: one fresh-URL re-resolve before giving up - a
                 // transient server timeout or an expired direct-play URL often recovers.
                 if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
                     retryJellyfinPlayback()
+                } else if (nowPlayingChannel?.isPlex == true && !plexRetryAttempted) {
+                    retryPlexPlayback()
                 } else if (vodChannel != null && retryCurrentVodStream(vodChannel, error)) {
                     // Quiet same-URL retry: spinner only, no toast - a film that comes back on
                     // the second attempt should look like a stall, not like an error the user
@@ -703,10 +705,14 @@ internal fun MainActivity.showPlayerFor(
     jellyfinPlaySession = null
     jellyfinPlayingItemId = null
     jellyfinRetryAttempted = false
+    plexPlaySession = null
+    plexPlayingItemId = null
+    plexPlayingDurationMs = null
+    plexRetryAttempted = false
     liveRetryAttempt = 0
     liveVersionSwitchAttempt = 0
     vodRetryAttempt = 0
-    jellyfinChapters = emptyList()
+    playbackChapters = emptyList()
     jellyfinTrickplay = null
     trickplayTileCache = null
     updateChaptersButtonVisibility()
@@ -770,6 +776,52 @@ internal fun MainActivity.showPlayerFor(
             jellyfinPlayingItemId = startVersion.id
             reportJellyfinStart(startVersion.id, resolved, startAt)
             loadJellyfinPlaybackExtras(startVersion.id)
+        }
+        // Plex asks the server the same question Jellyfin's PlaybackInfo answers, through the
+        // transcode-decision endpoint: direct play where the file is playable as-is, an HLS
+        // transcode where it isn't, plus the sidecar subtitle tracks that come with it.
+        startVersion.isPlex && startVersion.mediaType != MediaType.LIVE && startVersion.id.isNotBlank() -> scope.launch {
+            val startAt = resumeFromMs ?: 0L
+            val plex = plexClientOrConnect()
+            // The audio-language setting has to travel with the negotiation, not just with the
+            // player: a transcoded source arrives with the single audio track the server
+            // chose, so a track selection made afterwards has nothing to select.
+            val wantedAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en"
+            val resolved = if (plex == null) null else withContext(Dispatchers.IO) {
+                runCatching {
+                    plex.resolveStream(
+                        startVersion.id,
+                        startAt,
+                        preferredAudioLanguage = wantedAudioLanguage
+                    )
+                }.getOrNull()
+            }
+            if (nowPlayingChannel?.id != channel.id) return@launch
+            // A failed negotiation is not a failed play: the catalogue already carries the
+            // part path, so the plain file is still worth trying rather than refusing to open
+            // the title.
+            val url = resolved?.url ?: plexFallbackUrl(startVersion)
+            if (url == null) {
+                binding.bufferingSpinner.visibility = View.GONE
+                Toast.makeText(this@showPlayerFor, getString(R.string.play_couldnt_open_title), Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            playerManager.playUrl(
+                url,
+                startVersion.streamUserAgent,
+                subtitles = resolved?.let(::externalSubtitlesForPlex) ?: emptyList(),
+                startPositionMs = startAt,
+                audio = audio,
+                preferAudioLanguage = true,
+                // Plex writes segment paths into its HLS playlists with no token on them, so
+                // without this a transcode plays one segment and then 401s.
+                maintainTokenQuery = resolved?.tokenQuery
+            )
+            plexPlaySession = resolved
+            plexPlayingItemId = startVersion.id
+            plexPlayingDurationMs = resolved?.runtimeMs
+            reportPlexStart(startVersion.id, resolved, startAt)
+            loadPlexPlaybackExtras(startVersion.id)
         }
         // A plugin-resolved stream cannot be replayed from the URL it was saved with: the
         // CDN signs it with an expiry in the path and gates it behind request headers the
@@ -894,11 +946,12 @@ internal fun MainActivity.xtreamProviderFor(channel: Channel): Provider? {
     )
 }
 
-/** The name of the provider a Channel came from, for labelling version chips. Jellyfin is
- *  its own fixed slot; everything else is an IptvProviderConfig matched by
+/** The name of the provider a Channel came from, for labelling version chips. Jellyfin and
+ *  Plex are their own fixed slots; everything else is an IptvProviderConfig matched by
  *  sourceProviderId. Null when the config's since been deleted (cached items outlive it). */
 internal fun MainActivity.providerNameFor(channel: Channel): String? = when {
     channel.isJellyfin -> "Jellyfin"
+    channel.isPlex -> "Plex"
     else -> channel.sourceProviderId?.let { providerNamesById[it] }?.takeIf { it.isNotBlank() }
 }
 
@@ -1617,6 +1670,7 @@ internal fun MainActivity.hidePlayer() {
     // Before nowPlayingChannel is cleared: the server turns this final position into a
     // watched mark or a resume point, and closes out any transcode it started.
     if (reportJellyfinStopped()) refreshJellyfinRowsAfterPlayback()
+    if (reportPlexStopped()) refreshPlexRowsAfterPlayback()
     hideTrickplayPreview()
     // What was playing is the best preview target when nothing in the guide was ever
     // focused - a launch that resumes straight into the player never fires a focus

@@ -41,7 +41,7 @@ internal enum class CatchupStage { CATEGORIES, CHANNELS, DAYS, PROGRAMMES }
 /** Archive playback is an Xtream-panel feature: it is the only backend that reports
  *  tv_archive, and the only one with a /timeshift/ endpoint to play back from. */
 internal fun MainActivity.catchupChannels(): List<Channel> =
-    liveChannels.filter { it.tvArchive && it.tvArchiveDays > 0 && !it.isJellyfin }
+    liveChannels.filter { it.tvArchive && it.tvArchiveDays > 0 && !it.isOwnLibrary }
 
 /** Archive channels grouped the way the sidebar groups live ones: by the provider's
  *  category name, falling back to the M3U group and then to "Other". A 220-channel archive

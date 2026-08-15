@@ -425,11 +425,17 @@ internal suspend fun MainActivity.discoverBadgesFor(items: List<Channel>): Map<S
         items.mapNotNull { item ->
             val versions = catalogVersionsFor(findCatalogMatches(item))
             if (versions.isEmpty()) return@mapNotNull null
-            val jellyfin = versions.any { it.isJellyfin }
-            val iptv = versions.any { !it.isJellyfin }
+            // Which servers actually carry it, named individually - "my library" would be
+            // a worse badge than the server's name when both are configured and only one
+            // has the title.
+            val servers = listOfNotNull(
+                "Jellyfin".takeIf { versions.any { v -> v.isJellyfin } },
+                "Plex".takeIf { versions.any { v -> v.isPlex } }
+            )
+            val iptv = versions.any { !it.isOwnLibrary }
             item.id to when {
-                jellyfin && iptv -> "Jellyfin + IPTV"
-                jellyfin -> "Jellyfin"
+                servers.isNotEmpty() && iptv -> servers.joinToString(" + ") + " + IPTV"
+                servers.isNotEmpty() -> servers.joinToString(" + ")
                 else -> "IPTV"
             }
         }.toMap()
@@ -521,7 +527,7 @@ internal fun MainActivity.findCatalogMatches(item: Channel): List<Channel> {
         }
         val yearBonus = if (item.year != null && candidate.year == item.year) 0 else 100
         val extra = (name.length - target.length).coerceIn(0, 99)
-        val sourceBonus = if (candidate.isJellyfin) 0 else 200
+        val sourceBonus = if (candidate.isOwnLibrary) 0 else 200
         scored += (rank * 10_000 + yearBonus + sourceBonus + extra) to candidate
     }
     return scored.sortedBy { it.first }.map { it.second }.distinctBy { it.id.ifBlank { it.url } }
@@ -530,7 +536,7 @@ internal fun MainActivity.findCatalogMatches(item: Channel): List<Channel> {
 /** The full set of copies to offer for [match] - the matches Discover found, plus whatever
  *  the duplicate-grouping pass already knows about (which is keyed by the group's
  *  representative, so a match that is a *member* of a group finds nothing by direct lookup
- *  and has to be searched for). Deduped, Jellyfin first. */
+ *  and has to be searched for). Deduped, own-library copies first. */
 internal fun MainActivity.catalogVersionsFor(matches: List<Channel>): List<Channel> {
     val versions = if (matches.firstOrNull()?.mediaType == MediaType.SERIES) seriesVersions else filmVersions
     val out = LinkedHashMap<String, Channel>()
@@ -540,7 +546,7 @@ internal fun MainActivity.catalogVersionsFor(matches: List<Channel>): List<Chann
         val group = versions[match.id] ?: versions.values.firstOrNull { g -> g.any { it.id == match.id } }
         group?.forEach { out.putIfAbsent(it.id.ifBlank { it.url }, it) }
     }
-    return out.values.sortedBy { if (it.isJellyfin) 0 else 1 }
+    return out.values.sortedBy { if (it.isOwnLibrary) 0 else 1 }
 }
 
 /** Tokens a catalogue appends to a title without changing which film it is: a bare release
@@ -671,16 +677,18 @@ internal fun MainActivity.onHomeItemClick(channel: Channel) {
 }
 
 /** Resolves the series a Home-tile episode belongs to: exact categoryId (the series id
- *  Xtream parseEpisode and Jellyfin toChannel both stamp on episodes) match through the
+ *  Xtream parseEpisode and the Jellyfin/Plex toChannel both stamp on episodes) match through the
  *  catalog first, then the "{series} · {episode}" name-prefix fallback for snapshots that
  *  predate categoryId. Null if unresolvable - callers fall back to direct play. */
 internal fun MainActivity.resolveHomeTileSeries(channel: Channel): Channel? {
-    // Exact series-id match. Ids are provider-scoped (Xtream series id, Jellyfin item
-    // id), so cross-matching is impossible - isJellyfin is the only guard needed, with
-    // sourceProviderId compared only when the snapshot carries one (older saves don't).
+    // Exact series-id match. Ids are provider-scoped (Xtream series id, Jellyfin item id,
+    // Plex rating key), so cross-matching is impossible - matching the source flags is the
+    // only guard needed, with sourceProviderId compared only when the snapshot carries one
+    // (older saves don't).
     channel.categoryId?.takeIf { it.isNotBlank() }?.let { id ->
         allChannels.firstOrNull {
-            it.mediaType == MediaType.SERIES && it.id == id && it.isJellyfin == channel.isJellyfin &&
+            it.mediaType == MediaType.SERIES && it.id == id &&
+                it.isJellyfin == channel.isJellyfin && it.isPlex == channel.isPlex &&
                 (channel.sourceProviderId == null || it.sourceProviderId == channel.sourceProviderId)
         }?.let { return it }
     }
@@ -688,7 +696,8 @@ internal fun MainActivity.resolveHomeTileSeries(channel: Channel): Channel? {
     // name wins. Same-provider guard only when the snapshot knows its provider.
     return allChannels
         .filter {
-            it.mediaType == MediaType.SERIES && it.isJellyfin == channel.isJellyfin &&
+            it.mediaType == MediaType.SERIES &&
+                it.isJellyfin == channel.isJellyfin && it.isPlex == channel.isPlex &&
                 (channel.sourceProviderId == null || it.sourceProviderId == channel.sourceProviderId)
         }
         .filter { it.name.isNotBlank() && channel.name.startsWith(it.name + " · ") }
@@ -703,10 +712,10 @@ internal fun MainActivity.resolveHomeTileSeries(channel: Channel): Channel? {
 internal fun MainActivity.populateHomeTileEpisodeQueue(channel: Channel) {
     val playedId = channel.id
     if (playedId.isBlank()) return
-    // Jellyfin's chain comes from the server (getEpisodes/getSeasons), not Xtream
-    // getSeriesFull - and its tiles now resolve to the series detail page anyway, so
-    // this fallback never needs to build a Jellyfin queue.
-    if (channel.isJellyfin) return
+    // A media server's chain comes from the server itself (getEpisodes/getSeasons), not
+    // Xtream getSeriesFull - and those tiles resolve to the series detail page anyway, so
+    // this fallback never needs to build a Jellyfin or Plex queue.
+    if (channel.isOwnLibrary) return
     scope.launch {
         val ordered = withContext(Dispatchers.IO) {
             val seriesId = channel.categoryId ?: return@withContext emptyList<Channel>()
@@ -739,18 +748,26 @@ internal fun MainActivity.toggleHiddenHomeShelf(title: String) {
 
 /** X on the "Continue Watching" shelf clears the resume data itself, not just hides the
  *  shelf on the tab it was pressed on. Home, Series and Films all read the same store, so
- *  one clear empties the row everywhere. Jellyfin resume lives on the server, so those
+ *  one clear empties the row everywhere. Media-server resume lives on the server, so those
  *  entries are dropped there too (best effort) and removed from memory immediately. Also
  *  un-hides the CW shelf so future watching isn't stuck behind a stale hide flag. */
 internal fun MainActivity.clearContinueWatching() {
     PlaybackPositionStore.clearAll(this)
     clearUpNextMemo()
-    val serverIds = jellyfinResumeItems.map { it.id }.toList()
+    val jellyfinIds = jellyfinResumeItems.map { it.id }.toList()
+    val plexIds = plexResumeItems.map { it.id }.toList()
     jellyfinResumeItems = emptyList()
+    plexResumeItems = emptyList()
     val client = jellyfinClient
-    if (client != null && serverIds.isNotEmpty()) {
+    if (client != null && jellyfinIds.isNotEmpty()) {
         scope.launch(Dispatchers.IO) {
-            serverIds.forEach { id -> runCatching { client.clearUserData(id) } }
+            jellyfinIds.forEach { id -> runCatching { client.clearUserData(id) } }
+        }
+    }
+    val plex = plexClient
+    if (plex != null && plexIds.isNotEmpty()) {
+        scope.launch(Dispatchers.IO) {
+            plexIds.forEach { id -> runCatching { plex.clearUserData(id) } }
         }
     }
     getHiddenHomeShelves().let { if (it.remove(getString(R.string.category_continue_watching))) prefs.edit().putStringSet("hidden_home_shelves", it).apply() }
@@ -812,7 +829,7 @@ internal fun MainActivity.buildUpNextSeriesTiles(): List<Channel> {
     if (!showingHome) return emptyList()
     val trails = PlaybackPositionStore.getCompletedSeriesTrails(this)
     val pending = trails
-        .filterNot { it.isJellyfin } // server-side "Next Up" shelf already covers Jellyfin
+        .filterNot { it.isOwnLibrary } // server-side "Next Up" shelf already covers these
         .mapNotNull { it.categoryId?.takeIf { id -> id !in upNextTiles && id !in upNextFetching } }
         .take(MAX_UP_NEXT_SERIES)
     if (pending.isNotEmpty()) fetchUpNextSeries(pending)
@@ -873,11 +890,11 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
     val shelves = mutableListOf<ContentShelf>()
     val hidden = getHiddenHomeShelves()
 
-    // Jellyfin's own resume list leads Continue Watching: the server knows about playback
+    // The media servers' own resume lists lead Continue Watching: they know about playback
     // from every other client, which a purely local position store never can. Local
-    // entries follow, minus anything the server already covered (same item, one card).
+    // entries follow, minus anything a server already covered (same item, one card).
     val localContinue = PlaybackPositionStore.getAllInProgress(this)
-    val serverContinue = jellyfinResumeItems
+    val serverContinue = jellyfinResumeItems + plexResumeItems
     // Up-next series tiles: series whose watched trail ends at a completed episode have
     // no in-progress entry, so they'd otherwise drop out of Continue Watching entirely.
     // buildUpNextSeriesTiles returns what's already resolved and kicks the async fetch
@@ -890,7 +907,9 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
 
     // "Next Up" is the row that makes a series library usable - the next unwatched episode
     // of everything in flight, straight from the server's own tracking.
-    val nextUpItems = jellyfinNextUpItems.filterNot(::isAdultHomeItem)
+    val nextUpItems = (jellyfinNextUpItems + plexNextUpItems)
+        .distinctBy { it.id.ifBlank { it.url } }
+        .filterNot(::isAdultHomeItem)
     if (nextUpItems.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_next_up), nextUpItems))
 
     val recentItems = RecentlyPlayedStore.getRecentIds(this)
@@ -922,7 +941,7 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
  *  sidebar row, its content grid, and the Series poster shelf. */
 internal fun MainActivity.seriesContinueItems(): List<Channel> {
     val local = PlaybackPositionStore.getAllInProgress(this).filter { it.mediaType == MediaType.SERIES }
-    val server = jellyfinResumeItems.filter { it.mediaType == MediaType.SERIES }
+    val server = (jellyfinResumeItems + plexResumeItems).filter { it.mediaType == MediaType.SERIES }
     val serverIds = server.map { it.id }.toSet()
     return (server + local.filterNot { it.id in serverIds }).filterNot(::isAdultHomeItem)
 }

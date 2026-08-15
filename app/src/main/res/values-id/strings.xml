@@ -132,6 +132,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">Alamat MAC</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Server media</string>
     <string name="change">Ubah</string>
     <string name="show_phone_qr_pairing_code">Tampilkan kode pemasangan QR ponsel</string>
@@ -139,6 +140,8 @@
     <string name="name">Nama</string>
     <string name="server_url">URL Server</string>
     <string name="sign_in_with_quick_connect">Masuk dengan Quick Connect</string>
+    <string name="sign_in_with_plex">Masuk dengan Plex</string>
+    <string name="plex_signin_blurb">Masuk ke akun Plex Anda untuk menjelajahi film dan serial di server Anda. Pindai kode dengan ponsel Anda, atau buka plex.tv/link dan masukkan kodenya.</string>
     <string name="username_if_quick_connect_off">Nama pengguna (jika Quick Connect nonaktif)</string>
     <string name="playback_settings">Pengaturan pemutaran</string>
     <string name="hide_non_english">Sembunyikan film/serial non-Inggris</string>

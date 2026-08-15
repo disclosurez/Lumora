@@ -134,6 +134,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">Διεύθυνση MAC</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Διακομιστής πολυμέσων</string>
     <string name="change">Αλλαγή</string>
     <string name="show_phone_qr_pairing_code">Εμφάνιση κωδικού σύζευξης QR τηλεφώνου</string>
@@ -141,6 +142,8 @@
     <string name="name">Όνομα</string>
     <string name="server_url">URL διακομιστή</string>
     <string name="sign_in_with_quick_connect">Σύνδεση με το Quick Connect</string>
+    <string name="sign_in_with_plex">Σύνδεση με Plex</string>
+    <string name="plex_signin_blurb">Συνδεθείτε στον λογαριασμό σας Plex για να περιηγηθείτε στις ταινίες και τις σειρές του διακομιστή σας. Σαρώστε τον κωδικό με το κινητό σας, ή πηγαίνετε στο plex.tv/link και εισαγάγετέ τον.</string>
     <string name="username_if_quick_connect_off">Όνομα χρήστη (εάν το Quick Connect είναι απενεργοποιημένο)</string>
     <string name="playback_settings">Ρυθμίσεις αναπαραγωγής</string>
     <string name="hide_non_english">Απόκρυψη μη αγγλικών ταινιών/σειρών</string>

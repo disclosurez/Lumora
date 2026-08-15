@@ -134,6 +134,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">Endereço MAC</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Servidor de mídia</string>
     <string name="change">Alterar</string>
     <string name="show_phone_qr_pairing_code">Mostrar código de pareamento QR do telefone</string>
@@ -141,6 +142,8 @@
     <string name="name">Nome</string>
     <string name="server_url">URL do servidor</string>
     <string name="sign_in_with_quick_connect">Entrar com Quick Connect</string>
+    <string name="sign_in_with_plex">Entrar com Plex</string>
+    <string name="plex_signin_blurb">Inicie sessão na sua conta Plex para explorar os filmes e séries do seu servidor. Digitalize o código com o telemóvel, ou vá a plex.tv/link e introduza-o.</string>
     <string name="username_if_quick_connect_off">Nome de usuário (se o Quick Connect estiver desativado)</string>
     <string name="playback_settings">Configurações de reprodução</string>
     <string name="hide_non_english">Ocultar filmes/séries que não estão em inglês</string>

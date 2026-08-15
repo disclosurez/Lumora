@@ -132,6 +132,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC アドレス</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">メディアサーバー</string>
     <string name="change">変更</string>
     <string name="show_phone_qr_pairing_code">電話の QR ペアリングコードを表示</string>
@@ -139,6 +140,8 @@
     <string name="name">名前</string>
     <string name="server_url">サーバー URL</string>
     <string name="sign_in_with_quick_connect">Quick Connect でサインイン</string>
+    <string name="sign_in_with_plex">Plex でサインイン</string>
+    <string name="plex_signin_blurb">Plex アカウントにサインインすると、サーバーの映画や番組を閲覧できます。スマートフォンでコードをスキャンするか、plex.tv/link にアクセスしてコードを入力してください。</string>
     <string name="username_if_quick_connect_off">ユーザー名（Quick Connect がオフの場合）</string>
     <string name="playback_settings">再生設定</string>
     <string name="hide_non_english">英語以外の映画/シリーズを非表示</string>

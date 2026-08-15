@@ -2351,7 +2351,7 @@
                                 android:textSize="@dimen/text_tiny" />
 
                             <!-- Only shown for an item the server actually has chapters for
-                                 (Jellyfin) - see updateChaptersButtonVisibility. -->
+                                 (Jellyfin or Plex) - see updateChaptersButtonVisibility. -->
                             <TextView
                                 android:id="@+id/btnChapters"
                                 android:layout_width="wrap_content"

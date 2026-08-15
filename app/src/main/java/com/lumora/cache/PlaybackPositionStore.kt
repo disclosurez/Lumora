@@ -173,6 +173,7 @@ object PlaybackPositionStore {
                                 episodeNum = c.optInt("episodeNum", -1).takeIf { it >= 0 },
                                 categoryId = c.optString("categoryId", null),
                                 isJellyfin = c.optBoolean("isJellyfin", false),
+                                isPlex = c.optBoolean("isPlex", false),
                                 sourceProviderId = c.optString("sourceProviderId", null),
                                 pluginToken = c.optString("pluginToken", null),
                                 pluginId = c.optString("pluginId", null),
@@ -224,6 +225,7 @@ object PlaybackPositionStore {
                             // before this was stored; the queue rebuild no-ops then.
                             ch.categoryId?.let { put("categoryId", it) }
                             put("isJellyfin", ch.isJellyfin)
+                            put("isPlex", ch.isPlex)
                             ch.sourceProviderId?.let { put("sourceProviderId", it) }
                             ch.pluginToken?.let { put("pluginToken", it) }
                             ch.pluginId?.let { put("pluginId", it) }

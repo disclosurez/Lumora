@@ -18,11 +18,12 @@ import com.lumora.model.CategoryFilter
 const val DYNAMIC_BUCKET_ID_PREFIX = "dynbucket:"
 
 /** Sidebar/shelf rows whose pin star is hidden because pinning them is inert:
- *  Newest (prepended above the pinned block), Jellyfin (always first by construction),
- *  and the classic-layout toggle. Mirrors MainActivity's NEWEST_CATEGORY_ID /
- *  JELLYFIN_CATEGORY_ID / CLASSIC_LAYOUT_TOGGLE_ID / COLLAPSE_CATEGORIES_TOGGLE_ID -
- *  keep in sync if those change. */
-val NON_PINNABLE_CATEGORY_IDS = setOf("__newest__", "__jellyfin__", "__classic_layout_toggle__", "__collapse_categories__")
+ *  Newest (prepended above the pinned block), the Jellyfin and Plex library rows (always
+ *  first by construction), and the classic-layout toggle. Mirrors MainActivity's
+ *  NEWEST_CATEGORY_ID / JELLYFIN_CATEGORY_ID / PLEX_CATEGORY_ID /
+ *  CLASSIC_LAYOUT_TOGGLE_ID / COLLAPSE_CATEGORIES_TOGGLE_ID - keep in sync if those
+ *  change. */
+val NON_PINNABLE_CATEGORY_IDS = setOf("__newest__", "__jellyfin__", "__plex__", "__classic_layout_toggle__", "__collapse_categories__")
 
 class CategoryAdapter(
     private val onCategoryClick: (CategoryFilter) -> Unit,

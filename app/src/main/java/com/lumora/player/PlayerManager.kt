@@ -78,7 +78,7 @@ class PlayerManager(
 
     /**
      * What the player was last asked to play, as it was finally resolved (Stalker commands,
-     * Jellyfin negotiation and plugin resolves all rewrite the URL before it gets here).
+     * Jellyfin/Plex negotiation and plugin resolves all rewrite the URL before it gets here).
      * Kept so the stream can be handed to an external player - see ExternalPlayer - which
      * otherwise has no way to know what the app is actually playing.
      */
@@ -135,7 +135,7 @@ class PlayerManager(
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
-            // 60s read: slow remote Jellyfin/transcode servers can take a while to start
+            // 60s read: slow remote Jellyfin/Plex/transcode servers can take a while to start
             // sending the stream - 20s made a cold server start read as "Playback error".
             .setReadTimeoutMs(60_000)
 

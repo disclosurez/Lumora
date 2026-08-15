@@ -69,6 +69,7 @@
     <string name="plug_connecting_to">Connecting to %1$s...</string>
     <string name="plug_connecting_to_n">Connecting to %1$d providers...</string>
     <string name="plug_connecting_to_jellyfin">Connecting to Jellyfin...</string>
+    <string name="plug_connecting_to_plex">Connecting to Plex...</string>
     <string name="plug_item_count">%1$d items</string>
     <string name="plug_downloading_streaming_plugins">Downloading streaming plugins…</string>
     <string name="plug_couldnt_reach_plugin_store">Couldn\'t reach the plugin store</string>

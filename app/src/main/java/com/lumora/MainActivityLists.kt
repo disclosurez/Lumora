@@ -31,6 +31,7 @@ import com.lumora.util.extractLeadingTag
 import com.lumora.util.isUnreleasedEpisode
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
+import com.lumora.data.remote.plex.PlexProvider
 import kotlinx.coroutines.*
 import okhttp3.Request
 import java.util.Locale
@@ -460,6 +461,32 @@ internal suspend fun MainActivity.loadSeriesContent(
                     label to eps.map { JellyfinProvider.toChannel(it, stub) }
                 }
         }
+        item.isPlex -> {
+            val plex = plexClientOrConnect()
+            val (episodes, seasons) = if (plex != null) {
+                withContext(Dispatchers.IO) { plex.getEpisodes(item.id) to plex.getSeasons(item.id) }
+            } else {
+                emptyList<PlexProvider.PlexItem>() to emptyList()
+            }
+            val stub = plexProviderStub(plexServerUrl())
+            // Watched/resume state for these episodes comes from the same fields the catalog
+            // crawl reads, so an episode list opened here shows progress made in any other
+            // Plex client (EpisodeAdapter reads it out of PlaybackPositionStore).
+            importPlexUserState(episodes, includePlayed = true)
+            // Season *names* come from the server - grouping on parentIndex alone can only
+            // ever produce "Season 0" for specials, which is not what any Plex library calls
+            // that row.
+            val seasonNames = seasons.mapNotNull { season ->
+                season.indexNumber?.let { it to season.name }
+            }.toMap()
+            itemDetails to episodes
+                .groupBy { it.seasonNumber ?: 0 }
+                .toSortedMap()
+                .map { (num, eps) ->
+                    val label = seasonNames[num] ?: if (num == 0) "Specials" else "Season $num"
+                    label to eps.map { PlexProvider.toChannel(it, stub) }
+                }
+        }
         stalkerConfig != null -> {
             val stalker = StalkerProvider(BaseApplication.instance.okHttpClient)
             itemDetails to withContext(Dispatchers.IO) {
@@ -626,7 +653,8 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             val nowFavorite = FavoritesStore.toggleFavoriteSeries(this, item.id)
             refreshFavoriteIcon()
             // A Jellyfin item's favourite state belongs to the server - push it so the
-            // star shows up in every other client, and survives a reinstall here.
+            // star shows up in every other client, and survives a reinstall here. Plex has
+            // no equivalent per-item flag, so a Plex star stays local to this install.
             if (item.isJellyfin && item.id.isNotBlank()) {
                 scope.launch {
                     val client = jellyfinClientOrConnect() ?: return@launch
@@ -1113,7 +1141,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 // an Xtream-shaped get_vod_info for a Stalker item hit the wrong endpoint
                 // and came back empty, which is why overview/release date were blank.
                 val itemXtream = xtreamProviderFor(item)
-                val details = if (isJellyfin || itemXtream == null) {
+                val details = if (isJellyfin || item.isPlex || itemXtream == null) {
                     XtreamClient.ContentDetails(
                         plot = item.description,
                         genre = item.categoryName,
@@ -1344,6 +1372,23 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
             .setSingleChoiceItems(streams.map(::jellyfinAudioLabel).toTypedArray(), current) { dialog, which ->
                 dialog.dismiss()
                 if (which != current) switchJellyfinAudioStream(streams[which].index)
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+        return
+    }
+    // Same story on the Plex side: a transcode carries the one track the server picked, and
+    // the only way to another is to ask the server to rebuild the stream around it.
+    val plexAudio = plexPlaySession
+        ?.takeIf { isAudio && it.playMethod == "Transcode" && it.audioStreams.size > 1 }
+    if (plexAudio != null) {
+        val streams = plexAudio.audioStreams
+        val current = streams.indexOfFirst { it.id == plexAudio.audioStreamId }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.list_audio_track))
+            .setSingleChoiceItems(streams.map(::plexAudioLabel).toTypedArray(), current) { dialog, which ->
+                dialog.dismiss()
+                if (which != current) switchPlexAudioStream(streams[which].id)
             }
             .setNegativeButton(getString(R.string.cancel), null)
             .show()

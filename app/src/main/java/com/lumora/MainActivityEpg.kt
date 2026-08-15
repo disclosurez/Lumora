@@ -18,7 +18,8 @@ import java.util.Locale
 //
 // Extracted from MainActivity.kt; see that file's header.
 /** The dynamic sidebar row a live channel belongs to (brand row like "Sky Sports", genre
- *  bucket, Jellyfin), or null when it only lives in a plain provider category.
+ *  bucket, the Jellyfin/Plex library rows), or null when it only lives in a plain provider
+ *  category.
  *
  *  Searches the cached children as well as the visible rows: a brand row is bucketed
  *  under a genre parent on Live TV, so "Sky Sports" isn't in the sidebar list at all

@@ -133,6 +133,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC-cím</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Médiaszerver</string>
     <string name="change">Módosítás</string>
     <string name="show_phone_qr_pairing_code">Telefon QR-párosítási kódjának megjelenítése</string>
@@ -140,6 +141,8 @@
     <string name="name">Név</string>
     <string name="server_url">Szerver URL</string>
     <string name="sign_in_with_quick_connect">Bejelentkezés a Quick Connecttel</string>
+    <string name="sign_in_with_plex">Bejelentkezés Plexszel</string>
+    <string name="plex_signin_blurb">Jelentkezzen be Plex-fiókjába a kiszolgáló filmjeinek és sorozatainak böngészéséhez. Olvassa be a kódot telefonjával, vagy nyissa meg a plex.tv/link oldalt és adja meg.</string>
     <string name="username_if_quick_connect_off">Felhasználónév (ha a Quick Connect ki van kapcsolva)</string>
     <string name="playback_settings">Lejátszási beállítások</string>
     <string name="hide_non_english">Nem angol nyelvű filmek/sorozatok elrejtése</string>

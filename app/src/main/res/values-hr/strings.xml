@@ -134,6 +134,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC adresa</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Medijski poslužitelj</string>
     <string name="change">Promijeni</string>
     <string name="show_phone_qr_pairing_code">Prikaži QR kôd za uparivanje s telefonom</string>
@@ -141,6 +142,8 @@
     <string name="name">Naziv</string>
     <string name="server_url">URL poslužitelja</string>
     <string name="sign_in_with_quick_connect">Prijavite se putem Quick Connecta</string>
+    <string name="sign_in_with_plex">Prijava putem Plexa</string>
+    <string name="plex_signin_blurb">Prijavite se na svoj Plex račun kako biste pregledavali filmove i serije sa svog poslužitelja. Skenirajte kod telefonom ili idite na plex.tv/link i unesite ga.</string>
     <string name="username_if_quick_connect_off">Korisničko ime (ako je Quick Connect isključen)</string>
     <string name="playback_settings">Postavke reprodukcije</string>
     <string name="hide_non_english">Sakrij filmove/serije koji nisu na engleskom</string>

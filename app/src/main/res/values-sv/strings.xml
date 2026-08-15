@@ -134,6 +134,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC-adress</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Mediaserver</string>
     <string name="change">Ändra</string>
     <string name="show_phone_qr_pairing_code">Visa telefonens QR-parningskod</string>
@@ -141,6 +142,8 @@
     <string name="name">Namn</string>
     <string name="server_url">Server-URL</string>
     <string name="sign_in_with_quick_connect">Logga in med Quick Connect</string>
+    <string name="sign_in_with_plex">Logga in med Plex</string>
+    <string name="plex_signin_blurb">Logga in på ditt Plex-konto för att bläddra bland serverns filmer och serier. Skanna koden med telefonen, eller gå till plex.tv/link och ange den.</string>
     <string name="username_if_quick_connect_off">Användarnamn (om Quick Connect är avstängd)</string>
     <string name="playback_settings">Uppspelningsinställningar</string>
     <string name="hide_non_english">Dölj icke-engelska filmer/serier</string>

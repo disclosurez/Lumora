@@ -3,6 +3,7 @@ package com.lumora
 import android.app.Application
 import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.remote.jellyfin.JellyfinAuthInterceptor
+import com.lumora.data.remote.plex.PlexAuthInterceptor
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -54,6 +55,7 @@ class BaseApplication : Application() {
             .connectionPool(okhttp3.ConnectionPool(4, 30, TimeUnit.SECONDS))
             .dns(okhttp3.internal.platform.Platform.get().let { okhttp3.Dns.SYSTEM })
             .addInterceptor(JellyfinAuthInterceptor())
+            .addInterceptor(PlexAuthInterceptor())
             .cache(Cache(File(cacheDir, "okhttp_cache"), 50L * 1024 * 1024))  // 50MB disk cache
             .build()
 

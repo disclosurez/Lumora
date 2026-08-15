@@ -133,6 +133,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC-osoite</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Mediaserveri</string>
     <string name="change">Muuta</string>
     <string name="show_phone_qr_pairing_code">Näytä puhelimen QR-pariliitoskoodi</string>
@@ -140,6 +141,8 @@
     <string name="name">Nimi</string>
     <string name="server_url">Palvelimen URL-osoite</string>
     <string name="sign_in_with_quick_connect">Kirjaudu Quick Connectilla</string>
+    <string name="sign_in_with_plex">Kirjaudu Plexillä</string>
+    <string name="plex_signin_blurb">Kirjaudu Plex-tilillesi selataksesi palvelimesi elokuvia ja sarjoja. Skannaa koodi puhelimellasi, tai siirry osoitteeseen plex.tv/link ja syötä se.</string>
     <string name="username_if_quick_connect_off">Käyttäjänimi (jos Quick Connect on pois päältä)</string>
     <string name="playback_settings">Toistoasetukset</string>
     <string name="hide_non_english">Piilota muut kuin englanninkieliset elokuvat/sarjat</string>

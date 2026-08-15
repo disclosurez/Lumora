@@ -39,6 +39,11 @@ data class Channel(
     // field (there isn't one active provider anymore). Per-item is the only thing that's
     // actually reliable.
     val isJellyfin: Boolean = false,
+    // Same role as isJellyfin, for the Plex slot. Kept as its own flag rather than folded
+    // into a shared "own library" enum because the two servers' item ids, playback
+    // negotiation and detail APIs have nothing in common - every place that branches on
+    // source has to know *which* server, not merely that it is one.
+    val isPlex: Boolean = false,
     // Stalker's MAC-as-User-Agent or M3U's custom User-Agent, baked in from whichever
     // IptvProviderConfig this channel came from - playback needs the *source* provider's
     // header, not whichever IPTV provider happens to be first/active.
@@ -87,4 +92,9 @@ data class Channel(
     // series). Playable as-is - no TMDB round trip, and it exists for plenty of titles TMDB
     // itself has no video for.
     val trailerKey: String? = null
-)
+) {
+    /** True for anything out of the user's own media server, whichever one it is. Used where
+     *  the distinction that matters is "own library vs an IPTV panel" - version ranking,
+     *  source labels, Discover match scoring - rather than which server it came from. */
+    val isOwnLibrary: Boolean get() = isJellyfin || isPlex
+}

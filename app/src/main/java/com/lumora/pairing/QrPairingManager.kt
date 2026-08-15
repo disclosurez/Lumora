@@ -61,6 +61,17 @@ class QrPairingManager(private val context: Context) {
 
     data class QuickConnectStart(val code: String?, val secret: String?, val error: String?)
 
+    /** Starts a Plex account sign-in on behalf of the phone, for the same reason
+     *  [onJellyfinQuickConnect] exists: the code has to be the *same* one on both screens, so
+     *  it is minted once, here, while the phone's POST is still being handled - and the TV
+     *  polls that same PIN. Wired by MainActivity, which owns the Plex client.
+     *
+     *  Unlike Jellyfin there is no server URL to submit: a Plex account is what says which
+     *  servers exist, so the phone form has nothing to fill in beyond choosing the type. */
+    var onPlexPinLogin: (suspend () -> PlexPinStart)? = null
+
+    data class PlexPinStart(val code: String?, val authUrl: String?, val error: String?)
+
     data class PairingResult(
         val url: String,
         val qrBitmap: Bitmap,
@@ -228,6 +239,17 @@ class QrPairingManager(private val context: Context) {
                             )
                             writeHtml(c.getOutputStream(), 200, quickConnectPage(result.code))
                         }
+                    } else if (type == "plex") {
+                        // Same one-code-two-screens problem as Quick Connect: the PIN is
+                        // started here so the phone can show it and open the Plex sign-in
+                        // page for it, while the TV polls that exact PIN.
+                        val result = onPlexPinLogin?.invoke()
+                        if (result?.code == null || result.authUrl == null) {
+                            writeHtml(c.getOutputStream(), 200, errorPage(result?.error ?: "Couldn't start Plex sign-in"))
+                        } else {
+                            onProviderReceived?.invoke("plex_pin", form + mapOf("code" to result.code))
+                            writeHtml(c.getOutputStream(), 200, plexLinkPage(result.code, result.authUrl))
+                        }
                     } else {
                         onProviderReceived?.invoke(type, form)
                         writeHtml(c.getOutputStream(), 200, successPage("Provider details received! Check your TV."))
@@ -251,20 +273,27 @@ class QrPairingManager(private val context: Context) {
 
     // ── QR Code ──────────────────────────────────────────────
 
-    private fun createQrBitmap(value: String): Bitmap {
-        val hints = EnumMap<EncodeHintType, Any>(EncodeHintType::class.java).apply {
-            put(EncodeHintType.MARGIN, 2)
-            put(EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M)
-        }
-        val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE, hints)
-        val pixels = IntArray(QR_SIZE * QR_SIZE)
-        for (y in 0 until QR_SIZE) {
-            for (x in 0 until QR_SIZE) {
-                pixels[y * QR_SIZE + x] = if (matrix[x, y]) Color.BLACK else Color.WHITE
+    private fun createQrBitmap(value: String): Bitmap = Companion.createQrBitmap(value)
+
+    companion object {
+        /** Encodes any string as a QR bitmap. Public because the Plex sign-in shows a QR of
+         *  a plex.tv link with no pairing server behind it - there is nothing for the phone
+         *  to POST back to, so it needs the encoder without the rest of this class. */
+        fun createQrBitmap(value: String): Bitmap {
+            val hints = EnumMap<EncodeHintType, Any>(EncodeHintType::class.java).apply {
+                put(EncodeHintType.MARGIN, 2)
+                put(EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M)
             }
-        }
-        return Bitmap.createBitmap(QR_SIZE, QR_SIZE, Bitmap.Config.ARGB_8888).apply {
-            setPixels(pixels, 0, QR_SIZE, 0, 0, QR_SIZE, QR_SIZE)
+            val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE, hints)
+            val pixels = IntArray(QR_SIZE * QR_SIZE)
+            for (y in 0 until QR_SIZE) {
+                for (x in 0 until QR_SIZE) {
+                    pixels[y * QR_SIZE + x] = if (matrix[x, y]) Color.BLACK else Color.WHITE
+                }
+            }
+            return Bitmap.createBitmap(QR_SIZE, QR_SIZE, Bitmap.Config.ARGB_8888).apply {
+                setPixels(pixels, 0, QR_SIZE, 0, 0, QR_SIZE, QR_SIZE)
+            }
         }
     }
 
@@ -376,6 +405,7 @@ button:active{background:#1565c0}
   <option value="xtream" ${if (presetType == "xtream") "selected" else ""}>Xtream Codes</option>
   <option value="stalker" ${if (presetType == "stalker") "selected" else ""}>Stalker Portal</option>
   <option value="jellyfin" ${if (presetType == "jellyfin") "selected" else ""}>Jellyfin</option>
+  <option value="plex" ${if (presetType == "plex") "selected" else ""}>Plex</option>
 </select>
 <label>Name (optional)</label>
 <input name="name" placeholder="My Provider">
@@ -420,6 +450,9 @@ button:active{background:#1565c0}
     <div class="hint">After sending, a code appears here and on your TV - enter it on your Jellyfin server's Quick Connect page to finish signing in.</div>
   </div>
 </div>
+<div id="plexFields" class="field-group ${if (presetType == "plex") "active" else ""}">
+  <div class="hint">Nothing to fill in - Plex signs in with your account, and your account is what tells the TV which servers you have. Tap Send to TV and finish signing in on the next page.</div>
+</div>
 <button type="submit">Send to TV</button>
 </form>
 </main>
@@ -428,7 +461,8 @@ function updateType(){const t=document.getElementById('type').value;
 document.getElementById('m3uFields').classList.toggle('active',t==='m3u');
 document.getElementById('xtreamFields').classList.toggle('active',t==='xtream');
 document.getElementById('stalkerFields').classList.toggle('active',t==='stalker');
-document.getElementById('jellyfinFields').classList.toggle('active',t==='jellyfin');}
+document.getElementById('jellyfinFields').classList.toggle('active',t==='jellyfin');
+document.getElementById('plexFields').classList.toggle('active',t==='plex');}
 function genMac(){function o(){return('0'+Math.floor(Math.random()*256).toString(16).toUpperCase()).slice(-2);}
 document.getElementById('stalkerMac').value='00:1A:79:'+o()+':'+o()+':'+o();}
 function updateAuthMethod(){const m=document.getElementById('authMethod').value;
@@ -458,6 +492,27 @@ p{color:#9e9e9e;line-height:1.4}
 <p>Enter this code on your Jellyfin server to finish signing in on your TV.</p>
 <div class="code">${code.escapeHtml()}</div>
 <p>This page can be closed once you've entered it.</p>
+</main></body></html>"""
+
+    /** Shown to the phone once a Plex PIN has been minted: plex.tv/link with the code already
+     *  filled in, as a button to tap (the whole point of doing this from a phone rather than
+     *  typing on a TV remote), plus the 4-character code in text for anyone who would rather
+     *  open plex.tv/link themselves. */
+    private fun plexLinkPage(code: String, authUrl: String) = """<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lumora Pairing</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0d0d0d;color:#eee;padding:28px;text-align:center}
+main{max-width:520px;margin:auto;background:#1a1a1a;border-radius:16px;padding:28px}
+h1{color:#fff;font-size:20px;margin:0 0 4px}
+p{color:#9e9e9e;line-height:1.4}
+a.btn{display:block;margin:20px 0;padding:16px;border-radius:12px;background:#e5a00d;color:#111;font-weight:700;font-size:17px;text-decoration:none}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:40px;font-weight:700;letter-spacing:6px;text-transform:uppercase;color:#e5a00d;background:#0d0d0d;border-radius:12px;padding:18px;margin:16px 0}
+</style></head><body><main>
+<h1>Sign in to Plex</h1>
+<p>Tap below to open plex.tv/link with the code filled in - your TV is waiting for it.</p>
+<a class="btn" href="${authUrl.escapeHtml()}">Sign in at plex.tv/link</a>
+<p>Or go to plex.tv/link yourself and enter:</p>
+<div class="code">${code.escapeHtml()}</div>
 </main></body></html>"""
 
     private fun errorPage(msg: String) = """<!doctype html>

@@ -405,7 +405,7 @@
                             android:layout_width="0dp"
                             android:layout_height="@dimen/settings_type_card_height"
                             android:layout_weight="1"
-                            android:layout_marginHorizontal="5dp"
+                            android:layout_marginStart="5dp"
                             android:background="@drawable/card_surface_background"
                             android:clickable="true"
                             android:focusable="true"
@@ -415,9 +415,37 @@
                             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_stalker" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
                             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/mac_address" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
                         </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- The two media servers sit on their own row rather than being squeezed
+                         into the IPTV one: five cards across a phone-width column left each
+                         one too narrow to read its own caption. -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:clipChildren="false"
+                        android:clipToPadding="false"
+                        android:orientation="horizontal">
 
                         <LinearLayout
                             android:id="@+id/settingsTypeJellyfin"
+                            android:layout_width="0dp"
+                            android:layout_height="@dimen/settings_type_card_height"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="5dp"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_jellyfin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/media_server" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/settingsTypePlex"
                             android:layout_width="0dp"
                             android:layout_height="@dimen/settings_type_card_height"
                             android:layout_weight="1"
@@ -428,7 +456,7 @@
                             android:gravity="center"
                             android:orientation="vertical"
                             android:stateListAnimator="@animator/focus_scale_flat">
-                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_jellyfin" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/provider_type_plex" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_caption" android:fontFamily="@font/inter_medium" />
                             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/media_server" android:textColor="@color/text_tertiary" android:textSize="@dimen/settings_text_micro" android:fontFamily="@font/inter_regular" />
                         </LinearLayout>
                     </LinearLayout>
@@ -838,6 +866,87 @@
                             android:padding="@dimen/settings_gap"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
+                    </LinearLayout>
+
+                    <!-- Plex Fields - there is no server URL or password to type: a Plex
+                         account is signed in at plex.tv, and the account is what tells us
+                         which servers exist and how to reach them. So this group is the
+                         sign-in itself: the 4-character code, big enough to read from a
+                         sofa, a QR of plex.tv/link with that code pre-filled for anyone who
+                         would rather scan, and a status line. -->
+                    <LinearLayout
+                        android:id="@+id/settingsPlexGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/settings_gap"
+                            android:text="@string/plex_signin_blurb"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/settings_text_caption" />
+
+                        <LinearLayout
+                            android:id="@+id/settingsPlexSignIn"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
+                            android:layout_marginTop="@dimen/settings_gap"
+                            android:background="@drawable/card_surface_background"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+                            <TextView
+                                android:id="@+id/settingsPlexSignInLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/sign_in_with_plex"
+                                android:textColor="@color/text_primary"
+                                android:textSize="@dimen/settings_text_body"
+                                android:fontFamily="@font/inter_medium" />
+                        </LinearLayout>
+
+                        <ImageView
+                            android:id="@+id/settingsPlexQr"
+                            android:layout_width="200dp"
+                            android:layout_height="200dp"
+                            android:layout_gravity="center_horizontal"
+                            android:layout_marginTop="@dimen/settings_gap"
+                            android:contentDescription="@string/plex_signin_blurb"
+                            android:visibility="gone" />
+
+                        <!-- The code, big. It is four characters and it is what somebody
+                             squinting at a TV from a sofa has to copy onto a phone, so it
+                             gets read at that distance rather than buried in the status
+                             line. Letter-spaced so adjacent characters can't be misread as
+                             one, and monospaced so 0/O and 1/I stay apart. -->
+                        <TextView
+                            android:id="@+id/settingsPlexCode"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/settings_gap"
+                            android:gravity="center_horizontal"
+                            android:letterSpacing="0.35"
+                            android:textAllCaps="true"
+                            android:fontFamily="monospace"
+                            android:textColor="@color/text_primary"
+                            android:textSize="40sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/settingsPlexStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/settings_gap_s"
+                            android:gravity="center_horizontal"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/settings_text_caption"
+                            android:visibility="gone" />
                     </LinearLayout>
 
                     </LinearLayout>

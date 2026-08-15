@@ -133,6 +133,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC پتہ</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">میڈیا سرور</string>
     <string name="change">تبدیل کریں</string>
     <string name="show_phone_qr_pairing_code">فون کا QR جوڑا بنانے کا کوڈ دکھائیں</string>
@@ -140,6 +141,8 @@
     <string name="name">نام</string>
     <string name="server_url">سرور URL</string>
     <string name="sign_in_with_quick_connect">Quick Connect سے سائن ان کریں</string>
+    <string name="sign_in_with_plex">Plex سے سائن ان کریں</string>
+    <string name="plex_signin_blurb">اپنے سرور کی فلمیں اور شوز دیکھنے کے لیے اپنے Plex اکاؤنٹ میں سائن ان کریں۔ کوڈ کو اپنے فون سے اسکین کریں، یا plex.tv/link پر جا کر اسے درج کریں۔</string>
     <string name="username_if_quick_connect_off">صارف نام (اگر Quick Connect بند ہے)</string>
     <string name="playback_settings">پلے بیک ترتیبات</string>
     <string name="hide_non_english">غیر انگریزی فلمیں/سیریز چھپائیں</string>

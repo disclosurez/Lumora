@@ -137,6 +137,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">عنوان MAC</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">خادم الوسائط</string>
     <string name="change">تغيير</string>
     <string name="show_phone_qr_pairing_code">إظهار رمز اقتران الهاتف عبر QR</string>
@@ -144,6 +145,8 @@
     <string name="name">الاسم</string>
     <string name="server_url">رابط الخادم</string>
     <string name="sign_in_with_quick_connect">تسجيل الدخول عبر Quick Connect</string>
+    <string name="sign_in_with_plex">تسجيل الدخول عبر Plex</string>
+    <string name="plex_signin_blurb">سجّل الدخول إلى حساب Plex لتصفّح أفلام ومسلسلات خادمك. امسح الرمز بهاتفك، أو انتقل إلى plex.tv/link وأدخله.</string>
     <string name="username_if_quick_connect_off">اسم المستخدم (إذا كان Quick Connect متوقفاً)</string>
     <string name="playback_settings">إعدادات التشغيل</string>
     <string name="hide_non_english">إخفاء الأفلام/المسلسلات غير الإنجليزية</string>

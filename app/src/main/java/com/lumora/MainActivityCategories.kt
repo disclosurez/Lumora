@@ -144,12 +144,15 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
     // filtering it. Pin is inert for them and Hide is destructive-and-unrecoverable, so
     // they get no menu at all rather than one with two bad options.
     if (id in UTILITY_ROW_IDS) return
-    // The Jellyfin row is always first by construction, so "Pin to top" would be a
+    // The Jellyfin/Plex library rows are always first by construction, so "Pin to top"
+    // would be a
     // no-op - hiding it is the only meaningful action. Same for the synthetic Newest and
     // Continue Watching rows: they're prepended above the pinned block, so pinning them
     // moves them nowhere, and pin is inert for them anyway (guards in
     // buildCategoriesForActiveTab skip rows whose id is pinned).
-    if (id == JELLYFIN_CATEGORY_ID || id == NEWEST_CATEGORY_ID || id == CONTINUE_WATCHING_CATEGORY_ID) {
+    if (id == JELLYFIN_CATEGORY_ID || id == PLEX_CATEGORY_ID || id == NEWEST_CATEGORY_ID ||
+        id == CONTINUE_WATCHING_CATEGORY_ID
+    ) {
         AlertDialog.Builder(this)
             .setTitle(category.name)
             .setItems(arrayOf(getString(R.string.plug_hide))) { _, _ -> toggleHiddenSidebarCategory(category) }
@@ -207,7 +210,8 @@ internal fun MainActivity.toggleFavoriteVodItem(item: Channel) {
         Toast.LENGTH_SHORT
     ).show()
     // Same server push the detail screen's star does - a Jellyfin item's favourite state
-    // belongs to the server, not to this install.
+    // belongs to the server, not to this install. Plex has no equivalent per-item flag (it
+    // has ratings, which are a different thing), so a Plex star stays local.
     if (item.isJellyfin) {
         scope.launch {
             val client = jellyfinClientOrConnect() ?: return@launch
@@ -983,6 +987,26 @@ internal fun MainActivity.buildCategoryRows(
                         name = "Jellyfin",
                         count = jellyfinIds.size,
                         channelIds = jellyfinIds,
+                        isDynamic = true
+                    )
+                )
+            }
+        }
+        // The Plex library gets its own row on exactly the same terms. Two servers can be
+        // configured at once and "my Plex library" and "my Jellyfin library" are two
+        // different shelves to the person browsing, so they are never merged into one
+        // "own library" row.
+        if (tab != 0 && PLEX_CATEGORY_ID !in hiddenIds) {
+            val plexIds = list.filter { ch ->
+                ch.isPlex || versionsById[ch.id]?.any { it.isPlex } == true
+            }.map { it.id }.toSet()
+            if (plexIds.isNotEmpty()) {
+                result.add(
+                    CategoryFilter(
+                        id = PLEX_CATEGORY_ID,
+                        name = "Plex",
+                        count = plexIds.size,
+                        channelIds = plexIds,
                         isDynamic = true
                     )
                 )
@@ -1926,7 +1950,10 @@ internal fun MainActivity.updateProgress() {
     if (progressTickCount % 5 == 0) saveCurrentPlaybackPosition()
     // Jellyfin expects a heartbeat roughly every 10s - it's what keeps the server's
     // resume point current and stops it reaping an active transcode as abandoned.
-    if (progressTickCount % 10 == 0) reportJellyfinProgress()
+    if (progressTickCount % 10 == 0) {
+        reportJellyfinProgress()
+        reportPlexProgress()
+    }
 }
 
 internal fun MainActivity.formatTime(ms: Long): String {

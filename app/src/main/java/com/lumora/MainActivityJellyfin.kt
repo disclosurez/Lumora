@@ -337,7 +337,7 @@ internal fun MainActivity.reportJellyfinStopped(): Boolean {
     val position = playerManager.currentPosition.takeIf { it >= 0 } ?: 0L
     jellyfinPlayingItemId = null
     jellyfinPlaySession = null
-    jellyfinChapters = emptyList()
+    playbackChapters = emptyList()
     jellyfinTrickplay = null
     trickplayTileCache = null
     trickplayLoadJob?.cancel()
@@ -373,14 +373,16 @@ internal fun MainActivity.loadJellyfinPlaybackExtras(itemId: String) {
                 runCatching { client.getTrickplay(itemId) }.getOrNull()
         }
         if (jellyfinPlayingItemId != itemId) return@launch
-        jellyfinChapters = chapters
+        playbackChapters = chapters.map {
+            com.lumora.model.MediaChapter(it.name, it.positionMs, it.imageUrl)
+        }
         jellyfinTrickplay = trickplay
         updateChaptersButtonVisibility()
     }
 }
 
 internal fun MainActivity.updateChaptersButtonVisibility() {
-    binding.btnChapters.visibility = if (jellyfinChapters.size > 1) View.VISIBLE else View.GONE
+    binding.btnChapters.visibility = if (playbackChapters.size > 1) View.VISIBLE else View.GONE
     // Row's focus chain must skip it while it's hidden - see relinkPlayerButtonRowFocus.
     relinkPlayerButtonRowFocus()
 }
@@ -388,7 +390,7 @@ internal fun MainActivity.updateChaptersButtonVisibility() {
 /** Chapter picker - jumps straight to a chapter's start. Only reachable when the item
  *  actually has chapters (see updateChaptersButtonVisibility). */
 internal fun MainActivity.showChapterPicker() {
-    val chapters = jellyfinChapters
+    val chapters = playbackChapters
     if (chapters.isEmpty()) return
     val position = playerManager.currentPosition
     val currentIdx = chapters.indexOfLast { it.positionMs <= position }.coerceAtLeast(0)

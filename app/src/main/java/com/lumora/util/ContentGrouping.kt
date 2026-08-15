@@ -168,7 +168,7 @@ fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String,
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (group in groups.values) {
-        val versions = jellyfinFirst(group)
+        val versions = ownLibraryFirst(group)
         val representative = pickRepresentative(versions)
         representatives.add(representative)
         if (versions.size > 1) versionsById[representative.id] = versions
@@ -176,27 +176,28 @@ fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String,
     return representatives to versionsById
 }
 
-/** The user's own Jellyfin library always outranks an IPTV copy of the same title: it's the
- *  copy they curated, and it streams off their own server. Ordering the group this way makes
- *  Jellyfin the first (default-played) version chip; ties keep provider order. */
-private fun jellyfinFirst(versions: List<Channel>): List<Channel> =
-    if (versions.size > 1 && versions.any { it.isJellyfin }) {
-        versions.sortedBy { if (it.isJellyfin) 0 else 1 }
+/** The user's own media-server library (Jellyfin or Plex) always outranks an IPTV copy of
+ *  the same title: it's the copy they curated, and it streams off their own server. Ordering
+ *  the group this way makes it the first (default-played) version chip; ties keep provider
+ *  order, so with both servers configured whichever loaded first stays first. */
+private fun ownLibraryFirst(versions: List<Channel>): List<Channel> =
+    if (versions.size > 1 && versions.any { it.isOwnLibrary }) {
+        versions.sortedBy { if (it.isOwnLibrary) 0 else 1 }
     } else {
         versions
     }
 
 /** The copy that gets the card. A poster is what makes the card look right, so it wins among
- *  equally-ranked copies - but never at the cost of demoting the Jellyfin version, which is
- *  already first in [versions]. */
+ *  equally-ranked copies - but never at the cost of demoting the own-library version, which
+ *  is already first in [versions]. */
 private fun pickRepresentative(versions: List<Channel>): Channel {
-    val preferred = versions.firstOrNull()?.takeIf { it.isJellyfin }
-    val jellyfinWithPoster = if (preferred != null) {
-        versions.firstOrNull { it.isJellyfin && !it.posterUrl.isNullOrBlank() } ?: preferred
+    val preferred = versions.firstOrNull()?.takeIf { it.isOwnLibrary }
+    val ownWithPoster = if (preferred != null) {
+        versions.firstOrNull { it.isOwnLibrary && !it.posterUrl.isNullOrBlank() } ?: preferred
     } else {
         null
     }
-    return jellyfinWithPoster
+    return ownWithPoster
         ?: versions.firstOrNull { !it.posterUrl.isNullOrBlank() }
         ?: versions.first()
 }
@@ -223,7 +224,7 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (group in groups.values) {
-        val versions = jellyfinFirst(group)
+        val versions = ownLibraryFirst(group)
         val representative = pickRepresentative(versions)
         representatives.add(representative)
         if (versions.size > 1) versionsById[representative.id] = versions
@@ -495,14 +496,14 @@ fun groupLiveQualityVersions(channels: List<Channel>): Pair<List<Channel>, Map<S
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (versions in groups.values) {
-        // Quality first, Jellyfin only as the tie-break. Live TV is the one place where
-        // "prefer Jellyfin" and "prefer the best feed" genuinely conflict: a Jellyfin server
-        // fed by the same IPTV sources carries its own RAW/HD copies of a channel, and
+        // Quality first, own-library only as the tie-break. Live TV is the one place where
+        // "prefer my own server" and "prefer the best feed" genuinely conflict: a Jellyfin
+        // server fed by the same IPTV sources carries its own RAW/HD copies of a channel, and
         // ranking those above everything buried the provider's 4K feed several entries down
         // and auto-tuned a lower-quality stream. Films and series have no quality ladder, so
-        // they keep the plain Jellyfin-first rule.
+        // they keep the plain own-library-first rule.
         val ranked = versions.sortedWith(
-            compareByDescending<Channel> { liveQualityScore(it.name) }.thenBy { if (it.isJellyfin) 0 else 1 }
+            compareByDescending<Channel> { liveQualityScore(it.name) }.thenBy { if (it.isOwnLibrary) 0 else 1 }
         )
         val best = ranked.first()
         // Version list (picker/failover) keeps full raw names, since "NOW:" vs "VIP:"

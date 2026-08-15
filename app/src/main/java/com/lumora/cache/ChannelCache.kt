@@ -16,7 +16,7 @@ private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
 private const val FIELD_SEP = ''
 /** Fields written per line. Append-only: new fields go at the end so older files stay
  *  readable. */
-private const val FIELD_COUNT = 26
+private const val FIELD_COUNT = 27
 /** Fields a line must have to be usable. Held at the pre-Catch-Up count on purpose - a
  *  cache written by an older build is still perfectly good, and every field added since
  *  is read with getOrElse. Raising this to FIELD_COUNT dropped every line of an existing
@@ -86,7 +86,12 @@ object ChannelCache {
                 // Trailer button both run off the cached catalogue on a cold start, and without
                 // these they fall back to guessing the title.
                 sb.append(clean(ch.tmdbId)).append(FIELD_SEP)
-                sb.append(clean(ch.trailerKey)).append('\n')
+                sb.append(clean(ch.trailerKey)).append(FIELD_SEP)
+                // Plex, like Jellyfin, needs its provenance on cold start: the catalogue is
+                // browsable from cache before any provider fetch runs, and a Plex item played
+                // without this flag would take the plain-URL path instead of negotiating a
+                // stream with the server.
+                sb.append(if (ch.isPlex) "1" else "0").append('\n')
                 out.append(sb)
             }
             }
@@ -159,7 +164,8 @@ object ChannelCache {
                             tvArchive = f.getOrElse(22) { "0" } == "1",
                             tvArchiveDays = f.getOrElse(23) { "0" }.toIntOrNull() ?: 0,
                             tmdbId = f.getOrElse(24) { "" }.ifEmpty { null },
-                            trailerKey = f.getOrElse(25) { "" }.ifEmpty { null }
+                            trailerKey = f.getOrElse(25) { "" }.ifEmpty { null },
+                            isPlex = f.getOrElse(26) { "0" } == "1"
                         )
                     )
                 }

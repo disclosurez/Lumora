@@ -135,6 +135,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">MAC-адрес</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Медиасервер</string>
     <string name="change">Изменить</string>
     <string name="show_phone_qr_pairing_code">Показать QR-код сопряжения с телефоном</string>
@@ -142,6 +143,8 @@
     <string name="name">Имя</string>
     <string name="server_url">URL сервера</string>
     <string name="sign_in_with_quick_connect">Войти через Quick Connect</string>
+    <string name="sign_in_with_plex">Войти через Plex</string>
+    <string name="plex_signin_blurb">Войдите в свою учётную запись Plex, чтобы просматривать фильмы и сериалы вашего сервера. Отсканируйте код телефоном или перейдите на plex.tv/link и введите его.</string>
     <string name="username_if_quick_connect_off">Имя пользователя (если Quick Connect выключен)</string>
     <string name="playback_settings">Настройки воспроизведения</string>
     <string name="hide_non_english">Скрывать фильмы/сериалы не на английском языке</string>

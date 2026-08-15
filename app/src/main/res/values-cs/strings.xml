@@ -135,6 +135,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">Adresa MAC</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_plex">Plex</string>
     <string name="media_server">Mediální server</string>
     <string name="change">Změnit</string>
     <string name="show_phone_qr_pairing_code">Zobrazit QR kód pro spárování telefonu</string>
@@ -142,6 +143,8 @@
     <string name="name">Název</string>
     <string name="server_url">URL serveru</string>
     <string name="sign_in_with_quick_connect">Přihlásit se přes Quick Connect</string>
+    <string name="sign_in_with_plex">Přihlásit se přes Plex</string>
+    <string name="plex_signin_blurb">Přihlaste se ke svému účtu Plex a procházejte filmy a seriály na svém serveru. Naskenujte kód telefonem, nebo přejděte na plex.tv/link a zadejte jej.</string>
     <string name="username_if_quick_connect_off">Uživatelské jméno (pokud je Quick Connect vypnutý)</string>
     <string name="playback_settings">Nastavení přehrávání</string>
     <string name="hide_non_english">Skrýt neanglické filmy/seriály</string>

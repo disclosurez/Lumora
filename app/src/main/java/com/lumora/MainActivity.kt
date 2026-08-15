@@ -68,6 +68,7 @@ import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.sync.EpgSyncWorker
 import com.lumora.data.backup.BackupManager
 import com.lumora.data.remote.jellyfin.JellyfinProvider
+import com.lumora.data.remote.plex.PlexProvider
 import com.lumora.player.playback.PlayerDiagnostics
 import com.lumora.data.update.AppUpdateChecker
 import com.lumora.data.update.AppUpdateInstaller
@@ -210,6 +211,10 @@ internal val UTILITY_ROW_IDS = setOf(CLASSIC_LAYOUT_TOGGLE_ID, COLLAPSE_CATEGORI
 /** Films/Series sidebar row that filters the tab down to Jellyfin-sourced items only.
  *  Only built when the tab actually contains Jellyfin content. */
 internal const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
+/** The same row for the Plex slot. Separate from the Jellyfin one on purpose: both servers
+ *  can be configured at once, and "my Plex library" and "my Jellyfin library" are two
+ *  different shelves to the person browsing, not one merged "own library". */
+internal const val PLEX_CATEGORY_ID = "__plex__"
 /** Series sidebar row for the plugin-gated anime catalog. Expandable: its children are the
  *  catalog's sections (Trending Now, Currently Airing, one per genre, ...). Built explicitly
  *  rather than derived from the channels' own category name, because anime titles carry a
@@ -469,6 +474,9 @@ class MainActivity : AppCompatActivity() {
     // fetch its episodes without re-authenticating - Jellyfin's episode API has no
     // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
     internal var jellyfinClient: JellyfinProvider? = null
+    /** Same role for the Plex slot: a Plex series' episodes only ever load through this
+     *  client, so it outlives the catalog fetch that created it. */
+    internal var plexClient: PlexProvider? = null
     internal var currentIndex = -1
     // Which episode queue (if any) is currently playing, so Next/Prev and
     // auto-advance-on-end know what "next episode" means. -1 = not playing an episode.
@@ -595,6 +603,12 @@ class MainActivity : AppCompatActivity() {
     internal var jellyfinResumeItems: List<Channel> = emptyList()
     internal var jellyfinNextUpItems: List<Channel> = emptyList()
 
+    // ── Plex server-side state ──────────────────
+    /** Plex's On Deck, split the same way Jellyfin's Resume/Next Up are (see
+     *  PlexProvider.getResumeItems) so the Home rows can treat both servers alike. */
+    internal var plexResumeItems: List<Channel> = emptyList()
+    internal var plexNextUpItems: List<Channel> = emptyList()
+
     // ── Up-next series (Continue Watching extension) ──
     /** Bounded count of series whose episodes we'll fetch per Home build to surface
      *  "next episode" tiles - each is one network call, and the catalog is cache-first
@@ -644,7 +658,22 @@ class MainActivity : AppCompatActivity() {
     // usually plays on a second attempt.
     internal var vodRetryAttempt = 0
     internal var jellyfinPlayingItemId: String? = null
-    internal var jellyfinChapters: List<JellyfinProvider.Chapter> = emptyList()
+    /** The negotiated stream for whatever Plex item is playing (see
+     *  PlexProvider.resolveStream) - its session identifier is what every timeline report
+     *  quotes, and what lets the server attribute a transcode to this play. */
+    internal var plexPlaySession: PlexProvider.ResolvedStream? = null
+    internal var plexPlayingItemId: String? = null
+    /** Runtime of the Plex item playing, in ms. Plex's timeline wants a duration on every
+     *  report, and the player's own duration is not available until the source is prepared. */
+    internal var plexPlayingDurationMs: Long? = null
+    // One-shot fresh-URL retry guard, matching jellyfinRetryAttempted: a direct-play URL
+    // whose part moved, or a transient server error, gets one re-resolve before the generic
+    // "Playback error".
+    internal var plexRetryAttempted = false
+    /** Chapters of whichever media-server title is playing - Jellyfin and Plex both provide
+     *  them, and the player's chapter button/picker is the same either way, so this is one
+     *  neutral list rather than a field per backend. */
+    internal var playbackChapters: List<com.lumora.model.MediaChapter> = emptyList()
     internal var jellyfinTrickplay: JellyfinProvider.TrickplayInfo? = null
     /** Last decoded trickplay sprite sheet, kept so scrubbing within one sheet (~100
      *  thumbnails) doesn't re-download it on every seek step. */
