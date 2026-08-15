@@ -208,6 +208,15 @@
     <!-- item_shelf.xml -->
     <string name="see_all">Voir tout</string>
 
+    <!-- item_episode.xml - épisodes qu\'aucune source ne propose encore, dont la date de
+         diffusion est à venir. -->
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">Dans %1$d jour</item>
+        <item quantity="other">Dans %1$d jours</item>
+    </plurals>
+    <string name="episode_airs_on">Diffusé le %1$s</string>
+    <string name="episode_not_released">Cet épisode n\'est pas encore diffusé.</string>
+
     <!-- item_episode.xml / item_season_chip.xml - bascules de l'état vu -->
     <string name="episode_mark_watched">Marquer l\'épisode comme vu</string>
     <string name="episode_mark_unwatched">Marquer l\'épisode comme non vu</string>

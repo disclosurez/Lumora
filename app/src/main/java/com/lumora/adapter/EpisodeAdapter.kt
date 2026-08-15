@@ -15,6 +15,8 @@ import com.lumora.R
 import com.lumora.cache.PlaybackPositionStore
 import com.lumora.model.Channel
 import com.lumora.util.PosterLoader
+import com.lumora.util.daysUntilAirDate
+import com.lumora.util.isUnreleasedEpisode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +26,10 @@ import java.util.concurrent.TimeUnit
 
 class EpisodeAdapter(
     private val onEpisodeClick: (Channel) -> Unit,
+    // Pressing an episode that hasn't aired yet (see util.isUnreleasedEpisode): the row stays
+    // focusable so the list is still traversable, but it can't be played or downloaded, so the
+    // press is handed here instead of to onEpisodeClick for the host to explain.
+    private val onUnreleasedClick: ((Channel) -> Unit)? = null,
     private val showDownloadButton: Boolean = false,
     private val onDownloadClick: ((Channel) -> Unit)? = null,
     private val isDownloaded: ((Channel) -> Boolean)? = null,
@@ -81,12 +87,17 @@ class EpisodeAdapter(
         private val watchedBadge: TextView = itemView.findViewById(R.id.episodeWatchedBadge)
         private val progressBar: ProgressBar = itemView.findViewById(R.id.episodeProgress)
         private val thumbImage: ImageView = itemView.findViewById(R.id.episodeThumb)
+        private val playIcon: ImageView = itemView.findViewById(R.id.episodePlayIcon)
         private val downloadButton: ImageButton = itemView.findViewById(R.id.episodeDownloadButton)
         private val checkButton: TextView = itemView.findViewById(R.id.episodeCheckButton)
         private var current: Channel? = null
 
         init {
-            itemView.setOnClickListener { current?.let(onEpisodeClick) }
+            itemView.setOnClickListener {
+                val episode = current ?: return@setOnClickListener
+                if (isUnreleasedEpisode(episode)) onUnreleasedClick?.invoke(episode)
+                else onEpisodeClick(episode)
+            }
             downloadButton.setOnClickListener { current?.let { onDownloadClick?.invoke(it) } }
 
             // The checkmark IS the control: OK toggles watched/unwatched directly - no
@@ -117,9 +128,13 @@ class EpisodeAdapter(
             // when visible; on TV it's gone and row <-> check are direct neighbours.
             itemView.setOnKeyListener { _, keyCode, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    val target = if (downloadButton.visibility == View.VISIBLE) downloadButton else checkButton
-                    target.requestFocus()
-                    true
+                    // An unreleased row hides both trailing controls (nothing to download, and
+                    // "watched" is meaningless before it airs), so RIGHT has nowhere to go -
+                    // consuming it would make the key dead; leaving it unhandled lets normal
+                    // focus search take over.
+                    val target = listOf(downloadButton, checkButton).firstOrNull { it.visibility == View.VISIBLE }
+                    target?.requestFocus()
+                    target != null
                 } else {
                     false
                 }
@@ -175,9 +190,17 @@ class EpisodeAdapter(
             seriesPrefixRegex?.let { title = title.replaceFirst(it, "") }
             titleText.text = title
 
+            // Nothing carries this episode and it hasn't aired: the date line stops being
+            // ambient detail and becomes the row's status, so it takes the accent colour and
+            // says when rather than just what date.
+            val unreleased = isUnreleasedEpisode(episode)
             val aired = formatAirDate(episode.releaseDate)
-            dateText.text = aired.orEmpty()
-            dateText.visibility = if (aired != null) View.VISIBLE else View.GONE
+            val dateLine = if (unreleased) unreleasedLabel(itemView.context, episode) else aired
+            dateText.text = dateLine.orEmpty()
+            dateText.visibility = if (dateLine != null) View.VISIBLE else View.GONE
+            dateText.setTextColor(
+                itemView.context.getColor(if (unreleased) R.color.primary_light else R.color.text_tertiary)
+            )
 
             val plot = episode.description?.takeIf { it.isNotBlank() }
             if (plot != null) {
@@ -214,11 +237,16 @@ class EpisodeAdapter(
             // a long episode list for "what's left to watch" - dim the thumbnail and drop
             // the title to secondary emphasis so watched rows visibly recede, same pattern
             // The badge itself stays full-strength as the explicit signal.
-            thumbImage.alpha = if (isWatched) 0.5f else 1f
+            thumbImage.alpha = if (isWatched || unreleased) 0.5f else 1f
             titleText.setTextColor(
-                itemView.context.getColor(if (isWatched) R.color.text_tertiary else R.color.text_primary)
+                itemView.context.getColor(
+                    if (isWatched || unreleased) R.color.text_tertiary else R.color.text_primary
+                )
             )
-            numberBadge.alpha = if (isWatched) 0.6f else 1f
+            numberBadge.alpha = if (isWatched || unreleased) 0.6f else 1f
+            // The play affordance is the row's promise that pressing it plays something. An
+            // unreleased row can't, so it doesn't make the promise.
+            playIcon.visibility = if (unreleased) View.GONE else View.VISIBLE
 
             // Watched-state toggle, always visible. State must be re-applied on every bind
             // (recycled rows carry the previous episode's check), along with the
@@ -228,13 +256,17 @@ class EpisodeAdapter(
             checkButton.contentDescription = itemView.context.getString(
                 if (isWatched) R.string.episode_mark_unwatched else R.string.episode_mark_watched
             )
+            // Watched state on an episode that hasn't aired is meaningless, and the toggle is
+            // focusable - leaving it there gives the row a control whose only outcome is a
+            // wrong checkmark.
+            checkButton.visibility = if (unreleased) View.GONE else View.VISIBLE
             if (!checkButton.isFocused) {
                 checkButton.animate().cancel()
                 checkButton.scaleX = 1f
                 checkButton.scaleY = 1f
             }
 
-            if (showDownloadButton) {
+            if (showDownloadButton && !unreleased) {
                 downloadButton.visibility = View.VISIBLE
                 downloadButton.isEnabled = isDownloaded?.invoke(episode) != true
                 downloadButton.alpha = if (downloadButton.isEnabled) 1f else 0.4f
@@ -284,4 +316,17 @@ internal fun formatAirDate(raw: String?): String? {
     val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val (year, month, day) = (ISO_DATE_PREFIX_REGEX.find(value) ?: return null).destructured
     return "$day-$month-${year.takeLast(2)}"
+}
+
+/** How long until an unreleased [episode] airs: a countdown inside a week ("In 3 days"), the
+ *  date itself beyond that - "in 43 days" is a number to convert, not an answer. Null only if
+ *  the caller asks about an episode with no parseable date, which [isUnreleasedEpisode] rules
+ *  out for every row that reaches here. */
+internal fun unreleasedLabel(context: android.content.Context, episode: Channel): String? {
+    val days = daysUntilAirDate(episode.releaseDate) ?: return null
+    return if (days in 1..7) {
+        context.resources.getQuantityString(R.plurals.episode_airs_in_days, days, days)
+    } else {
+        formatAirDate(episode.releaseDate)?.let { context.getString(R.string.episode_airs_on, it) }
+    }
 }

@@ -987,6 +987,9 @@ internal suspend fun MainActivity.tmdbSeasonsFor(item: Channel): List<Pair<Strin
                 backdropUrl = item.backdropUrl,
                 mediaType = MediaType.SERIES,
                 episodeNum = number,
+                // The air date is what tells a placeholder for an episode nobody carries yet
+                // apart from one that simply isn't in the library - see util.isUnreleasedEpisode.
+                releaseDate = ep?.airDate,
                 description = ep?.overview,
                 categoryName = item.name,
                 group = item.group,

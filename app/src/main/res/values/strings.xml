@@ -206,6 +206,16 @@
     <!-- item_shelf.xml -->
     <string name="see_all">See All</string>
 
+    <!-- item_episode.xml - episodes no source carries yet, whose air date is still ahead.
+         Inside a week the countdown is what matters ("what do I come back for"); further out
+         a bare date reads better than "in 43 days". -->
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">In %1$d day</item>
+        <item quantity="other">In %1$d days</item>
+    </plurals>
+    <string name="episode_airs_on">Airs %1$s</string>
+    <string name="episode_not_released">This episode hasn\'t aired yet.</string>
+
     <!-- item_episode.xml / item_season_chip.xml - watched-state check toggles -->
     <string name="episode_mark_watched">Mark episode as watched</string>
     <string name="episode_mark_unwatched">Mark episode as unwatched</string>

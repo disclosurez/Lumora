@@ -38,6 +38,7 @@
              distance ("no play button" - the icon existed but was too faint/small
              to register as one). -->
         <ImageView
+            android:id="@+id/episodePlayIcon"
             android:layout_width="34dp"
             android:layout_height="34dp"
             android:layout_gravity="center"

@@ -28,6 +28,7 @@ import com.lumora.anime.AnimeCatalogClient
 import com.lumora.parser.XtreamClient
 import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
+import com.lumora.util.isUnreleasedEpisode
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
 import kotlinx.coroutines.*
@@ -724,7 +725,10 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 showFindStreamDialog(item, season, chosen.episodeNum)
             } else {
                 currentIndex = if (isSeries) -1 else filmList.indexOf(item)
-                val queue = if (isSeries) itemAdapter.currentList else emptyList()
+                // Auto-advance walks this queue on its own, with no user press to check - an
+                // episode that hasn't aired would end the run in a Find Stream dialog for
+                // something that doesn't exist, so it never enters the queue.
+                val queue = if (isSeries) itemAdapter.currentList.filterNot { isUnreleasedEpisode(it) } else emptyList()
                 showPlayerFor(chosen)
                 detailReturnItem = item
                 detailReturnGroup = seriesGroup
@@ -735,6 +739,11 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                     updateVersionsButtonVisibility()
                 }
             }
+        },
+        onUnreleasedClick = {
+            // Nothing carries it and it hasn't aired. The row itself already says when, so the
+            // press only has to say why nothing happened.
+            Toast.makeText(this, getString(R.string.episode_not_released), Toast.LENGTH_SHORT).show()
         },
         showDownloadButton = !isTv,
         onDownloadClick = { episode -> downloadItem(episode) },
@@ -929,9 +938,12 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         // Cross-season episode chain - the same ordering the Home-tile auto-advance
         // queue uses: seasons in the order they were loaded, episodes within each
         // season sorted by number.
+        // Episodes nothing carries and that haven't aired are dropped from the chain outright:
+        // they can't be the Play button's target, and auto-advance must not walk into one at
+        // the end of a season that is still airing.
         val ordered = seasons.flatMap { (_, eps) ->
             eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE }
-        }
+        }.filterNot { isUnreleasedEpisode(it) }
         // The "next episode to watch" is whatever was left part-watched most recently
         // (across every season, not just the one currently shown): the in-progress
         // episode with the newest saved position.
