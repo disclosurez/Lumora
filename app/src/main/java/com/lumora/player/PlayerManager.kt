@@ -317,7 +317,18 @@ class PlayerManager(
 
         // Auto-detects HLS/DASH/SmoothStreaming/progressive (mp4, mkv, ts...) from the
         // URI extension or response content-type instead of assuming everything is HLS.
+        //
+        // Subtitle parsing is kept out of extraction (Media3 1.4 turned that on by default).
+        // Parsing during extraction runs the subtitle parser over every text track in the
+        // container as the file is demuxed, whether or not that track is selected - and
+        // anything it throws surfaces as a load error that kills the whole stream. An mkv
+        // whose embedded SSA track has a cue SsaParser rejects therefore ended playback with
+        // ERROR_CODE_IO_UNSPECIFIED ("Unexpected IllegalStateException" out of
+        // SubtitleTranscodingTrackOutput) on a file whose video and audio were perfectly fine,
+        // and with subtitles switched off at that. Parsed at render time instead, a broken
+        // subtitle track costs only its own subtitles.
         val mediaSource = DefaultMediaSourceFactory(dataSourceFactory)
+            .experimentalParseSubtitlesDuringExtraction(false)
             .createMediaSource(mediaItem)
 
         // A sideloaded track is there because the source has no other way to show subtitles at
