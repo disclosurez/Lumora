@@ -638,6 +638,11 @@ class MainActivity : AppCompatActivity() {
     // in the group one after another doesn't read as the channel rapidly flipping; past the
     // cap, onPlayerError falls through to the quiet same-URL backoff retry instead.
     internal var liveVersionSwitchAttempt = 0
+    // Same-URL backoff retries used on the VOD (film/episode) currently playing. A film had
+    // none of this: one transient read error and the screen went straight to "Playback error"
+    // with an Open-in offer, leaving the user to switch source by hand for something that
+    // usually plays on a second attempt.
+    internal var vodRetryAttempt = 0
     internal var jellyfinPlayingItemId: String? = null
     internal var jellyfinChapters: List<JellyfinProvider.Chapter> = emptyList()
     internal var jellyfinTrickplay: JellyfinProvider.TrickplayInfo? = null

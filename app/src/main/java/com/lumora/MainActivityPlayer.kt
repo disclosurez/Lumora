@@ -46,6 +46,23 @@ import okhttp3.Request
  *  within seconds, and there is no other version to fail over to for that case. */
 private val LIVE_RETRY_DELAYS_MS = longArrayOf(5_000L, 15_000L, 30_000L)
 
+/** Backoff schedule for a film/episode's own same-URL retry. Shorter and fewer than live's:
+ *  a VOD file is being watched from a position, so every second of retrying is a second of
+ *  stopped playback the user is sitting through, whereas a live retry only costs airtime
+ *  that was going to pass anyway. Two attempts covers the overwhelmingly common case (a
+ *  single dropped connection or a provider hiccup mid-file) without a long dead screen. */
+private val VOD_RETRY_DELAYS_MS = longArrayOf(2_000L, 6_000L)
+
+/** Player error codes worth retrying the same URL for: the transport failed, not the media.
+ *  A missing file, a permission refusal or an unplayable container fails identically on a
+ *  second attempt, so those fall straight through to the next source. */
+private val RETRYABLE_PLAYER_ERROR_CODES = setOf(
+    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+    PlaybackException.ERROR_CODE_TIMEOUT,
+)
+
 /** Auto-switches tryNextQualityVersion will make in a row before giving up on hopping and
  *  falling through to the quiet same-URL backoff retry - see its own comment. */
 private const val MAX_LIVE_VERSION_SWITCHES = 2
@@ -389,6 +406,10 @@ internal fun MainActivity.setupPlayerControls() {
                     currentStreamPlayed = true
                     liveRetryAttempt = 0
                     liveVersionSwitchAttempt = 0
+                    // A stream that reached READY has spent nothing: a later failure in the
+                    // same title gets the full retry ladder again rather than inheriting a
+                    // count from a hiccup ten minutes ago.
+                    vodRetryAttempt = 0
                     currentVersionGroup.getOrNull(currentVersionIndex)?.let { clearStreamDead(it) }
                     maybeShowResumePrompt()
                 }
@@ -435,15 +456,31 @@ internal fun MainActivity.setupPlayerControls() {
             }
         }
         override fun onPlayerError(error: PlaybackException) {
+            // Nothing recorded playback failures anywhere, so a report of "it errored" had no
+            // trail at all afterwards - the code, the HTTP status behind it and which title it
+            // was are the three things any diagnosis starts from.
+            android.util.Log.w(
+                "LumoraPlayer",
+                "Playback error ${error.errorCodeName} on ${nowPlayingChannel?.name}: ${error.cause?.message ?: error.message}"
+            )
             binding.bufferingSpinner.visibility = View.GONE
             resetStallTracking()
             blackFrameStreak = 0
             if (!tryNextQualityVersion()) {
                 val liveChannel = nowPlayingChannel?.takeIf { it.mediaType == MediaType.LIVE && !it.isJellyfin }
+                val vodChannel = nowPlayingChannel?.takeIf { it.mediaType != MediaType.LIVE && !it.isJellyfin }
                 // Jellyfin direct-play: one fresh-URL re-resolve before giving up - a
                 // transient server timeout or an expired direct-play URL often recovers.
                 if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
                     retryJellyfinPlayback()
+                } else if (vodChannel != null && retryCurrentVodStream(vodChannel, error)) {
+                    // Quiet same-URL retry: spinner only, no toast - a film that comes back on
+                    // the second attempt should look like a stall, not like an error the user
+                    // has to answer. Nothing else to do here; the retry either plays or comes
+                    // back through this listener with the counter spent.
+                } else if (vodChannel != null && tryNextVodVersion()) {
+                    // Another copy of this exact title (another provider's, or another quality)
+                    // is the next thing to try - the same failover live has always had.
                 } else if (liveChannel != null && liveRetryAttempt < LIVE_RETRY_DELAYS_MS.size) {
                     // No other version to fail over to (a single-source channel), so retry
                     // the exact same URL - HTTP 509 and similar provider-side throttles are
@@ -461,12 +498,11 @@ internal fun MainActivity.setupPlayerControls() {
                         )
                     }, delayMs)
                 } else {
-                    // Every internal recovery is spent: version failover found nothing better
-                    // and Jellyfin's re-resolve (if any) failed too. Another player on the
-                    // device is the last thing left to try, so offer it rather than leaving
-                    // the user on a dead screen with a two-word toast.
-                    Toast.makeText(this@setupPlayerControls, getString(R.string.play_playback_error), Toast.LENGTH_SHORT).show()
-                    suggestExternalPlayer(getString(R.string.play_stream_error_reason, error.errorCodeName))
+                    // Every internal recovery is spent: retries, version failover and
+                    // Jellyfin's re-resolve (if any) all failed. Another player on the device
+                    // is the last thing left to try, so offer it rather than leaving the user
+                    // on a dead screen with a two-word toast.
+                    showPlaybackFailed(getString(R.string.play_stream_error_reason, error.errorCodeName))
                 }
             }
         }
@@ -669,6 +705,7 @@ internal fun MainActivity.showPlayerFor(
     jellyfinRetryAttempted = false
     liveRetryAttempt = 0
     liveVersionSwitchAttempt = 0
+    vodRetryAttempt = 0
     jellyfinChapters = emptyList()
     jellyfinTrickplay = null
     trickplayTileCache = null
@@ -970,6 +1007,106 @@ internal fun MainActivity.tryNextQualityVersion(message: String? = null): Boolea
     return true
 }
 
+/**
+ * Retries the exact stream that just failed, after a short backoff, keeping the position.
+ *
+ * Live has had this for a while; VOD had nothing between "one hard error" and the generic
+ * "Playback error" toast, so a single dropped connection mid-film ended playback and left
+ * switching source as the user's job - for a stream that plays fine on a second attempt.
+ *
+ * Returns whether a retry was actually scheduled: false when the retries are spent, the error
+ * is not the transport's fault ([isRetryablePlaybackError]), or there is nothing to replay
+ * (a local download, whose data source this cannot rebuild).
+ */
+internal fun MainActivity.retryCurrentVodStream(channel: Channel, error: PlaybackException): Boolean {
+    if (vodRetryAttempt >= VOD_RETRY_DELAYS_MS.size) return false
+    if (!isRetryablePlaybackError(error)) return false
+    // What is actually playing, not channel.url: a plugin/scraper/Stalker stream was resolved
+    // at play time and the Channel itself carries no usable URL.
+    val stream = playerManager.lastResolvedStream?.takeIf { it.url.isNotBlank() } ?: return false
+    val scheme = runCatching { android.net.Uri.parse(stream.url).scheme }.getOrNull()?.lowercase()
+    // A completed download plays through a cache data source this has no way to rebuild, and a
+    // local file that fails does not fail transiently anyway.
+    if (scheme == null || scheme == "file" || scheme == "content") return false
+    val delayMs = VOD_RETRY_DELAYS_MS[vodRetryAttempt]
+    vodRetryAttempt++
+    // Resume where it died. currentPosition still reports the failed position at this point;
+    // the saved store entry is the fallback for an error thrown before playback ever started.
+    val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
+        ?: PlaybackPositionStore.get(this, streamKey(channel))?.positionMs?.takeIf { it > 0 }
+        ?: 0L
+    binding.bufferingSpinner.visibility = View.VISIBLE
+    mainHandler.postDelayed({
+        if (nowPlayingChannel?.id != channel.id) return@postDelayed
+        // Replayed through PlayerManager rather than rebuilt from the URL: the original call
+        // also carried sidecar subtitles, a container MIME and (for scraper streams) a token
+        // query, and a retry missing those can fail for reasons the first attempt never had.
+        playerManager.replayLast(resumeMs)
+    }, delayMs)
+    return true
+}
+
+/** True when the same URL is worth asking for again: the transport failed (connection reset,
+ *  timeout, a 5xx/429/509 from the provider), rather than the media being wrong or absent. A
+ *  404, a permission refusal or an unreadable container fails the same way every time. */
+internal fun isRetryablePlaybackError(error: PlaybackException): Boolean {
+    val http = generateSequence(error.cause) { it.cause }
+        .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
+        .firstOrNull()
+    if (http != null) return http.responseCode >= 500 || http.responseCode == 429
+    return error.errorCode in RETRYABLE_PLAYER_ERROR_CODES
+}
+
+/**
+ * Fails a film or episode over to another copy of the same title, the way live already fails
+ * over between a channel's versions.
+ *
+ * Films: the other entries in this title's [MainActivity.filmVersions] group, swapped in place
+ * with the position carried across. Episodes: another provider's copy of the show, which means
+ * fetching that provider's episode list and finding the same season/episode in it - so the
+ * switch is asynchronous and can still come back empty, in which case the caller's error path
+ * has already been skipped; [showPlaybackFailed] is called from there instead.
+ *
+ * The copy being left behind is marked dead first, so the scan can't hand it straight back and
+ * a group of broken sources is walked once rather than cycled.
+ */
+internal fun MainActivity.tryNextVodVersion(): Boolean {
+    val playing = nowPlayingChannel ?: return false
+    if (playing.mediaType == MediaType.LIVE) return false
+    val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
+    val seriesContext = currentSeriesVersionContext
+    if (seriesContext != null) {
+        val (series, group) = seriesContext
+        markStreamDead(series)
+        val target = group.firstOrNull { it.id != series.id && !isStreamDead(it) } ?: return false
+        Toast.makeText(this, getString(R.string.play_switching_source), Toast.LENGTH_SHORT).show()
+        binding.bufferingSpinner.visibility = View.VISIBLE
+        scope.launch {
+            val played = switchToSeriesVersion(target, playing, group, resumeMs)
+            // The other provider not carrying this episode is a dead end like any other - land
+            // on the same offer the error path would have shown.
+            if (!played) showPlaybackFailed(getString(R.string.play_playback_error))
+        }
+        return true
+    }
+    val group = filmVersions[playing.id]
+        ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
+        ?: return false
+    markStreamDead(playing)
+    val next = group.firstOrNull { it.id != playing.id && !isStreamDead(it) } ?: return false
+    Toast.makeText(this, getString(R.string.play_switching_source), Toast.LENGTH_SHORT).show()
+    showPlayerFor(next, resumeFromMs = resumeMs)
+    return true
+}
+
+/** The end of the line: every internal recovery is spent, so the stream is handed to whatever
+ *  other player the device has rather than leaving a dead screen behind a two-word toast. */
+internal fun MainActivity.showPlaybackFailed(reason: String) {
+    binding.bufferingSpinner.visibility = View.GONE
+    Toast.makeText(this, getString(R.string.play_playback_error), Toast.LENGTH_SHORT).show()
+    suggestExternalPlayer(reason)
+}
+
 /** Swaps playback to an arbitrary version within the current channel's merged quality/source
  *  group - used both for manual picks (showLiveVersionPicker) and auto-failover (above). */
 internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = null) {
@@ -1170,47 +1307,68 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
             if (which == currentIndex) return@setSingleChoiceItems
             val target = versions[which]
             Toast.makeText(this, getString(R.string.play_loading_version, versionChipLabel(target, which)), Toast.LENGTH_SHORT).show()
+            val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
             scope.launch {
-                val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
-                // The target's own season number, taken from its episodes first (they carry
-                // the same "S04E01" marker) and from the season label as the fallback, since
-                // a provider may label a season anything ("Series 4", a Jellyfin custom name).
-                fun seasonNumberFor(label: String, eps: List<Channel>): Int? =
-                    eps.firstNotNullOfOrNull { seasonNumberOf(it) }
-                        ?: Regex("""\d+""").find(label)?.value?.toIntOrNull()
-                val match = when {
-                    // Season known on both sides: only that season's copy of the episode is
-                    // the right answer. No match there means this provider genuinely doesn't
-                    // carry it - saying so beats silently playing a different episode.
-                    seasonNum != null -> seasons.firstNotNullOfOrNull { (label, eps) ->
-                        if (seasonNumberFor(label, eps) != seasonNum) null
-                        else eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
-                    }
-                    // No season stated by the playing episode - fall back to what this did
-                    // before: prefer a season the same length as the queue it came from,
-                    // then any season carrying that episode number.
-                    else -> seasons.firstNotNullOfOrNull { (_, eps) ->
-                        eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum && (queueSeasonSize == null || eps.size == queueSeasonSize) }
-                    } ?: seasons.firstNotNullOfOrNull { (_, eps) ->
-                        eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
-                    }
-                }
-                if (match == null) {
+                if (!switchToSeriesVersion(target, playing, group, resumeMs, queueSeasonSize)) {
                     val what = if (seasonNum != null && episodeNum != null) "S${seasonNum}E$episodeNum" else getString(R.string.play_this_episode)
                     Toast.makeText(this@showSeriesVersionPicker, getString(R.string.play_provider_missing_episode, what), Toast.LENGTH_SHORT).show()
-                    return@launch
                 }
-                val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
-                val newQueue = seasons.firstOrNull { (_, eps) -> eps.any { it.id == match.id } }?.second ?: listOf(match)
-                showPlayerFor(match, resumeFromMs = resumeMs)
-                currentEpisodeQueue = newQueue
-                currentEpisodeQueueIndex = newQueue.indexOfFirst { it.id == match.id }
-                currentSeriesVersionContext = target to group
-                updateVersionsButtonVisibility()
             }
         }
         .setNegativeButton(getString(R.string.cancel), null)
         .show()
+}
+
+/**
+ * Plays [target]'s copy of the episode currently playing, and returns whether it found one.
+ *
+ * A provider's copy of a show is a separate catalog entry with its own episode list, so the
+ * switch is a fetch plus a season/episode match rather than swapping a URL. False means that
+ * provider genuinely doesn't carry this episode - the caller decides what to say about it,
+ * since a manual pick and an automatic failover want different messages.
+ *
+ * [queueSeasonSize] is the size of the queue the playing episode came from, used only as a
+ * tie-break when the playing episode states no season of its own.
+ */
+internal suspend fun MainActivity.switchToSeriesVersion(
+    target: Channel,
+    playing: Channel,
+    group: List<Channel>,
+    resumeMs: Long?,
+    queueSeasonSize: Int? = currentEpisodeQueue.size.takeIf { it > 0 }
+): Boolean {
+    val episodeNum = playing.episodeNum
+    val seasonNum = seasonNumberOf(playing)
+    val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
+    // The target's own season number, taken from its episodes first (they carry the same
+    // "S04E01" marker) and from the season label as the fallback, since a provider may label a
+    // season anything ("Series 4", a Jellyfin custom name).
+    fun seasonNumberFor(label: String, eps: List<Channel>): Int? =
+        eps.firstNotNullOfOrNull { seasonNumberOf(it) }
+            ?: Regex("""\d+""").find(label)?.value?.toIntOrNull()
+    val match = when {
+        // Season known on both sides: only that season's copy of the episode is the right
+        // answer. No match there means this provider genuinely doesn't carry it - saying so
+        // beats silently playing a different episode.
+        seasonNum != null -> seasons.firstNotNullOfOrNull { (label, eps) ->
+            if (seasonNumberFor(label, eps) != seasonNum) null
+            else eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+        }
+        // No season stated by the playing episode - prefer a season the same length as the
+        // queue it came from, then any season carrying that episode number.
+        else -> seasons.firstNotNullOfOrNull { (_, eps) ->
+            eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum && (queueSeasonSize == null || eps.size == queueSeasonSize) }
+        } ?: seasons.firstNotNullOfOrNull { (_, eps) ->
+            eps.firstOrNull { it.episodeNum != null && it.episodeNum == episodeNum }
+        }
+    } ?: return false
+    val newQueue = seasons.firstOrNull { (_, eps) -> eps.any { it.id == match.id } }?.second ?: listOf(match)
+    showPlayerFor(match, resumeFromMs = resumeMs)
+    currentEpisodeQueue = newQueue
+    currentEpisodeQueueIndex = newQueue.indexOfFirst { it.id == match.id }
+    currentSeriesVersionContext = target to group
+    updateVersionsButtonVisibility()
+    return true
 }
 
 // ── Buffer-based auto-failover ─────────────────

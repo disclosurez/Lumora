@@ -91,6 +91,29 @@ class PlayerManager(
     var lastResolvedStream: ResolvedStream? = null
         private set
 
+    /** Every argument of the last [playUrl], so a retry replays the stream exactly as it was
+     *  first played. Reassembling the call from [lastResolvedStream] alone silently dropped
+     *  the sidecar subtitles, the container MIME and the token-query rewrite - so the retry
+     *  of a plugin/scraper stream could fail for reasons the original never had. */
+    private var lastPlayCall: (() -> Unit)? = null
+
+    /**
+     * Replays the last [playUrl] from [startPositionMs] - the same URL, headers, subtitles and
+     * container hints. Returns false when nothing has been played yet (or the player has been
+     * released), so the caller can fall through to whatever it does when a retry isn't possible.
+     */
+    fun replayLast(startPositionMs: Long): Boolean {
+        if (released) return false
+        val replay = lastPlayCall ?: return false
+        pendingReplayPositionMs = startPositionMs
+        replay()
+        return true
+    }
+
+    /** Set only for the duration of a [replayLast] call, so the replay starts where the failed
+     *  play had reached rather than where it originally began. */
+    private var pendingReplayPositionMs: Long? = null
+
     val isPlaying: Boolean
         get() = player.isPlaying
 
@@ -200,6 +223,18 @@ class PlayerManager(
         // points); calling into a released ExoPlayer throws. Refuse rather than crash.
         if (released) return
         lastResolvedStream = ResolvedStream(url, userAgent, headers)
+        // Recorded before the position is overridden below, so a replay of a replay still
+        // carries the original arguments and only the position changes.
+        lastPlayCall = {
+            playUrl(
+                url, userAgent, subtitles, startPositionMs, headers, audio, preferAudioLanguage,
+                maintainTokenQuery, mimeType, dataSourceOverride
+            )
+        }
+        // A retry resumes where the failed play had reached; the recorded call keeps the
+        // original start position for any later replay.
+        @Suppress("NAME_SHADOWING")
+        val startPositionMs = pendingReplayPositionMs?.also { pendingReplayPositionMs = null } ?: startPositionMs
         val dataSourceFactory = dataSourceOverride
             ?: buildDataSourceFactory(userAgent, headers, maintainTokenQuery)
 

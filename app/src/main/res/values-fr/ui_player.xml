@@ -41,6 +41,8 @@
     <string name="play_couldnt_open_title">Impossible d\'ouvrir ce titre</string>
     <string name="play_plugin_disabled_message">Le plugin qui a joué ce contenu n\'est plus activé</string>
     <string name="play_switching_alt_quality">Bascule vers une qualité alternative…</string>
+    <!-- Bascule automatique après l'échec des tentatives sur un film/épisode. -->
+    <string name="play_switching_source">Bascule vers une autre source…</string>
     <string name="play_switching_to">Bascule vers %1$s</string>
     <string name="play_no_other_versions_channel">Aucune autre version de cette chaîne</string>
     <string name="play_channel_version_title">Version de la chaîne</string>

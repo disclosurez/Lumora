@@ -41,6 +41,9 @@
     <string name="play_couldnt_open_title">Couldn\'t open this title</string>
     <string name="play_plugin_disabled_message">The plugin that played this is no longer enabled</string>
     <string name="play_switching_alt_quality">Switching to alternate quality…</string>
+    <!-- Automatic failover on a film/episode after its retries are spent - the user did not
+         ask for a source change, so the toast says one is happening. -->
+    <string name="play_switching_source">Switching to another source…</string>
     <string name="play_switching_to">Switching to %1$s</string>
     <string name="play_no_other_versions_channel">No other versions of this channel</string>
     <string name="play_channel_version_title">Channel Version</string>
