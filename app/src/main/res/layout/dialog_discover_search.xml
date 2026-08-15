@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Discover (TMDB) search overlay. The Discover pane's inline field is a dead end on TV -
      it isn't focusable (to keep the platform IME off the screen) and nothing can type into
-     it, so the field is now just a button that opens this overlay: same on-screen-keyboard
-     pattern as the main search, minus a results surface - Discover's own grid below shows
-     the matches once the host submits. Host applies the panel width in code via
-     applyPanelWidth()/search_panel_width, same as dialog_search.xml. -->
+     it, so the field is now just a button that opens this overlay: the same on-screen-keyboard
+     pattern as the main search, results and all. TMDB is queried as the query changes and the
+     matches land in the grid beside the keys, so a title can be picked straight from here;
+     Submit is only for pushing the whole result set back into the Discover pane. Host applies
+     the panel width in code via applyPanelWidth()/search_panel_width, same as dialog_search.xml. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -78,50 +79,87 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Keyboard + submit, centred in everything the header leaves over. This overlay has
-             no results surface to fill that space (Discover's own grid shows the matches after
-             submit), so without a weighted middle the whole block sat jammed under the header
-             with the rest of a full-height panel empty below it. The main overlay gets the
-             same centring from its keyboard column; here the weight has to be on the block
-             itself. -->
+        <!-- Keyboard on the left, TMDB matches on the right, both on screen at once - the
+             main search overlay's split, for the same reason: with the results only landing
+             in the pane behind the overlay, every query meant typing blind and closing the
+             overlay to find out what it found. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:layout_marginTop="@dimen/search_section_gap"
             android:clipChildren="false"
             android:clipToPadding="false"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="horizontal">
 
-            <com.lumora.ui.OnScreenKeyboard
-                android:id="@+id/discoverSearchKeyboard"
+            <!-- Keyboard + submit as one block, centred in the column: on a TV the panel is
+                 far taller than the keys. Submit takes the keyboard's width so the two read
+                 as one unit rather than a pill floating under a wider slab. -->
+            <LinearLayout
                 android:layout_width="@dimen/search_keyboard_width"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="@dimen/search_section_gap" />
+                android:layout_height="match_parent"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
 
-            <!-- Submit: the one clearly primary action here, so it gets the filled play-button
-                 treatment rather than the neutral toolbar chrome. Runs the search (host reads
-                 discoverSearchQuery, calls loadDiscover) and closes the overlay. Width matches
-                 the keyboard so the two read as one block rather than a button floating under
-                 a wider slab. -->
-            <TextView
-                android:id="@+id/discoverSearchSubmit"
-                android:layout_width="@dimen/search_keyboard_width"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="@dimen/search_section_gap"
-                android:background="@drawable/bg_play_button"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="@font/inter_semibold"
-                android:gravity="center"
-                android:paddingHorizontal="32dp"
-                android:paddingVertical="12dp"
-                android:stateListAnimator="@animator/focus_scale"
-                android:text="@string/search"
-                android:textColor="@color/text_on_primary"
-                android:textSize="@dimen/text_body_l" />
+                <com.lumora.ui.OnScreenKeyboard
+                    android:id="@+id/discoverSearchKeyboard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <!-- Submit: takes the whole result set back to the Discover pane and closes
+                     the overlay (picking a poster on the right opens that one title instead).
+                     Filled play-button treatment - it's the one primary action here. -->
+                <TextView
+                    android:id="@+id/discoverSearchSubmit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/search_section_gap"
+                    android:background="@drawable/bg_play_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="@font/inter_semibold"
+                    android:gravity="center"
+                    android:paddingHorizontal="32dp"
+                    android:paddingVertical="12dp"
+                    android:stateListAnimator="@animator/focus_scale"
+                    android:text="@string/search"
+                    android:textColor="@color/text_on_primary"
+                    android:textSize="@dimen/text_body_l" />
+            </LinearLayout>
+
+            <!-- Status above the grid as its own row, not stacked behind it: the grid is
+                 opaque and full-bleed, so anything behind it is simply never seen. -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="@dimen/search_column_gap"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/discoverSearchStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:paddingBottom="8dp"
+                    android:text="@string/type_to_search"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/text_body" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/discoverSearchResults"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginTop="@dimen/search_row_gap"
+                    android:layout_weight="1"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

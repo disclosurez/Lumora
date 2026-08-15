@@ -67,6 +67,13 @@ class PosterGridAdapter(
     var spanCount: Int = 1
     var topRowFocusUpTargetId: Int = View.NO_ID
 
+    /** View focused when DPAD_LEFT is pressed from the first column, for a grid that sits
+     *  beside something rather than at the screen edge (the Discover search overlay's grid,
+     *  with the keyboard to its left). Same reason as [topRowFocusUpTargetId]: default focus
+     *  search can't cross out of the RecyclerView, so LEFT off column 0 silently does nothing
+     *  and the keys become unreachable once focus is in the grid. Null leaves LEFT alone. */
+    var leftFocusTarget: View? = null
+
     /** Poster artwork height, as a dimen resource. The card is as wide as the grid's column,
      *  but its height comes from the layout - so a grid in a narrow pane (search, which
      *  gives up most of its width to the keyboard) needs a shorter poster or the artwork is
@@ -116,10 +123,17 @@ class PosterGridAdapter(
                 itemView.setOnLongClickListener { current?.let(handler); true }
             }
             itemView.setOnKeyListener { v, keyCode, event ->
-                if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.action == android.view.KeyEvent.ACTION_DOWN &&
-                    topRowFocusUpTargetId != View.NO_ID && bindingAdapterPosition in 0 until spanCount
-                ) {
-                    v.rootView.findViewById<View>(topRowFocusUpTargetId)?.let { it.requestFocus(); return@setOnKeyListener true }
+                if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                    val pos = bindingAdapterPosition
+                    if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
+                        topRowFocusUpTargetId != View.NO_ID && pos in 0 until spanCount
+                    ) {
+                        v.rootView.findViewById<View>(topRowFocusUpTargetId)?.let { it.requestFocus(); return@setOnKeyListener true }
+                    } else if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                        pos >= 0 && spanCount > 0 && pos % spanCount == 0
+                    ) {
+                        leftFocusTarget?.let { it.requestFocus(); return@setOnKeyListener true }
+                    }
                 }
                 false
             }

@@ -37,20 +37,125 @@ internal fun MainActivity.setupDiscover() {
     updateDiscoverFilterChipStyles()
 }
 
-/** Opens the Discover (TMDB) search overlay - the keyboard pattern from the main
- *  search overlay, minus a results surface (Discover's own grid shows the matches once
- *  the query is submitted). Dismissing leaves the query behind in the inline field. */
+/** Opens the Discover (TMDB) search overlay - the main search overlay's pattern, keys on the
+ *  left and matches on the right, queried as the query changes. A poster can be opened straight
+ *  from here; Submit takes the whole result set back to the Discover pane and closes.
+ *  Dismissing leaves the query behind in the inline field. */
 internal fun MainActivity.showDiscoverSearchOverlay() {
     if (activeSettingsOverlay != null || activeSearchOverlay != null) return
     val view = layoutInflater.inflate(R.layout.dialog_discover_search, null)
     val input = view.findViewById<EditText>(R.id.discoverSearchQuery)
     val keyboard = view.findViewById<com.lumora.ui.OnScreenKeyboard>(R.id.discoverSearchKeyboard)
     val submit = view.findViewById<View>(R.id.discoverSearchSubmit)
+    val status = view.findViewById<TextView>(R.id.discoverSearchStatus)
+    val resultsList = view.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.discoverSearchResults)
     applyPanelWidth(view.findViewById(R.id.discoverSearchPanel), R.dimen.search_panel_width)
     input.showSoftInputOnFocus = false
+
+    // Fixed span, same as the main overlay: the grid shares the panel with the keyboard, so
+    // overall screen width no longer describes the space it actually has.
+    val span = resources.getInteger(R.integer.search_results_span)
+    resultsList.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, span)
+    // Results and their library badges as last published to the grid - what Submit and a
+    // poster pick hand over to the Discover pane, so neither has to refetch what is already
+    // on screen.
+    var shown: List<Channel> = emptyList()
+    var shownBadges: Map<String, String> = emptyMap()
+    /** Which query [shown] belongs to - Submit pressed inside the debounce window would
+     *  otherwise hand the pane the previous query's results. */
+    var shownQuery: String? = null
+    val resultsAdapter = com.lumora.adapter.PosterGridAdapter(
+        badgeFor = { item -> shownBadges[item.id]?.let { it to R.color.primary } }
+    ) { item ->
+        // Picking a title also leaves the pane showing this search, so Back from the detail
+        // screen lands on the results rather than on whatever was there before the overlay.
+        activeSearchOverlay?.dismiss()
+        binding.discoverSearchInput.setText(input.text.toString().trim())
+        discoverTypeFilter = null
+        updateDiscoverFilterChipStyles()
+        discoverLibrarySources = shownBadges
+        discoverGridAdapter.replaceAll(shown)
+        setDiscoverStatus(null)
+        onDiscoverItemClick(item)
+    }
+    resultsAdapter.spanCount = span
+    // UP off the top row and LEFT off the first column both have to cross out of the
+    // RecyclerView to the keyboard, which default focus search cannot do (see the adapter).
+    resultsAdapter.topRowFocusUpTargetId = R.id.discoverSearchKeyboard
+    resultsAdapter.leftFocusTarget = keyboard
+    resultsAdapter.posterHeightDimen = R.dimen.search_poster_image_height
+    resultsList.adapter = resultsAdapter
+
+    var searchJob: Job? = null
+    var pendingSearch: Runnable? = null
+    fun showResults(query: String?, results: List<Channel>, badges: Map<String, String>, statusText: String?) {
+        shown = results
+        shownBadges = badges
+        shownQuery = query
+        resultsAdapter.replaceAll(results)
+        resultsList.visibility = if (results.isEmpty()) View.GONE else View.VISIBLE
+        status.text = statusText ?: ""
+        status.visibility = if (statusText == null) View.GONE else View.VISIBLE
+    }
+    /** Runs [query] against TMDB and paints the grid. Cancelling the previous job is what
+     *  keeps a slow earlier query from landing on top of a newer one's results. */
+    fun runSearch(query: String) {
+        searchJob?.cancel()
+        status.text = getString(R.string.plug_searching_query, query)
+        status.visibility = View.VISIBLE
+        searchJob = scope.launch {
+            val results = tmdbClient.search(query)
+            // Same gate as loadDiscover(): with no stream-search plugin or scraper enabled a
+            // TMDB-only title is a dead tile, so only titles the library already carries are
+            // offered. Matching is the slow step, so it only runs when it decides something.
+            val pluginEnabled = hasProviderlessSource()
+            val visible = if (pluginEnabled) results else withContext(Dispatchers.Default) {
+                results.filter { findCatalogMatches(it).isNotEmpty() }
+            }
+            showResults(
+                query,
+                visible,
+                emptyMap(),
+                when {
+                    visible.isNotEmpty() -> null
+                    results.isEmpty() -> getString(R.string.plug_no_results_for, query)
+                    else -> getString(R.string.plug_enable_stream_plugin_browse)
+                }
+            )
+            // Badges walk the whole catalogue once per tile, so they land after the posters
+            // are already up - nothing on screen waits for them.
+            val badges = discoverBadgesFor(visible)
+            if (badges.isNotEmpty()) {
+                shownBadges = badges
+                resultsAdapter.notifyItemRangeChanged(0, resultsAdapter.itemCount)
+            }
+        }
+    }
+    /** Debounced so a remote held on a letter doesn't fire a TMDB request per key. Under two
+     *  characters there is nothing worth asking for, so the grid goes back to its idle state. */
+    fun scheduleSearch(query: String) {
+        pendingSearch?.let { mainHandler.removeCallbacks(it) }
+        if (query.length < 2) {
+            searchJob?.cancel()
+            showResults(null, emptyList(), emptyMap(), getString(R.string.type_to_search))
+            return
+        }
+        val runnable = Runnable { runSearch(query) }
+        pendingSearch = runnable
+        mainHandler.postDelayed(runnable, 250)
+    }
+    input.addTextChangedListener(object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(s: android.text.Editable?) {
+            scheduleSearch(s?.toString()?.trim().orEmpty())
+        }
+    })
     // Re-opening the overlay starts from whatever is currently being browsed, so refining a
-    // query means editing it rather than retyping it letter by letter on a remote.
+    // query means editing it rather than retyping it letter by letter on a remote. Set after
+    // the watcher is attached so the existing query is searched again on open too.
     input.setText(binding.discoverSearchInput.text.toString())
+
     keyboard.onKey = { ch -> input.setText(input.text.toString() + ch) }
     keyboard.onBackspace = { input.setText(input.text.toString().dropLast(1)) }
     keyboard.onClear = { input.setText("") }
@@ -75,17 +180,41 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
         binding.discoverSearchInput.setText(query)
         discoverTypeFilter = null
         updateDiscoverFilterChipStyles()
-        // Submitting an emptied query is how a search is undone - it puts Discover back on
-        // Trending, the same state the Trending chip gives. Doing nothing there left the
-        // grid showing the old results with an empty field above them.
-        loadDiscover(query.ifEmpty { null })
+        when {
+            // Submitting an emptied query is how a search is undone - it puts Discover back
+            // on Trending, the same state the Trending chip gives. Doing nothing there left
+            // the grid showing the old results with an empty field above them.
+            query.isEmpty() -> loadDiscover(null)
+            // The overlay already holds this query's results; handing them straight over
+            // saves a second identical round trip to TMDB.
+            shownQuery == query && shown.isNotEmpty() -> {
+                discoverLibrarySources = shownBadges
+                discoverGridAdapter.replaceAll(shown)
+                setDiscoverStatus(null)
+            }
+            else -> loadDiscover(query)
+        }
     }
     val tabBarWasVisible = binding.tabBar.visibility == View.VISIBLE
     if (tabBarWasVisible) binding.tabBar.visibility = View.GONE
+    // searchContainer is a weighted sibling of discoverContent in the same vertical
+    // LinearLayout, not a window over it: leaving the Discover pane visible splits the
+    // column between the two, so the panel only got the bottom half and everything under
+    // the top keyboard rows - the rest of the letters, SHIFT/SPACE/DEL/CLEAR, and Submit -
+    // was laid out past the bottom of the screen and unreachable. The main search overlay
+    // hides the same panes for the same reason (showSearchDialog).
+    binding.discoverContent.visibility = View.GONE
+    binding.emptyState.visibility = View.GONE
     overlay.setOnDismissListener {
         searchKeyHandler = null
         activeSearchOverlay = null
+        // The overlay's grid is gone; a debounced or in-flight query would only paint a
+        // detached adapter (and, on a pick, race the pane's own tiles).
+        pendingSearch?.let { mainHandler.removeCallbacks(it) }
+        searchJob?.cancel()
+        resultsAdapter.cancelPendingWork()
         if (tabBarWasVisible) binding.tabBar.visibility = View.VISIBLE
+        binding.discoverContent.visibility = View.VISIBLE
         applyStatus()
         // The overlay's dismissal detaches the focused subtree (the keyboard); leave
         // nothing focused and the Discover pane is a dead D-pad. Focus the field that
@@ -281,23 +410,30 @@ internal fun MainActivity.discoverGridFocusUpTargetId(): Int = when (discoverTyp
 internal fun MainActivity.loadDiscoverLibraryBadges(items: List<Channel>) {
     discoverBadgeJob?.cancel()
     discoverBadgeJob = scope.launch {
-        val badges = withContext(Dispatchers.Default) {
-            items.mapNotNull { item ->
-                val versions = catalogVersionsFor(findCatalogMatches(item))
-                if (versions.isEmpty()) return@mapNotNull null
-                val jellyfin = versions.any { it.isJellyfin }
-                val iptv = versions.any { !it.isJellyfin }
-                item.id to when {
-                    jellyfin && iptv -> "Jellyfin + IPTV"
-                    jellyfin -> "Jellyfin"
-                    else -> "IPTV"
-                }
-            }.toMap()
-        }
+        val badges = discoverBadgesFor(items)
         discoverLibrarySources = badges
         if (badges.isNotEmpty()) discoverGridAdapter.notifyItemRangeChanged(0, discoverGridAdapter.itemCount)
     }
 }
+
+/** Tile id -> "which of the user's sources already carry this title", for [items]. Shared by
+ *  the Discover pane's badge pass and the search overlay's own grid, which shows the same
+ *  tiles before they ever reach the pane. Runs on Dispatchers.Default: it walks the whole
+ *  catalogue once per tile. */
+internal suspend fun MainActivity.discoverBadgesFor(items: List<Channel>): Map<String, String> =
+    withContext(Dispatchers.Default) {
+        items.mapNotNull { item ->
+            val versions = catalogVersionsFor(findCatalogMatches(item))
+            if (versions.isEmpty()) return@mapNotNull null
+            val jellyfin = versions.any { it.isJellyfin }
+            val iptv = versions.any { !it.isJellyfin }
+            item.id to when {
+                jellyfin && iptv -> "Jellyfin + IPTV"
+                jellyfin -> "Jellyfin"
+                else -> "IPTV"
+            }
+        }.toMap()
+    }
 
 internal fun MainActivity.setDiscoverStatus(text: String?) {
     binding.discoverStatus.text = text ?: ""
