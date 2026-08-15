@@ -33,6 +33,7 @@ import com.lumora.player.VideoAspectFrameLayout
 import com.lumora.util.extractLeadingTag
 import com.lumora.util.isAdultCategory
 import com.lumora.util.normalizeServerUrl
+import com.lumora.util.rawMediaItemId
 import com.lumora.data.remote.stalker.StalkerProvider
 import kotlinx.coroutines.*
 import okhttp3.Request
@@ -704,9 +705,11 @@ internal fun MainActivity.showPlayerFor(
     // button left over from the last title would otherwise seek into the wrong film.
     jellyfinPlaySession = null
     jellyfinPlayingItemId = null
+    jellyfinPlayingServerId = null
     jellyfinRetryAttempted = false
     plexPlaySession = null
     plexPlayingItemId = null
+    plexPlayingServerId = null
     plexPlayingDurationMs = null
     plexRetryAttempted = false
     liveRetryAttempt = 0
@@ -746,7 +749,11 @@ internal fun MainActivity.showPlayerFor(
         // HLS transcode where it doesn't, and brings the subtitle tracks with it.
         startVersion.isJellyfin && startVersion.mediaType != MediaType.LIVE && startVersion.id.isNotBlank() -> scope.launch {
             val startAt = resumeFromMs ?: 0L
-            val jellyfin = jellyfinClientOrConnect()
+            // The server only knows its own bare item id; the catalogue's is qualified with
+            // which account it came from (see qualifiedMediaItemId).
+            val itemId = rawMediaItemId(startVersion.id)
+            val serverId = jellyfinConfigFor(startVersion)?.id
+            val jellyfin = jellyfinClientFor(startVersion)
             // The audio-language setting has to travel with the negotiation, not just with
             // the player: a transcoded source arrives with the single audio track the server
             // chose, so a track selection made afterwards has nothing to select.
@@ -754,7 +761,7 @@ internal fun MainActivity.showPlayerFor(
             val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
                 runCatching {
                     jellyfin.resolveStream(
-                        startVersion.id,
+                        itemId,
                         startAt,
                         preferredAudioLanguage = wantedAudioLanguage
                     )
@@ -773,16 +780,19 @@ internal fun MainActivity.showPlayerFor(
                 preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
             )
             jellyfinPlaySession = resolved
-            jellyfinPlayingItemId = startVersion.id
-            reportJellyfinStart(startVersion.id, resolved, startAt)
-            loadJellyfinPlaybackExtras(startVersion.id)
+            jellyfinPlayingItemId = itemId
+            jellyfinPlayingServerId = serverId
+            reportJellyfinStart(itemId, resolved, startAt)
+            loadJellyfinPlaybackExtras(itemId)
         }
         // Plex asks the server the same question Jellyfin's PlaybackInfo answers, through the
         // transcode-decision endpoint: direct play where the file is playable as-is, an HLS
         // transcode where it isn't, plus the sidecar subtitle tracks that come with it.
         startVersion.isPlex && startVersion.mediaType != MediaType.LIVE && startVersion.id.isNotBlank() -> scope.launch {
             val startAt = resumeFromMs ?: 0L
-            val plex = plexClientOrConnect()
+            val itemId = rawMediaItemId(startVersion.id)
+            val serverId = plexConfigFor(startVersion)?.id
+            val plex = plexClientFor(startVersion)
             // The audio-language setting has to travel with the negotiation, not just with the
             // player: a transcoded source arrives with the single audio track the server
             // chose, so a track selection made afterwards has nothing to select.
@@ -790,7 +800,7 @@ internal fun MainActivity.showPlayerFor(
             val resolved = if (plex == null) null else withContext(Dispatchers.IO) {
                 runCatching {
                     plex.resolveStream(
-                        startVersion.id,
+                        itemId,
                         startAt,
                         preferredAudioLanguage = wantedAudioLanguage
                     )
@@ -818,10 +828,11 @@ internal fun MainActivity.showPlayerFor(
                 maintainTokenQuery = resolved?.tokenQuery
             )
             plexPlaySession = resolved
-            plexPlayingItemId = startVersion.id
+            plexPlayingItemId = itemId
+            plexPlayingServerId = serverId
             plexPlayingDurationMs = resolved?.runtimeMs
-            reportPlexStart(startVersion.id, resolved, startAt)
-            loadPlexPlaybackExtras(startVersion.id)
+            reportPlexStart(itemId, resolved, startAt)
+            loadPlexPlaybackExtras(itemId)
         }
         // A plugin-resolved stream cannot be replayed from the URL it was saved with: the
         // CDN signs it with an expiry in the path and gates it behind request headers the
@@ -946,12 +957,14 @@ internal fun MainActivity.xtreamProviderFor(channel: Channel): Provider? {
     )
 }
 
-/** The name of the provider a Channel came from, for labelling version chips. Jellyfin and
- *  Plex are their own fixed slots; everything else is an IptvProviderConfig matched by
- *  sourceProviderId. Null when the config's since been deleted (cached items outlive it). */
+/** The name of the provider a Channel came from, for labelling version chips. A media-server
+ *  item is labelled with its account's own name, since several Jellyfin/Plex accounts can be
+ *  configured at once and "Jellyfin" alone wouldn't say which library the version is in.
+ *  Everything else is an IptvProviderConfig matched by sourceProviderId. Null when the config
+ *  has since been deleted (cached items outlive it). */
 internal fun MainActivity.providerNameFor(channel: Channel): String? = when {
-    channel.isJellyfin -> "Jellyfin"
-    channel.isPlex -> "Plex"
+    channel.isOwnLibrary -> mediaServerOwner(channel, mediaServers())?.name?.takeIf { it.isNotBlank() }
+        ?: if (channel.isJellyfin) "Jellyfin" else "Plex"
     else -> channel.sourceProviderId?.let { providerNamesById[it] }?.takeIf { it.isNotBlank() }
 }
 
@@ -1012,13 +1025,14 @@ internal fun MainActivity.retryJellyfinPlayback() {
     val channel = nowPlayingChannel ?: return
     if (!channel.isJellyfin || channel.id.isBlank()) return
     jellyfinRetryAttempted = true
+    val itemId = rawMediaItemId(channel.id)
     scope.launch {
         val startAt = playerManager.currentPosition
-        val jellyfin = jellyfinClientOrConnect()
+        val jellyfin = jellyfinClientFor(channel)
         val resolved = if (jellyfin == null) null else withContext(Dispatchers.IO) {
             runCatching {
                 jellyfin.resolveStream(
-                    channel.id,
+                    itemId,
                     startAt,
                     preferredAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en"
                 )
@@ -1033,7 +1047,8 @@ internal fun MainActivity.retryJellyfinPlayback() {
             preferAudioLanguage = channel.mediaType != MediaType.LIVE
         )
         jellyfinPlaySession = resolved
-        jellyfinPlayingItemId = channel.id
+        jellyfinPlayingItemId = itemId
+        jellyfinPlayingServerId = jellyfinConfigFor(channel)?.id
     }
 }
 

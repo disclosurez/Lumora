@@ -3,6 +3,7 @@ package com.lumora.data.remote.jellyfin
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
+import com.lumora.util.qualifiedMediaItemId
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -1063,7 +1064,12 @@ class JellyfinProvider(baseClient: OkHttpClient) {
          *  Next Up / Continue Watching rows, where a bare "S02E04 · Title" says nothing about
          *  which series is being offered. Off inside a series' own episode list, which is
          *  already scoped to one show. */
-        fun toChannel(item: JellyfinItem, provider: Provider, prefixSeriesName: Boolean = false): Channel {
+        fun toChannel(
+            item: JellyfinItem,
+            provider: Provider,
+            prefixSeriesName: Boolean = false,
+            sourceId: String? = null
+        ): Channel {
             val mediaType = when (item.mediaType) {
                 "LiveTV" -> MediaType.LIVE
                 "Movie" -> MediaType.MOVIE
@@ -1081,7 +1087,10 @@ class JellyfinProvider(baseClient: OkHttpClient) {
             }
 
             return Channel(
-                id = item.id,
+                // Qualified with the server this came from: several Jellyfin/Plex accounts can
+                // be configured at once and their item ids share one namespace here (catalog,
+                // favourites, playback positions). See qualifiedMediaItemId.
+                id = qualifiedMediaItemId(sourceId, item.id),
                 name = displayName,
                 url = streamUrl,
                 logoUrl = item.imageUrl,
@@ -1094,12 +1103,18 @@ class JellyfinProvider(baseClient: OkHttpClient) {
                 // tiles resolve back to the show (resolveHomeTileSeries matches categoryId
                 // against the catalog). The JellyfinItem carries it, but it was dropped
                 // here - which is why those rows direct-played instead of opening the series.
-                categoryId = if (item.mediaType == "Episode") item.seriesId else null,
+                categoryId = if (item.mediaType == "Episode") {
+                    item.seriesId?.let { qualifiedMediaItemId(sourceId, it) }
+                } else null,
                 episodeNum = item.episodeNumber,
                 mediaType = mediaType,
                 rating = item.rating?.toString(),
                 releaseDate = item.releaseDate,
-                isJellyfin = true
+                isJellyfin = true,
+                // Which configured Jellyfin account this came from - detail fetches, playback
+                // negotiation and reporting all need *that* server's client, not whichever one
+                // happens to be connected.
+                sourceProviderId = sourceId
             )
         }
     }

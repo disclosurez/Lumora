@@ -51,11 +51,13 @@ data class Channel(
     // Extra HTTP request headers the stream URL needs - e.g. a plugin-resolved anime CDN that
     // hotlink-protects its playlist behind a Referer. Applied by PlayerManager alongside the UA.
     val streamHeaders: Map<String, String>? = null,
-    // IptvProviderConfig.id of the Xtream provider this item came from - detail/EPG calls
-    // (get_series_info, get_short_epg, get_vod_info) need the *matching* server/credentials,
-    // not whichever Xtream provider happened to load last into the old single shared
-    // `provider` field. Null for non-Xtream sources (M3U/Stalker have no such detail APIs;
-    // Jellyfin uses jellyfinClient directly).
+    // Which configured source this item came from: an IptvProviderConfig.id for Xtream, or a
+    // MediaServerConfig.id for a Jellyfin/Plex item (isJellyfin/isPlex say which store to look
+    // it up in). Detail/EPG calls (get_series_info, get_short_epg, get_vod_info) and every
+    // media-server call (episodes, playback negotiation, progress reporting) need the
+    // *matching* server/credentials - with any number of providers and any number of media
+    // servers active at once, there is no single "current" one to fall back on. Null for M3U
+    // and Stalker, which have no such detail APIs.
     val sourceProviderId: String? = null,
     // Per-channel A/V sync offset in milliseconds. Positive = audio delayed (plays later),
     // negative = audio advanced (plays sooner). 0 = use global default.

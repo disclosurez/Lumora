@@ -473,10 +473,13 @@ class MainActivity : AppCompatActivity() {
     // Kept around after a successful Jellyfin content load so a series' detail page can
     // fetch its episodes without re-authenticating - Jellyfin's episode API has no
     // Xtream equivalent, so this is the only path a Jellyfin series' episodes ever load through.
-    internal var jellyfinClient: JellyfinProvider? = null
-    /** Same role for the Plex slot: a Plex series' episodes only ever load through this
-     *  client, so it outlives the catalog fetch that created it. */
-    internal var plexClient: PlexProvider? = null
+    //
+    // Keyed by MediaServerConfig.id: any number of Jellyfin accounts can be configured at once,
+    // and an item only opens against the server it came from (see jellyfinClientOrConnect).
+    internal val jellyfinClients = mutableMapOf<String, JellyfinProvider>()
+    /** Same role for the Plex accounts: a Plex series' episodes only ever load through one of
+     *  these clients, so they outlive the catalog fetch that created them. */
+    internal val plexClients = mutableMapOf<String, PlexProvider>()
     internal var currentIndex = -1
     // Which episode queue (if any) is currently playing, so Next/Prev and
     // auto-advance-on-end know what "next episode" means. -1 = not playing an episode.
@@ -600,14 +603,21 @@ class MainActivity : AppCompatActivity() {
     /** The server's own Continue Watching / Next Up, refreshed with the catalog. Kept apart
      *  from [allChannels] because these are ordered *views* of items already in the catalog,
      *  not extra content - merging them in would duplicate every partly-watched title. */
-    internal var jellyfinResumeItems: List<Channel> = emptyList()
-    internal var jellyfinNextUpItems: List<Channel> = emptyList()
+    // Per configured Jellyfin account (MediaServerConfig.id), because the servers are fetched
+    // concurrently: one flat list would be written by whichever fetch finished last rather
+    // than merged. The flattened views below are what the Home rows read.
+    internal val jellyfinResumeByServer = mutableMapOf<String, List<Channel>>()
+    internal val jellyfinNextUpByServer = mutableMapOf<String, List<Channel>>()
+    internal val jellyfinResumeItems: List<Channel> get() = jellyfinResumeByServer.values.flatten()
+    internal val jellyfinNextUpItems: List<Channel> get() = jellyfinNextUpByServer.values.flatten()
 
     // ── Plex server-side state ──────────────────
     /** Plex's On Deck, split the same way Jellyfin's Resume/Next Up are (see
      *  PlexProvider.getResumeItems) so the Home rows can treat both servers alike. */
-    internal var plexResumeItems: List<Channel> = emptyList()
-    internal var plexNextUpItems: List<Channel> = emptyList()
+    internal val plexResumeByServer = mutableMapOf<String, List<Channel>>()
+    internal val plexNextUpByServer = mutableMapOf<String, List<Channel>>()
+    internal val plexResumeItems: List<Channel> get() = plexResumeByServer.values.flatten()
+    internal val plexNextUpItems: List<Channel> get() = plexNextUpByServer.values.flatten()
 
     // ── Up-next series (Continue Watching extension) ──
     /** Bounded count of series whose episodes we'll fetch per Home build to surface
@@ -658,11 +668,18 @@ class MainActivity : AppCompatActivity() {
     // usually plays on a second attempt.
     internal var vodRetryAttempt = 0
     internal var jellyfinPlayingItemId: String? = null
+    /** MediaServerConfig.id of the Jellyfin account the playing item belongs to - progress and
+     *  stop reports have to reach *that* server, and with several configured there is no
+     *  single client to assume. */
+    internal var jellyfinPlayingServerId: String? = null
     /** The negotiated stream for whatever Plex item is playing (see
      *  PlexProvider.resolveStream) - its session identifier is what every timeline report
      *  quotes, and what lets the server attribute a transcode to this play. */
     internal var plexPlaySession: PlexProvider.ResolvedStream? = null
     internal var plexPlayingItemId: String? = null
+    /** MediaServerConfig.id of the Plex server the playing item belongs to - see
+     *  [jellyfinPlayingServerId]. */
+    internal var plexPlayingServerId: String? = null
     /** Runtime of the Plex item playing, in ms. Plex's timeline wants a duration on every
      *  report, and the player's own duration is not available until the source is prepared. */
     internal var plexPlayingDurationMs: Long? = null

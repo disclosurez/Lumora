@@ -3,12 +3,16 @@ package com.lumora
 import android.widget.Toast
 import android.view.View
 import com.lumora.cache.PlaybackPositionStore
+import com.lumora.data.MediaServerStore
 import com.lumora.model.Channel
 import com.lumora.model.MediaChapter
+import com.lumora.model.MediaServerConfig
 import com.lumora.model.Provider
 import com.lumora.model.ProviderType
 import com.lumora.player.PlayerManager
 import com.lumora.data.remote.plex.PlexProvider
+import com.lumora.util.qualifiedMediaItemId
+import com.lumora.util.rawMediaItemId
 import kotlinx.coroutines.*
 import java.util.UUID
 
@@ -27,14 +31,20 @@ import java.util.UUID
 //  - **Favourites stay local.** Plex has no per-item favourite flag (it has ratings), so
 //    unlike Jellyfin there is nothing to push a star to.
 
-/** The connected Plex server's base URL, or null when the slot is empty. Stored already
- *  normalized: it is whichever of the server's published endpoints answered during sign-in
- *  (see PlexProvider.pickConnection), not something the user typed. */
-internal fun MainActivity.plexServerUrl(): String? =
-    prefs.getString("plex_url", null)?.takeIf { it.isNotBlank() }
+/** One configured Plex server's base URL. Stored already normalized: it is whichever of the
+ *  server's published endpoints answered during sign-in (see PlexProvider.pickConnection), not
+ *  something the user typed. */
+internal fun MainActivity.plexServerUrl(cfg: MediaServerConfig): String? =
+    cfg.url?.takeIf { it.isNotBlank() }
 
-internal fun MainActivity.plexToken(): String? =
-    prefs.getString("plex_token", null)?.takeIf { it.isNotBlank() }
+/** The Plex server a channel came from, or null when it isn't a Plex item (or its server has
+ *  since been removed). */
+internal fun MainActivity.plexConfigFor(channel: Channel): MediaServerConfig? =
+    if (!channel.isPlex) null
+    else MediaServerStore.get(prefs, channel.sourceProviderId)?.takeIf { it.isPlex }
+        // A catalogue written before media servers became a list carries no source id; with
+        // exactly one Plex server configured there is no ambiguity about which it is.
+        ?: plexServers().singleOrNull()
 
 /**
  * This install's Plex client identifier, minted once and kept.
@@ -59,32 +69,43 @@ internal fun MainActivity.newPlexProvider(): PlexProvider =
 internal fun MainActivity.plexProviderStub(url: String?): Provider =
     Provider(name = "Plex", type = ProviderType.M3U, serverUrl = url)
 
-/** Binds a client to the stored server + token. No network call beyond the one
+/** Binds a client to one configured server + its token. No network call beyond the one
  *  [PlexProvider.connect] makes to confirm the session still works. */
-internal suspend fun MainActivity.connectPlex(url: String): Result<PlexProvider> {
-    val token = plexToken() ?: return Result.failure(Exception("Plex: not signed in"))
+internal suspend fun MainActivity.connectPlex(cfg: MediaServerConfig): Result<PlexProvider> {
+    val url = plexServerUrl(cfg) ?: return Result.failure(Exception("Plex: no server"))
+    val token = cfg.token?.takeIf { it.isNotBlank() }
+        ?: return Result.failure(Exception("Plex: not signed in"))
     val plex = newPlexProvider()
     val result = withContext(Dispatchers.IO) { plex.connect(url, token) }
     return if (result.isSuccess) Result.success(plex)
     else Result.failure(Exception("Plex: ${result.exceptionOrNull()?.message?.take(60)}"))
 }
 
-/** The live Plex session, reconnecting on demand. A cold start that hits the channel cache
- *  returns from loadAllConfiguredProviders() before any Plex fetch runs, so plexClient is
- *  null while Plex series are already on screen - without this a series detail page would
- *  show "No episodes found" on every cached launch. */
-internal suspend fun MainActivity.plexClientOrConnect(): PlexProvider? {
-    plexClient?.let { return it }
-    val url = plexServerUrl() ?: return null
-    return connectPlex(url).getOrNull()?.also { plexClient = it }
+/** The live session for one Plex server, reconnecting on demand. A cold start that hits the
+ *  channel cache returns from loadAllConfiguredProviders() before any Plex fetch runs, so the
+ *  client map is empty while Plex series are already on screen - without this a series detail
+ *  page would show "No episodes found" on every cached launch. */
+internal suspend fun MainActivity.plexClientOrConnect(cfg: MediaServerConfig?): PlexProvider? {
+    if (cfg == null) return null
+    plexClients[cfg.id]?.let { return it }
+    return connectPlex(cfg).getOrNull()?.also { plexClients[cfg.id] = it }
 }
+
+/** The client for whichever Plex server a channel belongs to. */
+internal suspend fun MainActivity.plexClientFor(channel: Channel): PlexProvider? =
+    plexClientOrConnect(plexConfigFor(channel))
+
+/** The client for the Plex server whose item is playing, if any - playback reports must reach
+ *  that server specifically. */
+internal fun MainActivity.plexPlayingClient(): PlexProvider? =
+    plexPlayingServerId?.let { plexClients[it] }
 
 /** Kept alive post-load for fetching a Plex series' episodes when its detail page opens -
  *  that has no IPTV equivalent path to fall back to. */
-internal suspend fun MainActivity.fetchPlexChannels(): FetchResult {
-    val url = plexServerUrl() ?: return FetchResult.Failure("Plex: no server")
+internal suspend fun MainActivity.fetchPlexChannels(cfg: MediaServerConfig): FetchResult {
+    val url = plexServerUrl(cfg) ?: return FetchResult.Failure("Plex: no server")
     return try {
-        val plex = connectPlex(url).getOrElse {
+        val plex = connectPlex(cfg).getOrElse {
             return FetchResult.Failure(it.message ?: "Plex: couldn't connect")
         }
         val stub = plexProviderStub(url)
@@ -93,17 +114,17 @@ internal suspend fun MainActivity.fetchPlexChannels(): FetchResult {
             // walk of a whole library, so serially they cost the sum of the two. Each gate is
             // still checked before anything is started - an off type is never crawled.
             coroutineScope {
-                val moviesDeferred = if (plexAllowsMovies()) async { plex.getMovies() } else null
-                val seriesDeferred = if (plexAllowsSeries()) async { plex.getSeries() } else null
+                val moviesDeferred = if (plexAllowsMovies(cfg)) async { plex.getMovies() } else null
+                val seriesDeferred = if (plexAllowsSeries(cfg)) async { plex.getSeries() } else null
                 val movies = moviesDeferred?.await().orEmpty()
                 val series = seriesDeferred?.await().orEmpty()
-                importPlexUserState(movies + series)
-                movies.map { PlexProvider.toChannel(it, stub) } +
-                    series.map { PlexProvider.toChannel(it, stub) }
+                importPlexUserState(movies + series, cfg)
+                movies.map { PlexProvider.toChannel(it, stub, sourceId = cfg.id) } +
+                    series.map { PlexProvider.toChannel(it, stub, sourceId = cfg.id) }
             }
         }
-        plexClient = plex
-        refreshPlexRows(plex, stub)
+        plexClients[cfg.id] = plex
+        refreshPlexRows(plex, cfg, stub)
         FetchResult.Success(items)
     } catch (e: CancellationException) {
         // Not a fetch failure - the loader was cancelled (provider toggled, a newer load
@@ -128,9 +149,10 @@ internal suspend fun MainActivity.fetchPlexChannels(): FetchResult {
  */
 internal fun MainActivity.importPlexUserState(
     items: List<PlexProvider.PlexItem>,
+    cfg: MediaServerConfig,
     includePlayed: Boolean = false
 ) {
-    val stub = plexProviderStub(plexServerUrl())
+    val stub = plexProviderStub(plexServerUrl(cfg))
     for (item in items) {
         // Plex has no favourite flag, so unlike the Jellyfin import there is nothing to
         // reconcile for a series - a show carries no per-user state worth importing.
@@ -148,20 +170,21 @@ internal fun MainActivity.importPlexUserState(
             // built from, to show a badge nothing displays.
             item.played && includePlayed -> PlaybackPositionStore.save(
                 this,
-                item.id,
+                qualifiedMediaItemId(cfg.id, item.id),
                 runtime,
                 runtime,
-                PlexProvider.toChannel(item, stub, prefixSeriesName = true)
+                PlexProvider.toChannel(item, stub, prefixSeriesName = true, sourceId = cfg.id)
             )
             item.resumePositionMs > 0 -> {
-                val local = PlaybackPositionStore.get(this, item.id)
+                val key = qualifiedMediaItemId(cfg.id, item.id)
+                val local = PlaybackPositionStore.get(this, key)
                 if (local == null || item.resumePositionMs > local.positionMs) {
                     PlaybackPositionStore.save(
                         this,
-                        item.id,
+                        key,
                         item.resumePositionMs,
                         runtime,
-                        PlexProvider.toChannel(item, stub, prefixSeriesName = true)
+                        PlexProvider.toChannel(item, stub, prefixSeriesName = true, sourceId = cfg.id)
                     )
                 }
             }
@@ -173,15 +196,23 @@ internal fun MainActivity.importPlexUserState(
  *  (see PlexProvider.getResumeItems). Also seeds resume positions for the items in them -
  *  these are the partly-watched titles, so they carry the positions worth having even when
  *  the catalog crawl didn't include them. */
-internal suspend fun MainActivity.refreshPlexRows(plex: PlexProvider, stub: Provider) {
+internal suspend fun MainActivity.refreshPlexRows(
+    plex: PlexProvider,
+    cfg: MediaServerConfig,
+    stub: Provider
+) {
     // One On Deck fetch feeding both halves - they are two views of the same list, so asking
     // twice would be two round trips for one answer.
     val (resume, nextUp) = withContext(Dispatchers.IO) {
         plex.getResumeItems() to plex.getNextUp()
     }
-    importPlexUserState(resume)
-    plexResumeItems = resume.map { PlexProvider.toChannel(it, stub, prefixSeriesName = true) }
-    plexNextUpItems = nextUp.map { PlexProvider.toChannel(it, stub, prefixSeriesName = true) }
+    importPlexUserState(resume, cfg)
+    plexResumeByServer[cfg.id] = resume.map {
+        PlexProvider.toChannel(it, stub, prefixSeriesName = true, sourceId = cfg.id)
+    }
+    plexNextUpByServer[cfg.id] = nextUp.map {
+        PlexProvider.toChannel(it, stub, prefixSeriesName = true, sourceId = cfg.id)
+    }
 }
 
 // ── Plex playback ──────────────────────────────
@@ -222,7 +253,7 @@ internal fun plexAudioLabel(stream: PlexProvider.AudioStream): String {
  *  interceptor. */
 internal fun MainActivity.plexFallbackUrl(channel: Channel): String? {
     if (channel.url.isBlank()) return null
-    val token = plexToken() ?: return null
+    val token = plexConfigFor(channel)?.token?.takeIf { it.isNotBlank() } ?: return null
     val separator = if (channel.url.contains('?')) "&" else "?"
     return "${channel.url}${separator}X-Plex-Token=$token"
 }
@@ -237,7 +268,7 @@ internal fun MainActivity.switchPlexAudioStream(streamId: Long) {
     val resumeMs = playerManager.currentPosition.coerceAtLeast(0L)
     binding.bufferingSpinner.visibility = View.VISIBLE
     scope.launch {
-        val client = plexClientOrConnect()
+        val client = plexClientFor(channel)
         val resolved = if (client == null) null else withContext(Dispatchers.IO) {
             runCatching {
                 client.resolveStream(itemId, resumeMs, forceAudioStreamId = streamId)
@@ -269,7 +300,7 @@ internal fun MainActivity.switchPlexAudioStream(streamId: Long) {
 /** Reports a Plex play as started, so the server opens a session for it (and knows not to
  *  reap the transcode it just set up). */
 internal fun MainActivity.reportPlexStart(itemId: String, resolved: PlexProvider.ResolvedStream?, positionMs: Long) {
-    val client = plexClient ?: return
+    val client = plexPlayingClient() ?: return
     plexPlayingDurationMs = resolved?.runtimeMs ?: plexPlayingDurationMs
     val duration = plexPlayingDurationMs
     scope.launch(Dispatchers.IO) {
@@ -283,7 +314,7 @@ internal fun MainActivity.reportPlexStart(itemId: String, resolved: PlexProvider
  *  reaping an idle transcoder, and a reaped session ends playback on resume. */
 internal fun MainActivity.reportPlexProgress() {
     val itemId = plexPlayingItemId ?: return
-    val client = plexClient ?: return
+    val client = plexPlayingClient() ?: return
     val position = playerManager.currentPosition.takeIf { it >= 0 } ?: return
     val paused = !playerManager.isPlaying
     val session = plexPlaySession
@@ -301,7 +332,7 @@ internal fun MainActivity.reportPlexProgress() {
  *  the player state is torn down. */
 internal fun MainActivity.reportPlexStopped(): Boolean {
     val itemId = plexPlayingItemId ?: return false
-    val client = plexClient
+    val client = plexPlayingClient()
     val session = plexPlaySession
     val position = playerManager.currentPosition.takeIf { it >= 0 } ?: 0L
     val duration = plexPlayingDurationMs ?: playerManager.duration.takeIf { it > 0 }
@@ -325,11 +356,14 @@ internal fun MainActivity.reportPlexStopped(): Boolean {
  *  derived from the stop just reported, and asking before the server has recorded it hands
  *  back the pre-play state. */
 internal fun MainActivity.refreshPlexRowsAfterPlayback() {
-    val client = plexClient ?: return
+    // Read now, not inside the coroutine - see refreshJellyfinRowsAfterPlayback.
+    val serverId = plexPlayingServerId ?: return
+    val cfg = MediaServerStore.get(prefs, serverId) ?: return
+    val client = plexClients[serverId] ?: return
     scope.launch {
         delay(1500)
-        val stub = plexProviderStub(plexServerUrl())
-        runCatching { refreshPlexRows(client, stub) }
+        val stub = plexProviderStub(plexServerUrl(cfg))
+        runCatching { refreshPlexRows(client, cfg, stub) }
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
     }
 }
@@ -337,7 +371,7 @@ internal fun MainActivity.refreshPlexRowsAfterPlayback() {
 /** Chapter markers for the Plex item now playing. Per-item and only ever needed for the one
  *  title on screen, so fetched at play time rather than carried on every catalog entry. */
 internal fun MainActivity.loadPlexPlaybackExtras(itemId: String) {
-    val client = plexClient ?: return
+    val client = plexPlayingClient() ?: return
     scope.launch {
         val chapters = withContext(Dispatchers.IO) {
             runCatching { client.getChapters(itemId) }.getOrDefault(emptyList())
@@ -355,14 +389,15 @@ internal fun MainActivity.retryPlexPlayback() {
     val channel = nowPlayingChannel ?: return
     if (!channel.isPlex || channel.id.isBlank()) return
     plexRetryAttempted = true
+    val itemId = rawMediaItemId(channel.id)
     val resumeMs = playerManager.currentPosition.coerceAtLeast(0L)
     binding.bufferingSpinner.visibility = View.VISIBLE
     scope.launch {
-        val plex = plexClientOrConnect()
+        val plex = plexClientFor(channel)
         val resolved = if (plex == null) null else withContext(Dispatchers.IO) {
             runCatching {
                 plex.resolveStream(
-                    channel.id,
+                    itemId,
                     resumeMs,
                     preferredAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en"
                 )
@@ -383,8 +418,9 @@ internal fun MainActivity.retryPlexPlayback() {
             maintainTokenQuery = resolved?.tokenQuery
         )
         plexPlaySession = resolved
-        plexPlayingItemId = channel.id
+        plexPlayingItemId = itemId
+        plexPlayingServerId = plexConfigFor(channel)?.id
         plexPlayingDurationMs = resolved?.runtimeMs
-        reportPlexStart(channel.id, resolved, resumeMs)
+        reportPlexStart(itemId, resolved, resumeMs)
     }
 }

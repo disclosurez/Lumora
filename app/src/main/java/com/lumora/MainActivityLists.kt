@@ -29,6 +29,7 @@ import com.lumora.parser.XtreamClient
 import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
 import com.lumora.util.isUnreleasedEpisode
+import com.lumora.util.rawMediaItemId
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
 import com.lumora.data.remote.plex.PlexProvider
@@ -436,17 +437,19 @@ internal suspend fun MainActivity.loadSeriesContent(
             itemDetails to listOf("Season 1" to episodes)
         }
         item.isJellyfin -> {
-            val jellyfin = jellyfinClientOrConnect()
+            val cfg = jellyfinConfigFor(item)
+            val jellyfin = jellyfinClientOrConnect(cfg)
+            val seriesId = rawMediaItemId(item.id)
             val (episodes, seasons) = if (jellyfin != null) {
-                withContext(Dispatchers.IO) { jellyfin.getEpisodes(item.id) to jellyfin.getSeasons(item.id) }
+                withContext(Dispatchers.IO) { jellyfin.getEpisodes(seriesId) to jellyfin.getSeasons(seriesId) }
             } else {
                 emptyList<JellyfinProvider.JellyfinItem>() to emptyList()
             }
-            val stub = jellyfinProviderStub(jellyfinServerUrl())
+            val stub = jellyfinProviderStub(cfg?.let { jellyfinServerUrl(it) })
             // Watched/resume state for these episodes comes from the same UserData the
             // catalog fetch reads, so an episode list opened here shows progress made in
             // any other client (EpisodeAdapter reads it out of PlaybackPositionStore).
-            importJellyfinUserState(episodes, includePlayed = true)
+            if (cfg != null) importJellyfinUserState(episodes, cfg, includePlayed = true)
             // Season *names* come from the server - grouping on ParentIndexNumber alone
             // can only ever produce "Season 0" for specials, which is not what any
             // Jellyfin library calls that row.
@@ -458,21 +461,23 @@ internal suspend fun MainActivity.loadSeriesContent(
                 .toSortedMap()
                 .map { (num, eps) ->
                     val label = seasonNames[num] ?: if (num == 0) "Specials" else "Season $num"
-                    label to eps.map { JellyfinProvider.toChannel(it, stub) }
+                    label to eps.map { JellyfinProvider.toChannel(it, stub, sourceId = cfg?.id) }
                 }
         }
         item.isPlex -> {
-            val plex = plexClientOrConnect()
+            val cfg = plexConfigFor(item)
+            val plex = plexClientOrConnect(cfg)
+            val seriesId = rawMediaItemId(item.id)
             val (episodes, seasons) = if (plex != null) {
-                withContext(Dispatchers.IO) { plex.getEpisodes(item.id) to plex.getSeasons(item.id) }
+                withContext(Dispatchers.IO) { plex.getEpisodes(seriesId) to plex.getSeasons(seriesId) }
             } else {
                 emptyList<PlexProvider.PlexItem>() to emptyList()
             }
-            val stub = plexProviderStub(plexServerUrl())
+            val stub = plexProviderStub(cfg?.let { plexServerUrl(it) })
             // Watched/resume state for these episodes comes from the same fields the catalog
             // crawl reads, so an episode list opened here shows progress made in any other
             // Plex client (EpisodeAdapter reads it out of PlaybackPositionStore).
-            importPlexUserState(episodes, includePlayed = true)
+            if (cfg != null) importPlexUserState(episodes, cfg, includePlayed = true)
             // Season *names* come from the server - grouping on parentIndex alone can only
             // ever produce "Season 0" for specials, which is not what any Plex library calls
             // that row.
@@ -484,7 +489,7 @@ internal suspend fun MainActivity.loadSeriesContent(
                 .toSortedMap()
                 .map { (num, eps) ->
                     val label = seasonNames[num] ?: if (num == 0) "Specials" else "Season $num"
-                    label to eps.map { PlexProvider.toChannel(it, stub) }
+                    label to eps.map { PlexProvider.toChannel(it, stub, sourceId = cfg?.id) }
                 }
         }
         stalkerConfig != null -> {
@@ -657,8 +662,10 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             // no equivalent per-item flag, so a Plex star stays local to this install.
             if (item.isJellyfin && item.id.isNotBlank()) {
                 scope.launch {
-                    val client = jellyfinClientOrConnect() ?: return@launch
-                    withContext(Dispatchers.IO) { runCatching { client.setFavorite(item.id, nowFavorite) } }
+                    val client = jellyfinClientFor(item) ?: return@launch
+                    withContext(Dispatchers.IO) {
+                        runCatching { client.setFavorite(rawMediaItemId(item.id), nowFavorite) }
+                    }
                 }
             }
             scope.launch { classifyAndShow() }

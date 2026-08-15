@@ -3,6 +3,7 @@ package com.lumora.data.remote.plex
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
+import com.lumora.util.qualifiedMediaItemId
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -1071,7 +1072,12 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
          *  Next Up / Continue Watching rows, where a bare "S02E04 · Title" says nothing about
          *  which series is being offered. Off inside a series' own episode list, which is
          *  already scoped to one show. */
-        fun toChannel(item: PlexItem, provider: Provider, prefixSeriesName: Boolean = false): Channel {
+        fun toChannel(
+            item: PlexItem,
+            provider: Provider,
+            prefixSeriesName: Boolean = false,
+            sourceId: String? = null
+        ): Channel {
             val mediaType = when (item.mediaType) {
                 "Movie" -> MediaType.MOVIE
                 "Series" -> MediaType.SERIES
@@ -1097,7 +1103,10 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
             }
 
             return Channel(
-                id = item.id,
+                // Qualified with the server this came from - a Plex rating key is a small
+                // per-server integer, so two configured servers would otherwise hand the
+                // catalog two different films under the same id. See qualifiedMediaItemId.
+                id = qualifiedMediaItemId(sourceId, item.id),
                 name = displayName,
                 url = streamUrl,
                 logoUrl = item.imageUrl,
@@ -1109,12 +1118,17 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
                 // Stamp the parent series id on an episode so Continue Watching / Next Up
                 // tiles resolve back to the show rather than direct-playing (see
                 // resolveHomeTileSeries, which matches categoryId against the catalog).
-                categoryId = if (item.mediaType == "Episode") item.seriesId else null,
+                categoryId = if (item.mediaType == "Episode") {
+                    item.seriesId?.let { qualifiedMediaItemId(sourceId, it) }
+                } else null,
                 episodeNum = item.episodeNumber,
                 mediaType = mediaType,
                 rating = item.rating?.toString(),
                 releaseDate = item.releaseDate,
-                isPlex = true
+                isPlex = true,
+                // Which configured Plex server this came from - detail fetches, playback
+                // negotiation and reporting all need *that* server's client and token.
+                sourceProviderId = sourceId
             )
         }
     }

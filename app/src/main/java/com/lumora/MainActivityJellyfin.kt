@@ -8,12 +8,15 @@ import android.widget.*
 import com.lumora.adapter.EpisodeAdapter
 import com.lumora.cache.FavoritesStore
 import com.lumora.cache.PlaybackPositionStore
+import com.lumora.data.MediaServerStore
 import com.lumora.model.Channel
+import com.lumora.model.MediaServerConfig
 import com.lumora.model.Provider
 import com.lumora.model.ProviderType
 import com.lumora.plugin.PluginSubtitle
 import com.lumora.player.PlayerManager
 import com.lumora.util.normalizeServerUrl
+import com.lumora.util.qualifiedMediaItemId
 import com.lumora.data.remote.jellyfin.JellyfinProvider
 import kotlinx.coroutines.*
 import okhttp3.Request
@@ -21,10 +24,19 @@ import okhttp3.Request
 // ── Jellyfin: connect, user state, playback reporting & extras ──
 //
 // Extracted from MainActivity.kt; see that file's header.
-/** The configured Jellyfin server URL, normalized, or null when the slot is empty. */
-internal fun MainActivity.jellyfinServerUrl(): String? =
-    prefs.getString("jellyfin_url", null)?.takeIf { it.isNotBlank() }
-        ?.let { normalizeServerUrl(it, defaultScheme = "https") }
+/** One configured Jellyfin account's server URL, normalized. */
+internal fun MainActivity.jellyfinServerUrl(cfg: MediaServerConfig): String? =
+    cfg.url?.takeIf { it.isNotBlank() }?.let { normalizeServerUrl(it, defaultScheme = "https") }
+
+/** The Jellyfin account a channel came from, or null when it isn't a Jellyfin item (or its
+ *  account has since been removed). */
+internal fun MainActivity.jellyfinConfigFor(channel: Channel): MediaServerConfig? =
+    if (!channel.isJellyfin) null
+    else MediaServerStore.get(prefs, channel.sourceProviderId)?.takeIf { it.isJellyfin }
+        // A catalogue written before media servers became a list carries no source id; with
+        // exactly one Jellyfin account configured there is no ambiguity about which it is,
+        // so it still plays instead of failing until the next refresh re-stamps it.
+        ?: jellyfinServers().singleOrNull()
 
 /** toChannel() only reads serverUrl off a Provider - a minimal stand-in instead of the
  *  shared `provider` field, which now belongs solely to the IPTV slots. Passing that
@@ -33,20 +45,18 @@ internal fun MainActivity.jellyfinServerUrl(): String? =
 internal fun MainActivity.jellyfinProviderStub(url: String?): Provider =
     Provider(name = "Jellyfin", type = ProviderType.M3U, serverUrl = url)
 
-/** Authenticates (or restores) a Jellyfin session against [url]. Failure message is
- *  already user-facing. */
-internal suspend fun MainActivity.connectJellyfin(url: String): Result<JellyfinProvider> {
+/** Authenticates (or restores) a session for one configured Jellyfin account. Failure
+ *  message is already user-facing. */
+internal suspend fun MainActivity.connectJellyfin(cfg: MediaServerConfig): Result<JellyfinProvider> {
+    val url = jellyfinServerUrl(cfg) ?: return Result.failure(Exception("Jellyfin: no server URL"))
     val jellyfin = JellyfinProvider(BaseApplication.instance.okHttpClient)
-    val savedToken = prefs.getString("jellyfin_token", null)
-    val savedUserId = prefs.getString("jellyfin_userid", null)
-    if (!savedToken.isNullOrBlank() && !savedUserId.isNullOrBlank()) {
+    if (!cfg.token.isNullOrBlank() && !cfg.userId.isNullOrBlank()) {
         // Quick Connect never yields a password to re-authenticate with later -
         // reuse the session it already gave us instead.
-        jellyfin.restoreSession(url, savedToken, savedUserId)
+        jellyfin.restoreSession(url, cfg.token, cfg.userId)
     } else {
-        val username = prefs.getString("jellyfin_user", null)
-            ?: return Result.failure(Exception("Jellyfin: no username"))
-        val password = prefs.getString("jellyfin_pass", null).orEmpty()
+        val username = cfg.username ?: return Result.failure(Exception("Jellyfin: no username"))
+        val password = cfg.password.orEmpty()
         val authResult = withContext(Dispatchers.IO) { jellyfin.authenticate(url, username, password) }
         if (authResult.isFailure) {
             return Result.failure(Exception("Jellyfin: ${authResult.exceptionOrNull()?.message?.take(60)}"))
@@ -55,22 +65,26 @@ internal suspend fun MainActivity.connectJellyfin(url: String): Result<JellyfinP
     return Result.success(jellyfin)
 }
 
-/** The live Jellyfin session, reconnecting on demand. A cold start that hits the channel
- *  cache returns from loadAllConfiguredProviders() before any Jellyfin fetch runs, so
- *  jellyfinClient is null while Jellyfin series are already on screen - without this a
+/** The live session for one Jellyfin account, reconnecting on demand. A cold start that hits
+ *  the channel cache returns from loadAllConfiguredProviders() before any Jellyfin fetch runs,
+ *  so the client map is empty while Jellyfin series are already on screen - without this a
  *  series detail page silently showed "No episodes found" on every cached launch. */
-internal suspend fun MainActivity.jellyfinClientOrConnect(): JellyfinProvider? {
-    jellyfinClient?.let { return it }
-    val url = jellyfinServerUrl() ?: return null
-    return connectJellyfin(url).getOrNull()?.also { jellyfinClient = it }
+internal suspend fun MainActivity.jellyfinClientOrConnect(cfg: MediaServerConfig?): JellyfinProvider? {
+    if (cfg == null) return null
+    jellyfinClients[cfg.id]?.let { return it }
+    return connectJellyfin(cfg).getOrNull()?.also { jellyfinClients[cfg.id] = it }
 }
+
+/** The client for whichever Jellyfin account a channel belongs to. */
+internal suspend fun MainActivity.jellyfinClientFor(channel: Channel): JellyfinProvider? =
+    jellyfinClientOrConnect(jellyfinConfigFor(channel))
 
 /** Kept alive post-load for fetching a Jellyfin series' episodes when its detail page
  *  opens - that has no Xtream equivalent path to fall back to. */
-internal suspend fun MainActivity.fetchJellyfinChannels(): FetchResult {
-    val url = jellyfinServerUrl() ?: return FetchResult.Failure("Jellyfin: no server URL")
+internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig): FetchResult {
+    val url = jellyfinServerUrl(cfg) ?: return FetchResult.Failure("Jellyfin: no server URL")
     return try {
-        val jellyfin = connectJellyfin(url).getOrElse {
+        val jellyfin = connectJellyfin(cfg).getOrElse {
             return FetchResult.Failure(it.message ?: "Jellyfin: auth failed")
         }
         val stub = jellyfinProviderStub(url)
@@ -85,21 +99,21 @@ internal suspend fun MainActivity.fetchJellyfinChannels(): FetchResult {
             // Each gate is still checked before anything is started: an off type is not
             // crawled at all, and never was.
             coroutineScope {
-                val liveDeferred = if (jellyfinAllowsLive()) async { jellyfin.getLiveTvChannels() } else null
-                val moviesDeferred = if (jellyfinAllowsMovies()) async { jellyfin.getMovies() } else null
-                val seriesDeferred = if (jellyfinAllowsSeries()) async { jellyfin.getSeries() } else null
+                val liveDeferred = if (jellyfinAllowsLive(cfg)) async { jellyfin.getLiveTvChannels() } else null
+                val moviesDeferred = if (jellyfinAllowsMovies(cfg)) async { jellyfin.getMovies() } else null
+                val seriesDeferred = if (jellyfinAllowsSeries(cfg)) async { jellyfin.getSeries() } else null
                 val liveItems = liveDeferred?.await().orEmpty()
                 val movies = moviesDeferred?.await().orEmpty()
                 val series = seriesDeferred?.await().orEmpty()
                 // No-op on empty, so the gate check the old shape needed here is gone.
-                importJellyfinUserState(movies + series)
-                liveItems.map { JellyfinProvider.toChannel(it, stub) } +
-                    movies.map { JellyfinProvider.toChannel(it, stub) } +
-                    series.map { JellyfinProvider.toChannel(it, stub) }
+                importJellyfinUserState(movies + series, cfg)
+                liveItems.map { JellyfinProvider.toChannel(it, stub, sourceId = cfg.id) } +
+                    movies.map { JellyfinProvider.toChannel(it, stub, sourceId = cfg.id) } +
+                    series.map { JellyfinProvider.toChannel(it, stub, sourceId = cfg.id) }
             }
         }
-        jellyfinClient = jellyfin
-        refreshJellyfinRows(jellyfin, stub)
+        jellyfinClients[cfg.id] = jellyfin
+        refreshJellyfinRows(jellyfin, cfg, stub)
         FetchResult.Success(items)
     } catch (e: CancellationException) {
         // Not a fetch failure - the loader was cancelled (provider toggled, a newer load
@@ -128,15 +142,17 @@ internal suspend fun MainActivity.fetchJellyfinChannels(): FetchResult {
 
 internal fun MainActivity.importJellyfinUserState(
     items: List<JellyfinProvider.JellyfinItem>,
+    cfg: MediaServerConfig,
     includePlayed: Boolean = false
 ) {
-    val stub = jellyfinProviderStub(jellyfinServerUrl())
+    val stub = jellyfinProviderStub(jellyfinServerUrl(cfg))
     for (item in items) {
         if (item.mediaType == "Series") {
             // Favourites are reconciled to the server both ways for Jellyfin items:
             // un-favouriting on the server has to be able to clear the local star too,
-            // which a toggle-only import could never do.
-            FavoritesStore.setFavoriteSeries(this, item.id, item.favorite)
+            // which a toggle-only import could never do. Keyed by the *qualified* id, the
+            // same one the catalogue's channels carry.
+            FavoritesStore.setFavoriteSeries(this, qualifiedMediaItemId(cfg.id, item.id), item.favorite)
             continue
         }
         val runtime = item.runtimeMs ?: continue
@@ -153,20 +169,21 @@ internal fun MainActivity.importJellyfinUserState(
             // Continue Watching is built from, to show a badge nothing displays.
             item.played && includePlayed -> PlaybackPositionStore.save(
                 this,
-                item.id,
+                qualifiedMediaItemId(cfg.id, item.id),
                 runtime,
                 runtime,
-                JellyfinProvider.toChannel(item, stub, prefixSeriesName = true)
+                JellyfinProvider.toChannel(item, stub, prefixSeriesName = true, sourceId = cfg.id)
             )
             item.resumePositionMs > 0 -> {
-                val local = PlaybackPositionStore.get(this, item.id)
+                val key = qualifiedMediaItemId(cfg.id, item.id)
+                val local = PlaybackPositionStore.get(this, key)
                 if (local == null || item.resumePositionMs > local.positionMs) {
                     PlaybackPositionStore.save(
                         this,
-                        item.id,
+                        key,
                         item.resumePositionMs,
                         runtime,
-                        JellyfinProvider.toChannel(item, stub, prefixSeriesName = true)
+                        JellyfinProvider.toChannel(item, stub, prefixSeriesName = true, sourceId = cfg.id)
                     )
                 }
             }
@@ -177,7 +194,11 @@ internal fun MainActivity.importJellyfinUserState(
 /** The server's own Resume and Next Up lists, for the Home rows. Also seeds resume
  *  positions for the items in them - these are the partly-watched titles, so they carry
  *  the positions worth having even when the catalog fetch didn't include them. */
-internal suspend fun MainActivity.refreshJellyfinRows(jellyfin: JellyfinProvider, stub: Provider) {
+internal suspend fun MainActivity.refreshJellyfinRows(
+    jellyfin: JellyfinProvider,
+    cfg: MediaServerConfig,
+    stub: Provider
+) {
     // `a to b` builds the pair by evaluating a then b - two serial round trips, for two
     // independent endpoints. Run together instead.
     val (resume, nextUp) = withContext(Dispatchers.IO) {
@@ -187,9 +208,13 @@ internal suspend fun MainActivity.refreshJellyfinRows(jellyfin: JellyfinProvider
             resumeDeferred.await() to nextUpDeferred.await()
         }
     }
-    importJellyfinUserState(resume)
-    jellyfinResumeItems = resume.map { JellyfinProvider.toChannel(it, stub, prefixSeriesName = true) }
-    jellyfinNextUpItems = nextUp.map { JellyfinProvider.toChannel(it, stub, prefixSeriesName = true) }
+    importJellyfinUserState(resume, cfg)
+    jellyfinResumeByServer[cfg.id] = resume.map {
+        JellyfinProvider.toChannel(it, stub, prefixSeriesName = true, sourceId = cfg.id)
+    }
+    jellyfinNextUpByServer[cfg.id] = nextUp.map {
+        JellyfinProvider.toChannel(it, stub, prefixSeriesName = true, sourceId = cfg.id)
+    }
 }
 
 // ── Jellyfin playback reporting ────────────────
@@ -269,7 +294,7 @@ internal fun MainActivity.switchJellyfinAudioStream(streamIndex: Int) {
     val resumeMs = playerManager.currentPosition.coerceAtLeast(0L)
     binding.bufferingSpinner.visibility = View.VISIBLE
     scope.launch {
-        val client = jellyfinClientOrConnect()
+        val client = jellyfinClientFor(channel)
         val resolved = if (client == null) null else withContext(Dispatchers.IO) {
             runCatching {
                 client.resolveStream(itemId, resumeMs, forceAudioStreamIndex = streamIndex)
@@ -297,10 +322,16 @@ internal fun MainActivity.switchJellyfinAudioStream(streamIndex: Int) {
     }
 }
 
+/** The client for the Jellyfin account whose item is playing, if any. Playback reports must
+ *  reach that server specifically - with several accounts configured, any other one would
+ *  either 404 on the item id or attribute the play to the wrong library. */
+internal fun MainActivity.jellyfinPlayingClient(): JellyfinProvider? =
+    jellyfinPlayingServerId?.let { jellyfinClients[it] }
+
 /** Reports a Jellyfin play as started, so the server opens a session for it (and knows
  *  not to reap the transcode it just set up). */
 internal fun MainActivity.reportJellyfinStart(itemId: String, resolved: JellyfinProvider.ResolvedStream?, positionMs: Long) {
-    val client = jellyfinClient ?: return
+    val client = jellyfinPlayingClient() ?: return
     scope.launch(Dispatchers.IO) {
         runCatching {
             client.reportPlaybackStart(
@@ -317,7 +348,7 @@ internal fun MainActivity.reportJellyfinStart(itemId: String, resolved: Jellyfin
  *  progress tick the local position save uses, throttled to ~10s. */
 internal fun MainActivity.reportJellyfinProgress() {
     val itemId = jellyfinPlayingItemId ?: return
-    val client = jellyfinClient ?: return
+    val client = jellyfinPlayingClient() ?: return
     val position = playerManager.currentPosition.takeIf { it >= 0 } ?: return
     val paused = !playerManager.isPlaying
     val session = jellyfinPlaySession
@@ -332,7 +363,7 @@ internal fun MainActivity.reportJellyfinProgress() {
  *  watched mark or a resume point, so this runs before the player state is torn down. */
 internal fun MainActivity.reportJellyfinStopped(): Boolean {
     val itemId = jellyfinPlayingItemId ?: return false
-    val client = jellyfinClient
+    val client = jellyfinPlayingClient()
     val session = jellyfinPlaySession
     val position = playerManager.currentPosition.takeIf { it >= 0 } ?: 0L
     jellyfinPlayingItemId = null
@@ -353,11 +384,16 @@ internal fun MainActivity.reportJellyfinStopped(): Boolean {
  *  beat first - the lists are derived from the stop we just reported, and asking before
  *  the server has recorded it hands back the pre-play state. */
 internal fun MainActivity.refreshJellyfinRowsAfterPlayback() {
-    val client = jellyfinClient ?: return
+    // Read now, not inside the coroutine: reportJellyfinStopped() has already run, and
+    // starting another title resets the playing-server field while this is still waiting out
+    // its delay - which would refresh the wrong account's rows, or none at all.
+    val serverId = jellyfinPlayingServerId ?: return
+    val cfg = MediaServerStore.get(prefs, serverId) ?: return
+    val client = jellyfinClients[serverId] ?: return
     scope.launch {
         delay(1500)
-        val stub = jellyfinProviderStub(jellyfinServerUrl())
-        runCatching { refreshJellyfinRows(client, stub) }
+        val stub = jellyfinProviderStub(jellyfinServerUrl(cfg))
+        runCatching { refreshJellyfinRows(client, cfg, stub) }
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
     }
 }
@@ -366,7 +402,7 @@ internal fun MainActivity.refreshJellyfinRowsAfterPlayback() {
  *  per-item and only ever needed for the one title on screen, so they're fetched at play
  *  time rather than carried on every catalog entry. */
 internal fun MainActivity.loadJellyfinPlaybackExtras(itemId: String) {
-    val client = jellyfinClient ?: return
+    val client = jellyfinPlayingClient() ?: return
     scope.launch {
         val (chapters, trickplay) = withContext(Dispatchers.IO) {
             runCatching { client.getChapters(itemId) }.getOrDefault(emptyList()) to
@@ -413,7 +449,7 @@ internal fun MainActivity.showChapterPicker() {
 internal fun MainActivity.showTrickplayPreview(targetMs: Long) {
     val info = jellyfinTrickplay ?: return
     val itemId = jellyfinPlayingItemId ?: return
-    val client = jellyfinClient ?: return
+    val client = jellyfinPlayingClient() ?: return
     val thumbIndex = (targetMs / info.intervalMs).toInt().coerceAtLeast(0)
     if (info.thumbnailCount > 0 && thumbIndex >= info.thumbnailCount) return
     val tileIndex = thumbIndex / info.perTile

@@ -754,21 +754,26 @@ internal fun MainActivity.toggleHiddenHomeShelf(title: String) {
 internal fun MainActivity.clearContinueWatching() {
     PlaybackPositionStore.clearAll(this)
     clearUpNextMemo()
-    val jellyfinIds = jellyfinResumeItems.map { it.id }.toList()
-    val plexIds = plexResumeItems.map { it.id }.toList()
-    jellyfinResumeItems = emptyList()
-    plexResumeItems = emptyList()
-    val client = jellyfinClient
-    if (client != null && jellyfinIds.isNotEmpty()) {
-        scope.launch(Dispatchers.IO) {
-            jellyfinIds.forEach { id -> runCatching { client.clearUserData(id) } }
-        }
+    // Grouped by the account each entry came from: with several media servers configured, an
+    // item id only means anything to its own server, and clearing it against another would at
+    // best 404 and at worst clear an unrelated title that happens to share the id.
+    val jellyfinIdsByServer = jellyfinResumeItems.groupBy(
+        { it.sourceProviderId.orEmpty() },
+        { com.lumora.util.rawMediaItemId(it.id) }
+    )
+    val plexIdsByServer = plexResumeItems.groupBy(
+        { it.sourceProviderId.orEmpty() },
+        { com.lumora.util.rawMediaItemId(it.id) }
+    )
+    jellyfinResumeByServer.clear()
+    plexResumeByServer.clear()
+    for ((serverId, ids) in jellyfinIdsByServer) {
+        val client = jellyfinClients[serverId] ?: jellyfinClients.values.singleOrNull() ?: continue
+        scope.launch(Dispatchers.IO) { ids.forEach { id -> runCatching { client.clearUserData(id) } } }
     }
-    val plex = plexClient
-    if (plex != null && plexIds.isNotEmpty()) {
-        scope.launch(Dispatchers.IO) {
-            plexIds.forEach { id -> runCatching { plex.clearUserData(id) } }
-        }
+    for ((serverId, ids) in plexIdsByServer) {
+        val client = plexClients[serverId] ?: plexClients.values.singleOrNull() ?: continue
+        scope.launch(Dispatchers.IO) { ids.forEach { id -> runCatching { client.clearUserData(id) } } }
     }
     getHiddenHomeShelves().let { if (it.remove(getString(R.string.category_continue_watching))) prefs.edit().putStringSet("hidden_home_shelves", it).apply() }
     getHiddenCategories(1).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(1), it).apply() }

@@ -25,8 +25,10 @@ import com.lumora.player.PlayerManager
 import com.lumora.util.normalizeServerUrl
 import com.lumora.data.local.entity.EpgSourceEntity
 import com.lumora.data.backup.BackupManager
+import com.lumora.data.MediaServerStore
 import com.lumora.data.remote.jellyfin.JellyfinProvider
 import com.lumora.data.remote.plex.PlexProvider
+import com.lumora.model.MediaServerConfig
 import com.lumora.data.update.AppUpdateChecker
 import kotlinx.coroutines.*
 import kotlin.coroutines.resume
@@ -88,6 +90,8 @@ internal fun MainActivity.showAddEpgSourceDialog() {
 internal suspend fun MainActivity.performJellyfinQuickConnect(
     url: String,
     existing: Pair<String, String>? = null,
+    existingId: String? = null,
+    name: String? = null,
     onStatus: (String) -> Unit
 ): Boolean {
     val qc = JellyfinProvider(BaseApplication.instance.okHttpClient)
@@ -111,14 +115,53 @@ internal suspend fun MainActivity.performJellyfinQuickConnect(
         onStatus(getString(R.string.sett_qc_signin_failed))
         return false
     }
-    // No password to save here - the token itself is the credential from now on.
-    prefs.edit()
-        .putString("jellyfin_url", url)
-        .putString("jellyfin_token", auth.token)
-        .putString("jellyfin_userid", auth.userId)
-        .putBoolean("jellyfin_provider_enabled", true)
-        .apply()
+    // No password to save here - the token itself is the credential from now on. Written into
+    // the account this form was opened on when there is one, so re-signing in to an existing
+    // entry refreshes its session instead of adding a duplicate row.
+    saveJellyfinServer(
+        existingId = existingId,
+        url = url,
+        name = name,
+        token = auth.token,
+        userId = auth.userId
+    )
     return true
+}
+
+/** Creates or updates one Jellyfin entry in [MediaServerStore], preserving whatever the
+ *  existing entry already carried that this call doesn't set (content gates, and the
+ *  credentials when only a session is being refreshed). */
+internal fun MainActivity.saveJellyfinServer(
+    existingId: String?,
+    url: String,
+    name: String? = null,
+    username: String? = null,
+    password: String? = null,
+    token: String? = null,
+    userId: String? = null
+): MediaServerConfig {
+    val previous = MediaServerStore.get(prefs, existingId)
+    val config = MediaServerConfig(
+        id = existingId ?: MediaServerStore.newId(),
+        type = "jellyfin",
+        name = name?.takeIf { it.isNotBlank() } ?: previous?.name ?: getString(R.string.provider_type_jellyfin),
+        enabled = true,
+        url = url,
+        // A password sign-in and a Quick Connect session are alternatives, not additions: the
+        // one being written wins and the other is cleared, or a stale token would keep being
+        // restored in preference to the credentials just typed.
+        username = username ?: previous?.username.takeIf { token == null },
+        password = password ?: previous?.password.takeIf { token == null },
+        token = token ?: previous?.token.takeIf { username == null },
+        userId = userId ?: previous?.userId.takeIf { username == null },
+        liveEnabled = previous?.liveEnabled ?: true,
+        moviesEnabled = previous?.moviesEnabled ?: true,
+        seriesEnabled = previous?.seriesEnabled ?: true
+    )
+    MediaServerStore.upsert(prefs, config)
+    // A re-signed-in account must not keep serving from the client its old session built.
+    jellyfinClients.remove(config.id)
+    return config
 }
 
 // ── Plex sign-in (plex.tv PIN + QR) ────────────
@@ -140,6 +183,7 @@ internal suspend fun MainActivity.performJellyfinQuickConnect(
  */
 internal suspend fun MainActivity.performPlexSignIn(
     existing: PlexProvider.PinLogin? = null,
+    existingId: String? = null,
     onQr: (android.graphics.Bitmap?) -> Unit = {},
     onCode: (String?) -> Unit = {},
     onStatus: (String) -> Unit
@@ -193,15 +237,26 @@ internal suspend fun MainActivity.performPlexSignIn(
         return false
     }
 
-    prefs.edit()
-        .putString("plex_url", base)
-        .putString("plex_token", server.accessToken)
+    // Signing in again from an existing row updates that row (which is how you switch which
+    // server of the account it points at); a fresh sign-in adds another. Two entries for the
+    // *same* server would only duplicate its library, so one is reused if it's already there.
+    val previous = MediaServerStore.get(prefs, existingId)
+        ?: plexServers().firstOrNull { it.url == base && it.token == server.accessToken }
+    val config = MediaServerConfig(
+        id = previous?.id ?: MediaServerStore.newId(),
+        type = "plex",
+        name = server.name,
+        enabled = true,
+        url = base,
+        token = server.accessToken,
         // Kept so the server list can be re-read later (to switch servers) without a second
         // sign-in - the per-server token can't list an account's resources.
-        .putString("plex_account_token", accountToken)
-        .putString("plex_server_name", server.name)
-        .putBoolean("plex_provider_enabled", true)
-        .apply()
+        accountToken = accountToken,
+        moviesEnabled = previous?.moviesEnabled ?: true,
+        seriesEnabled = previous?.seriesEnabled ?: true
+    )
+    MediaServerStore.upsert(prefs, config)
+    plexClients.remove(config.id)
     onStatus(getString(R.string.sett_plex_signed_in, server.name))
     return true
 }
@@ -474,15 +529,27 @@ internal fun MainActivity.showProviderSettings() {
         initialFocus = { if (addIptvProviderButton.visibility == View.VISIBLE) addIptvProviderButton else typeM3u }
     )
 
+    /** MediaServerConfig.id the form is editing, or null when it is adding a new account.
+     *  Separate from editingProviderId because the two lists are separate stores, and a form
+     *  opened on a Jellyfin row must not be able to overwrite an IPTV provider. Declared up
+     *  here because the sign-in buttons below capture it. */
+    var editingMediaServerId: String? = null
+
     jellyfinQuickConnectButton.setOnClickListener {
         val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
         if (url.isBlank()) {
             Toast.makeText(this, getString(R.string.sett_enter_server_url_first), Toast.LENGTH_SHORT).show()
             return@setOnClickListener
         }
+        val editingId = editingMediaServerId
+        val typedName = providerNameInput.text.toString().trim().ifBlank { null }
         scope.launch {
             var lastMsg = ""
-            val ok = performJellyfinQuickConnect(url) { msg -> lastMsg = msg; jellyfinQuickConnectLabel.text = msg }
+            val ok = performJellyfinQuickConnect(
+                url,
+                existingId = editingId,
+                name = typedName
+            ) { msg -> lastMsg = msg; jellyfinQuickConnectLabel.text = msg }
             jellyfinQuickConnectLabel.text = getString(R.string.sign_in_with_quick_connect)
             if (ok) {
                 
@@ -501,9 +568,11 @@ internal fun MainActivity.showProviderSettings() {
     plexSignInButton.setOnClickListener {
         if (plexSignInJob?.isActive == true) return@setOnClickListener
         plexStatus.visibility = View.VISIBLE
+        val editingId = editingMediaServerId
         plexSignInJob = scope.launch {
             var lastMsg = ""
             val ok = performPlexSignIn(
+                existingId = editingId,
                 onQr = { bitmap ->
                     plexQrImage.setImageBitmap(bitmap)
                     plexQrImage.visibility = if (bitmap == null) View.GONE else View.VISIBLE
@@ -534,8 +603,8 @@ internal fun MainActivity.showProviderSettings() {
     // separate always-visible section, but that meant asking for its server/user/pass
     // even when someone only wanted IPTV. Now it's just another type card, and only
     // its fields show once picked. IPTV types share one saved-config list
-    // (IptvProviderConfig, see editingProviderId); Jellyfin is still a single fixed
-    // slot under the hood (see performJellyfinSave() below), just presented the same way.
+    // (IptvProviderConfig, see editingProviderId); Jellyfin and Plex share another
+    // (MediaServerConfig, see editingMediaServerId) - both lists take any number of entries.
     // currentType is null until a card is tapped - the rest of the form (QR button,
     // name, type-specific fields) stays hidden until then.
     var currentType: String? = null
@@ -574,9 +643,11 @@ internal fun MainActivity.showProviderSettings() {
         typeSummary.visibility = View.VISIBLE
         typeSummaryLabel.text = getString(R.string.sett_type_summary, typeLabels[type] ?: "")
         iptvFieldsSection.visibility = View.VISIBLE
-        // Neither media server takes a user-facing name: each is one fixed slot, named
-        // after the product.
-        nameSection.visibility = if (type == "jellyfin" || type == "plex") View.GONE else View.VISIBLE
+        // Jellyfin takes a name like an IPTV provider does - several accounts can be
+        // configured, and "Jellyfin" on every row says nothing about which is which. Plex
+        // doesn't: its row is named after whichever server the account sign-in bound to, so a
+        // typed name would be overwritten the moment the sign-in finished.
+        nameSection.visibility = if (type == "plex") View.GONE else View.VISIBLE
         m3uGroup.visibility = if (type == "m3u") View.VISIBLE else View.GONE
         xtreamGroup.visibility = if (type == "xtream") View.VISIBLE else View.GONE
         stalkerGroup.visibility = if (type == "stalker") View.VISIBLE else View.GONE
@@ -703,8 +774,14 @@ internal fun MainActivity.showProviderSettings() {
                     // instead. This path is password-only.
                     val url = form["jellyfinServerUrl"]?.let { normalizeServerUrl(it, defaultScheme = "https") } ?: return@runOnUiThread
                     val user = form["jellyfinUsername"]; val pass = form["jellyfinPassword"]
-                    prefs.edit().putString("jellyfin_url", url).putString("jellyfin_user", user).putString("jellyfin_pass", pass).putBoolean("jellyfin_provider_enabled", true).apply()
-                    
+                    saveJellyfinServer(
+                        existingId = editingMediaServerId,
+                        url = url,
+                        name = form["name"]?.takeIf { it.isNotBlank() },
+                        username = user,
+                        password = pass
+                    )
+
                     stopQrServer()
                     dialog.dismiss()
                     loadAllConfiguredProviders(forceRefresh = true)
@@ -751,7 +828,11 @@ internal fun MainActivity.showProviderSettings() {
                     qrStatus.text = getString(R.string.sett_enter_code_on_server, code)
                     scope.launch {
                         var lastMsg = ""
-                        val ok = performJellyfinQuickConnect(url, existing = code to secret) { msg -> lastMsg = msg; qrStatus.text = msg }
+                        val ok = performJellyfinQuickConnect(
+                            url,
+                            existing = code to secret,
+                            existingId = editingMediaServerId
+                        ) { msg -> lastMsg = msg; qrStatus.text = msg }
                         if (ok) {
                             
                             stopQrServer()
@@ -808,6 +889,7 @@ internal fun MainActivity.showProviderSettings() {
 
     fun closeIptvForm() {
         editingProviderId = null
+        editingMediaServerId = null
         currentType = null
         typeCards.values.forEach { it.setBackgroundResource(R.drawable.card_surface_background) }
         typeSummary.visibility = View.GONE
@@ -829,6 +911,7 @@ internal fun MainActivity.showProviderSettings() {
     // is what keeps the QR code/fields on screen without a scroll.
     fun openIptvForm(existing: IptvProviderConfig?) {
         editingProviderId = existing?.id
+        editingMediaServerId = null
         addIptvProviderButton.visibility = View.GONE
         iptvListSection.visibility = View.GONE
         providerNameInput.setText(existing?.name ?: "")
@@ -857,6 +940,11 @@ internal fun MainActivity.showProviderSettings() {
         xtreamPass.setText(if (type == "xtream") existing?.password ?: "" else "")
         stalkerUrl.setText(if (type == "stalker") existing?.url ?: "" else "")
         stalkerMac.setText(if (type == "stalker") existing?.userAgent ?: "" else "")
+        // Media-server fields are never pre-filled from an IPTV config - blanked here so the
+        // form doesn't carry the last edited account's server/credentials into a new entry.
+        jellyfinUrl.setText("")
+        jellyfinUser.setText("")
+        jellyfinPass.setText("")
         iptvFormSection.visibility = View.VISIBLE
         // Whatever opened this ("+ Add Provider", or a list row's Edit button) just went
         // GONE with the list, so focus has to be handed to the form explicitly. The edit
@@ -868,29 +956,29 @@ internal fun MainActivity.showProviderSettings() {
         if (existing == null) focusWhenReady(typeM3u)
     }
 
-    // Jellyfin isn't in IptvProviderStore (single fixed slot, stored as loose prefs -
-    // see hasJellyfinConfigured()), so editing it re-uses the same form/type-card UI
-    // but pre-fills from those prefs instead of an IptvProviderConfig.
-    fun openJellyfinEditForm() {
+    // Jellyfin accounts live in MediaServerStore, not IptvProviderStore, so editing one
+    // re-uses the same form/type-card UI but pre-fills from its MediaServerConfig.
+    fun openJellyfinEditForm(existing: MediaServerConfig) {
         editingProviderId = null
+        editingMediaServerId = existing.id
         addIptvProviderButton.visibility = View.GONE
         iptvListSection.visibility = View.GONE
-        iptvFormTitle.text = getString(R.string.sett_editing_jellyfin)
+        iptvFormTitle.text = getString(R.string.sett_editing_provider, existing.name)
         iptvFormTitle.visibility = View.VISIBLE
-        providerNameInput.setText("")
+        providerNameInput.setText(existing.name)
         selectType("jellyfin")
-        jellyfinUrl.setText(prefs.getString("jellyfin_url", "") ?: "")
-        jellyfinUser.setText(prefs.getString("jellyfin_user", "") ?: "")
-        jellyfinPass.setText(prefs.getString("jellyfin_pass", "") ?: "")
+        jellyfinUrl.setText(existing.url ?: "")
+        jellyfinUser.setText(existing.username ?: "")
+        jellyfinPass.setText(existing.password ?: "")
         iptvFormSection.visibility = View.VISIBLE
     }
 
-    // Plex, like Jellyfin, isn't in IptvProviderStore (single fixed slot, loose prefs - see
-    // hasPlexConfigured()). Unlike Jellyfin there is nothing to pre-fill: "editing" a Plex
-    // slot means signing in again, which is also how you switch to a different server on the
-    // account.
-    fun openPlexEditForm() {
+    // Plex entries are in the same store, but unlike Jellyfin there is nothing to pre-fill:
+    // "editing" a Plex account means signing in again, which is also how you switch to a
+    // different server on that account.
+    fun openPlexEditForm(existing: MediaServerConfig) {
         editingProviderId = null
+        editingMediaServerId = existing.id
         addIptvProviderButton.visibility = View.GONE
         iptvListSection.visibility = View.GONE
         iptvFormTitle.text = getString(R.string.sett_editing_plex)
@@ -903,8 +991,9 @@ internal fun MainActivity.showProviderSettings() {
     fun renderIptvProviderList() {
         iptvProviderListContainer.removeAllViews()
         val list = IptvProviderStore.load(prefs)
+        val servers = mediaServers()
         iptvProviderListEmpty.visibility =
-            if (list.isEmpty() && !hasJellyfinConfigured() && !hasPlexConfigured()) View.VISIBLE else View.GONE
+            if (list.isEmpty() && servers.isEmpty()) View.VISIBLE else View.GONE
         for (cfg in list) {
             val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
             val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
@@ -955,103 +1044,81 @@ internal fun MainActivity.showProviderSettings() {
             }
             iptvProviderListContainer.addView(row)
         }
-        if (hasJellyfinConfigured()) {
+        // One row per configured media-server account, of either kind - any number of each
+        // can exist, so these are rendered from the list exactly like the IPTV rows above
+        // rather than as two fixed slots.
+        for (server in servers) {
             val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
             val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
-            enabledBox.isChecked = isJellyfinEnabled()
+            enabledBox.isChecked = server.enabled
             row.setOnClickListener {
                 val checked = !enabledBox.isChecked
                 enabledBox.isChecked = checked
-                prefs.edit().putBoolean("jellyfin_provider_enabled", checked).apply()
-                applyProviderToggle(checked) { it.isJellyfin }
+                MediaServerStore.setEnabled(prefs, server.id, checked)
+                // Matched through mediaServerOwner rather than on sourceProviderId directly, so
+                // items from a cache written before media servers became a list (no source id
+                // on them) are dropped too instead of lingering until the next refresh.
+                applyProviderToggle(checked) { mediaServerOwner(it, servers)?.id == server.id }
             }
-            // Per-content-type toggles for the Jellyfin slot (loose prefs, no config object).
-            fun bindJellyfinBox(box: CheckBox, key: String, checked: Boolean) {
+            fun bindServerBox(box: CheckBox, checked: Boolean, write: (Boolean) -> Unit) {
                 box.isChecked = checked
                 box.setOnClickListener {
-                    prefs.edit().putBoolean(key, box.isChecked).apply()
+                    write(box.isChecked)
                     if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
                 }
             }
-            bindJellyfinBox(row.findViewById(R.id.rowTvBox), "jellyfin_live_enabled", jellyfinAllowsLive())
-            // Read the STORED flags (like the provider rows), not the effective gates:
-            // the effective gates fold in the global VOD switch, so a provider that
-            // allows movies while the app-level gate is on would otherwise render its
-            // Movies box unchecked and look broken.
-            bindJellyfinBox(row.findViewById(R.id.rowMoviesBox), "jellyfin_movies_enabled", jellyfinFlag("jellyfin_movies_enabled"))
-            bindJellyfinBox(row.findViewById(R.id.rowSeriesBox), "jellyfin_series_enabled", jellyfinFlag("jellyfin_series_enabled"))
-            row.findViewById<TextView>(R.id.rowName).text = getString(R.string.provider_type_jellyfin)
-            row.findViewById<TextView>(R.id.rowDetail).text = getString(R.string.sett_provider_row_detail, getString(R.string.provider_type_jellyfin), prefs.getString("jellyfin_url", "") ?: "")
-            row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openJellyfinEditForm() }
-            row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.sett_remove_jellyfin_confirm))
-                    .setMessage(getString(R.string.sett_remove_jellyfin_message))
-                    .setPositiveButton(getString(R.string.remove)) { _, _ ->
-                        prefs.edit().remove("jellyfin_url").remove("jellyfin_user").remove("jellyfin_pass")
-                            .remove("jellyfin_provider_enabled").remove("jellyfin_disable_vod")
-                            .remove("jellyfin_live_enabled").remove("jellyfin_movies_enabled").remove("jellyfin_series_enabled").apply()
-                        renderIptvProviderList()
-                        focusWhenReady(addIptvProviderButton)
-                        loadAllConfiguredProviders(forceRefresh = true)
-                    }
-                    .setNegativeButton(getString(R.string.cancel), null)
-                    .show()
-            }
-            iptvProviderListContainer.addView(row)
-        }
-        if (hasPlexConfigured()) {
-            val row = layoutInflater.inflate(R.layout.item_iptv_provider_row, iptvProviderListContainer, false)
-            val enabledBox = row.findViewById<CheckBox>(R.id.rowEnabled)
-            enabledBox.isChecked = isPlexEnabled()
-            row.setOnClickListener {
-                val checked = !enabledBox.isChecked
-                enabledBox.isChecked = checked
-                prefs.edit().putBoolean("plex_provider_enabled", checked).apply()
-                applyProviderToggle(checked) { it.isPlex }
-            }
-            fun bindPlexBox(box: CheckBox, key: String, checked: Boolean) {
-                box.isChecked = checked
-                box.setOnClickListener {
-                    prefs.edit().putBoolean(key, box.isChecked).apply()
-                    if (hasProviderConfigured()) scope.launch { loadAllConfiguredProviders(forceRefresh = true) }
-                }
-            }
-            // No TV box: the Plex slot never produces live channels (Plex Live TV is a
-            // tuner-session flow Lumora's live model can't express), so a checkbox for it
-            // would toggle nothing. Disabled rather than hidden, so the row still lines up
-            // with its siblings' three columns.
             val tvBox = row.findViewById<CheckBox>(R.id.rowTvBox)
-            tvBox.isChecked = false
-            tvBox.isEnabled = false
+            if (server.isPlex) {
+                // No TV box: a Plex server never produces live channels (Plex Live TV is a
+                // tuner-session flow Lumora's live model can't express), so a checkbox for it
+                // would toggle nothing. Disabled rather than hidden, so the row still lines up
+                // with its siblings' three columns.
+                tvBox.isChecked = false
+                tvBox.isEnabled = false
+            } else {
+                bindServerBox(tvBox, server.liveEnabled) { on ->
+                    MediaServerStore.setContentFlags(prefs, server.id, live = on)
+                }
+            }
             // Read the STORED flags (like the provider rows), not the effective gates: the
-            // effective gates fold in the global VOD switch, so a slot that allows movies
+            // effective gates fold in the global VOD switch, so an account that allows movies
             // while the app-level gate is on would render its Movies box unchecked and look
             // broken.
-            bindPlexBox(row.findViewById(R.id.rowMoviesBox), "plex_movies_enabled", prefs.getBoolean("plex_movies_enabled", true))
-            bindPlexBox(row.findViewById(R.id.rowSeriesBox), "plex_series_enabled", prefs.getBoolean("plex_series_enabled", true))
-            row.findViewById<TextView>(R.id.rowName).text = getString(R.string.provider_type_plex)
-            row.findViewById<TextView>(R.id.rowDetail).text = getString(
-                R.string.sett_provider_row_detail,
-                getString(R.string.provider_type_plex),
-                prefs.getString("plex_server_name", null) ?: prefs.getString("plex_url", "") ?: ""
+            bindServerBox(row.findViewById(R.id.rowMoviesBox), server.moviesEnabled) { on ->
+                MediaServerStore.setContentFlags(prefs, server.id, movies = on)
+            }
+            bindServerBox(row.findViewById(R.id.rowSeriesBox), server.seriesEnabled) { on ->
+                MediaServerStore.setContentFlags(prefs, server.id, series = on)
+            }
+            val typeLabel = getString(
+                if (server.isPlex) R.string.provider_type_plex else R.string.provider_type_jellyfin
             )
-            row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openPlexEditForm() }
+            row.findViewById<TextView>(R.id.rowName).text = server.name
+            row.findViewById<TextView>(R.id.rowDetail).text =
+                getString(R.string.sett_provider_row_detail, typeLabel, server.url ?: "")
+            row.findViewById<View>(R.id.rowEditButton).setOnClickListener {
+                if (server.isPlex) openPlexEditForm(server) else openJellyfinEditForm(server)
+            }
             row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
                 AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.sett_remove_plex_confirm))
-                    .setMessage(getString(R.string.sett_remove_plex_message))
+                    .setTitle(getString(R.string.sett_remove_provider_confirm, server.name))
+                    .setMessage(
+                        getString(
+                            if (server.isPlex) R.string.sett_remove_plex_message
+                            else R.string.sett_remove_jellyfin_message
+                        )
+                    )
                     .setPositiveButton(getString(R.string.remove)) { _, _ ->
-                        // plex_client_id deliberately survives: it identifies this install to
-                        // plex.tv, and minting a new one on every remove/re-add would litter
-                        // the user's Plex device list with a fresh entry each time.
-                        prefs.edit().remove("plex_url").remove("plex_token")
-                            .remove("plex_account_token").remove("plex_server_name")
-                            .remove("plex_provider_enabled")
-                            .remove("plex_movies_enabled").remove("plex_series_enabled").apply()
-                        plexClient = null
-                        plexResumeItems = emptyList()
-                        plexNextUpItems = emptyList()
+                        // plex_client_id deliberately survives a Plex removal: it identifies
+                        // this install to plex.tv, and minting a new one on every remove/re-add
+                        // would litter the user's Plex device list with a fresh entry each time.
+                        MediaServerStore.remove(prefs, server.id)
+                        jellyfinClients.remove(server.id)
+                        plexClients.remove(server.id)
+                        jellyfinResumeByServer.remove(server.id)
+                        jellyfinNextUpByServer.remove(server.id)
+                        plexResumeByServer.remove(server.id)
+                        plexNextUpByServer.remove(server.id)
                         renderIptvProviderList()
                         focusWhenReady(addIptvProviderButton)
                         loadAllConfiguredProviders(forceRefresh = true)
@@ -1073,7 +1140,7 @@ internal fun MainActivity.showProviderSettings() {
     // First run, nothing configured at all yet - the empty list + tiny "+ Add" button
     // would leave the user staring at nothing to interact with, so open the form
     // immediately (matches the old single-slot behavior of showing fields right away).
-    if (IptvProviderStore.load(prefs).isEmpty() && !hasJellyfinConfigured() && !hasPlexConfigured()) {
+    if (IptvProviderStore.load(prefs).isEmpty() && mediaServers().isEmpty()) {
         openIptvForm(null)
     }
 
@@ -1189,10 +1256,8 @@ internal fun MainActivity.showProviderSettings() {
             .show()
     }
 
-    // Jellyfin is a single independent slot (unlike IPTV, which is a list managed via
-    // openIptvForm()/renderIptvProviderList() above), so its fields still pre-fill directly.
-    jellyfinUrl.setText(prefs.getString("jellyfin_url", ""))
-    jellyfinUser.setText(prefs.getString("jellyfin_user", ""))
+    // Nothing pre-fills the Jellyfin fields here any more: they belong to whichever account
+    // the form was opened on (openJellyfinEditForm), and any number can be configured.
 
     val subscriptionStatus = dialogView.findViewById<TextView>(R.id.settingsSubscriptionStatus)
     val expDate = prefs.getString("xtream_exp_date", null)?.toLongOrNull()
@@ -1590,22 +1655,23 @@ internal fun MainActivity.showProviderSettings() {
                 ))
             }
             "jellyfin" -> {
-                // Not part of IptvProviderStore - Jellyfin is still a single fixed
-                // slot under the hood, stored as loose prefs (see hasJellyfinConfigured()).
+                // Media servers have their own list (MediaServerStore), not IptvProviderStore -
+                // same "any number of entries" shape, different contents.
                 val url = jellyfinUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it, defaultScheme = "https") }
                 if (url.isBlank()) { Toast.makeText(this, getString(R.string.sett_enter_server_url), Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-                prefs.edit()
-                    .putString("jellyfin_url", url)
-                    .putString("jellyfin_user", jellyfinUser.text.toString().trim())
-                    .putString("jellyfin_pass", jellyfinPass.text.toString().trim())
-                    .putBoolean("jellyfin_provider_enabled", true)
-                    .apply()
+                saveJellyfinServer(
+                    existingId = editingMediaServerId,
+                    url = url,
+                    name = name,
+                    username = jellyfinUser.text.toString().trim(),
+                    password = jellyfinPass.text.toString().trim()
+                )
             }
             "plex" -> {
-                // Nothing to save: the Plex slot is written by the sign-in itself (see
+                // Nothing to save: a Plex entry is written by the sign-in itself (see
                 // performPlexSignIn), because a Plex account - not a typed URL - is what
                 // says which servers exist and what token opens them. Save with no session
-                // yet would silently create a half-configured slot, so say so instead.
+                // yet would silently create a half-configured entry, so say so instead.
                 if (!hasPlexConfigured()) {
                     Toast.makeText(this, getString(R.string.sign_in_with_plex), Toast.LENGTH_SHORT).show()
                     return@setOnClickListener

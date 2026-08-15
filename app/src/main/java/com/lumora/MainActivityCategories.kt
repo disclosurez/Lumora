@@ -214,8 +214,10 @@ internal fun MainActivity.toggleFavoriteVodItem(item: Channel) {
     // has ratings, which are a different thing), so a Plex star stays local.
     if (item.isJellyfin) {
         scope.launch {
-            val client = jellyfinClientOrConnect() ?: return@launch
-            withContext(Dispatchers.IO) { runCatching { client.setFavorite(item.id, nowFavorite) } }
+            val client = jellyfinClientFor(item) ?: return@launch
+            withContext(Dispatchers.IO) {
+                runCatching { client.setFavorite(com.lumora.util.rawMediaItemId(item.id), nowFavorite) }
+            }
         }
     }
     refreshHomeShelvesIfShowing()
