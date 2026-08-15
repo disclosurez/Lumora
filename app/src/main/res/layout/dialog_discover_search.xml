@@ -78,33 +78,50 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- The keyboard, vertically centred like the main overlay: on a TV the panel is
-             far taller than the keys. -->
-        <com.lumora.ui.OnScreenKeyboard
-            android:id="@+id/discoverSearchKeyboard"
-            android:layout_width="@dimen/search_keyboard_width"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="@dimen/search_section_gap" />
+        <!-- Keyboard + submit, centred in everything the header leaves over. This overlay has
+             no results surface to fill that space (Discover's own grid shows the matches after
+             submit), so without a weighted middle the whole block sat jammed under the header
+             with the rest of a full-height panel empty below it. The main overlay gets the
+             same centring from its keyboard column; here the weight has to be on the block
+             itself. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical">
 
-        <!-- Submit: the one clearly primary action here, so it gets the filled play-button
-             treatment rather than the neutral toolbar chrome. Runs the search (host reads
-             discoverSearchQuery, calls runDiscoverSearch) and closes the overlay. -->
-        <TextView
-            android:id="@+id/discoverSearchSubmit"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="@dimen/search_section_gap"
-            android:background="@drawable/bg_play_button"
-            android:clickable="true"
-            android:focusable="true"
-            android:fontFamily="@font/inter_semibold"
-            android:paddingHorizontal="32dp"
-            android:paddingVertical="12dp"
-            android:stateListAnimator="@animator/focus_scale"
-            android:text="@string/search"
-            android:textColor="@color/text_on_primary"
-            android:textSize="@dimen/text_body_l" />
+            <com.lumora.ui.OnScreenKeyboard
+                android:id="@+id/discoverSearchKeyboard"
+                android:layout_width="@dimen/search_keyboard_width"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="@dimen/search_section_gap" />
+
+            <!-- Submit: the one clearly primary action here, so it gets the filled play-button
+                 treatment rather than the neutral toolbar chrome. Runs the search (host reads
+                 discoverSearchQuery, calls loadDiscover) and closes the overlay. Width matches
+                 the keyboard so the two read as one block rather than a button floating under
+                 a wider slab. -->
+            <TextView
+                android:id="@+id/discoverSearchSubmit"
+                android:layout_width="@dimen/search_keyboard_width"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="@dimen/search_section_gap"
+                android:background="@drawable/bg_play_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/inter_semibold"
+                android:gravity="center"
+                android:paddingHorizontal="32dp"
+                android:paddingVertical="12dp"
+                android:stateListAnimator="@animator/focus_scale"
+                android:text="@string/search"
+                android:textColor="@color/text_on_primary"
+                android:textSize="@dimen/text_body_l" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

@@ -45,11 +45,19 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
     val view = layoutInflater.inflate(R.layout.dialog_discover_search, null)
     val input = view.findViewById<EditText>(R.id.discoverSearchQuery)
     val keyboard = view.findViewById<com.lumora.ui.OnScreenKeyboard>(R.id.discoverSearchKeyboard)
+    val submit = view.findViewById<View>(R.id.discoverSearchSubmit)
     applyPanelWidth(view.findViewById(R.id.discoverSearchPanel), R.dimen.search_panel_width)
     input.showSoftInputOnFocus = false
+    // Re-opening the overlay starts from whatever is currently being browsed, so refining a
+    // query means editing it rather than retyping it letter by letter on a remote.
+    input.setText(binding.discoverSearchInput.text.toString())
     keyboard.onKey = { ch -> input.setText(input.text.toString() + ch) }
     keyboard.onBackspace = { input.setText(input.text.toString().dropLast(1)) }
     keyboard.onClear = { input.setText("") }
+    // DOWN off the bottom key row (SHIFT/SPACE/DEL/CLEAR) has only Submit below it - route
+    // it there explicitly rather than leaving the crossing out of the keyboard's own focus
+    // tree to default focus search.
+    keyboard.bottomRowDownTarget = submit
     // Hardware (BT/USB) keyboard routes here while the overlay is up.
     searchKeyHandler = { ch ->
         if (ch == null) keyboard.onBackspace?.invoke()
@@ -61,15 +69,16 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
         closeButton = view.findViewById(R.id.discoverSearchClose),
         initialFocus = { keyboard.firstKey() ?: input }
     )
-    view.findViewById<View>(R.id.discoverSearchSubmit).setOnClickListener {
+    submit.setOnClickListener {
         val query = input.text.toString().trim()
         overlay.dismiss()
-        if (query.isNotEmpty()) {
-            binding.discoverSearchInput.setText(query)
-            discoverTypeFilter = null
-            updateDiscoverFilterChipStyles()
-            loadDiscover(query)
-        }
+        binding.discoverSearchInput.setText(query)
+        discoverTypeFilter = null
+        updateDiscoverFilterChipStyles()
+        // Submitting an emptied query is how a search is undone - it puts Discover back on
+        // Trending, the same state the Trending chip gives. Doing nothing there left the
+        // grid showing the old results with an empty field above them.
+        loadDiscover(query.ifEmpty { null })
     }
     val tabBarWasVisible = binding.tabBar.visibility == View.VISIBLE
     if (tabBarWasVisible) binding.tabBar.visibility = View.GONE
