@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.2
+
+### Player
+- **A film or episode now retries and switches source before showing an error.** Only live TV and Jellyfin had any recovery: one transient read error on an IPTV film ended playback with "Playback error" and left switching source as your job. VOD now gets two quiet retries of the same stream (resuming where it stopped), then an automatic switch to another copy of the same title - the film's other sources, or another provider's copy of the show matched by season and episode - before any error is shown. Retries only happen for transport failures; a missing file or an unreadable stream skips straight to the next source.
+- **Subtitles no longer switch themselves on when they are turned off.** A subtitle track tagged for the hearing impaired (SDH) was being read as a "forced" track - the narrow kind that is allowed through with subtitles off to translate a foreign-language scene - so any stream carrying English SDH played with full subtitles across the whole title.
+- **Playback failures are now logged**, so an error that only happens on your device leaves something to diagnose from.
+
+### Discover
+- **Search shows results as you type, beside the keyboard.** Previously the overlay typed blind and only filled the grid behind it once submitted - and on a TV the panel shared the screen with the Discover page underneath, which pushed the lower keyboard rows and the Search button off the bottom edge, leaving the search impossible to run at all.
+- Picking a title straight from the search results leaves the Discover page showing those results, so Back returns to them.
+
+### Series
+- **Episodes that have not aired yet are marked as such and can no longer be played.** A season still going out lists its remaining episodes; pressing one used to start a stream search for something that does not exist. They now show a countdown within a week ("In 3 days") or their air date, and are skipped by the Play button and auto-advance.
+
 ## 4.1
 
 ### Xtream/IPTV
