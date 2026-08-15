@@ -227,7 +227,20 @@ class PlayerManager(
                         // FORCED carries the "only show this for foreign dialogue" meaning the
                         // track was authored with; DEFAULT is what makes the renderer pick it
                         // without the user going into the picker.
-                        .setSelectionFlags(if (subtitlesEnabled && subtitle.isDefault) C.SELECTION_FLAG_DEFAULT else 0)
+                        //
+                        // FORCED is stamped whatever the subtitles pref says, because it is a
+                        // statement about the track, not a request to show it: with text
+                        // disabled nothing selects it, and it is the signal
+                        // attachOneShotForcedSubtitlePreference looks for when subtitles are
+                        // off. It used to be left off entirely, which is why that pass had to
+                        // fall back to reading the role flag - and that flag also marks SDH.
+                        .setSelectionFlags(
+                            when {
+                                subtitle.isForced -> C.SELECTION_FLAG_FORCED
+                                subtitlesEnabled && subtitle.isDefault -> C.SELECTION_FLAG_DEFAULT
+                                else -> 0
+                            }
+                        )
                         .setRoleFlags(if (subtitle.isForced) C.ROLE_FLAG_SUBTITLE or C.ROLE_FLAG_TRANSCRIBES_DIALOG else C.ROLE_FLAG_SUBTITLE)
                         .build()
                 }
@@ -369,10 +382,24 @@ class PlayerManager(
                             (tag == language || tag.startsWith("$language-") || (iso3.isNotEmpty() && tag == iso3))
                         if (!matchesLanguage) continue
                         val label = format.label?.lowercase().orEmpty()
+                        // ROLE_FLAG_TRANSCRIBES_DIALOG used to count as "forced" here. It does
+                        // not mean forced: HLS sets it from CHARACTERISTICS
+                        // "public.accessibility.transcribes-spoken-dialog", which is how an SDH
+                        // rendition is tagged - a full transcript of every line, the exact
+                        // opposite of a forced track. Any stream shipping SDH English therefore
+                        // came up with subtitles burned across the whole film while the pref
+                        // said off. The authored FORCED flag (which our own sideloads now carry
+                        // too) and an explicit label are the only trustworthy signals.
                         val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0 ||
-                            (format.roleFlags and C.ROLE_FLAG_TRANSCRIBES_DIALOG) != 0 ||
-                            label.contains("forced")
+                            FORCED_LABEL_REGEX.containsMatchIn(label)
                         if (!isForced) continue
+                        // A track can be labelled forced and still be the hearing-impaired one
+                        // ("English (Forced, SDH)"); the describes-music-and-sound role is what
+                        // says so. Without the authored FORCED flag to back the label up, trust
+                        // the role and leave it alone.
+                        val isSdh = (format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) != 0 ||
+                            SDH_LABEL_REGEX.containsMatchIn(label)
+                        if (isSdh && (format.selectionFlags and C.SELECTION_FLAG_FORCED) == 0) continue
                         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
@@ -603,5 +630,14 @@ class PlayerManager(
         fun isExtraBufferingEnabled(context: Context): Boolean =
             context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
                 .getBoolean(PREF_EXTRA_BUFFERING, false)
+
+        /** Track labels that say the track is forced, in the forms sources actually write it
+         *  ("Forced", "English [Forced]", "en-forced"). Word-bounded so "unforced" and
+         *  "reinforced" don't match. */
+        private val FORCED_LABEL_REGEX = Regex("""\bforced\b""")
+
+        /** Hearing-impaired labels, for tracks whose role flags don't say it: SDH and CC are a
+         *  full transcript plus sound description, never a forced track. */
+        private val SDH_LABEL_REGEX = Regex("""\b(sdh|cc|hearing[- ]impaired)\b""")
     }
 }
