@@ -1050,12 +1050,22 @@ internal fun MainActivity.retryCurrentVodStream(channel: Channel, error: Playbac
  *  timeout, a 5xx/429/509 from the provider), rather than the media being wrong or absent. A
  *  404, a permission refusal or an unreadable container fails the same way every time. */
 internal fun isRetryablePlaybackError(error: PlaybackException): Boolean {
-    val http = generateSequence(error.cause) { it.cause }
-        .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
+    val causes = generateSequence(error.cause) { it.cause }.take(MAX_CAUSE_DEPTH).toList()
+    val http = causes.filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
         .firstOrNull()
     if (http != null) return http.responseCode >= 500 || http.responseCode == 429
+    // Something in the media itself defeated a parser - a malformed container, or a subtitle
+    // cue the parser rejects. Media3 reports those as IO errors (the extractor throws inside a
+    // load task, and Loader wraps a RuntimeException in an IOException), but they are entirely
+    // deterministic: the same bytes fail at the same offset every time, so retrying only
+    // spends the backoff before arriving at the same place.
+    if (causes.any { it is androidx.media3.common.ParserException || it is RuntimeException }) return false
     return error.errorCode in RETRYABLE_PLAYER_ERROR_CODES
 }
+
+/** Cause chains are walked with a bound: a self-referential cause would otherwise hang the
+ *  main thread here, and nothing useful lives that deep anyway. */
+private const val MAX_CAUSE_DEPTH = 10
 
 /**
  * Fails a film or episode over to another copy of the same title, the way live already fails
