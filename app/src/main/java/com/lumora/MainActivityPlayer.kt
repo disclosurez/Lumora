@@ -1675,7 +1675,15 @@ internal fun MainActivity.saveCurrentPlaybackPosition() {
     val saveChannel = if (channel.mediaType == MediaType.SERIES) {
         channel.copy(categoryId = channel.categoryId ?: currentSeriesVersionContext?.first?.id)
     } else channel
+    val wasWatched = PlaybackPositionStore.get(this, key)?.isNearComplete == true
     PlaybackPositionStore.save(this, key, pos, dur, saveChannel)
+    // Crossing the completion threshold is what "watched" means for a title that was
+    // actually played, so publish it to every other copy - and to the media servers - the
+    // moment it happens. Only on the transition: re-saving an already-finished position on
+    // every teardown would re-push the same mark to every server each time.
+    if (!wasWatched && PlaybackPositionStore.get(this, key)?.isNearComplete == true) {
+        setItemWatched(saveChannel, watched = true)
+    }
 }
 
 internal fun MainActivity.hidePlayer() {

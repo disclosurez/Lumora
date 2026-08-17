@@ -695,10 +695,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 continue
             }
             check.visibility = View.VISIBLE
-            val watched = episodes.all { ep ->
-                val key = ep.id.ifBlank { ep.url }
-                key.isNotBlank() && PlaybackPositionStore.get(this@showContentDetail, key)?.isNearComplete == true
-            }
+            val watched = episodes.all { isItemWatched(it) }
             check.isSelected = watched
             check.contentDescription = getString(
                 if (watched) R.string.season_mark_unwatched else R.string.season_mark_watched
@@ -713,19 +710,10 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     fun toggleSeasonWatched(seasons: List<Pair<String, List<Channel>>>, index: Int) {
         val episodes = seasons.getOrNull(index)?.second ?: return
         if (episodes.isEmpty()) return
-        val allWatched = episodes.all { ep ->
-            val key = ep.id.ifBlank { ep.url }
-            key.isNotBlank() && PlaybackPositionStore.get(this@showContentDetail, key)?.isNearComplete == true
-        }
-        for (ep in episodes) {
-            val key = ep.id.ifBlank { ep.url }
-            if (key.isBlank()) continue
-            if (allWatched) {
-                PlaybackPositionStore.clear(this@showContentDetail, key)
-            } else {
-                PlaybackPositionStore.save(this@showContentDetail, key, 1L, 1L, ep)
-            }
-        }
+        val allWatched = episodes.all { isItemWatched(it) }
+        // setItemWatched, not a bare store write: the mark has to land on every other copy
+        // of each episode and on the configured media servers, not just this season's ids.
+        for (ep in episodes) setItemWatched(ep, !allWatched)
         itemAdapter.notifyDataSetChanged()
         refreshSeasonChipStates(seasons)
         playButtonRefresh?.invoke()
@@ -798,7 +786,11 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             if (!showingHome && activeTab != 0) scope.launch { classifyAndShow(preserveUi = true) }
             refreshSeasonChipStates(detailSeasons)
             playButtonRefresh?.invoke()
-        }
+        },
+        // Watched state is cross-provider: the same episode on Plex, on Jellyfin and on any
+        // number of IPTV panels is one thing, and finishing any copy counts for all of them.
+        isWatched = { episode -> isItemWatched(episode) },
+        applyWatched = { episode, watched -> setItemWatched(episode, watched) }
     )
     itemsList.adapter = itemAdapter
 
@@ -992,10 +984,8 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         // Nothing part-watched: scan the chain in order, skipping finished
         // (near-complete) episodes, and land on the first episode that still needs
         // watching. Every episode finished falls back to episode 1.
-        val target = inProgress?.first ?: ordered.firstOrNull { ep ->
-            val key = ep.id.ifBlank { ep.url }
-            key.isNotBlank() && PlaybackPositionStore.get(this, key)?.isNearComplete != true
-        } ?: ordered.firstOrNull() ?: return null
+        val target = inProgress?.first ?: ordered.firstOrNull { !isItemWatched(it) }
+            ?: ordered.firstOrNull() ?: return null
         return SeriesTargetSelection(target, ordered, inProgress != null)
     }
 

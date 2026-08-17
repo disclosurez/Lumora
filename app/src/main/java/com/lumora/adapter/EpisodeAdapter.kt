@@ -41,12 +41,23 @@ class EpisodeAdapter(
     // any arbitrary leading "Word - S01E21 - " would also eat titles that legitimately
     // start that way.
     private val seriesName: String? = null,
-    // Watched-state check toggle: fired after this row's checkmark flips (save/clear
-    // already done, row already repainted) so the host can refresh dependent UI - the
-    // season chips' all-watched state and the detail screen's Play button target.
-    // Boolean = the new watched state.
-    private val onWatchedToggle: ((Channel, Boolean) -> Unit)? = null
+    // Watched-state check toggle: fired after this row's checkmark flips (the host owns the
+    // write - see applyWatched) so it can refresh dependent UI too: the season chips'
+    // all-watched state and the detail screen's Play button target. Boolean = the new state.
+    private val onWatchedToggle: ((Channel, Boolean) -> Unit)? = null,
+    // Watched state is asked of the host rather than read straight out of
+    // PlaybackPositionStore, because "watched" is not a per-copy fact: the same episode can
+    // exist on Plex, on Jellyfin and on several IPTV panels, and finishing any one of them
+    // counts (MainActivity.isItemWatched / setItemWatched). The defaults keep the old
+    // per-copy behaviour for any host that doesn't care.
+    private val isWatched: ((Channel) -> Boolean)? = null,
+    private val applyWatched: ((Channel, Boolean) -> Unit)? = null
 ) : ListAdapter<Channel, EpisodeAdapter.ViewHolder>(DiffCallback()) {
+
+    private fun watched(context: android.content.Context, episode: Channel): Boolean =
+        isWatched?.invoke(episode)
+            ?: (episode.id.ifBlank { episode.url }.takeIf { it.isNotBlank() }
+                ?.let { PlaybackPositionStore.get(context, it)?.isNearComplete } == true)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val seriesPrefixRegex = seriesName?.takeIf { it.isNotBlank() }?.let {
@@ -107,8 +118,13 @@ class EpisodeAdapter(
                 val episode = current ?: return@setOnClickListener
                 val key = episode.id.ifBlank { episode.url }
                 if (key.isBlank()) return@setOnClickListener
-                val wasWatched = PlaybackPositionStore.get(itemView.context, key)?.isNearComplete == true
-                if (wasWatched) {
+                val wasWatched = watched(itemView.context, episode)
+                val apply = applyWatched
+                if (apply != null) {
+                    // The host writes it, because the mark has to reach every other copy of
+                    // this episode and the configured media servers, not just this row's id.
+                    apply(episode, !wasWatched)
+                } else if (wasWatched) {
                     PlaybackPositionStore.clear(itemView.context, key)
                 } else {
                     // Duration unknown for an unwatched-from-scratch episode; 1ms of 1ms
@@ -212,7 +228,7 @@ class EpisodeAdapter(
 
             val key = episode.id.ifBlank { episode.url }
             val saved = if (key.isNotBlank()) PlaybackPositionStore.get(itemView.context, key) else null
-            val isWatched = saved?.isNearComplete == true
+            val isWatched = watched(itemView.context, episode)
             when {
                 isWatched -> {
                     watchedBadge.visibility = View.VISIBLE

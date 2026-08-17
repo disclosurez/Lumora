@@ -804,10 +804,7 @@ internal fun MainActivity.isAdultHomeItem(item: Channel): Boolean {
  *  whole series is watched: a completed series gets no up-next tile. */
 internal fun MainActivity.nextEpisodeFor(seasons: List<Pair<String, List<Channel>>>): Channel? {
     val ordered = seasons.flatMap { (_, eps) -> eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
-    return ordered.firstOrNull { ep ->
-        val key = ep.id.ifBlank { ep.url }
-        key.isNotBlank() && PlaybackPositionStore.get(this, key)?.isNearComplete != true
-    }
+    return ordered.firstOrNull { !isItemWatched(it) }
 }
 
 /** Builds an up-next tile's display name: "Series · S01E05 · Title". Episode titles often
@@ -905,9 +902,13 @@ internal fun MainActivity.buildHomeShelves(): List<ContentShelf> {
     // buildUpNextSeriesTiles returns what's already resolved and kicks the async fetch
     // for the rest - the row fills in as episodes arrive.
     val upNext = buildUpNextSeriesTiles().filterNot(::isAdultHomeItem)
-    val continueItems = (serverContinue + localContinue + upNext)
-        .distinctBy { it.id.ifBlank { it.url } }
-        .filterNot(::isAdultHomeItem)
+    // Labelled and postered from the parent series - see continueWatchingTiles. Applied after
+    // the dedupe so the catalogue pass runs over the final row, not the raw merge.
+    val continueItems = continueWatchingTiles(
+        (serverContinue + localContinue + upNext)
+            .distinctBy { it.id.ifBlank { it.url } }
+            .filterNot(::isAdultHomeItem)
+    )
     if (continueItems.isNotEmpty()) shelves.add(ContentShelf(getString(R.string.category_continue_watching), continueItems))
 
     // "Next Up" is the row that makes a series library usable - the next unwatched episode
@@ -948,7 +949,84 @@ internal fun MainActivity.seriesContinueItems(): List<Channel> {
     val local = PlaybackPositionStore.getAllInProgress(this).filter { it.mediaType == MediaType.SERIES }
     val server = (jellyfinResumeItems + plexResumeItems).filter { it.mediaType == MediaType.SERIES }
     val serverIds = server.map { it.id }.toSet()
-    return (server + local.filterNot { it.id in serverIds }).filterNot(::isAdultHomeItem)
+    return continueWatchingTiles(
+        (server + local.filterNot { it.id in serverIds }).filterNot(::isAdultHomeItem)
+    )
+}
+
+/**
+ * Re-labels episode tiles with the show they belong to, and gives them the show's artwork:
+ * "SAS Rogue Heroes · S03E03", over the series poster.
+ *
+ * A Continue Watching entry is a snapshot of the *episode* that was playing, so the tile
+ * carried whatever the provider called that episode - frequently a bare "S03E03", or an
+ * episode title with no hint of the show - over an episode still, which for most providers is
+ * nothing at all. Neither says which series is being offered, which is the one thing the row
+ * exists to answer.
+ *
+ * Only the display fields are rewritten. The id, url, categoryId and episodeNum are the
+ * originals, so clicking still resolves to the series page (or resumes the episode) exactly as
+ * before, and the playback-position key is untouched.
+ *
+ * Anything that isn't a resolvable episode is returned as it came: a film, a top-level series
+ * entry, or an episode whose series isn't in the catalogue (a provider that never stamped the
+ * parent id, or a show since removed). Those keep the name the snapshot was saved with rather
+ * than getting a half-built label.
+ */
+/** Anywhere in a name, not just at the front - see [tileSeasonNumber]. */
+internal val ANY_SEASON_MARKER_REGEX = Regex("""(?i)\bS(\d{1,2})E\d{1,3}\b""")
+
+/**
+ * The season number to print on a Continue Watching tile, or null if nothing states one.
+ *
+ * [seasonNumberOf] is the shared helper, but its regex is anchored to the start of the name,
+ * so it only reads providers that lead with the marker ("S03E03 · Title"). Plenty bury it
+ * instead ("SAS Rogue Heroes - S03E03 - Title"), so fall back to finding it anywhere. That
+ * looser match is confined to this label: a false positive here misprints a tile, whereas
+ * [seasonNumberOf] feeds episode-queue and find-stream decisions and should stay strict.
+ *
+ * Jellyfin and Plex episodes state the season as a field that [Channel] has nowhere to keep,
+ * and their names carry no marker at all - those tiles get a bare episode number.
+ */
+internal fun tileSeasonNumber(episode: Channel): Int? =
+    seasonNumberOf(episode)
+        ?: ANY_SEASON_MARKER_REGEX.find(episode.name)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+internal fun MainActivity.continueWatchingTiles(items: List<Channel>): List<Channel> {
+    val wanted = items.mapNotNullTo(HashSet()) { item ->
+        item.categoryId?.takeIf { it.isNotBlank() && item.episodeNum != null }
+    }
+    if (wanted.isEmpty()) return items
+    // One pass over the catalogue for the whole row. resolveHomeTileSeries scans allChannels
+    // per call, which is fine for the single lookup a click does but not for a shelf rebuild:
+    // a six-figure catalogue times a row of tiles is millions of comparisons on the main
+    // thread. Candidates are grouped by id because the source guards below still have to run -
+    // ids are provider-scoped, so collisions are only possible across providers.
+    val candidates = HashMap<String, MutableList<Channel>>()
+    for (ch in allChannels) {
+        if (ch.mediaType != MediaType.SERIES) continue
+        if (ch.id !in wanted) continue
+        candidates.getOrPut(ch.id) { mutableListOf() }.add(ch)
+    }
+    if (candidates.isEmpty()) return items
+
+    return items.map { item ->
+        val episode = item.episodeNum ?: return@map item
+        val seriesId = item.categoryId?.takeIf { it.isNotBlank() } ?: return@map item
+        val series = candidates[seriesId]?.firstOrNull {
+            it.isJellyfin == item.isJellyfin && it.isPlex == item.isPlex &&
+                (item.sourceProviderId == null || it.sourceProviderId == item.sourceProviderId)
+        } ?: return@map item
+        val seriesName = cleanVodTitle(series.name).ifBlank { return@map item }
+        val marker = tileSeasonNumber(item)
+            ?.let { season -> "S%02dE%02d".format(season, episode) }
+            ?: "E%02d".format(episode)
+        item.copy(
+            name = "$seriesName · $marker",
+            posterUrl = series.posterUrl ?: series.logoUrl ?: item.posterUrl,
+            logoUrl = series.logoUrl ?: series.posterUrl ?: item.logoUrl
+        )
+    }
 }
 
 /**

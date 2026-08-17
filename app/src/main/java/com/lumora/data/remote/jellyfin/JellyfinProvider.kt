@@ -580,6 +580,27 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         }.getOrDefault(false)
     }
 
+    /** Marks [itemId] played (or unplayed) on the server, so a title watched on another
+     *  provider's copy shows as watched in every Jellyfin client too. Same request shape as
+     *  [setFavorite] - POST to add the mark, DELETE to remove it. */
+    suspend fun setPlayed(itemId: String, played: Boolean): Boolean {
+        val base = serverBase ?: return false
+        val token = accessToken ?: return false
+        val uid = userId ?: return false
+        val url = "$base/Users/$uid/PlayedItems/$itemId"
+        return runCatching {
+            val builder = Request.Builder().url(url)
+                .header("X-Emby-Token", token)
+                .header("User-Agent", "Lumora/1.0")
+            val request = if (played) {
+                builder.post("{}".toRequestBody("application/json".toMediaType())).build()
+            } else {
+                builder.delete().build()
+            }
+            client.newCall(request).execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
+
     /** Clears the server's resume/watched state for [itemId] - removes a title from the
      *  server-side Continue Watching and Next Up lists. Mirrors setFavorite's request style. */
     suspend fun clearUserData(itemId: String): Boolean {
