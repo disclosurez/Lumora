@@ -745,6 +745,12 @@ class MainActivity : AppCompatActivity() {
     /** Query to restore once the player/detail opened from a search result closes, so picking
      *  a result doesn't destroy the session (Back returns to the results, query intact). */
     internal var pendingSearchRestore: String? = null
+    /** Set when a search was started by something other than typing - picking a recent-search
+     *  chip - where the user has already committed to a query and wants its results, not the
+     *  keyboard. The next non-empty publish moves focus onto the first result and clears this.
+     *  One-shot, because a search that then re-publishes (the EPG phase lands after the media
+     *  one) must not yank focus back off whatever the user has since moved to. */
+    internal var focusFirstResultOnNextPublish = false
 
     internal val mainHandler = Handler(Looper.getMainLooper())
     /** Toolbar clock tick - see startToolbarClock(). Re-arms itself so the next tick stays

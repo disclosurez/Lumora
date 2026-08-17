@@ -1,6 +1,7 @@
 package com.lumora.adapter
 
 import android.view.LayoutInflater
+import android.graphics.Rect
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -128,15 +129,56 @@ class PosterGridAdapter(
                     if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
                         topRowFocusUpTargetId != View.NO_ID && pos in 0 until spanCount
                     ) {
-                        v.rootView.findViewById<View>(topRowFocusUpTargetId)?.let { it.requestFocus(); return@setOnKeyListener true }
+                        val target = v.rootView.findViewById<View>(topRowFocusUpTargetId)
+                        // Only claim the key if focus actually moved. Swallowing it on a
+                        // failed requestFocus (target detached, not yet laid out, nothing
+                        // focusable inside it) left the press doing nothing at all rather
+                        // than falling through to ordinary focus search.
+                        if (target != null && target.requestFocus()) return@setOnKeyListener true
                     } else if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
-                        pos >= 0 && spanCount > 0 && pos % spanCount == 0
+                        leftFocusTarget != null && isAtLeftEdge(v)
                     ) {
-                        leftFocusTarget?.let { it.requestFocus(); return@setOnKeyListener true }
+                        leftFocusTarget?.let { if (focusLeftTarget(v, it)) return@setOnKeyListener true }
                     }
                 }
                 false
             }
+        }
+
+        /**
+         * True when [v] has no grid neighbour to its left, i.e. it sits in the first column.
+         *
+         * Asked of the framework rather than computed as `position % spanCount`: that
+         * arithmetic is only right while [spanCount] agrees with the LayoutManager the adapter
+         * was actually attached to, and it is assigned by hand at each call site from a
+         * resource that changes with screen width.
+         *
+         * The neighbour has to be checked for grid membership, not merely for being non-null.
+         * RecyclerView.focusSearch falls back to `super.focusSearch` - the parent's,
+         * window-wide - whenever it finds nothing preferable within itself, so a first-column
+         * tile gets a non-null answer that is already the keyboard.
+         */
+        private fun isAtLeftEdge(v: View): Boolean {
+            val grid = v.parent as? RecyclerView ?: return true
+            val neighbour = v.focusSearch(View.FOCUS_LEFT) ?: return true
+            return neighbour === v || grid.findContainingItemView(neighbour) == null
+        }
+
+        /**
+         * Move focus from tile [from] leftward onto [target], telling the target where the
+         * press came from so it can land somewhere adjacent rather than at some fixed default
+         * - the keyboard uses the rect to pick the key beside the tile instead of the middle
+         * of the letter block. Returns whether focus actually moved.
+         */
+        private fun focusLeftTarget(from: View, target: View): Boolean {
+            val root = from.rootView as? ViewGroup ?: return target.requestFocus()
+            val rect = Rect()
+            from.getDrawingRect(rect)
+            // The rect has to arrive in the target's own coordinates, which is the contract
+            // ViewRootImpl itself follows when it hands a focus rect across the hierarchy.
+            root.offsetDescendantRectToMyCoords(from, rect)
+            root.offsetRectIntoDescendantCoords(target, rect)
+            return target.requestFocus(View.FOCUS_LEFT, rect)
         }
 
         fun bind(channel: Channel) {

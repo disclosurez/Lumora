@@ -1,8 +1,10 @@
 package com.lumora.ui
 
 import android.content.Context
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.FocusFinder
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -38,9 +40,12 @@ import com.lumora.R
  *  assuming nothing sat below them; on a real remote that made M - and N - unreachable
  *  from above.)
  *
- * The keyboard itself is focusable: hosts point outside focus targets at it (the results
- * grid's top-row UP lands here), and the next D-pad press then enters the keys via normal
- * focus search.
+ * Hosts point outside focus targets at the keyboard as a whole (the results grid's top-row UP
+ * and first-column LEFT both land here). Focusing it always focuses a *key* - see
+ * [requestFocus]. It used to focus this container instead, which is a ViewGroup default that
+ * reads as a bug: the container draws no background and carries no focus animator, so the
+ * highlight simply disappeared, and OK did nothing because the container has no click
+ * listener. Coming back to the keyboard from the results looked like focus had been lost.
  */
 class OnScreenKeyboard @JvmOverloads constructor(
     context: Context,
@@ -95,10 +100,37 @@ class OnScreenKeyboard @JvmOverloads constructor(
         // and bottom rows get clipped by this view's own bounds on the side they grow into.
         clipChildren = false
         clipToPadding = false
-        // Focusable so a host can point an outside focus target at the whole keyboard
-        // (e.g. the search grid's top-row UP) and let focus search enter the keys next.
+        // Focusable so a host can point an outside focus target at the whole keyboard (e.g.
+        // the search grid's top-row UP / first-column LEFT). requestFocus() below turns that
+        // into focus on a real key; this flag only remains as the fallback for the impossible
+        // case where no key will take it.
         isFocusable = true
+        // ViewGroup defaults to FOCUS_BEFORE_DESCENDANTS, which is what let this container
+        // swallow focus ahead of its own keys. Keys first, always.
+        descendantFocusability = FOCUS_AFTER_DESCENDANTS
         build()
+    }
+
+    /**
+     * Focus a key, never this container.
+     *
+     * When the caller supplies the rect it is coming from - the results grid does, in this
+     * view's coordinates - the key nearest that rect in [direction] wins, so walking LEFT out
+     * of the first poster column lands on the right-hand key beside it rather than jumping
+     * across the whole keyboard.
+     *
+     * Without a rect there is no "nearest" to speak of and it falls back to [firstKey]: the
+     * middle of the letter block, a short D-pad trip from any other key, and where the overlay
+     * already puts focus when it opens.
+     */
+    override fun requestFocus(direction: Int, previouslyFocusedRect: Rect?): Boolean {
+        if (previouslyFocusedRect != null) {
+            FocusFinder.getInstance()
+                .findNextFocusFromRect(this, previouslyFocusedRect, direction)
+                ?.let { if (it.requestFocus()) return true }
+        }
+        firstKey()?.let { if (it.requestFocus()) return true }
+        return super.requestFocus(direction, previouslyFocusedRect)
     }
 
     private fun build() {

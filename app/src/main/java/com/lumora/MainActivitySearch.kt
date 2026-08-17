@@ -151,7 +151,21 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
                 stateListAnimator = android.animation.AnimatorInflater
                     .loadStateListAnimator(this@showSearchDialog, R.animator.focus_scale)
                 setPadding(gap, (8 * resources.displayMetrics.density).toInt(), gap, (8 * resources.displayMetrics.density).toInt())
-                setOnClickListener { input.setText(q) }
+                setOnClickListener {
+                    // Focus has to leave the chip before the query is applied. setText fires
+                    // the watcher synchronously, which hides recentsBlock - and hiding the
+                    // View that currently holds focus leaves the window with no focus at all,
+                    // because the results grid is still GONE at that moment (it only appears
+                    // when the search publishes, a debounce plus a query later). The D-pad
+                    // then did nothing whatever the user pressed, so a recent search could be
+                    // run but never picked from.
+                    keyboard.requestFocus()
+                    // Picking a recent search is a request for its results, so land focus on
+                    // the first one as soon as there is one to land on rather than making the
+                    // user walk back down out of the keyboard.
+                    focusFirstResultOnNextPublish = true
+                    input.setText(q)
+                }
                 // DOWN from a recents chip would otherwise do nothing (results and
                 // filters are GONE while the query is short) - route it into the keys.
                 setOnKeyListener { _, keyCode, event ->
@@ -236,6 +250,7 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
         // Invalidate in-flight async search (EPG fetches can outlive the overlay).
         searchRunId++
         searchKeyHandler = null
+        focusFirstResultOnNextPublish = false
         activeSearchOverlay = null
         if (tabBarWasVisible) binding.tabBar.visibility = View.VISIBLE
         applyStatus()
@@ -296,6 +311,9 @@ internal fun MainActivity.runSearch(query: String, runId: Int, adapter: SearchRe
                     getString(R.string.search_status_no_results_hint)
                 statusText.visibility = View.VISIBLE
                 resultsList.visibility = View.GONE
+                // Nothing to hand focus to, and leaving the request armed would let it fire
+                // on whatever the user searches for next.
+                focusFirstResultOnNextPublish = false
             } else {
                 searchAllResults = all
                 val batchSize = 50
@@ -304,6 +322,18 @@ internal fun MainActivity.runSearch(query: String, runId: Int, adapter: SearchRe
                 statusText.text = getString(R.string.search_status_count, searchDisplayedCount, all.size)
                 statusText.visibility = View.VISIBLE
                 resultsList.visibility = View.VISIBLE
+                if (focusFirstResultOnNextPublish) {
+                    focusFirstResultOnNextPublish = false
+                    // The first tile doesn't exist yet: submitList diffs off-thread and the
+                    // grid still has to lay out. Wait for the commit, then for a frame - the
+                    // same retry the keyboard's DOWN routing uses to enter a RecyclerView.
+                    adapter.submitList(firstBatch) {
+                        resultsList.post {
+                            resultsList.layoutManager?.findViewByPosition(0)?.requestFocus()
+                        }
+                    }
+                    return
+                }
                 adapter.submitList(firstBatch)
             }
         }
