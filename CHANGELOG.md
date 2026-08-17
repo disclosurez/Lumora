@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.3
+
+### Series
+- **An episode watched on one provider now counts as watched on all of them.** The same show is often present on Plex, on Jellyfin and across several IPTV panels, and each copy tracked watch state under its own id - so finishing an episode left every other copy looking untouched, and their Play buttons kept offering an episode you had already seen. Watch state is now matched on the title and episode number instead, so it follows the episode rather than the copy. Finishing something also marks it on your Jellyfin and Plex servers, so their other clients agree, and watching in one of those clients marks the IPTV copies here.
+- **Continue Watching tiles say which show they are.** A tile showed whatever the provider called the episode - frequently a bare "S03E03", or an episode title naming no show at all - over an episode thumbnail that most providers never send. Tiles now read as "SAS Rogue Heroes · S03E03" over the series poster.
+
+### Live TV
+- **Channel names have more room in the guide.** The name column was narrow enough to cut off most real channel names; it now fits a name the length of "Sky Sports Football" without trimming.
+
+### Search
+- **Moving left out of the results now returns to the keyboard.** Focus went to the keyboard's container rather than to a key, so the highlight vanished and pressing OK did nothing - the keyboard looked unreachable once you had moved into the results. It now lands on the key beside the poster you left. The same fault broke moving up out of the top row of results.
+- **Picking a recent search no longer leaves nothing selected.** Applying the query hid the recent-search row while it still held focus, and the results had not appeared yet, so the D-pad stopped responding entirely. Focus now lands on the first result as it arrives.
+
+### Performance
+- **EPG updates are dramatically faster on slower devices.** Parsing a guide's timestamps rebuilt a date formatter for every programme - up to 100,000 times per source - and saving it committed a separate database transaction per channel, which on the slow storage in a budget TV stick meant thousands of disk syncs. Guide scrolling also allocates far less per row.
+
 ## 4.2
 
 ### Player
