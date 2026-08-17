@@ -205,16 +205,28 @@ internal suspend fun MainActivity.performPlexSignIn(
     // with two-factor. Two minutes (the Quick Connect window) proved tight for that.
     val deadline = System.currentTimeMillis() + 180_000L
     var accountToken: String? = null
+    var failure: String? = null
+    // plex.tv answers a PIN polled with the wrong X-Plex-Client-Identifier with the same 404
+    // as a genuinely expired one, and a transient network blip is indistinguishable again. A
+    // single bad pass therefore used to tear the whole sign-in down two seconds after the code
+    // appeared - the QR was gone before it could be scanned, under a message claiming the code
+    // had expired. Give up only on repeated failures, so a real problem still stops promptly
+    // but a one-off doesn't.
+    var consecutiveFailures = 0
     while (System.currentTimeMillis() < deadline) {
         delay(2000)
-        accountToken = withContext(Dispatchers.IO) { plex.pollPin(pin.id) }
+        when (val poll = withContext(Dispatchers.IO) { plex.pollPin(pin.id) }) {
+            is PlexProvider.PinPoll.Claimed -> { accountToken = poll.accountToken }
+            is PlexProvider.PinPoll.Pending -> consecutiveFailures = 0
+            is PlexProvider.PinPoll.Gone -> { consecutiveFailures++; failure = poll.message }
+            is PlexProvider.PinPoll.Failed -> { consecutiveFailures++; failure = poll.message }
+        }
         if (accountToken != null) break
-        // An expired PIN answers 404 forever, so stop rather than spin out the full window.
-        if (plex.lastAuthError != null) break
+        if (consecutiveFailures >= 3) break
     }
     if (accountToken == null) {
         onCode(null)
-        onStatus(plex.lastAuthError ?: getString(R.string.sett_plex_timed_out))
+        onStatus(failure ?: getString(R.string.sett_plex_timed_out))
         return false
     }
     // The code and the QR are spent the moment the PIN is claimed - leaving them up while

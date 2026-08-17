@@ -2,6 +2,7 @@ package com.lumora
 
 import android.widget.Toast
 import android.view.View
+import androidx.media3.common.MimeTypes
 import com.lumora.cache.PlaybackPositionStore
 import com.lumora.cache.WatchedStore
 import com.lumora.data.MediaServerStore
@@ -391,10 +392,16 @@ internal fun MainActivity.loadPlexPlaybackExtras(itemId: String) {
     }
 }
 
-/** One-shot direct-play recovery, matching the Jellyfin path: a source error (server read
- *  timeout, a part that moved after an on-disk change) is usually transient, so re-negotiate
- *  once from the current position before surfacing a playback error. */
-internal fun MainActivity.retryPlexPlayback() {
+/**
+ * One-shot direct-play recovery, matching the Jellyfin path: a source error (server read
+ * timeout, a part that moved after an on-disk change) is usually transient, so re-negotiate
+ * once from the current position before surfacing a playback error.
+ *
+ * [forceTranscode] turns the retry into a different request rather than the same one again.
+ * A container Media3 cannot demux fails identically every time, so re-negotiating on the same
+ * terms just reproduces it - the server has to be asked for an HLS transcode instead.
+ */
+internal fun MainActivity.retryPlexPlayback(forceTranscode: Boolean = false) {
     val channel = nowPlayingChannel ?: return
     if (!channel.isPlex || channel.id.isBlank()) return
     plexRetryAttempted = true
@@ -408,7 +415,8 @@ internal fun MainActivity.retryPlexPlayback() {
                 plex.resolveStream(
                     itemId,
                     resumeMs,
-                    preferredAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en"
+                    preferredAudioLanguage = prefs.getString(PREF_AUDIO_LANGUAGE, "en") ?: "en",
+                    forceTranscode = forceTranscode
                 )
             }.getOrNull()
         }
@@ -424,7 +432,11 @@ internal fun MainActivity.retryPlexPlayback() {
             subtitles = resolved?.let(::externalSubtitlesForPlex) ?: emptyList(),
             startPositionMs = resumeMs,
             preferAudioLanguage = true,
-            maintainTokenQuery = resolved?.tokenQuery
+            maintainTokenQuery = resolved?.tokenQuery,
+            // Stated rather than inferred from the URL. The transcode endpoint's path does end
+            // in .m3u8 today, but the whole point of this retry is that we are here because a
+            // container was guessed wrong once already.
+            mimeType = if (resolved?.playMethod == "Transcode") MimeTypes.APPLICATION_M3U8 else null
         )
         plexPlaySession = resolved
         plexPlayingItemId = itemId

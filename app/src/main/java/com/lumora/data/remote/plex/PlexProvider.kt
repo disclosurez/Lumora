@@ -1,5 +1,6 @@
 package com.lumora.data.remote.plex
 
+import android.util.Log
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
@@ -20,6 +21,7 @@ import kotlinx.coroutines.sync.withLock
 
 /** plex.tv account API - PIN login and the account's server list live here, not on any
  *  particular server. */
+private const val TAG = "LumoraPlex"
 private const val PLEX_TV_BASE = "https://plex.tv/api/v2"
 /** Same API behind Plex's own CDN edge. Used for /resources because plex.tv itself is the
  *  endpoint most likely to be slow or geo-blocked, and the two are interchangeable. */
@@ -263,11 +265,15 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
                 }
                 val json = JSONObject(body)
                 val id = json.optLong("id", -1L).takeIf { it > 0 }
-                val code = json.optString("code", "").takeIf { it.isNotBlank() }
+                val code = json.optStringOrNull("code")
                 if (id == null || code == null) {
                     lastAuthError = "plex.tv didn't return a sign-in code"
                     return null
                 }
+                // The client identifier is logged because it is what scopes the PIN: polling
+                // with a different one 404s exactly like an expired code, and that is not
+                // distinguishable from the response alone.
+                Log.i(TAG, "pin minted: id=$id code=$code (client id $clientIdentifier)")
                 PinLogin(id, code, authUrl(code))
             }
         } catch (e: Exception) {
@@ -292,10 +298,29 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
     private fun authUrl(code: String): String =
         "https://plex.tv/link?pin=${java.net.URLEncoder.encode(code, "UTF-8")}"
 
-    /** Polls a PIN. Returns the account token once the user has finished signing in, null
-     *  while it's still pending. A 404/410 means the PIN expired - reported through
-     *  [lastAuthError] so the caller can stop polling rather than spin for the full window. */
-    suspend fun pollPin(id: Long): String? {
+    /** What one [pollPin] pass found. */
+    sealed interface PinPoll {
+        /** The user finished signing in. */
+        data class Claimed(val accountToken: String) : PinPoll
+        /** Nobody has entered the code yet - keep polling. */
+        data object Pending : PinPoll
+        /** plex.tv says this PIN doesn't exist. [message] is user-facing. */
+        data class Gone(val message: String) : PinPoll
+        /** Anything else - a transient error worth another pass. */
+        data class Failed(val message: String) : PinPoll
+    }
+
+    /**
+     * Polls a PIN once.
+     *
+     * A 404 here is *not* proof the code expired, which is why it isn't reported as such: a
+     * PIN is scoped to the `X-Plex-Client-Identifier` that minted it, and plex.tv answers a
+     * mismatched identifier with the same "Code not found or expired" 404 as a genuinely aged
+     * one. A brand-new PIN 404ing two seconds after being issued means the identifiers
+     * disagree, not that the user was too slow - so the distinction is left to the caller,
+     * which knows how long the code has actually been up.
+     */
+    suspend fun pollPin(id: Long): PinPoll {
         return try {
             val request = Request.Builder()
                 .url("$PLEX_TV_BASE/pins/$id")
@@ -305,15 +330,30 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
             // every pass - an unclosed body per pass leaks a connection out of the pool.
             client.newCall(request).execute().use { response ->
                 if (response.code == 404 || response.code == 410) {
-                    lastAuthError = "This sign-in code expired"
-                    return null
+                    Log.w(TAG, "pin poll: HTTP ${response.code} for pin $id (client id $clientIdentifier)")
+                    return PinPoll.Gone("This sign-in code is no longer valid")
                 }
-                if (!response.isSuccessful) return null
-                val body = response.body?.string() ?: return null
-                JSONObject(body).optString("authToken", "").takeIf { it.isNotBlank() }
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "pin poll: HTTP ${response.code} for pin $id")
+                    return PinPoll.Failed("plex.tv returned HTTP ${response.code}")
+                }
+                val body = response.body?.string() ?: return PinPoll.Failed("Empty response from plex.tv")
+                val json = JSONObject(body)
+                // isNull first, and deliberately so. A pending PIN answers with
+                // `"authToken": null`, and Android's optString(name, fallback) returns the
+                // *literal string* "null" for a JSON null - it stringifies JSONObject.NULL and
+                // only falls back when the key is missing entirely. So the first poll returned
+                // "null" as the account token, which is not blank: the sign-in declared itself
+                // finished about two seconds after the code appeared, tore down the QR before
+                // anyone could reach plex.tv/link, and then failed the server list with a 401
+                // because it was authenticating with the four characters n-u-l-l.
+                if (json.isNull("authToken")) return PinPoll.Pending
+                json.optString("authToken", "").takeIf { it.isNotBlank() }
+                    ?.let { PinPoll.Claimed(it) } ?: PinPoll.Pending
             }
         } catch (e: Exception) {
-            null
+            Log.w(TAG, "pin poll failed: ${e.message}")
+            PinPoll.Failed(e.message ?: "Couldn't reach plex.tv")
         }
     }
 
@@ -344,27 +384,40 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
         }
     }
 
+    /**
+     * [JSONObject.optString] that treats a JSON null as absent.
+     *
+     * The stock one returns the literal string "null" for `"key": null`, because it
+     * stringifies JSONObject.NULL and only falls back when the key is missing altogether. The
+     * plex.tv account API emits explicit nulls freely - that is exactly how a pending PIN's
+     * authToken briefly became the four characters n-u-l-l - so every field read off it goes
+     * through here. The Plex *server* library API omits keys instead of nulling them, which is
+     * why its parsers below are not affected.
+     */
+    private fun JSONObject.optStringOrNull(name: String): String? =
+        if (isNull(name)) null else optString(name, "").takeIf { it.isNotBlank() }
+
     private fun parseServer(json: JSONObject): PlexServerInfo? {
         // "provides" is a comma-separated capability list; a server may also provide
         // "player"/"controller", so a plain equality check drops perfectly good servers.
-        val provides = json.optString("provides", "")
+        val provides = json.optStringOrNull("provides").orEmpty()
         if (!provides.split(',').any { it.trim() == "server" }) return null
-        val token = json.optString("accessToken", "").takeIf { it.isNotBlank() } ?: return null
-        val id = json.optString("clientIdentifier", "").takeIf { it.isNotBlank() } ?: return null
+        val token = json.optStringOrNull("accessToken") ?: return null
+        val id = json.optStringOrNull("clientIdentifier") ?: return null
         val connectionsJson = json.optJSONArray("connections") ?: return null
         val connections = (0 until connectionsJson.length()).mapNotNull { i ->
             val c = connectionsJson.optJSONObject(i) ?: return@mapNotNull null
-            val uri = c.optString("uri", "").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val uri = c.optStringOrNull("uri") ?: return@mapNotNull null
             PlexConnection(
                 uri = uri.trimEnd('/'),
                 local = c.optBoolean("local", false),
                 relay = c.optBoolean("relay", false),
-                https = c.optString("protocol", "") == "https" || uri.startsWith("https://")
+                https = c.optStringOrNull("protocol") == "https" || uri.startsWith("https://")
             )
         }
         if (connections.isEmpty()) return null
         return PlexServerInfo(
-            name = json.optString("name", "").takeIf { it.isNotBlank() } ?: "Plex Server",
+            name = json.optStringOrNull("name") ?: "Plex Server",
             machineIdentifier = id,
             accessToken = token,
             owned = json.optBoolean("owned", false),
@@ -698,7 +751,19 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
         startPositionMs: Long = 0L,
         maxBitrateKbps: Int = DEFAULT_MAX_BITRATE_KBPS,
         preferredAudioLanguage: String? = null,
-        forceAudioStreamId: Long? = null
+        forceAudioStreamId: Long? = null,
+        /**
+         * Skips the decision entirely and takes the HLS transcode.
+         *
+         * For containers the server will happily hand over and Media3 cannot read. The
+         * decision endpoint answers "can *I* serve this as-is", not "can this client parse
+         * it", and the profile sent with it advertises transcode targets without ever
+         * declaring which containers this client can actually demux - so an AVI, WMV or VOB
+         * comes back as direct play and dies in the extractors with
+         * ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED. The player sets this on the retry after
+         * exactly that failure.
+         */
+        forceTranscode: Boolean = false
     ): ResolvedStream? {
         val base = serverBase ?: return null
         val token = accessToken ?: return null
@@ -728,7 +793,7 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
             token = token
         )
 
-        val directPlay = decisionAllowsDirectPlay(base, params)
+        val directPlay = !forceTranscode && decisionAllowsDirectPlay(base, params)
         val partKey = part.optString("key", "").takeIf { it.isNotBlank() }
         // Embedded text subtitles are only sideloaded on the transcode path. Direct play
         // hands the whole file over, so those tracks arrive inside it and Media3 lists them

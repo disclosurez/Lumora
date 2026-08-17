@@ -475,7 +475,11 @@ internal fun MainActivity.setupPlayerControls() {
                 if (nowPlayingChannel?.isJellyfin == true && !jellyfinRetryAttempted) {
                     retryJellyfinPlayback()
                 } else if (nowPlayingChannel?.isPlex == true && !plexRetryAttempted) {
-                    retryPlexPlayback()
+                    // A container Media3 cannot demux is not transient - re-negotiating on the
+                    // same terms reproduces it exactly, because the server's direct-play answer
+                    // was about what *it* can serve, not what this client can parse. Ask for the
+                    // HLS transcode instead, which is the one thing that changes the outcome.
+                    retryPlexPlayback(forceTranscode = isContainerParsingError(error))
                 } else if (vodChannel != null && retryCurrentVodStream(vodChannel, error)) {
                     // Quiet same-URL retry: spinner only, no toast - a film that comes back on
                     // the second attempt should look like a stall, not like an error the user
@@ -1086,6 +1090,18 @@ internal fun MainActivity.tryNextQualityVersion(message: String? = null): Boolea
  * is not the transport's fault ([isRetryablePlaybackError]), or there is nothing to replay
  * (a local download, whose data source this cannot rebuild).
  */
+/**
+ * True when the player rejected the *bytes* rather than failing to fetch them: no extractor
+ * recognised the container, or the one that did couldn't read it.
+ *
+ * Worth separating from a transport failure because the remedy is opposite. A read timeout
+ * wants the same request again; this wants a different one, since the same file will fail the
+ * same way every time.
+ */
+internal fun isContainerParsingError(error: PlaybackException): Boolean =
+    error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
+        error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+
 internal fun MainActivity.retryCurrentVodStream(channel: Channel, error: PlaybackException): Boolean {
     if (vodRetryAttempt >= VOD_RETRY_DELAYS_MS.size) return false
     if (!isRetryablePlaybackError(error)) return false
