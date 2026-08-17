@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.3.1
+
+### Plex
+- **Signing in to Plex works again.** The QR code and 4-digit PIN appeared and then failed with a 401 about two seconds later, never leaving time to enter the code at plex.tv/link. While nobody has entered the code yet, plex.tv reports the account token as null - and that was being read as the four-character text "null" rather than as "not signed in yet", so the app decided sign-in had finished immediately and then tried to list your servers using that as the token.
+- **Films and episodes that Plex hands over in a format the player cannot read now play.** Some titles failed instantly with a container error: the server was asked whether it could serve the file as-is, which it could, but nothing checked whether this player could actually read that format. Those titles are now retried as a server-side transcode instead of failing.
+
 ## 4.3
 
 ### Series
