@@ -40,6 +40,18 @@ private data class RenderBlock(
     val program: XtreamClient.EpgProgram?
 )
 
+/**
+ * What a programme block currently shows, carried on the block View's own tag.
+ *
+ * Two jobs: it lets a rebind skip the background work when the answer hasn't changed, and it
+ * gives the listeners - attached once when the block is built rather than reassigned on every
+ * bind - a way to find the programme the block now represents.
+ */
+private class BlockState {
+    var program: XtreamClient.EpgProgram? = null
+    var backgroundRes: Int = 0
+}
+
 /** TiviMate-style TV guide: fixed channel column + horizontally-scrolling EPG timeline per row. */
 class LiveGuideAdapter(
     private val onChannelClick: (Channel) -> Unit,
@@ -132,6 +144,12 @@ class LiveGuideAdapter(
         private val programRow: LinearLayout = itemView.findViewById(R.id.guideProgramRow)
         private val density = itemView.resources.displayMetrics.density
 
+        /** The avatar circle behind [initialText]. One drawable for the life of the holder,
+         *  recoloured per bind - a fresh [GradientDrawable] was being allocated for every row
+         *  of every scroll pass when only its colour ever differs. Set as the background once,
+         *  in [init]; [GradientDrawable.setColor] invalidates it in place from there on. */
+        private val initialBackground = GradientDrawable().apply { shape = GradientDrawable.OVAL }
+
         private var current: Channel? = null
         private var loadJob: Job? = null
         private var logoJob: Job? = null
@@ -141,6 +159,7 @@ class LiveGuideAdapter(
         private var lastPrograms: List<XtreamClient.EpgProgram>? = null
 
         init {
+            initialText.background = initialBackground
             channelInfo.setOnClickListener { current?.let(onChannelClick) }
             channelInfo.setOnLongClickListener { current?.let { onChannelLongPress?.invoke(it) }; true }
             channelInfo.setOnFocusChangeListener { _, hasFocus ->
@@ -241,8 +260,7 @@ class LiveGuideAdapter(
             // Keyed on the name, not the adapter position: position-keyed colors made the
             // same channel's avatar change color every time a filter shifted the list.
             val colorIndex = (channel.name.hashCode() and 0x7fffffff) % avatarColors.size
-            val color = ContextCompat.getColor(itemView.context, avatarColors[colorIndex])
-            initialText.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+            initialBackground.setColor(ContextCompat.getColor(itemView.context, avatarColors[colorIndex]))
 
             logoImage.setImageDrawable(null)
             val logoUrl = channel.logoUrl
@@ -342,6 +360,10 @@ class LiveGuideAdapter(
             // Reuse existing block Views where possible instead of tearing every child
             // down and rebuilding on every rebind - this was the main source of GC
             // churn/jank scrolling through a large guide.
+            //
+            // One clock read for the whole row, not one per block: every block is judging
+            // itself against the same instant anyway, and this ran inside the loop.
+            val nowSeconds = System.currentTimeMillis() / 1000
             for (i in blocks.indices) {
                 val (title, widthPx, isCurrent, program) = blocks[i]
                 val block = programRow.getChildAt(i) as? TextView ?: makeBlock().also { programRow.addView(it) }
@@ -355,30 +377,24 @@ class LiveGuideAdapter(
                 block.translationY = 0f
                 block.translationZ = 0f
                 block.text = title
-                val nowSeconds = System.currentTimeMillis() / 1000
+                val state = block.tag as BlockState
+                state.program = program
                 val reminderSet = program != null && program.startTimestamp > nowSeconds && isReminderSet("${channel.id}:${program.startTimestamp}")
-                block.background = ContextCompat.getDrawable(
-                    itemView.context,
-                    when {
-                        reminderSet -> R.drawable.bg_guide_block_reminder
-                        isCurrent -> R.drawable.bg_guide_block_current
-                        else -> R.drawable.bg_guide_block
-                    }
-                )
+                val backgroundRes = when {
+                    reminderSet -> R.drawable.bg_guide_block_reminder
+                    isCurrent -> R.drawable.bg_guide_block_current
+                    else -> R.drawable.bg_guide_block
+                }
+                // Only when it actually changed. Assigning a background inflates a Drawable and
+                // re-runs the View's padding resolution, and on a rebind the block overwhelmingly
+                // ends up with the one it already had.
+                if (state.backgroundRes != backgroundRes) {
+                    state.backgroundRes = backgroundRes
+                    block.setBackgroundResource(backgroundRes)
+                }
                 val lp = block.layoutParams as LinearLayout.LayoutParams
                 lp.width = widthPx
                 block.layoutParams = lp
-                block.setOnClickListener { onChannelClick(channel) }
-                // D-pad RIGHT off the channel column moves focus into these program blocks -
-                // without this, the preview pane only ever updated while focus sat on the
-                // channel name itself and otherwise went stale/blank while browsing the guide.
-                block.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) onChannelFocused?.invoke(channel) }
-                block.setOnLongClickListener {
-                    if (program != null && program.startTimestamp > nowSeconds) {
-                        onProgramLongPress?.invoke(channel, program)
-                    }
-                    true
-                }
             }
             while (programRow.childCount > blocks.size) {
                 programRow.removeViewAt(programRow.childCount - 1)
@@ -445,6 +461,32 @@ class LiveGuideAdapter(
                 isClickable = true
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT).apply {
                     marginEnd = (2 * density).toInt()
+                }
+                // Listeners are attached here, once per block View, instead of being replaced
+                // on every bind - three lambda allocations per block per bind, across every
+                // block of every row, was pure churn. They read the row's current channel and
+                // the block's current programme at fire time, which is the same thing the
+                // captured values used to be.
+                tag = BlockState()
+                setOnClickListener { current?.let(onChannelClick) }
+                // D-pad RIGHT off the channel column moves focus into these program blocks -
+                // without this, the preview pane only ever updated while focus sat on the
+                // channel name itself and otherwise went stale/blank while browsing the guide.
+                setOnFocusChangeListener { _, hasFocus ->
+                    if (hasFocus) current?.let { onChannelFocused?.invoke(it) }
+                }
+                setOnLongClickListener { view ->
+                    val channel = current
+                    val program = (view.tag as BlockState).program
+                    // Clock read at press time rather than carried over from the bind: a guide
+                    // row can sit on screen for a long while, and a programme that had not
+                    // started when the block was bound may well have started by now.
+                    if (channel != null && program != null &&
+                        program.startTimestamp > System.currentTimeMillis() / 1000
+                    ) {
+                        onProgramLongPress?.invoke(channel, program)
+                    }
+                    true
                 }
             }
         }

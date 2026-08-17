@@ -2,6 +2,7 @@ package com.lumora.data.sync
 
 import android.content.Context
 import android.util.Log
+import androidx.room.withTransaction
 import androidx.work.*
 import com.lumora.BaseApplication
 import com.lumora.data.local.LumoraDatabase
@@ -65,6 +66,11 @@ class EpgSyncWorker(
                     // replace (delete stale rows per affected app channel, then upsert) rather
                     // than merge, so a re-fetch is the source's current truth.
                     val rows = mutableListOf<EpgProgramEntity>()
+                    // Collected as the rows are built rather than by mapping over them
+                    // afterwards: rows runs to six figures for a large source, and
+                    // `rows.map { it.channelId }.distinct()` materialised a second list that
+                    // size purely to reach the handful of distinct ids inside it.
+                    val touchedChannelIds = HashSet<String>()
                     var mapped = 0
                     var skipped = 0
                     for (programme in result.programmes) {
@@ -75,6 +81,7 @@ class EpgSyncWorker(
                         }
                         mapped++
                         for (channelId in ids) {
+                            touchedChannelIds.add(channelId)
                             rows.add(
                                 EpgProgramEntity(
                                     channelId = channelId,
@@ -88,10 +95,19 @@ class EpgSyncWorker(
                     Log.d(TAG, "EPG mapping: $mapped programmes mapped, $skipped skipped (no matching app channel) for ${source.name}")
 
                     if (rows.isNotEmpty()) {
-                        for (channelId in rows.map { it.channelId }.distinct()) {
-                            db.epgProgramDao().deleteForChannel(channelId)
+                        // One transaction for the whole replace. Each suspend DAO call commits
+                        // on its own, so the per-channel deletes were one SQLite transaction -
+                        // journal write plus fsync - per channel; a source covering thousands
+                        // of channels meant thousands of fsyncs, which is minutes of wall time
+                        // on the slow flash in a budget TV stick. It also makes the replace
+                        // atomic, so a sync killed midway can no longer leave channels whose
+                        // old programmes are deleted and whose new ones were never written.
+                        db.withTransaction {
+                            for (channelId in touchedChannelIds) {
+                                db.epgProgramDao().deleteForChannel(channelId)
+                            }
+                            db.epgProgramDao().upsertAll(rows)
                         }
-                        db.epgProgramDao().upsertAll(rows)
                     }
 
                     db.epgSourceDao().markRefreshed(source.id, System.currentTimeMillis())
