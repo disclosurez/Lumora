@@ -94,7 +94,7 @@
          larger) label rather than sit in a box sized for 10sp text. -->
     <dimen name="category_row_padding_vertical">6dp</dimen>
     <dimen name="category_row_padding_horizontal">9dp</dimen>
-    <dimen name="guide_channel_name_text">13sp</dimen>
+    <dimen name="guide_channel_name_text">11sp</dimen>
     <dimen name="guide_channel_number_text">11sp</dimen>
     <dimen name="guide_channel_initial_text">13sp</dimen>
     <dimen name="guide_program_text">14sp</dimen>
@@ -104,9 +104,21 @@
          larger and left a visible band of empty background above and below every name. -->
     <dimen name="guide_channel_logo_size">30dp</dimen>
     <dimen name="guide_row_min_height">40dp</dimen>
-    <!-- Wide enough for the number, logo and a typical channel name at 13sp, and no wider -
-         every dp here is taken straight off the programme grid to its right. -->
-    <dimen name="guide_channel_column_width">190dp</dimen>
+    <!-- Sized so a name the length of "Sky Sports Football" fits without ellipsis, measured
+         rather than estimated: that string is 102dp in Inter Medium at guide_channel_name_text
+         (11sp). The rest of the row accounts for 90dp of this - 8dp of guideChannelInfo
+         padding, 21dp of favourite star (glyph + its own padding + margin), 27dp of channel
+         number at its widest ("1001" plus margin), the 30dp logo box, and the text column's
+         4dp start margin - so 192dp is the exact fit and the few dp over are headroom for
+         Android's metrics not matching the measurement exactly.
+
+         Note this fits title case. An all-caps "SKY SPORTS FOOTBALL" is 130dp and would still
+         ellipsize; sizing for that costs another 28dp of programme grid.
+
+         Every dp here is taken straight off the timeline to the right. The guide header's
+         spacer in activity_main.xml reads this same dimen, so the time ruler stays aligned
+         with the programme blocks by itself. -->
+    <dimen name="guide_channel_column_width">198dp</dimen>
     <!-- Narrower than the old 240dp: the rows are short labels with a count, and the width
          they were given came straight off the guide grid and the poster columns next to
          them. Long names wrap to a second line rather than taking more width - see

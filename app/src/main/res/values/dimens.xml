@@ -4,7 +4,13 @@
     <dimen name="category_sidebar_width">190dp</dimen>
     <dimen name="live_preview_width">240dp</dimen>
     <dimen name="live_preview_height">126dp</dimen>
-    <dimen name="guide_channel_column_width">170dp</dimen>
+    <!-- Widened from 170dp for ~8 more characters of channel name. The name renders at
+         guide_channel_name_text (9sp here) in Inter Medium, whose average advance is roughly
+         0.6em for the upper-case/digit-heavy names providers actually ship - so 8 characters
+         is about 43dp. Everything here comes straight off the programme grid to the right;
+         the guide header's spacer in activity_main.xml reads the same dimen, so the time
+         ruler stays aligned by itself. -->
+    <dimen name="guide_channel_column_width">213dp</dimen>
 
     <!-- Settings/provider-setup type scale, at arm's-length (phone/tablet) reading distance.
          values-television/ steps the whole scale up for sofa distance - change both together
