@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.3.2
+
+### Jellyfin
+- **Libraries that came up empty now load.** On some servers a whole library reported nothing at all - no films, no shows - even though everything was there. The server was cutting a page of results short mid-way through sending it, and one damaged page was enough to throw away the entire library. Pages are now re-requested in smaller pieces when that happens, and anything already fetched is kept.
+
+### Plex
+- **Connecting to a Plex server is much faster, and works on networks where it used to fail.** A server advertises every address it knows - your LAN, your router's external address, Docker's internal ones, IPv6 - and most of them silently go nowhere from any given network. Each dead one was tried in turn and waited on, so signing in could sit there for a minute and give up before reaching an address that worked. Addresses are now tried together, still preferring your local network over the internet and Plex's relay last. Addresses nothing can ever reach are skipped, and where a secure connection is blocked by the network the same server is retried over a plain one.
+
 ## 4.3.1
 
 ### Plex
