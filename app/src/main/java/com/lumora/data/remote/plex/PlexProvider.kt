@@ -15,6 +15,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -118,6 +120,10 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
 
     data class PlexConnection(
         val uri: String,
+        /** Host as plex.tv published it - a bare IP for LAN/WAN entries, the hashed
+         *  `*.plex.direct` name for HTTPS ones. Kept so an HTTP fallback URL can be built. */
+        val address: String,
+        val port: Int,
         val local: Boolean,
         val relay: Boolean,
         val https: Boolean
@@ -408,8 +414,15 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
         val connections = (0 until connectionsJson.length()).mapNotNull { i ->
             val c = connectionsJson.optJSONObject(i) ?: return@mapNotNull null
             val uri = c.optStringOrNull("uri") ?: return@mapNotNull null
+            val address = c.optStringOrNull("address").orEmpty()
+            // Addresses no client can ever reach: IPv6 link-local and the all-zeros bind
+            // address. A server behind Docker publishes several of them and each one costs a
+            // full probe timeout for nothing.
+            if (isUnreachableAddress(address)) return@mapNotNull null
             PlexConnection(
                 uri = uri.trimEnd('/'),
+                address = address,
+                port = c.optInt("port", 0),
                 local = c.optBoolean("local", false),
                 relay = c.optBoolean("relay", false),
                 https = c.optStringOrNull("protocol") == "https" || uri.startsWith("https://")
@@ -432,32 +445,125 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
      * A server publishes every address it knows about - LAN, WAN, IPv6, and Plex's relay -
      * and most are dead from any given network. They're tried in the order that matters for
      * playback: LAN before WAN before relay (the relay is bandwidth-capped and is a last
-     * resort), HTTPS before HTTP within each. Probes run one at a time with a short timeout
-     * rather than in parallel, so a working LAN address is not beaten to the answer by a WAN
-     * one that happens to respond first.
+     * resort), HTTPS before HTTP within each. One tier at a time, all of a tier's candidates
+     * at once - see [candidateTiers] for why the tiers stay sequential and the candidates
+     * inside them do not.
      */
     suspend fun pickConnection(server: PlexServerInfo): String? {
-        val ordered = server.connections.sortedWith(
-            compareBy(
-                { if (it.relay) 2 else if (it.local) 0 else 1 },
-                { if (it.https) 0 else 1 }
-            )
-        )
-        for (connection in ordered) {
-            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            if (probe(connection.uri, server.accessToken)) return connection.uri
+        val tiers = candidateTiers(server)
+        if (tiers.all { it.isEmpty() }) {
+            lastAuthError = "${server.name} published no reachable addresses"
+            return null
         }
+        for (tier in tiers) {
+            if (tier.isEmpty()) continue
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val winner = probeTier(tier, server.accessToken)
+            if (winner != null) return winner
+        }
+        lastAuthError = "None of ${server.name}'s ${tiers.sumOf { it.size }} addresses answered"
         return null
     }
 
-    /** True when [base] answers Plex's identity endpoint with this token. */
-    private fun probe(base: String, token: String): Boolean = runCatching {
-        val request = Request.Builder()
-            .url("$base/identity")
-            .plexHeaders(token)
-            .build()
-        probeClient.newCall(request).execute().use { it.isSuccessful }
-    }.getOrDefault(false)
+    /**
+     * [server]'s candidate base URLs, grouped into the tiers that must be tried in order:
+     * LAN, then WAN, then Plex's relay (bandwidth-capped, so a last resort). HTTPS comes
+     * before HTTP inside a tier.
+     *
+     * Each tier is probed *concurrently*. Serially it was one [PROBE_TIMEOUT_SECONDS] per
+     * candidate, and a server reached from off its LAN publishes up to a dozen addresses that
+     * blackhole rather than refuse - every LAN address, every Docker bridge, every IPv6 - so
+     * the relay at the end of the list was reached a minute later, long after the sign-in had
+     * been given up on. Tiers stay sequential so a working LAN address is still preferred
+     * over a WAN one that would answer faster.
+     *
+     * An HTTP fallback is added for HTTPS candidates whose host is a `*.plex.direct` name or a
+     * bare IP: those resolve through plex.tv's DNS and present a Plex-issued certificate, and
+     * where either is broken on the network (filtered DNS, a middlebox) the same host:port
+     * still serves plain HTTP.
+     */
+    private fun candidateTiers(server: PlexServerInfo): List<List<String>> {
+        val seen = HashSet<String>()
+        fun tier(matching: (PlexConnection) -> Boolean): List<String> =
+            server.connections.filter(matching)
+                .sortedBy { if (it.https) 0 else 1 }
+                .flatMap { connection ->
+                    val urls = mutableListOf(connection.uri)
+                    if (connection.https && connection.port > 0 &&
+                        (isPlexDirectUri(connection.uri) || isIpLiteral(connection.address))
+                    ) {
+                        urls += "http://${hostForUrl(connection.address)}:${connection.port}"
+                    }
+                    urls
+                }
+                .filter { it.isNotBlank() && seen.add(it) }
+
+        return listOf(
+            tier { it.local && !it.relay },
+            tier { !it.local && !it.relay },
+            tier { it.relay }
+        )
+    }
+
+    /** Probes every URL in one tier at once and returns the earliest one in tier order that
+     *  answered, or null when none did. */
+    private suspend fun probeTier(urls: List<String>, token: String): String? =
+        kotlinx.coroutines.coroutineScope {
+            val probes = urls.map { url -> url to async { probe(url, token) } }
+            val winner = probes.firstNotNullOfOrNull { (url, deferred) -> url.takeIf { deferred.await() } }
+            // Cancelling the losers cancels their OkHttp calls (see [probe]); without it this
+            // scope would not return until the slowest dead candidate hit its timeout, which
+            // is the serial cost this whole race exists to avoid.
+            probes.forEach { (_, deferred) -> deferred.cancel() }
+            winner
+        }
+
+    private fun isPlexDirectUri(uri: String): Boolean =
+        uri.toHttpUrlOrNull()?.host?.lowercase()?.endsWith(".plex.direct") == true
+
+    /** True for a bare IPv4/IPv6 literal - no hostname means no reverse proxy, so an HTTP
+     *  attempt on the HTTPS port can't land on something else's vhost. */
+    private fun isIpLiteral(address: String): Boolean {
+        val bare = address.removePrefix("[").removeSuffix("]")
+        if (bare.isBlank()) return false
+        return (bare.all { it.isDigit() || it == '.' } && bare.count { it == '.' } == 3) ||
+            bare.contains(':')
+    }
+
+    /** IPv6 literals must be bracketed inside a URL; everything else is used as-is. */
+    private fun hostForUrl(address: String): String =
+        if (address.contains(':') && !address.startsWith("[")) "[$address]" else address
+
+    /** True when [address] is one no client can reach: IPv6 link-local or all-zeros. */
+    private fun isUnreachableAddress(address: String): Boolean {
+        val normalized = address.removePrefix("[").removeSuffix("]").lowercase()
+        if (normalized.isBlank()) return false
+        if (normalized.startsWith("fe80:")) return true
+        if (normalized == "::" || normalized == "0.0.0.0") return true
+        return normalized.matches(Regex("^(0+:){7}0+$"))
+    }
+
+    /** True when [base] answers Plex's identity endpoint with this token. Enqueued rather than
+     *  executed so cancelling the coroutine cancels the in-flight call - a blocking
+     *  `execute()` would keep a losing probe's socket open for its full timeout. */
+    private suspend fun probe(base: String, token: String): Boolean {
+        val url = base.toHttpUrlOrNull()?.newBuilder()?.addPathSegment("identity")?.build()
+            ?: return false
+        val call = probeClient.newCall(Request.Builder().url(url).plexHeaders(token).build())
+        return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            cont.invokeOnCancellation { runCatching { call.cancel() } }
+            call.enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                    if (cont.isActive) cont.resume(false)
+                }
+
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                    val ok = response.use { it.isSuccessful }
+                    if (cont.isActive) cont.resume(ok)
+                }
+            })
+        }
+    }
 
     /** Binds this client to a server. No network call - just state, so every fetch below
      *  works. [serverName] verification is left to [friendlyName]. */
