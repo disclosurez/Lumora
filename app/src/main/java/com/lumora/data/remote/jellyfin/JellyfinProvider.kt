@@ -18,6 +18,15 @@ import kotlinx.coroutines.sync.withLock
 /** Jellyfin expresses every time value in 100-nanosecond ticks. */
 private const val TICKS_PER_MS = 10_000L
 private const val PAGE_SIZE = 500
+
+/** Page sizes tried, largest first, when a page fails to come back parseable.
+ *
+ *  Jellyfin 10.12 can declare a Content-Length smaller than the JSON it then writes
+ *  ("Response Content-Length mismatch: too many bytes written" in the server log); Kestrel
+ *  truncates the body to the declared length, so the client sees a 200 carrying half an
+ *  object. It is size-dependent - a 500-item page of the full field set is ~560KB and trips
+ *  it, a small page does not - so a failed page is retried smaller before being given up on. */
+private val PAGE_SIZE_FALLBACKS = intArrayOf(PAGE_SIZE, 100, 25)
 /** Backstop for the paging loop - a server that keeps returning full pages can't spin us
  *  forever. Well past any realistic personal library. */
 private const val MAX_ITEMS = 50_000
@@ -652,21 +661,56 @@ class JellyfinProvider(baseClient: OkHttpClient) {
     private suspend fun fetchAllItems(url: String, token: String): List<JSONObject> {
         val all = mutableListOf<JSONObject>()
         var startIndex = 0
+        var limit = PAGE_SIZE
         while (startIndex < MAX_ITEMS) {
             // The only cancellation point in the crawl: fetchItems blocks in execute(), so a
             // cancelled loader (provider toggled, a retry starting) can't take effect inside
             // a page - without this the loop would carry on fetching every remaining page of
             // a catalogue nobody is waiting for any more.
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            val separator = if (url.contains('?')) "&" else "?"
-            val paged = "$url${separator}StartIndex=$startIndex&Limit=$PAGE_SIZE"
-            val (items, total) = fetchItems(paged, token)
+            // A page that can't be fetched or parsed ends the crawl with whatever came back
+            // before it, rather than throwing the whole catalogue away: the caller's blanket
+            // catch turns one bad page into an empty library, which is how a server-side
+            // Content-Length bug on a single page reads as "Jellyfin has no movies".
+            val page = fetchPageWithFallback(url, token, startIndex, limit) ?: break
+            val (items, total, usedLimit) = page
+            // Stay at whatever size worked - if the full page size is what the server chokes
+            // on, every remaining page would otherwise pay the same failed attempt first.
+            limit = usedLimit
             all += items
-            if (items.size < PAGE_SIZE) break
+            if (items.size < usedLimit) break
             startIndex += items.size
             if (total != null && all.size >= total) break
         }
         return all
+    }
+
+    /**
+     * One page, retried at progressively smaller [PAGE_SIZE_FALLBACKS] sizes when the server
+     * hands back something unparseable. Returns the items, TotalRecordCount, and the page
+     * size that actually worked - or null if none of them did.
+     */
+    private suspend fun fetchPageWithFallback(
+        url: String,
+        token: String,
+        startIndex: Int,
+        preferredLimit: Int,
+    ): Triple<List<JSONObject>, Int?, Int>? {
+        val sizes = PAGE_SIZE_FALLBACKS.filter { it <= preferredLimit }.ifEmpty { listOf(preferredLimit) }
+        val separator = if (url.contains('?')) "&" else "?"
+        for (limit in sizes) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val paged = "$url${separator}StartIndex=$startIndex&Limit=$limit"
+            try {
+                val (items, total) = fetchItems(paged, token)
+                return Triple(items, total, limit)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Truncated JSON, a read that died mid-body: try a smaller page.
+            }
+        }
+        return null
     }
 
     /** One page: the items, plus TotalRecordCount when the endpoint reports one. */
