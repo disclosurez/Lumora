@@ -260,6 +260,10 @@ internal suspend fun MainActivity.performPlexSignIn(
         name = server.name,
         enabled = true,
         url = base,
+        // Everything else the server published, for when this one stops working - a device
+        // that signs in at home picks a 192.168 address, and without these it can never reach
+        // the server from anywhere else. connectPlex walks them and promotes what answers.
+        altUrls = plex.candidateUrls(server).filter { it != base },
         token = server.accessToken,
         // Kept so the server list can be re-read later (to switch servers) without a second
         // sign-in - the per-server token can't list an account's resources.

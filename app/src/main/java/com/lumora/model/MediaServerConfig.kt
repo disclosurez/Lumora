@@ -20,6 +20,15 @@ data class MediaServerConfig(
     /** Jellyfin: the server URL the user typed. Plex: whichever published endpoint answered
      *  during sign-in (see PlexProvider.pickConnection) - never something typed. */
     val url: String? = null,
+    /** Plex only: the server's other published endpoints, in the order they should be tried
+     *  when [url] stops answering, and never containing [url] itself.
+     *
+     *  A Plex server publishes a LAN address, a WAN one and Plex's relay, and which of them
+     *  works depends on where the device is sitting *now*, not on where it was at sign-in.
+     *  Storing only the winner pinned a 192.168 URL onto every device that signed in at home,
+     *  which then could not reach the server from anywhere else. With the alternatives kept,
+     *  connectPlex walks them on failure and promotes whichever answers into [url]. */
+    val altUrls: List<String> = emptyList(),
     // Jellyfin password login. Absent on a Quick Connect session, which only ever yields a
     // token (see token/userId below).
     val username: String? = null,

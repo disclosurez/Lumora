@@ -444,11 +444,22 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
      *
      * A server publishes every address it knows about - LAN, WAN, IPv6, and Plex's relay -
      * and most are dead from any given network. They're tried in the order that matters for
-     * playback: LAN before WAN before relay (the relay is bandwidth-capped and is a last
-     * resort), HTTPS before HTTP within each. One tier at a time, all of a tier's candidates
-     * at once - see [candidateTiers] for why the tiers stay sequential and the candidates
-     * inside them do not.
+     * playback: the server's remote address before its LAN one before the relay (bandwidth-
+     * capped, a last resort), HTTPS before HTTP within each. One tier at a time, all of a
+     * tier's candidates at once - see [candidateTiers] for why the tiers stay sequential and
+     * the candidates inside them do not.
      */
+    /**
+     * Every endpoint [server] published, in the order they should be tried: LAN, then WAN,
+     * then the relay, HTTPS before HTTP inside each.
+     *
+     * Kept for the config to store beside the one that answered at sign-in. Which address
+     * works is a property of where the device is at the time, not of the sign-in, so a device
+     * that signed in on the LAN needs the WAN address on hand for when it is somewhere else -
+     * see [MediaServerConfig.altUrls].
+     */
+    fun candidateUrls(server: PlexServerInfo): List<String> = candidateTiers(server).flatten()
+
     suspend fun pickConnection(server: PlexServerInfo): String? {
         val tiers = candidateTiers(server)
         if (tiers.all { it.isEmpty() }) {
@@ -467,15 +478,22 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
 
     /**
      * [server]'s candidate base URLs, grouped into the tiers that must be tried in order:
-     * LAN, then WAN, then Plex's relay (bandwidth-capped, so a last resort). HTTPS comes
-     * before HTTP inside a tier.
+     * the remote (WAN) address, then LAN, then Plex's relay (bandwidth-capped, so a last
+     * resort). HTTPS comes before HTTP inside a tier.
+     *
+     * **Remote before LAN, deliberately.** A `local` address is only local from the network
+     * the server sits on, and the address chosen at sign-in is the one persisted in the
+     * MediaServerConfig - so a device that signs in on the same LAN pins a 192.168 URL and
+     * then cannot reach the server from anywhere else, which is every phone that leaves the
+     * house and every TV on a guest or IoT VLAN. The published remote address works from
+     * both, at the cost of hairpinning LAN traffic out to the router and back.
      *
      * Each tier is probed *concurrently*. Serially it was one [PROBE_TIMEOUT_SECONDS] per
      * candidate, and a server reached from off its LAN publishes up to a dozen addresses that
      * blackhole rather than refuse - every LAN address, every Docker bridge, every IPv6 - so
      * the relay at the end of the list was reached a minute later, long after the sign-in had
-     * been given up on. Tiers stay sequential so a working LAN address is still preferred
-     * over a WAN one that would answer faster.
+     * been given up on. Tiers stay sequential so a working remote address is still preferred
+     * over a LAN one that would answer faster.
      *
      * An HTTP fallback is added for HTTPS candidates whose host is a `*.plex.direct` name or a
      * bare IP: those resolve through plex.tv's DNS and present a Plex-issued certificate, and
@@ -499,8 +517,8 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
                 .filter { it.isNotBlank() && seen.add(it) }
 
         return listOf(
-            tier { it.local && !it.relay },
             tier { !it.local && !it.relay },
+            tier { it.local && !it.relay },
             tier { it.relay }
         )
     }

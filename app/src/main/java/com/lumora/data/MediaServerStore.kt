@@ -149,6 +149,7 @@ object MediaServerStore {
         put("moviesEnabled", c.moviesEnabled)
         put("seriesEnabled", c.seriesEnabled)
         c.url?.let { put("url", it) }
+        if (c.altUrls.isNotEmpty()) put("altUrls", JSONArray().apply { c.altUrls.forEach { put(it) } })
         c.username?.let { put("username", it) }
         c.password?.let { put("password", it) }
         c.token?.let { put("token", it) }
@@ -162,6 +163,9 @@ object MediaServerStore {
         name = o.optString("name", "Media server"),
         enabled = o.optBoolean("enabled", true),
         url = o.optString("url").takeIf { it.isNotBlank() },
+        altUrls = o.optJSONArray("altUrls")?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { u -> u.isNotBlank() } }
+        }.orEmpty(),
         username = o.optString("username").takeIf { it.isNotBlank() },
         password = o.optString("password").takeIf { it.isNotBlank() },
         token = o.optString("token").takeIf { it.isNotBlank() },

@@ -71,16 +71,67 @@ internal fun MainActivity.newPlexProvider(): PlexProvider =
 internal fun MainActivity.plexProviderStub(url: String?): Provider =
     Provider(name = "Plex", type = ProviderType.M3U, serverUrl = url)
 
-/** Binds a client to one configured server + its token. No network call beyond the one
- *  [PlexProvider.connect] makes to confirm the session still works. */
+/**
+ * Binds a client to one configured server + its token. No network call beyond the one
+ * [PlexProvider.connect] makes to confirm the session still works.
+ *
+ * The stored [MediaServerConfig.url] is tried first - on the network where the user signed in
+ * that is the LAN address, which is the fastest route and the one that should win whenever it
+ * works. When it doesn't, the endpoints kept in [MediaServerConfig.altUrls] are tried in turn
+ * (WAN, then Plex's relay) and whichever answers is promoted into `url`, so the phone that
+ * left the house or the TV on a different VLAN reaches the server instead of reporting it
+ * offline, and doesn't pay for the dead LAN address again on the next launch.
+ *
+ * The old address is not discarded - it goes back into `altUrls`, because the trip home is
+ * just as routine as the trip out.
+ */
 internal suspend fun MainActivity.connectPlex(cfg: MediaServerConfig): Result<PlexProvider> {
-    val url = plexServerUrl(cfg) ?: return Result.failure(Exception("Plex: no server"))
+    val primary = plexServerUrl(cfg) ?: return Result.failure(Exception("Plex: no server"))
     val token = cfg.token?.takeIf { it.isNotBlank() }
         ?: return Result.failure(Exception("Plex: not signed in"))
-    val plex = newPlexProvider()
-    val result = withContext(Dispatchers.IO) { plex.connect(url, token) }
-    return if (result.isSuccess) Result.success(plex)
-    else Result.failure(Exception("Plex: ${result.exceptionOrNull()?.message?.take(60)}"))
+
+    val candidates = listOf(primary) + cfg.altUrls.filter { it.isNotBlank() && it != primary }
+    var firstError: String? = null
+    for (url in candidates) {
+        val plex = newPlexProvider()
+        val result = withContext(Dispatchers.IO) { plex.connect(url, token) }
+        if (result.isSuccess) {
+            if (url != primary) {
+                MediaServerStore.upsert(
+                    prefs,
+                    cfg.copy(url = url, altUrls = candidates.filter { it != url })
+                )
+            }
+            return Result.success(plex)
+        }
+        if (firstError == null) firstError = result.exceptionOrNull()?.message?.take(60)
+    }
+
+    // Nothing stored answered. An entry signed in before altUrls existed knows only the one
+    // address it picked back then, so re-read the account's server list - that is what the
+    // account token is kept for - and try what plex.tv publishes now. This also covers a
+    // server whose WAN address genuinely changed (a new dynamic IP, a moved port).
+    val accountToken = cfg.accountToken?.takeIf { it.isNotBlank() }
+        ?: return Result.failure(Exception("Plex: ${firstError ?: "couldn't connect"}"))
+    val plexAccount = newPlexProvider()
+    val server = withContext(Dispatchers.IO) { plexAccount.fetchServers(accountToken) }
+        .firstOrNull { it.accessToken == cfg.token || it.name == cfg.name }
+        ?: return Result.failure(Exception("Plex: ${firstError ?: "couldn't connect"}"))
+    for (url in plexAccount.candidateUrls(server).filter { it !in candidates }) {
+        val plex = newPlexProvider()
+        if (withContext(Dispatchers.IO) { plex.connect(url, server.accessToken) }.isSuccess) {
+            MediaServerStore.upsert(
+                prefs,
+                cfg.copy(
+                    url = url,
+                    altUrls = (plexAccount.candidateUrls(server) + candidates).distinct() - url,
+                    token = server.accessToken
+                )
+            )
+            return Result.success(plex)
+        }
+    }
+    return Result.failure(Exception("Plex: ${firstError ?: "couldn't connect"}"))
 }
 
 /** The live session for one Plex server, reconnecting on demand. A cold start that hits the
