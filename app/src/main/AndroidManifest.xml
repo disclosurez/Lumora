@@ -23,11 +23,16 @@
     <!-- Cast -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!-- Android Auto (auto/LumoraCarAppService.kt). NAVIGATION_TEMPLATES + ACCESS_SURFACE are
-         what the Car App Library requires to draw a navigation template and be handed its
-         drawing surface - the surface the player renders video into, there being no video app
-         category on Android Auto. CAR_SPEED backs the parked-only gate; it is optional at
-         runtime, and the gate falls back to the user's setting when the host won't report. -->
+    <!-- Android Auto (auto/LumoraCarAppService.kt). A template permission + ACCESS_SURFACE are
+         what the Car App Library requires to draw a template and be handed its drawing
+         surface - the surface the player renders video into, there being no video app category
+         on Android Auto. Both template permissions are declared because which one a host
+         honours depends on its version: MAP_TEMPLATES arrived with car-app 1.4 and is what
+         current hosts check, while an older host only recognises NAVIGATION_TEMPLATES and
+         hands a surface to nothing that lacks it. CAR_SPEED backs the parked-only gate; it is
+         optional at runtime, and the gate falls back to the user's setting when the host
+         won't report. -->
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" />
     <uses-permission android:name="androidx.car.app.MAP_TEMPLATES" />
     <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
 
@@ -139,12 +144,14 @@
              in auto/ was unreachable code and is gone; a future Assistant/Wear integration
              would need its own service anyway. -->
 
-        <!-- Android Auto. minCarApiLevel and the POI service below are the entire car
+        <!-- Android Auto. minCarApiLevel and the service below are the entire car
              registration - deliberately no com.google.android.gms.car.application descriptor,
              which is how a *media* app announces itself and got Lumora listed as audio-only.
-             POI rather than NAVIGATION: this host lists sideloaded POI apps and not navigation
-             ones, and POI is handed the same drawing surface, which is all the video path
-             needs (see auto/CarPlayerScreen.kt). -->
+             Both POI and NAVIGATION are declared because a host launches only the categories
+             its version knows: current hosts list a sideloaded POI app, while an older one
+             (Android Auto 14 and before) shows no launcher tile for POI at all and lists only
+             navigation apps. Either category is handed the same drawing surface, which is all
+             the video path needs (see auto/CarPlayerScreen.kt). -->
         <meta-data
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
@@ -157,6 +164,10 @@
             <intent-filter>
                 <action android:name="androidx.car.app.CarAppService" />
                 <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
             </intent-filter>
         </service>
 
