@@ -282,4 +282,5 @@
     <string name="category_recently_played">최근 재생</string>
     <string name="category_favourite_channels">즐겨찾는 채널</string>
     <string name="ui_not_driving_continue">운전 중이 아닙니다 - 계속</string>
+    <string name="list_find_and_play">찾아서 재생</string>
 </resources>

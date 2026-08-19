@@ -289,4 +289,5 @@
     <string name="category_recently_played">Недавно воспроизведённые</string>
     <string name="category_favourite_channels">Избранные каналы</string>
     <string name="ui_not_driving_continue">Я не за рулём - продолжить</string>
+    <string name="list_find_and_play">Найти и воспроизвести</string>
 </resources>

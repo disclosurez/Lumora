@@ -297,4 +297,5 @@
     <string name="category_recently_played">Lus récemment</string>
     <string name="category_favourite_channels">Chaînes favorites</string>
     <string name="ui_not_driving_continue">Je ne conduis pas - continuer</string>
+    <string name="list_find_and_play">Trouver et lire</string>
 </resources>

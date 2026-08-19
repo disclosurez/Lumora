@@ -998,9 +998,17 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         // "Play"/"Resume" alone didn't say *which* episode - with several seasons in
         // play this was a guessing game before committing to it.
         val tag = if (seasonNum != null && target.episodeNum != null) "S${seasonNum}E${target.episodeNum}" else null
-        playButtonLabel.text = listOfNotNull(
-            getString(if (selection.isResume) R.string.list_resume else R.string.play), tag
-        ).joinToString(" ")
+        // A TMDB-built placeholder (see tmdbSeasonsFor / mergeMissingEpisodesFromTmdb) has no
+        // stream behind it. Saying "Play" there promises something the button cannot do - it
+        // opened the player on a blank URL and failed - so it says what it will actually do:
+        // search the sources first, then play what comes back.
+        val mustFind = target.url.isBlank() && !item.id.startsWith(AnimeCatalogClient.ID_PREFIX)
+        val verb = when {
+            mustFind -> R.string.list_find_and_play
+            selection.isResume -> R.string.list_resume
+            else -> R.string.play
+        }
+        playButtonLabel.text = listOfNotNull(getString(verb), tag).joinToString(" ")
         playButton.visibility = View.VISIBLE
         // Landing focus on Play once the screen opens; refocus=false on watch-toggle
         // refreshes (label/target changed) must NOT steal focus - the user is on a check.
@@ -1015,6 +1023,10 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 if (plugin != null) {
                     showStreamSearchDialog(plugin, item, season = null, episode = target.episodeNum)
                 }
+            } else if (mustFind) {
+                // Same route the episode rows take for a placeholder - searched under the
+                // series name with the season/episode pair, never the episode's own title.
+                showFindStreamDialog(item, seasonNum?.toIntOrNull(), target.episodeNum)
             } else {
                 currentIndex = -1
                 // Full cross-season chain behind the chosen episode, so it keeps
@@ -1164,19 +1176,30 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 val filmProgress = filmKey.takeIf { it.isNotBlank() }
                     ?.let { PlaybackPositionStore.get(this@showContentDetail, it) }
                     ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
-                playButtonLabel.text = if (filmProgress != null) getString(R.string.list_resume) else getString(R.string.play)
-                // A title opened from Discover that the library does not have has no URL to
-                // play - its only route to a stream is Find Stream. Showing Play there would be
-                // a button that can only fail, so it stays hidden and Find Stream takes focus.
+                // A title opened from Discover that no library carries has no URL to play. The
+                // button is still the one thing anyone presses on this screen, so it stays and
+                // says what it will do - search the sources, then play what resolves - instead
+                // of hiding and leaving the screen with no obvious action. Hidden only when
+                // there is no way to find anything either (no plugin, no scrapers enabled).
                 val playable = item.url.isNotBlank() || versions.any { it.url.isNotBlank() }
-                playButton.visibility = if (playable) View.VISIBLE else View.GONE
-                if (playable) playButton.requestFocus()
+                val mustFind = !playable && canFindStream(item)
+                playButtonLabel.text = when {
+                    mustFind -> getString(R.string.list_find_and_play)
+                    filmProgress != null -> getString(R.string.list_resume)
+                    else -> getString(R.string.play)
+                }
+                playButton.visibility = if (playable || mustFind) View.VISIBLE else View.GONE
+                if (playable || mustFind) playButton.requestFocus()
                 else binding.detailFindStreamButton.takeIf { it.visibility == View.VISIBLE }
                     ?.requestFocus()
                 playButton.setOnClickListener {
                     // User-initiated play - see playItem for why the suppression flag is cleared here.
                     skipResumePrompt = false
                     hideContentDetail()
+                    if (mustFind) {
+                        showFindStreamDialog(item)
+                        return@setOnClickListener
+                    }
                     currentIndex = filmList.indexOf(item)
                     showPlayerFor(versions.first())
                     detailReturnItem = item

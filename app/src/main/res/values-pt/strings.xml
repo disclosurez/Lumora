@@ -287,4 +287,5 @@
     <string name="category_recently_played">Reproduzidos recentemente</string>
     <string name="category_favourite_channels">Canais favoritos</string>
     <string name="ui_not_driving_continue">Não estou a conduzir - continuar</string>
+    <string name="list_find_and_play">Procurar e reproduzir</string>
 </resources>
