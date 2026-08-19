@@ -131,7 +131,7 @@ internal fun MainActivity.suggestExternalPlayer(reason: String) {
     if (!ExternalPlayer.canHandleVideo(this)) return
     externalPlayerSuggestedForStream = true
 
-    AlertDialog.Builder(this)
+    externalPlayerDialog = AlertDialog.Builder(this)
         .setTitle(getString(R.string.play_in_another_app))
         .setMessage(getString(R.string.play_suggest_body, reason))
         .setPositiveButton(getString(R.string.open_in_external_player_short)) { _, _ -> openInExternalPlayer() }
@@ -140,6 +140,7 @@ internal fun MainActivity.suggestExternalPlayer(reason: String) {
             prefs.edit().putBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, false).apply()
             Toast.makeText(this, getString(R.string.play_turn_back_on_settings), Toast.LENGTH_LONG).show()
         }
+        .setOnDismissListener { externalPlayerDialog = null }
         .show()
 }
 

@@ -593,6 +593,12 @@ class MainActivity : AppCompatActivity() {
      *  can both fire for the same tune, and two dialogs for one problem is worse than none.
      *  Reset by beginStreamAttempt(). */
     internal var externalPlayerSuggestedForStream = false
+    /** The dialog [externalPlayerSuggestedForStream] guards, if it's currently showing.
+     *  Dismissed by beginStreamAttempt() - a failure that goes on to fail over automatically
+     *  (another version, another provider) leaves this dialog up from the attempt that just
+     *  failed, so without dismissing it here, the stream can end up playing fine underneath a
+     *  dialog still telling the user it couldn't. */
+    internal var externalPlayerDialog: AlertDialog? = null
     internal var resumePromptShown = false
     /** Set right before an auto-advanced episode starts so its STATE_READY does not throw a
      *  "Resume playback?" dialog at the top of a brand-new episode; consumed and cleared in

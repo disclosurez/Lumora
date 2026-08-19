@@ -1522,6 +1522,11 @@ internal fun MainActivity.beginStreamAttempt() {
     currentStreamStartMs = System.currentTimeMillis()
     currentStreamPlayed = false
     externalPlayerSuggestedForStream = false
+    // Whatever this dialog was about belongs to the attempt that just ended, not the one
+    // starting now - stale otherwise if that attempt failed over automatically and this new
+    // one goes on to play fine.
+    externalPlayerDialog?.dismiss()
+    externalPlayerDialog = null
 }
 
 // ── Black-frame auto-failover ──────────────────
