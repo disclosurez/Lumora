@@ -294,4 +294,5 @@
     <string name="category_favourite_channels">Favourite Channels</string>
     <string name="ui_not_driving_continue">I\'m not driving - continue</string>
     <string name="list_find_and_play">Find &amp; Play</string>
+    <string name="list_season_number">Season %1$d</string>
 </resources>

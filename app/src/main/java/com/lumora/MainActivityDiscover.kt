@@ -1097,7 +1097,17 @@ internal suspend fun MainActivity.tmdbSeasonsFor(item: Channel): List<Pair<Strin
                 group = item.group,
             )
         }
-        season.name to episodes
+        // TMDB's own name for the season, but only when it agrees with the number. Most shows
+        // name seasons "Season 3"; an anthology names them after the case ("Murder in the Rocky
+        // Mountains"), and a few name them for the year. Those went on the chip verbatim, so a
+        // series showed "Season 1, Season 2, Season 4, Murder in the Rocky Mountains" - and
+        // since mergeMissingEpisodesFromTmdb reads the season number back out of this label,
+        // a nameless number meant null: sorted last, and every named season colliding on the
+        // same null key.
+        val labelNumber = Regex("""\d+""").find(season.name)?.value?.toIntOrNull()
+        val label = if (labelNumber == season.number) season.name
+            else getString(R.string.list_season_number, season.number)
+        label to episodes
     }
 }
 

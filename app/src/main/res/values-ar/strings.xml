@@ -292,4 +292,5 @@
     <string name="category_favourite_channels">القنوات المفضلة</string>
     <string name="ui_not_driving_continue">لست أقود - متابعة</string>
     <string name="list_find_and_play">ابحث وشغّل</string>
+    <string name="list_season_number">الموسم %1$d</string>
 </resources>

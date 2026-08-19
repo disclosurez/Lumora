@@ -282,4 +282,5 @@
     <string name="category_favourite_channels">收藏频道</string>
     <string name="ui_not_driving_continue">我不是驾驶员 - 继续</string>
     <string name="list_find_and_play">查找并播放</string>
+    <string name="list_season_number">第 %1$d 季</string>
 </resources>
