@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.3.3
+
+### Plugins
+- **Plugins can now update themselves.** A new toggle in Settings > Plugins (off by default) checks every installed plugin against its store on each launch and updates it in place, without touching your enabled/disabled choices.
+
+### Playback
+- **A stream that recovered no longer left a stale error dialog behind.** If a stream failed and Lumora automatically switched to another version or source that then played fine, the "couldn't play this stream" prompt from the failed attempt could stay stuck onscreen over the working video.
+
 ## 4.3.2
 
 ### Jellyfin
