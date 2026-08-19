@@ -2,11 +2,14 @@ package com.lumora.player.playback
 
 import android.content.Context
 import android.os.Handler
+import android.os.Looper
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.text.TextOutput
+import androidx.media3.exoplayer.text.TextRenderer
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import java.nio.ByteBuffer
@@ -103,5 +106,34 @@ class AvOffsetRenderersFactory(
                 offsetUsProvider,
             )
         )
+    }
+
+    /**
+     * Turns TextRenderer's legacy decoding back on.
+     *
+     * Subtitles are deliberately parsed at render time rather than during extraction (see
+     * PlayerManager's `experimentalParseSubtitlesDuringExtraction(false)`, which stops one
+     * malformed cue from ending playback of a file whose video and audio are fine). Media3 1.4
+     * treats that path as legacy and refuses it unless asked, so a sideloaded SRT killed
+     * playback outright:
+     *
+     *   ERROR_CODE_FAILED_RUNTIME_CHECK: Legacy decoding is disabled, can't handle
+     *   application/x-subrip samples (expected application/x-media3-cues)
+     *
+     * The flag lives on the renderer in 1.4 (it moved up to DefaultRenderersFactory in 1.5),
+     * so it is set on whatever text renderers the default set builds.
+     */
+    override fun buildTextRenderers(
+        context: Context,
+        output: TextOutput,
+        outputLooper: Looper,
+        extensionRendererMode: Int,
+        out: ArrayList<Renderer>,
+    ) {
+        val firstNew = out.size
+        super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, out)
+        for (i in firstNew until out.size) {
+            (out[i] as? TextRenderer)?.experimentalSetLegacyDecodingEnabled(true)
+        }
     }
 }
