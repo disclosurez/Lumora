@@ -284,4 +284,5 @@
     <string name="category_next_up">आगे क्या आएगा</string>
     <string name="category_recently_played">हाल ही में चलाए गए</string>
     <string name="category_favourite_channels">पसंदीदा चैनल</string>
+    <string name="ui_not_driving_continue">मैं गाड़ी नहीं चला रहा - जारी रखें</string>
 </resources>

@@ -281,4 +281,5 @@
     <string name="category_next_up">Berikutnya</string>
     <string name="category_recently_played">Baru Diputar</string>
     <string name="category_favourite_channels">Saluran Favorit</string>
+    <string name="ui_not_driving_continue">Saya tidak mengemudi - lanjutkan</string>
 </resources>

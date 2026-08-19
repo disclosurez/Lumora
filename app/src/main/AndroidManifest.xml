@@ -156,20 +156,27 @@
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
 
-        <service
-            android:name=".auto.LumoraCarAppService"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="@string/app_name">
-            <intent-filter>
-                <action android:name="androidx.car.app.CarAppService" />
-                <category android:name="androidx.car.app.category.POI" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="androidx.car.app.CarAppService" />
-                <category android:name="androidx.car.app.category.NAVIGATION" />
-            </intent-filter>
-        </service>
+        <!-- Required, not optional: CAR.VALIDATOR denies any package that declares a
+             CarAppService without a descriptor naming the template surface, and a denied
+             package never reaches the car launcher. The descriptor names template and
+             notification, never media - media is the entry that made Lumora audio-only. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <!-- The template car app (auto/LumoraCarAppService.kt) is deliberately NOT declared.
+             Android Auto treats a template CarAppService and a projected Activity as mutually
+             exclusive, and prefers the template one:
+
+               GH.AvailableAppFinder: Skipping ProjectionApp(ComponentInfo{com.lumora/
+               com.lumora.MainActivity}, appCategory=OTHER, isParkedOnly=true,
+               isImmersiveApp=true, isNativeApp=true) due to a conflicting driving optimized app
+
+             Declaring the service therefore replaces the whole app with a six-row list and a
+             bare video surface. Leaving it out lets the host project MainActivity itself -
+             the real UI, parked only - which is the point of running Lumora in a car at all.
+             The classes under auto/ are kept for the day a driving-optimised mode is wanted
+             back; nothing binds them while this declaration is absent. -->
 
         <!-- No TV Input Framework service. Lumora advertised one, but nothing ever wrote a
              row into TvContract.Channels, so the system input selector had an empty Lumora

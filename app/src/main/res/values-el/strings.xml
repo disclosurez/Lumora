@@ -288,4 +288,5 @@
     <string name="category_next_up">Επόμενο</string>
     <string name="category_recently_played">Πρόσφατη αναπαραγωγή</string>
     <string name="category_favourite_channels">Αγαπημένα κανάλια</string>
+    <string name="ui_not_driving_continue">Δεν οδηγώ - συνέχεια</string>
 </resources>

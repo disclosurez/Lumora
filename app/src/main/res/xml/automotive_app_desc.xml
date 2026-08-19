@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto's app validator requires this, and refuses the app without it:
+
+         W/CAR.VALIDATOR: Package DENIED; Uses for TEMPLATE not defined [com.lumora]
+
+         is what the host logs for a template app whose descriptor is missing. Two entries
+         are deliberately absent, because each one hands the app to a different Android Auto
+         surface and neither is what Lumora is:
+
+           media        - classifies the app as audio-only, which is how 3.8 ended up with
+                          a car listing that could never show a picture.
+           notification - classifies it as a messaging app. With that entry the tile opens
+                          GH.MessagingCarAppSrvc and the car screen reads "no messages during
+                          this drive", the app itself never being launched at all. -->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

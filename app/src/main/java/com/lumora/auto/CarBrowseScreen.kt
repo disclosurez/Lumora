@@ -30,6 +30,16 @@ class CarBrowseScreen(
 ) : Screen(carContext) {
 
     override fun onGetTemplate(): Template {
+        // Before anything else, and on every screen rather than only the root one - see
+        // disclaimerTemplate. A host that opens the app somewhere other than the root screen
+        // would otherwise show the channel list with the warning never seen.
+        if (!session.disclaimerAccepted) {
+            return disclaimerTemplate(carContext) {
+                session.disclaimerAccepted = true
+                invalidate()
+            }
+        }
+
         if (session.playback.channels.isEmpty()) session.playback.loadCatalog()
 
         if (session.playback.channels.isEmpty()) {

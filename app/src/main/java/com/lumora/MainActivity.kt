@@ -7,6 +7,8 @@ import android.app.DownloadManager
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
 import androidx.activity.OnBackPressedCallback
+import android.view.Display
+import androidx.car.app.connection.CarConnection
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -954,6 +956,7 @@ class MainActivity : AppCompatActivity() {
             else { pluginDiscoveryOnStart.join(); loadSavedProvider() }
         }
         requestNotificationPermissionIfNeeded()
+        showCarDisclaimerIfProjected()
         pruneStoredEpg()
         checkAndPromptUpdate()
 
@@ -980,10 +983,39 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, backCallback)
     }
 
-    /** Needed on API 33+ for reminder notifications to actually show; older Fire OS builds don't gate on it. */
+    /**
+     * The driving warning, once per launch on the car screen.
+     *
+     * Android Auto projects this Activity itself (parked-only, immersive) rather than the
+     * template car app, so the warning has to live here - nothing in auto/ runs on that path.
+     * Keyed off the display rather than [CarConnection]: a phone opened while the car is
+     * connected is still a phone in someone's hand, and only the Activity actually placed on
+     * the projected display is the one being watched from a driver's seat.
+     */
+    private fun showCarDisclaimerIfProjected() {
+        val onCarDisplay =
+            if (Build.VERSION.SDK_INT >= 30) (display?.displayId ?: Display.DEFAULT_DISPLAY) != Display.DEFAULT_DISPLAY
+            else @Suppress("DEPRECATION") (windowManager.defaultDisplay.displayId != Display.DEFAULT_DISPLAY)
+        if (!onCarDisplay) return
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.app_name)
+            .setMessage(R.string.car_disclaimer)
+            .setCancelable(false)
+            .setPositiveButton(R.string.ui_not_driving_continue) { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    /** Needed on API 33+ for reminder notifications to actually show; older Fire OS builds don't gate on it.
+     *
+     *  Not asked while the phone is projecting to a car: Android Auto suppresses permission
+     *  dialogs outright ("permission request suppressed"), so the request is spent for nothing
+     *  and the driver gets a toast they can do nothing about. The check is cheap to defer -
+     *  the next launch off the car asks properly. */
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            (application as? BaseApplication)?.carConnectionType != CarConnection.CONNECTION_TYPE_PROJECTION
         ) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
         }

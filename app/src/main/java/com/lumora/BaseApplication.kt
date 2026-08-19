@@ -1,6 +1,7 @@
 package com.lumora
 
 import android.app.Application
+import androidx.car.app.connection.CarConnection
 import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.remote.jellyfin.JellyfinAuthInterceptor
 import com.lumora.data.remote.plex.PlexAuthInterceptor
@@ -19,6 +20,13 @@ class BaseApplication : Application() {
         private set
 
     lateinit var database: LumoraDatabase
+        private set
+
+    /** Latest [CarConnection] type, or -1 before the first emission. Read from the UI thread
+     *  and written from the observer, so volatile rather than plain. Whoever reads it must
+     *  treat -1 as "not projecting" - it is also what a phone with no Android Auto reports. */
+    @Volatile
+    var carConnectionType: Int = -1
         private set
 
     override fun onCreate() {
@@ -45,6 +53,14 @@ class BaseApplication : Application() {
         // WebView cookie store, both of which need a Context that no scraper call carries.
         com.lumora.scraper.ScraperApp.init(this)
 
+        // Whether this phone is projecting to a car right now. Android Auto suppresses
+        // permission dialogs while projecting, so MainActivity reads this before asking for
+        // anything - see requestNotificationPermissionIfNeeded.
+        try {
+            CarConnection(this).type.observeForever { carConnectionType = it }
+        } catch (_: Throwable) {
+            // No Android Auto on this device (a TV box, typically); -1 stays, meaning "not projecting".
+        }
 
         okHttpClient = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)

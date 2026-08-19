@@ -288,4 +288,5 @@
     <string name="category_next_up">Далі</string>
     <string name="category_recently_played">Нещодавно відтворене</string>
     <string name="category_favourite_channels">Улюблені канали</string>
+    <string name="ui_not_driving_continue">Я не за кермом - продовжити</string>
 </resources>

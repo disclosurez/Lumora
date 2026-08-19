@@ -8,7 +8,6 @@
     <string name="ui_channels_count">%1$d channels</string>
     <string name="ui_more">More&#8230;</string>
     <string name="ui_more_count">%1$d more</string>
-    <string name="ui_not_driving_continue">I\'m not driving - continue</string>
     <string name="ui_other">Other</string>
     <string name="ui_playing">Playing</string>
     <string name="ui_pause">Pause</string>

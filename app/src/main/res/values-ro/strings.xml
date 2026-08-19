@@ -287,4 +287,5 @@
     <string name="category_next_up">În continuare</string>
     <string name="category_recently_played">Redate recent</string>
     <string name="category_favourite_channels">Canale favorite</string>
+    <string name="ui_not_driving_continue">Nu conduc - continuă</string>
 </resources>

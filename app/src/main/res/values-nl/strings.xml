@@ -288,4 +288,5 @@
     <string name="category_next_up">Volgende</string>
     <string name="category_recently_played">Recent afgespeeld</string>
     <string name="category_favourite_channels">Favoriete kanalen</string>
+    <string name="ui_not_driving_continue">Ik rijd niet - doorgaan</string>
 </resources>

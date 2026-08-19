@@ -280,4 +280,5 @@
     <string name="category_next_up">接下来播放</string>
     <string name="category_recently_played">最近播放</string>
     <string name="category_favourite_channels">收藏频道</string>
+    <string name="ui_not_driving_continue">我不是驾驶员 - 继续</string>
 </resources>
