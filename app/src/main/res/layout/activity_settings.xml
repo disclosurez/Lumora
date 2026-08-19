@@ -1277,6 +1277,22 @@
                     android:text="@string/plugins_description"
                     style="@style/TextAppearance.Lumora.SettingsSubtitle" />
 
+                <CheckBox
+                    android:id="@+id/settingsPluginAutoUpdate"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_xl"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:checked="false"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/plug_auto_update"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

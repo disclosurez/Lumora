@@ -909,6 +909,10 @@ class MainActivity : AppCompatActivity() {
         // because that check ran against the still-empty pre-discovery cache.
         val pluginDiscoveryOnStart = scope.launch {
             pluginScriptManager.discoverScripts()
+            // Opt-in only (Settings > Plugins). Ahead of loadScraperSiteManifest() so a
+            // scraper_sites update fetched here is the one that gets applied below, not one
+            // launch later.
+            autoUpdateInstalledPluginsIfEnabled()
             // Needs discovery to have run - it looks for an installed scraper_sites script, and
             // supersedes the bundled site list BaseApplication already applied.
             loadScraperSiteManifest()

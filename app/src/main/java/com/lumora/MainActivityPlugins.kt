@@ -34,6 +34,7 @@ import com.lumora.plugin.js.StoreScript
 import com.lumora.torrent.TorrentEngine
 import com.lumora.torrent.TorrentForegroundService
 import com.lumora.plugin.TorrentResult
+import com.lumora.scraper.utils.UserPreferences
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -515,6 +516,11 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
     val listEmpty = dialogView.findViewById<View>(R.id.settingsPluginListEmpty)
     val manager = pluginScriptManager
 
+    dialogView.findViewById<CheckBox>(R.id.settingsPluginAutoUpdate)?.apply {
+        isChecked = UserPreferences.autoUpdatePlugins
+        setOnCheckedChangeListener { _, checked -> UserPreferences.autoUpdatePlugins = checked }
+    }
+
     val detailPane = dialogView.findViewById<View>(R.id.panePluginDetail)
     val listPane = dialogView.findViewById<View>(R.id.panePlugins)
     val detailBack = dialogView.findViewById<View>(R.id.pluginDetailBack)
@@ -941,6 +947,22 @@ internal suspend fun MainActivity.updatePluginFromStore(plugin: PluginScript): S
         }
     }
     return getString(R.string.plug_not_in_plugin_store, plugin.label)
+}
+
+/**
+ * Silently runs [updatePluginFromStore] over every installed script, if the user has switched
+ * on Settings > Plugins > "Auto-update plugins on launch". A no-op otherwise.
+ *
+ * Called once per cold start, ahead of [loadScraperSiteManifest] - so a `scraper_sites` script
+ * updated here takes effect on the same launch that fetched it, rather than needing a second
+ * restart. Errors per-plugin (unreachable store, rejected script) are swallowed: this runs with
+ * no UI to report to, and a failed update simply leaves that plugin as it was.
+ */
+internal suspend fun MainActivity.autoUpdateInstalledPluginsIfEnabled() {
+    if (!UserPreferences.autoUpdatePlugins) return
+    pluginScriptManager.discoverScripts().forEach { plugin ->
+        runCatching { updatePluginFromStore(plugin) }
+    }
 }
 
 /**

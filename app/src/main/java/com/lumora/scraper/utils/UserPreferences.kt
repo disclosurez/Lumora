@@ -50,6 +50,7 @@ object UserPreferences {
     private const val KEY_TMDB_API_KEY = "tmdb_api_key"
     private const val KEY_ENABLE_TMDB = "enable_tmdb"
     private const val KEY_SERVER_AUTO_SUBTITLES_DISABLED = "server_auto_subtitles_disabled"
+    private const val KEY_AUTO_UPDATE_PLUGINS = "auto_update_plugins"
     private const val KEY_BYPASS_WS_ADVERTISED_HOST = "bypass_ws_advertised_host"
     private const val KEY_STREAMINGCOMMUNITY_DOMAIN = "streamingcommunity_domain"
     private const val KEY_SERIENSTREAM_DOMAIN = "serienstream_domain"
@@ -170,6 +171,17 @@ object UserPreferences {
         get() = prefs?.getBoolean(KEY_SERVER_AUTO_SUBTITLES_DISABLED, false) ?: false
         set(value) {
             prefs?.edit()?.putBoolean(KEY_SERVER_AUTO_SUBTITLES_DISABLED, value)?.apply()
+        }
+
+    /**
+     * Whether every installed plugin script is silently re-fetched from its store and
+     * reinstalled in place on launch. Off by default - a plugin is arbitrary JS the user chose
+     * to run, so picking up a new version of it without being asked is an opt-in, not a default.
+     */
+    var autoUpdatePlugins: Boolean
+        get() = prefs?.getBoolean(KEY_AUTO_UPDATE_PLUGINS, false) ?: false
+        set(value) {
+            prefs?.edit()?.putBoolean(KEY_AUTO_UPDATE_PLUGINS, value)?.apply()
         }
 
     /**

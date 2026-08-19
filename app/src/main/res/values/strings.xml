@@ -163,6 +163,7 @@
     <string name="set_parental_pin">Set parental PIN</string>
     <string name="clear_watch_history">Clear watch history</string>
     <string name="plugins_description">Small scripts that add features - finding providers, or searching for streams. Nothing installs as a separate app; a script runs inside Lumora, and anything it proposes is only used if you confirm it.</string>
+    <string name="plug_auto_update">Auto-update plugins on launch</string>
     <string name="add_a_plugin">ADD A PLUGIN</string>
     <string name="install_from_url">Add from URL</string>
     <string name="enter_apk_link">Enter a plugin script link</string>
