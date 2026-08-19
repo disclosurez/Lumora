@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Base64
 import android.util.Log
@@ -17,52 +18,44 @@ class PlutoTvProvider(locale: String) : IptvProvider {
         private data class LocaleConfig(
             val name: String,
             val logo: String,
-            val language: String,
-            val playlistUrl: String
+            val language: String
         )
 
         private val LOCALES = mapOf(
             "mx" to LocaleConfig(
                 "Pluto TV MX",
                 "https://i.ibb.co/9mGNwYVS/Logo-Pluto-TV.jpg",
-                "es",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_mx.m3u"
+                "es"
             ),
             "ar" to LocaleConfig(
                 "Pluto TV Ar",
                 "https://i.ibb.co/jPsc2PMd/Logo-Pluto-TV-AR.jpg",
-                "es",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_ar.m3u"
+                "es"
             ),
             "de" to LocaleConfig(
                 "Pluto TV De",
                 "https://i.ibb.co/qz7jJF1/plutotv.png",
-                "de",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_de.m3u"
+                "de"
             ),
             "es" to LocaleConfig(
                 "Pluto TV Es",
                 "https://i.ibb.co/TBjWz2Zw/Pluto-TV-es.jpg",
-                "es",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_es.m3u"
+                "es"
             ),
             "fr" to LocaleConfig(
                 "Pluto TV FR",
                 "https://i.ibb.co/qz7jJF1/plutotv.png",
-                "fr",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_fr.m3u"
+                "fr"
             ),
             "it" to LocaleConfig(
                 "Pluto TV It",
                 "https://i.ibb.co/qz7jJF1/plutotv.png",
-                "it",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_it.m3u"
+                "it"
             ),
             "us" to LocaleConfig(
                 "Pluto TV Us",
                 "https://i.ibb.co/qz7jJF1/plutotv.png",
-                "en",
-                "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_us.m3u"
+                "en"
             )
         )
     }
@@ -74,7 +67,9 @@ class PlutoTvProvider(locale: String) : IptvProvider {
     override val logo = config.logo
     override val language = config.language
 
-    private val PLAYLIST_URL = config.playlistUrl
+    // This provider's actual content source is a third-party m3u playlist generator, not the
+    // Pluto TV domain itself - kept per-locale in the manifest alongside baseUrl/logo.
+    private val PLAYLIST_URL: String get() = ScraperExtras.get(name, "playlistUrl")
 
     // 🛡️ La Vacuna Anti-Bots (Edición IPTV con CookieJar integrado) 🛡️
     private val client = NetworkClient.newClient { builder ->

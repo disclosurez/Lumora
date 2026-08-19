@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.adapters.AppAdapter
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.extractors.AfterDarkExtractor
 import com.lumora.scraper.extractors.Extractor
 import com.lumora.scraper.extractors.MoflixExtractor
@@ -46,8 +47,9 @@ class TmdbProvider(override val language: String) : Provider {
         get() = ""
 
     override val name = "TMDb ($language)"
-    override val logo =
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Tmdb.new.logo.svg/1280px-Tmdb.new.logo.svg.png"
+    // Keyed by the bare "TMDb" family name, not [name] - name carries the language variant
+    // ("TMDb (en)", "TMDb (es)", ...), and the logo is the same image for every one of them.
+    override val logo: String get() = ScraperExtras.get("TMDb", "logo")
 
     override suspend fun getHome(): List<Category> = coroutineScope {
         val categories = mutableListOf<Category>()

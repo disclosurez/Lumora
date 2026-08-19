@@ -2,6 +2,7 @@ package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
 import kotlinx.coroutines.async
@@ -288,7 +289,7 @@ object HDFilmeProvider : Provider {
     private suspend fun getSerialDocument(doc: Document): Document? {
         val imdbId = extractImdbId(doc) ?: return null
         return runCatching {
-            service.getPage("https://meinecloud.click/serial/${imdbId.removePrefix("tt")}")
+            service.getPage("${ScraperExtras.get(name, "serialApiUrl")}/serial/${imdbId.removePrefix("tt")}")
         }.getOrNull()
     }
 

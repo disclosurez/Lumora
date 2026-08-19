@@ -60,7 +60,7 @@ object CableVisionHDProvider : IptvProvider {
         @GET
         suspend fun getPage(
             @Url url: String,
-            @Header("Referer") referer: String = "https://www.cablevisionhd.com"
+            @Header("Referer") referer: String = baseUrl
         ): Document
     }
 

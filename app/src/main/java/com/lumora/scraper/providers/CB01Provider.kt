@@ -2,6 +2,7 @@ package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.Category
@@ -42,6 +43,8 @@ object CB01Provider : Provider {
     override val baseUrl: String get() = ScraperHosts[name]
     override val logo: String get() = "$baseUrl/apple-icon-180x180px.png"
     override val language = "it"
+
+    private val stayOnlineUrl: String get() = ScraperExtras.get(name, "stayOnlineUrl")
 
     private const val USER_AGENT = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -116,7 +119,7 @@ object CB01Provider : Provider {
                 val client = NetworkClient.default
 
                 val retrofit = Retrofit.Builder()
-                    .baseUrl("https://stayonline.pro/")
+                    .baseUrl(stayOnlineUrl)
                     .addConverterFactory(JsoupConverterFactory.create())
                     .client(client)
                     .build()
@@ -126,7 +129,7 @@ object CB01Provider : Provider {
     }
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.
-    private val stayServiceHolder = HostScopedService({ baseUrl }) { StayService.build() }
+    private val stayServiceHolder = HostScopedService({ stayOnlineUrl }) { StayService.build() }
     private val stayService get() = stayServiceHolder.get()
 
     private const val DEFAULT_USER_AGENT =
@@ -693,11 +696,11 @@ object CB01Provider : Provider {
                             if (!stayId.isNullOrBlank()) {
                                 try {
                                     val resp = stayService.postAjax(
-                                        url = "https://stayonline.pro/ajax/linkEmbedView.php",
+                                        url = "${stayOnlineUrl}ajax/linkEmbedView.php",
                                         id = stayId,
                                         ref = "",
                                         userAgent = DEFAULT_USER_AGENT,
-                                        referer = "https://stayonline.pro/"
+                                        referer = stayOnlineUrl
                                     )
                                     val body = resp.body()?.string().orEmpty()
                                     val stayUrl = try {
@@ -773,11 +776,11 @@ object CB01Provider : Provider {
                         if (!stayId.isNullOrBlank()) {
                             try {
                                 val resp = stayService.postAjax(
-                                    url = "https://stayonline.pro/ajax/linkEmbedView.php",
+                                    url = "${stayOnlineUrl}ajax/linkEmbedView.php",
                                     id = stayId,
                                     ref = "",
                                     userAgent = DEFAULT_USER_AGENT,
-                                    referer = "https://stayonline.pro/"
+                                    referer = stayOnlineUrl
                                 )
                                 val body = resp.body()?.string().orEmpty()
                                 val targetUrl = try {

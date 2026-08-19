@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.text.Html
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
@@ -44,12 +45,14 @@ object UnJourUnFilmProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     override val name = "1Jour1Film"
 
     const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    override val defaultPortalUrl: String = "https://1jour1film-officiel.site/"
+    override val defaultPortalUrl: String get() = ScraperExtras.get(name, "portalUrl")
 
-    override val portalUrl: String = defaultPortalUrl
+    // No backing field: see baseUrl below for why - the initializer used to run
+    // during <clinit>, before the manifest extras were available.
+    override val portalUrl: String
         get() {
             val cachePortalURL = UserPreferences.getProviderCache(this, UserPreferences.PROVIDER_PORTAL_URL)
-            return cachePortalURL.ifEmpty { field }
+            return cachePortalURL.ifEmpty { defaultPortalUrl }
         }
 
     override val defaultBaseUrl: String get() = ScraperHosts[name]

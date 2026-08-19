@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
@@ -40,12 +41,14 @@ import kotlin.collections.map
 object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     override val name = "Frembed"
 
-    override val defaultPortalUrl: String = "https://audin213.com/"
+    // No backing field: the initializer used to run during <clinit>, before the
+    // manifest extras were available. The cached-URL override is unchanged.
+    override val defaultPortalUrl: String get() = ScraperExtras.get(name, "portalUrl")
 
-    override val portalUrl: String = defaultPortalUrl
+    override val portalUrl: String
         get() {
             val cachePortalURL = UserPreferences.getProviderCache(this, UserPreferences.PROVIDER_PORTAL_URL)
-            return cachePortalURL.ifEmpty { field }
+            return cachePortalURL.ifEmpty { defaultPortalUrl }
         }
 
     override val defaultBaseUrl: String get() = ScraperHosts[name]

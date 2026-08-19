@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import android.net.Uri
 import android.util.Log
 import androidx.media3.common.MimeTypes
@@ -27,13 +28,13 @@ object CineHaxProvider : Provider {
 
     override val name = "CineHax"
     override val baseUrl: String get() = ScraperHosts[name]
-    override val logo = "https://cinehax.com/wp-content/uploads/2026/06/cropped-favicon-192x192.jpg"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     override val language = "es"
 
     private const val TAG = "CineHaxProvider"
     private const val TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
-    private const val UNLIMPLAY_HOST = "unlimplay.com"
-    private const val REMUX_HOST = "remux.unlimplay.com"
+    private val UNLIMPLAY_HOST: String get() = ScraperExtras.get(name, "unlimplayHost")
+    private val REMUX_HOST: String get() = ScraperExtras.get(name, "remuxHost")
 
     private val LANGUAGE_ORDER = listOf("latino", "subtitulado", "castellano")
     private val LANGUAGE_LABELS = mapOf(

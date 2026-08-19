@@ -1001,7 +1001,7 @@ object AnyMovieProvider : Provider {
         @GET(".")
         suspend fun search(@Query("s") s: String): Document
 
-        @POST("https://anymovie.cc/wp-admin/admin-ajax.php")
+        @POST("wp-admin/admin-ajax.php")
         @FormUrlEncoded
         suspend fun api(
             @Field("vars") vars: String,

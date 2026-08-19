@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import android.util.Log
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
@@ -37,12 +38,14 @@ object FrenchMangaProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     override val name = "FrenchManga"
 
     override val defaultBaseUrl: String get() = ScraperHosts[name]
-    override val defaultPortalUrl: String = "http://fstream.info/"
+    // No backing field: the initializer used to run during <clinit>, before the
+    // manifest extras were available. The cached-URL override is unchanged.
+    override val defaultPortalUrl: String get() = ScraperExtras.get(name, "portalUrl")
 
-    override val portalUrl: String = defaultPortalUrl
+    override val portalUrl: String
         get() {
             val cachePortalURL = UserPreferences.getProviderCache(this, UserPreferences.PROVIDER_PORTAL_URL)
-            return cachePortalURL.ifEmpty { field }
+            return cachePortalURL.ifEmpty { defaultPortalUrl }
         }
     // No backing field: the initializer used to run during <clinit>, before the
     // manifest host was available. The cached-URL override is unchanged.

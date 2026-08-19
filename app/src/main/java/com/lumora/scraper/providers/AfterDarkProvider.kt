@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Log
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
@@ -56,7 +57,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
             return cacheURL.ifEmpty { defaultBaseUrl }
         }
 
-    override val logo = "https://images2.imgbox.com/f5/45/6Es7LVQ6_o.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     override val language = "fr"
     override val changeUrlMutex = Mutex()
 

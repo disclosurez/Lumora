@@ -594,7 +594,7 @@ object AniWorldProvider : Provider {
         @GET(".")
         suspend fun getHome(): Document
 
-        @POST("https://aniworld.to/ajax/search")
+        @POST("ajax/search")
         @FormUrlEncoded
         suspend fun search(@Field("keyword") query: String): List<SearchItem>
 

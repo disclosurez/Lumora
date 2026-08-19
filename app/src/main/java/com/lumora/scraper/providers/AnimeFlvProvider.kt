@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
@@ -30,7 +31,8 @@ object AnimeFlvProvider : Provider {
     override val name = "AnimeFLV"
     override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
-    override val logo = "https://www3.animeflv.net/assets/animeflv/img/logo.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
+    private val cdnHost: String get() = ScraperExtras.get(name, "cdnHost")
 
     private val client = getOkHttpClient()
 
@@ -63,7 +65,7 @@ object AnimeFlvProvider : Provider {
     }
 
     private fun getEpisodePoster(animeId: String, episodeNum: String): String {
-        return "https://cdn.animeflv.net/screenshots/$animeId/$episodeNum/th_3.jpg"
+        return "$cdnHost/screenshots/$animeId/$episodeNum/th_3.jpg"
     }
 
     private interface AnimeFlvService {
@@ -303,7 +305,7 @@ object AnimeFlvProvider : Provider {
                         id = "ver/$animeUri-$episodeNum",
                         number = episodeNum.toIntOrNull() ?: 0,
                         title = "Episodio $episodeNum",
-                        poster = "https://cdn.animeflv.net/screenshots/$animeId/$episodeNum/th_3.jpg"
+                        poster = "$cdnHost/screenshots/$animeId/$episodeNum/th_3.jpg"
                     )
                 } else {
                     null

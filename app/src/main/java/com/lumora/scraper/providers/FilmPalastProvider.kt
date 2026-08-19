@@ -41,7 +41,7 @@ object FilmPalastProvider : Provider {
     private val BASE_URL: String get() = ScraperHosts[name]
     override val baseUrl: String get() = BASE_URL
     override val name = "Filmpalast"
-    override val logo = "$BASE_URL/themes/downloadarchive/images/logo.png"
+    override val logo: String get() = "$BASE_URL/themes/downloadarchive/images/logo.png"
     override val language = "de"
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.

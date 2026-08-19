@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Base64
 import android.util.Log
@@ -322,7 +323,7 @@ object PelotaLibreTvHdProvider : IptvProvider {
                 if (currentUrl.contains("latamplay") && currentUrl.contains("/channel/")) {
                     val streamName = currentUrl.substringAfter("channel/").substringBefore("?").removeSuffix(".php")
                     currentReferer = currentUrl
-                    currentUrl = "https://streamtpday1.xyz/global1.php?stream=$streamName"
+                    currentUrl = "${ScraperExtras.get(name, "streamRedirectUrl")}/global1.php?stream=$streamName"
                     continue
                 }
 
@@ -338,7 +339,7 @@ object PelotaLibreTvHdProvider : IptvProvider {
 
                 val currentUri = try { currentUrl.toHttpUrl() } catch (e: Exception) { null }
                 val channelId = currentUri?.queryParameter("id") ?: currentUri?.queryParameter("channel") ?: currentUri?.queryParameter("stream") ?: ""
-                val hostSeguro = currentUri?.host ?: "ontve.click"
+                val hostSeguro = currentUri?.host ?: ScraperExtras.get(name, "fallbackHost")
                 val origin = currentUri?.let { "https://${it.host}" } ?: baseUrl
 
                 // 1. Enrutador Javascript

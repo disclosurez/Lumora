@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
@@ -88,7 +89,7 @@ object SeriesTurcasProvider : Provider {
 
     private val esprinahyExtractor = object : GenericPackedSourceExtractor() {
         override val name = "Esprinahy"
-        override val mainUrl = "https://esprinahy.com"
+        override val mainUrl get() = ScraperExtras.get(SeriesTurcasProvider.name, "esprinahyUrl")
         override val refererUrl = baseUrl
     }
 

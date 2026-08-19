@@ -2,6 +2,7 @@ package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -39,7 +40,7 @@ object DoramasflixProvider : Provider {
 
     override val name = "Doramasflix"
     override val baseUrl: String get() = ScraperHosts[name]
-    private const val apiUrl = "https://sv1.fluxcedene.net/api/"
+    private val apiUrl: String get() = ScraperExtras.get(name, "apiUrl")
     override val language = "es"
 
     private val client = getOkHttpClient()
@@ -412,7 +413,7 @@ object DoramasflixProvider : Provider {
 
             val requestBody = "{\"token\":\"$token\"}".toRequestBody("application/json".toMediaType())
 
-            val videoResponse = service.postApi("https://fkplayer.xyz/api/decoding", requestBody)
+            val videoResponse = service.postApi(ScraperExtras.get(name, "fkPlayerDecodingUrl"), requestBody)
             String(Base64.decode(videoResponse.link, Base64.DEFAULT))
         } catch (e: Exception) {
             link
@@ -420,7 +421,7 @@ object DoramasflixProvider : Provider {
     }
 
     override suspend fun getVideo(server: Video.Server): Video = Extractor.extract(server.id, server)
-    override val logo: String = "https://doramasflix.in/img/logo.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
 
     override suspend fun getGenre(id: String, page: Int): Genre {
         val list: List<Show> = when (id) {

@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.ScraperConfig
@@ -33,7 +34,7 @@ object SflixProvider : Provider {
     private val URL: String get() = ScraperHosts[name]
     override val baseUrl: String get() = URL
     override val name = "SFlix"
-    override val logo = "https://img.sflix.to/xxrz/400x400/100/66/35/66356c25ce98cb12993249e21742b129/66356c25ce98cb12993249e21742b129.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     override val language = "en"
 
     // Rebuilt when the manifest repoints this site - see HostScopedService.

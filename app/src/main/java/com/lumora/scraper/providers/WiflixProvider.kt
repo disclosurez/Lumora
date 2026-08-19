@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
@@ -33,11 +34,13 @@ object WiflixProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
 
     override val name = "Wiflix"
 
-    override val defaultPortalUrl: String = "https://ww1.wiflix-adresses.fun/"
-    override val portalUrl: String = defaultPortalUrl
+    override val defaultPortalUrl: String get() = ScraperExtras.get(name, "portalUrl")
+    // No backing field: see baseUrl below for why - the initializer used to run
+    // during <clinit>, before the manifest extras were available.
+    override val portalUrl: String
         get() {
             val cachePortalURL = UserPreferences.getProviderCache(this, UserPreferences.PROVIDER_PORTAL_URL)
-            return cachePortalURL.ifEmpty{ field }
+            return cachePortalURL.ifEmpty{ defaultPortalUrl }
         }
 
     override val defaultBaseUrl: String get() = ScraperHosts[name]

@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.models.Category
@@ -40,7 +41,7 @@ object AnimeSaturnProvider : Provider {
     override val name = "AnimeSaturn"
     override val baseUrl: String get() = ScraperHosts[name]
 
-    override val logo = "https://www.animesaturn.net/assets/img/saturn.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     override val language = "it"
 
     private const val USER_AGENT = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

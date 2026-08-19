@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import MyCookieJar
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
@@ -40,7 +41,7 @@ object AnimeWorldProvider : Provider {
     private const val USER_AGENT = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
     override val name = "AnimeWorld"
-    override val logo = "https://static.animeworld.ac/assets/images/favicon/android-icon-192x192.png?4"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     override val language = "it"
 
     // Built on first use, not at object init: the host comes from the plugin manifest, and this

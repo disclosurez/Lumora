@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Base64
 import android.util.Log
@@ -64,7 +65,7 @@ object TvporinternetHDProvider : IptvProvider {
         @GET
         suspend fun getPage(
             @Url url: String,
-            @Header("Referer") referer: String = "https://www.tvporinternet2.com/"
+            @Header("Referer") referer: String = ScraperExtras.get(TvporinternetHDProvider.name, "mirrorReferer")
         ): Document
     }
 

@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
@@ -25,7 +26,7 @@ object AnimefenixProvider : Provider {
     override val name = "Animefenix"
     override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
-    override val logo = "https://animefenix2.tv/themes/fenix-neo/images/AveFenix.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
 
     private val client = getOkHttpClient()
 

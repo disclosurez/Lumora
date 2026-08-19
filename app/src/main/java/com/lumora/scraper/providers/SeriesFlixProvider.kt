@@ -1,5 +1,6 @@
 package com.lumora.scraper.providers
 
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Base64
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
@@ -33,7 +34,7 @@ object SeriesFlixProvider : Provider {
 
     override val name = "SeriesFlix"
     override val baseUrl: String get() = ScraperHosts[name]
-    override val logo = "https://s.seriesflixhd.lol/series/imgs/favicon-192.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     override val language = "es"
 
     private const val USER_AGENT =

@@ -2,6 +2,7 @@ package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
@@ -24,7 +25,7 @@ object CineCalidadProvider : Provider {
     override val name = "CineCalidad"
     override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
-    override val logo = "https://www.cinecalidad.ec/wp-content/themes/Cinecalidad/assets/img/logo.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
 
     private fun getOkHttpClient(): OkHttpClient {
         val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)

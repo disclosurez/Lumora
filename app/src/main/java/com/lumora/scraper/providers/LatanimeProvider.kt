@@ -2,6 +2,7 @@ package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import android.util.Base64
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
@@ -297,7 +298,7 @@ object LatanimeProvider : Provider {
         return Extractor.extract(server.id, server)
     }
 
-    override val logo: String get() = "https://latanime.org/public/img/logito.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
 
     override suspend fun getGenre(id: String, page: Int): Genre {
         val document = service.getPage("$baseUrl/genero/$id?p=$page")

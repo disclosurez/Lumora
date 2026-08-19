@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Log
 import android.net.Uri
@@ -38,6 +39,8 @@ object Altadefinizione01Provider : Provider {
     override val baseUrl: String get() = ScraperHosts[name]
     override val logo: String get() = "$baseUrl/templates/altadefinizione01/images/logo.png"
     override val language: String = "it"
+
+    private val vidxgoBaseUrl: String get() = ScraperExtras.get(name, "vidxgoHost")
 
     private const val USER_AGENT = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -106,8 +109,9 @@ object Altadefinizione01Provider : Provider {
         ): Document
 
         @Headers(USER_AGENT)
-        @GET("https://v.vidxgo.co/seasons.php")
+        @GET
         suspend fun getVidxGoSeasons(
+            @Url url: String,
             @Query("imdb") imdbId: String,
             @Query("season") seasonNumber: Int,
             @Header("Referer") referer: String = "",
@@ -336,7 +340,7 @@ object Altadefinizione01Provider : Provider {
                     try {
                         val uri = Uri.parse(id)
                         val referer = "${uri.scheme}://${uri.host}/"
-                        val vidxgoDoc = service.getPage("https://v.vidxgo.co/$imdbId", referer, "iframe")
+                        val vidxgoDoc = service.getPage("$vidxgoBaseUrl/$imdbId", referer, "iframe")
                         val seasonTabs = vidxgoDoc.select(".ep-season-tab")
                         if (seasonTabs.isNotEmpty()) {
                             seasonTabs.forEach { tab ->
@@ -454,7 +458,7 @@ object Altadefinizione01Provider : Provider {
                     try {
                         val uri = Uri.parse(showUrl)
                         val referer = "${uri.scheme}://${uri.host}/"
-                        val responseBody = service.getVidxGoSeasons(imdbId, seasonNumber, referer)
+                        val responseBody = service.getVidxGoSeasons("$vidxgoBaseUrl/seasons.php", imdbId, seasonNumber, referer)
                         val json = org.json.JSONObject(responseBody.string())
                         if (json.optInt("ok") == 1) {
                             val episodesArray = json.getJSONArray("episodes")
@@ -474,7 +478,7 @@ object Altadefinizione01Provider : Provider {
                         }
                         
                         // Fallback to scraping the page if JSON fails or season is 1
-                        val vidxgoDoc = service.getPage("https://v.vidxgo.co/$imdbId", referer, "iframe")
+                        val vidxgoDoc = service.getPage("$vidxgoBaseUrl/$imdbId", referer, "iframe")
                         return vidxgoDoc.select("#episodesList a.ep-item").mapNotNull { a ->
                             val href = a.attr("href")
                             val parts = href.trim('/').split('/')
@@ -583,7 +587,7 @@ object Altadefinizione01Provider : Provider {
                         Regex("var\\s+imdb\\s*=\\s*['\"]tt(\\d+)['\"]").find(script.html())?.groupValues?.get(1)
                     }
                     if (imdbId != null) {
-                        val vidxgoUrl = "https://v.vidxgo.co/t/$imdbId/$seasonNum/$epNum"
+                        val vidxgoUrl = "$vidxgoBaseUrl/t/$imdbId/$seasonNum/$epNum"
                         results.add(
                             Video.Server(
                                 id = vidxgoUrl,
@@ -633,7 +637,7 @@ object Altadefinizione01Provider : Provider {
                 Regex("var\\s+imdb\\s*=\\s*['\"]tt(\\d+)['\"]").find(script.html())?.groupValues?.get(1)
             }
             if (imdbId != null) {
-                val vidxgoUrl = "https://v.vidxgo.co/$imdbId"
+                val vidxgoUrl = "$vidxgoBaseUrl/$imdbId"
                 return listOf(
                     Video.Server(
                         id = vidxgoUrl,

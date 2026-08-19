@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
@@ -35,11 +36,13 @@ object KidrazProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
 
     override val name = "Kidraz"
 
-    override val defaultPortalUrl: String = "http://chezlesducs.free.fr/films.php"
-    override val portalUrl: String = defaultPortalUrl
+    // No backing field: the initializer used to run during <clinit>, before the
+    // manifest extras were available. The cached-URL override is unchanged.
+    override val defaultPortalUrl: String get() = ScraperExtras.get(name, "portalUrl")
+    override val portalUrl: String
         get() {
             val cachePortalURL = UserPreferences.getProviderCache(this, UserPreferences.PROVIDER_PORTAL_URL)
-            return cachePortalURL.ifEmpty{ field }
+            return cachePortalURL.ifEmpty{ defaultPortalUrl }
         }
 
     override val defaultBaseUrl: String get() = ScraperHosts[name]
@@ -54,7 +57,7 @@ object KidrazProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     override val logo: String
         get() {
             var cacheLogo = UserPreferences.getProviderCache(this,UserPreferences.PROVIDER_LOGO)
-            return cacheLogo.ifEmpty { "https://www.kidraz.com/favicon.png" }
+            return cacheLogo.ifEmpty { ScraperExtras.get(name, "logo") }
         }
 
     const val user_agent = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0"

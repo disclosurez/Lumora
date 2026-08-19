@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import android.util.Base64
 import android.util.Log
 import com.lumora.scraper.adapters.AppAdapter
@@ -18,7 +19,7 @@ object CineCityProvider : IptvProvider {
 
     private const val TAG = "CineCityProvider"
 
-    private const val OBFUSCATED_PLAYLIST = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0NJTkVDSVRZMjAyMy9jaW5lY2l0eS9jaW5lY2l0eS5uZXQvcHJpbmNpcGFsLm0zdQ=="
+    private val playlistUrl: String get() = ScraperExtras.get(name, "playlistUrl")
 
     private const val FALLBACK_VIDEO_URL = "https://raw.githubusercontent.com/NANDOFS/ModoPrueba/main/VIDEO/SIN-SE%C3%91AL.mp4"
 
@@ -87,7 +88,7 @@ object CineCityProvider : IptvProvider {
         if (cachedChannels != null && (now - lastFetchTime) < CACHE_DURATION) return cachedChannels!!
 
         return try {
-            val decodedUrl = String(Base64.decode(OBFUSCATED_PLAYLIST, Base64.DEFAULT))
+            val decodedUrl = playlistUrl
             Log.d(TAG, "🗺️ Obteniendo lista desde origen seguro.")
 
             val request = Request.Builder().url(decodedUrl).build()

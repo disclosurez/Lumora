@@ -3,6 +3,7 @@ package com.lumora.scraper.providers
 import android.util.Base64
 import android.util.Log
 import com.lumora.scraper.ScraperApp
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
@@ -54,8 +55,8 @@ import kotlin.text.format
 object MkissaProvider : Provider {
 
     private const val TAG = "MkissaProvider"
-    private const val API_URL = "https://api.allanime.day/api"
-    private const val CLOCK_URL = "https://allanime.day"
+    private val API_URL: String get() = ScraperExtras.get(name, "apiUrl")
+    private val CLOCK_URL: String get() = ScraperExtras.get(name, "clockUrl")
     private const val SEARCH_HASH = "a24c500a1b765c68ae1d8dd85174931f661c71369c89b92b88b75a725afc471c"
     private const val POPULAR_DAILY_HASH = "a0aca6827cc9a3ad7bc711da4d200a04adea8f1a7545dc418d5e92e74c3aad15"
     private const val POPULAR_HASH = "ac2c75884a11fca5707ce4ad10f2e3e2aae31e42af5e4d9c511a4a5e708e4c6d"
@@ -63,7 +64,8 @@ object MkissaProvider : Provider {
     // Keep the persisted-query hash coupled to the query body.
     private val SOURCE_HASH: String by lazy { sha256Hex(SOURCE_QUERY) }
     private const val GENRE_HASH = "ff61a63ff776f334f80c1e6ad1aa49ef71eab831e235e5d6ec679eae5b83450f"
-    private const val IMAGE_URL = "https://aln.youtube-anime.com"
+    private val IMAGE_URL: String get() = ScraperExtras.get(name, "imageUrl")
+    private val IMAGE_ALT_URL: String get() = ScraperExtras.get(name, "imageAltUrl")
     private const val DEFAULT_BUILD_ID = "45"
     private const val CRYPTO_PREFS = "mkissa_crypto"
     private const val CRYPTO_BUILD_KEY = "build_id"
@@ -1506,8 +1508,8 @@ object MkissaProvider : Provider {
         val image = value?.takeIf { it.isNotBlank() } ?: return null
         val url = when {
             image.contains("/_tbs/") || image.contains("_tbs/") -> image
-                .removePrefix("https://wp.youtube-anime.com/")
-                .removePrefix("https://aln.youtube-anime.com/")
+                .removePrefix("$IMAGE_ALT_URL/")
+                .removePrefix("$IMAGE_URL/")
                 .removePrefix("/")
                 .substringBefore("?")
                 .let { "$IMAGE_URL/$it?w=250" }
@@ -1602,8 +1604,8 @@ object MkissaProvider : Provider {
         val request = Request.Builder()
             .url(requestUrl)
             .header("Accept", "application/json, text/plain, */*")
-            .header("Origin", "https://allanime.to")
-            .header("Referer", "https://allanime.to/")
+            .header("Origin", ScraperExtras.get(name, "origin"))
+            .header("Referer", "${ScraperExtras.get(name, "origin")}/")
             .header("User-Agent", "Mozilla/5.0")
             .build()
         val body = sourceResolverClient.newCall(request).execute().use { response ->

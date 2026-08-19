@@ -2,6 +2,7 @@ package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
 import com.lumora.scraper.bridge.ScraperHosts
+import com.lumora.scraper.bridge.ScraperExtras
 import android.util.Base64
 import com.lumora.scraper.adapters.AppAdapter
 import com.lumora.scraper.extractors.Extractor
@@ -40,7 +41,7 @@ object JKAnimeProvider : Provider {
     override val name = "JKAnime"
     override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
-    override val logo = "https://cdn.jkdesa.com/assets3/css/img/jkanimenet.png"
+    override val logo: String get() = "${ScraperExtras.get(name, "cdnUrl")}/assets3/css/img/jkanimenet.png"
 
     private const val EPISODES_PER_PAGE = 16
 
@@ -495,7 +496,7 @@ object JKAnimeProvider : Provider {
                         title = item.optString("title").takeIf { it.isNotBlank() }
                             ?: "Episodio $number",
                         released = item.optString("timestamp").substringBefore(' ').takeIf { it.isNotBlank() },
-                        poster = image?.let { "https://cdn.jkdesa.com/assets/images/animes/video/image/$it" },
+                        poster = image?.let { "${ScraperExtras.get(name, "cdnUrl")}/assets/images/animes/video/image/$it" },
                     ),
                 )
             }
@@ -570,7 +571,7 @@ object JKAnimeProvider : Provider {
             image.contains("/animes/thumbnail/", ignoreCase = true) ->
                 image.replace("/animes/thumbnail/", "/animes/image/", ignoreCase = true)
             image.startsWith("http", ignoreCase = true) -> image
-            !image.contains('/') -> "https://cdn.jkdesa.com/assets/images/animes/image/$image"
+            !image.contains('/') -> "${ScraperExtras.get(name, "cdnUrl")}/assets/images/animes/image/$image"
             image.startsWith("/") -> "$baseUrl$image"
             else -> "$baseUrl/$image"
         }

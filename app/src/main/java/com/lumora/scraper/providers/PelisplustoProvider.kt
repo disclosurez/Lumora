@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Base64
 import android.util.Log
@@ -35,7 +36,7 @@ object PelisplustoProvider : Provider {
     override val name = "Pelisplusto"
     override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
-    override val logo = "https://pelisplus.to/images/logo2.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
     private const val TAG = "PelisplustoProvider"
 
     private val client = NetworkClient.newClient { builder ->

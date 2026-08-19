@@ -12,8 +12,10 @@ import retrofit2.http.Query
 import retrofit2.http.Url
 import okhttp3.ResponseBody
 import retrofit2.Response
+import retrofit2.http.Header
 import retrofit2.http.Headers
 import java.io.File
+import com.lumora.scraper.bridge.ScraperExtras
 import org.json.JSONObject
 import org.json.JSONArray
 
@@ -21,7 +23,9 @@ object AnimeAv1Provider : JsoupSiteProvider() {
 
     override val name = "AnimeAV1"
     override val language = "es"
-    override val logo = "https://animeav1.com/favicon.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
+    private val origin: String get() = ScraperExtras.get(name, "origin")
+    private val cdnHost: String get() = ScraperExtras.get(name, "cdnHost")
 
     private val client = newHttpClient().newBuilder()
         .cache(Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024))
@@ -34,19 +38,16 @@ object AnimeAv1Provider : JsoupSiteProvider() {
     private val service = retrofit.create(AnimeAv1Service::class.java)
 
     private fun getEpisodePoster(animeId: String, episodeNum: String): String {
-        return "https://cdn.animeav1.com/screenshots/$animeId/$episodeNum.jpg"
+        return "$cdnHost/screenshots/$animeId/$episodeNum.jpg"
     }
 
     private interface AnimeAv1Service {
         @GET
         suspend fun getPage(@Url url: String): Document
 
-        @Headers(
-            "User-Agent: Mozilla/5.0",
-            "Referer: https://animeav1.com/"
-        )
+        @Headers("User-Agent: Mozilla/5.0")
         @GET
-        suspend fun getRaw(@Url url: String): Response<ResponseBody>
+        suspend fun getRaw(@Url url: String, @Header("Referer") referer: String): Response<ResponseBody>
 
         @GET("catalogo")
         suspend fun search(@Query("search") query: String, @Query("page") page: Int): Document
@@ -277,7 +278,7 @@ object AnimeAv1Provider : JsoupSiteProvider() {
             // Intento obtener episodios desde el JSON para evitar paginación
             try {
                 val jsonUrl = "$baseUrl/media/$cleanId/__data.json"
-                val response = service.getRaw(jsonUrl)
+                val response = service.getRaw(jsonUrl, "$origin/")
                 val jsonText = response.body()?.string()
                 if (jsonText != null) {
                     val root = JSONObject(jsonText)
@@ -374,7 +375,7 @@ object AnimeAv1Provider : JsoupSiteProvider() {
 
         try {
             val jsonUrl = "$baseUrl/media/$id/__data.json"
-            val response = service.getRaw(jsonUrl)
+            val response = service.getRaw(jsonUrl, "$origin/")
             val jsonText = response.body()?.string()
             if (jsonText != null) {
                 val root = JSONObject(jsonText)
@@ -455,7 +456,7 @@ object AnimeAv1Provider : JsoupSiteProvider() {
             val url = "$baseUrl/media/$id"
             val jsonUrl = "$url/__data.json"
 
-            val response = service.getRaw(jsonUrl)
+            val response = service.getRaw(jsonUrl, "$origin/")
             val jsonText = response.body()?.string() ?: return emptyList()
 
             val servers = mutableListOf<Video.Server>()

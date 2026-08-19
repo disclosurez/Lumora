@@ -77,6 +77,7 @@ object ScraperSiteManifest {
         allowed = null
         info = emptyMap()
         ScraperHosts.clear()
+        ScraperExtras.clear()
         Log.i(TAG, "Site list cleared - scraper sources are off")
     }
 
@@ -97,10 +98,25 @@ object ScraperSiteManifest {
         val permitted = mutableSetOf<String>()
         val hosts = mutableMapOf<String, String>()
         val details = mutableMapOf<String, SiteInfo>()
+        val extras = mutableMapOf<String, String>()
         var killed = 0
         for (i in 0 until sites.length()) {
             val site = sites.optJSONObject(i) ?: continue
             val name = site.optString("name").takeIf { it.isNotBlank() } ?: continue
+
+            // Logo/extra apply whether or not the site is otherwise usable - a site the manifest
+            // hasn't given a live baseUrl yet (or has switched off) can still carry a logo and the
+            // secondary literals ([ScraperExtras]) its provider needs, independent of the gate
+            // below. Keeping them ungated means a provider's own logo/header/CDN-host constants
+            // can move out to the manifest immediately, ahead of that site's baseUrl ever being
+            // wired up operationally.
+            site.optString("logo").takeIf { it.isNotBlank() }?.let { extras["$name.logo"] = it }
+            site.optJSONObject("extra")?.let { extra ->
+                extra.keys().forEach { key ->
+                    val value = extra.optString(key)
+                    if (value.isNotBlank()) extras["$name.$key"] = value
+                }
+            }
 
             // The host is what makes a compiled-in parser usable, so a site without one is not
             // permitted however its `enabled` flag reads - it has nowhere to send a request.
@@ -138,6 +154,7 @@ object ScraperSiteManifest {
         allowed = permitted
         info = details
         ScraperHosts.set(hosts)
+        ScraperExtras.set(extras)
         Log.i(
             TAG,
             "Site list v${manifest.optInt("version")} applied - ${permitted.size} on, $killed off"

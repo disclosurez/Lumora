@@ -1,6 +1,7 @@
 package com.lumora.scraper.providers
 
 import com.lumora.scraper.bridge.HostScopedService
+import com.lumora.scraper.bridge.ScraperExtras
 import com.lumora.scraper.bridge.ScraperHosts
 import android.util.Base64
 import com.lumora.scraper.adapters.AppAdapter
@@ -32,7 +33,7 @@ object PelisflixHdProvider : Provider {
     override val name = "PelisflixHD"
     override val baseUrl: String get() = ScraperHosts[name]
     override val language = "es"
-    override val logo = "https://s.pelisflixhd.win/cat/logo-mini.png"
+    override val logo: String get() = ScraperExtras.get(name, "logo")
 
     private const val USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
