@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.1
+
+### Trakt
+- **Shows watched on trakt.tv itself (or another Trakt-connected client) now surface in Up Next.** Watched history pulled from Trakt was only recorded internally, with nothing to anchor it to a show's entry on Home or the Series tab - so a series finished entirely outside Lumora never got a next-episode tile even though Lumora knew it was in progress. It now does.
+
 ## 4.4
 
 ### Trakt
