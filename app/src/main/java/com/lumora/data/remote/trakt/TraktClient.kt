@@ -318,6 +318,14 @@ class TraktClient(private val http: OkHttpClient) {
      * Two calls rather than one - Trakt splits the endpoint by type - and both are the *summary*
      * form, which returns every show with its seen seasons/episodes nested rather than one row
      * per play. That is a single response for a whole library instead of thousands.
+     *
+     * Some accounts' shows carry a play count (`plays`) but no `seasons` array at all - seen in
+     * practice on history synced in via a third-party Plex/Kodi scrobbler that only ever posted
+     * show-level plays, never itemised per-episode history. Trakt itself has no episode list for
+     * those, but it can still *compute* one from the aggregate: [PROGRESS_FALLBACK_BUDGET] of
+     * them get a fallback of two extra calls each - progress/watched for the last episode seen,
+     * seasons?extended=episodes to expand every episode up to it - so those shows still resolve
+     * to a real episode set instead of silently contributing nothing.
      */
     suspend fun watched(accessToken: String): List<WatchedEntry> = withContext(Dispatchers.IO) {
         if (!isConfigured) return@withContext emptyList()
@@ -334,6 +342,7 @@ class TraktClient(private val http: OkHttpClient) {
                 )
             }
         }
+        var fallbackBudget = PROGRESS_FALLBACK_BUDGET
         getArray("$API_BASE/sync/watched/shows", accessToken)?.let { arr ->
             for (i in 0 until arr.length()) {
                 val row = arr.optJSONObject(i) ?: continue
@@ -351,6 +360,15 @@ class TraktClient(private val http: OkHttpClient) {
                         }
                     }
                 }
+                if (seasons.isEmpty() && row.optInt("plays", 0) > 0 && fallbackBudget > 0) {
+                    val traktId = show.optJSONObject("ids")?.optInt("trakt", 0)?.takeIf { it > 0 }
+                    if (traktId != null) {
+                        fallbackBudget--
+                        episodesThroughLastWatched(accessToken, traktId)?.forEach { (season, numbers) ->
+                            seasons.getOrPut(season) { mutableSetOf() }.addAll(numbers)
+                        }
+                    }
+                }
                 out += WatchedEntry(
                     title = show.optString("title"),
                     year = show.optInt("year", 0).takeIf { it > 0 },
@@ -361,6 +379,37 @@ class TraktClient(private val http: OkHttpClient) {
             }
         }
         out
+    }
+
+    /**
+     * Every episode up to and including the last one Trakt's own progress calculation says was
+     * watched, for a show whose watched-summary row carries no episode breakdown - see [watched].
+     * Null if either of the two calls this needs fails.
+     */
+    private suspend fun episodesThroughLastWatched(accessToken: String, traktShowId: Int): Map<Int, Set<Int>>? {
+        val progress = getJson("$API_BASE/shows/$traktShowId/progress/watched?hidden=false&specials=false", accessToken)
+            ?: return null
+        val last = progress.optJSONObject("last_episode") ?: return null
+        val lastSeason = last.optInt("season", -1).takeIf { it >= 0 } ?: return null
+        val lastNumber = last.optInt("number", -1).takeIf { it >= 0 } ?: return null
+
+        val seasonsArr = getArray("$API_BASE/shows/$traktShowId/seasons?extended=episodes", accessToken)
+            ?: return null
+        val out = HashMap<Int, MutableSet<Int>>()
+        for (i in 0 until seasonsArr.length()) {
+            val season = seasonsArr.optJSONObject(i) ?: continue
+            val seasonNumber = season.optInt("number", -1).takeIf { it >= 0 } ?: continue
+            // Specials (season 0) and anything after the last-watched season are out of range.
+            if (seasonNumber == 0 || seasonNumber > lastSeason) continue
+            val episodes = season.optJSONArray("episodes") ?: continue
+            val set = out.getOrPut(seasonNumber) { mutableSetOf() }
+            for (e in 0 until episodes.length()) {
+                val epNumber = episodes.optJSONObject(e)?.optInt("number", -1)?.takeIf { it >= 0 } ?: continue
+                if (seasonNumber == lastSeason && epNumber > lastNumber) continue
+                set.add(epNumber)
+            }
+        }
+        return out
     }
 
     // ── Body builders ───────────────────────────
@@ -463,6 +512,11 @@ class TraktClient(private val http: OkHttpClient) {
     companion object {
         const val API_BASE = "https://api.trakt.tv"
         const val API_VERSION = "2"
+        /** Cap on the two-extra-calls-per-show fallback in [watched] - bounds a single pull to
+         *  a fixed number of extra requests regardless of how many shows in the account lack an
+         *  episode breakdown, so an account with dozens of them can't turn one sync into a long
+         *  burst against Trakt's rate limit. */
+        const val PROGRESS_FALLBACK_BUDGET = 25
         /** Where the user types the code. Shown verbatim in the Settings pane. */
         const val ACTIVATE_URL = "https://trakt.tv/activate"
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.4
+
+### Trakt
+- **Fixed watched history not pulling in for accounts whose Trakt history has no per-episode breakdown.** Some accounts' shows (typically synced in via a third-party Plex/Kodi scrobbler) carry a play count on Trakt but no itemised season/episode list - `/sync/watched/shows` returns nothing usable for them, which is what actually caused Sync now to report "0 in / 0 out" even with a working connection and real watched history on trakt.tv. Those shows now fall back to Trakt's own progress calculation (the same one that powers trakt.tv's "on episode X" display) to work out exactly which episodes were watched.
+
 ## 4.4.3
 
 ### Trakt
