@@ -229,10 +229,3 @@ What is not permitted is using Lumora for commercial advantage or monetary
 compensation: selling it or a modified version of it, selling access to it or to a
 service built on it, bundling it with a paid product, subscription or device, or
 charging for support, installation or configuration of it.
-
-Lumora was MIT-licensed up to and including v4.4, and that change is not
-retroactive — copies obtained under MIT remain under MIT for those versions. The
-new terms apply from the first release after them.
-
-This is a source-available license, not an OSI-approved open-source one; GitHub
-lists it as a custom license rather than showing a licence badge.
