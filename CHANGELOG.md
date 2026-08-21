@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.3
+
+### Trakt
+- **Sync failures are now logged instead of silently reporting 0/0.** A "Sync now" that reported nothing pulled and nothing pushed gave no way to tell an expired token or a network failure apart from a genuinely empty Trakt history. Every failed Trakt request now logs its HTTP status (or the exception) under the `TraktClient` tag, so a `0/0` can actually be diagnosed.
+
 ## 4.4.2
 
 ### Trakt

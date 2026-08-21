@@ -412,24 +412,31 @@ class TraktClient(private val http: OkHttpClient) {
             http.newCall(request).execute().use { response ->
                 val text = response.body?.string()
                 val json = text?.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
+                if (!response.isSuccessful) android.util.Log.w("TraktClient", "POST $url -> ${response.code}: $text")
                 response.code to json
             }
-        }.getOrNull()
+        }.onFailure { android.util.Log.w("TraktClient", "POST $url failed", it) }.getOrNull()
     }
 
     private fun getJson(url: String, accessToken: String): JSONObject? = runCatching {
         http.newCall(Request.Builder().url(url).applyTraktHeaders(accessToken).build()).execute().use { response ->
-            if (!response.isSuccessful) return@use null
+            if (!response.isSuccessful) {
+                android.util.Log.w("TraktClient", "GET $url -> ${response.code}")
+                return@use null
+            }
             response.body?.string()?.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
         }
-    }.getOrNull()
+    }.onFailure { android.util.Log.w("TraktClient", "GET $url failed", it) }.getOrNull()
 
     private fun getArray(url: String, accessToken: String): JSONArray? = runCatching {
         http.newCall(Request.Builder().url(url).applyTraktHeaders(accessToken).build()).execute().use { response ->
-            if (!response.isSuccessful) return@use null
+            if (!response.isSuccessful) {
+                android.util.Log.w("TraktClient", "GET $url -> ${response.code}")
+                return@use null
+            }
             response.body?.string()?.takeIf { it.isNotBlank() }?.let { JSONArray(it) }
         }
-    }.getOrNull()
+    }.onFailure { android.util.Log.w("TraktClient", "GET $url failed", it) }.getOrNull()
 
     /** Every Trakt call needs the version and the client id; authenticated ones add the
      *  bearer token. Missing `trakt-api-key` is a 403 regardless of the bearer. */
