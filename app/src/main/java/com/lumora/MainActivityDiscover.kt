@@ -637,36 +637,35 @@ internal fun MainActivity.onHomeItemClick(channel: Channel) {
             if (channel.pluginToken == null) detailReturnItem = channel
         }
         MediaType.SERIES -> {
-            // An up-next tile (synthesized for a series whose watched trail is complete)
-            // plays the next episode directly, queue included - one click continues the
-            // show. Identified by its episode id being registered in upNextQueues.
-            val upNextQueue = upNextQueues[channel.id.ifBlank { channel.url }]
-            if (upNextQueue != null) {
-                val index = upNextQueue.indexOfFirst {
-                    it.id.ifBlank { it.url } == channel.id.ifBlank { channel.url }
-                }
-                showPlayerFor(channel)
-                currentEpisodeQueue = upNextQueue
-                currentEpisodeQueueIndex = if (index >= 0) index else 0
-                return
-            }
-            // An episode tile (Continue Watching) carries an episode number; clicking it
-            // should land on the series' detail page - the season chip lands on the
-            // episode's season and the Play button already points at the next-unwatched
-            // episode - rather than resuming the episode directly. A top-level series
-            // entry (Favorites, category grids) has no episode number and goes to the
-            // detail page as normal. url is NOT a reliable discriminator - catalog
-            // series items can carry one. If the episode's series can't be resolved,
-            // fall back to resuming the episode directly.
+            // An episode tile (Continue Watching, Next Up, or a synthesized up-next tile)
+            // carries an episode number; clicking it lands on the series' detail page -
+            // the season chip lands on the episode's season and the Play button already
+            // points at the next-unwatched episode - rather than playing that episode
+            // outright. Landing on the poster is the point: the show is there to be picked
+            // through, and one wrong click on a row full of episodes used to start
+            // playback. A top-level series entry (Favorites, category grids) has no
+            // episode number and goes to the detail page as normal. url is NOT a reliable
+            // discriminator - catalog series items can carry one. If the episode's series
+            // can't be resolved there is no poster to open, so it plays directly.
             if (channel.episodeNum != null) {
                 val series = resolveHomeTileSeries(channel)
                 if (series != null) {
                     showContentDetail(series)
+                    return
+                }
+                showPlayerFor(channel)
+                // A lone episode has no queue behind it - nothing would auto-advance when
+                // it ends. An up-next tile already had its cross-season chain built during
+                // the fetch that resolved it; anything else back-fills the same chain the
+                // detail page plays from.
+                val upNextQueue = upNextQueues[channel.id.ifBlank { channel.url }]
+                if (upNextQueue != null) {
+                    val index = upNextQueue.indexOfFirst {
+                        it.id.ifBlank { it.url } == channel.id.ifBlank { channel.url }
+                    }
+                    currentEpisodeQueue = upNextQueue
+                    currentEpisodeQueueIndex = if (index >= 0) index else 0
                 } else {
-                    showPlayerFor(channel)
-                    // A Continue Watching / Next Up tile is a lone episode with no queue
-                    // behind it - nothing would auto-advance when it ends. Back-fill the
-                    // same cross-season episode chain the detail page plays from.
                     populateHomeTileEpisodeQueue(channel)
                 }
             } else {
@@ -826,12 +825,27 @@ internal fun MainActivity.upNextTileName(seriesName: String, episodeName: String
  *  next-episode tiles are already memoized, and kick an async bounded fetch for the
  *  rest. Cheap when everything's resolved: just a store read + memo lookups. */
 internal fun MainActivity.buildUpNextSeriesTiles(): List<Channel> {
-    // Home-only feature: other tabs' shelf builds (clear/watch toggle paths) shouldn't
-    // kick six network fetches for a row that isn't visible.
-    if (!showingHome) return emptyList()
+    // Home and the Series tab are the only screens that render these tiles; every other
+    // shelf build (clear/watch toggle paths, the player's side menu listing another tab's
+    // categories) shouldn't kick six network fetches for a row that isn't visible.
+    if (!showingHome && activeTab != 1) return emptyList()
+    // Which series the servers' own Next Up lists already answer for, by parent series id
+    // (qualified, as toChannel stamps it on an episode). Only those are skipped.
+    //
+    // Own-library trails used to be dropped wholesale on the grounds that the server-side
+    // row covered them. It doesn't, for two compounding reasons: those lists are only
+    // re-pulled on a catalog load or at the end of a play, so nothing refreshes them when an
+    // episode is *marked* watched rather than played through; and the server answers only
+    // for shows it considers in progress, which a show whose episodes were all ticked off
+    // isn't. A Jellyfin/Plex series marked watched therefore fell through both halves - no
+    // local tile because it was skipped, no server tile because nothing had asked the server
+    // since - and never reached Up Next at all. Resolving it locally costs the same one
+    // episode-list call as any other series: loadSeriesContent speaks Jellyfin and Plex too.
+    val serverCovered = (jellyfinNextUpItems + plexNextUpItems)
+        .mapNotNullTo(HashSet()) { it.categoryId?.takeIf { id -> id.isNotBlank() } }
     val trails = PlaybackPositionStore.getCompletedSeriesTrails(this)
+        .filterNot { it.categoryId in serverCovered }
     val pending = trails
-        .filterNot { it.isOwnLibrary } // server-side "Next Up" shelf already covers these
         .mapNotNull { it.categoryId?.takeIf { id -> id !in upNextTiles && id !in upNextFetching } }
         .take(MAX_UP_NEXT_SERIES)
     if (pending.isNotEmpty()) fetchUpNextSeries(pending)
@@ -840,9 +854,9 @@ internal fun MainActivity.buildUpNextSeriesTiles(): List<Channel> {
     return trails.mapNotNull { t -> upNextTiles[t.categoryId] }
 }
 
-/** Fetches the episode lists for up to [MAX_UP_NEXT_SERIES] series (one network call
- *  each, Xtream-only because Jellyfin has its own Next Up), computes each series' next
- *  unwatched episode, and rebuilds the Home shelves once. Results commit atomically only
+/** Fetches the episode lists for up to [MAX_UP_NEXT_SERIES] series (one network call each,
+ *  through loadSeriesContent, so Xtream/Stalker/Jellyfin/Plex all resolve here), computes
+ *  each series' next unwatched episode, and rebuilds the Home shelves once. Results commit atomically only
  *  if the memo epoch hasn't moved (see [clearUpNextMemo]) - a fetch that outlives a
  *  watched-state change must not write pre-change tiles.
  *  Only a *resolved* "no next episode" (fully watched / genuinely empty seasons) is
@@ -884,7 +898,59 @@ internal fun MainActivity.fetchUpNextSeries(seriesIds: List<String>) {
         upNextTiles.putAll(resolved)
         upNextQueues.putAll(queues)
         seriesIds.forEach { upNextFetching.remove(it) }
-        if (foundAny && showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        if (!foundAny) return@launch
+        // Whichever screen asked for the tiles gets the rebuild. The Series tab needs both
+        // halves: the poster shelf and the sidebar row, since Up Next carries a count.
+        if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        else if (activeTab == 1) {
+            refreshSeriesShelvesIfShowing()
+            rebuildCategoriesForActiveTab()
+        }
+    }
+}
+
+/** Series-tab "Next Up" - the next *unwatched* episode of everything in flight. Two
+ *  sources, same as Home: the media servers' own Next Up lists (they track playback from
+ *  every other client), and [buildUpNextSeriesTiles] for locally-tracked series whose
+ *  watched trail ends on a completed episode. Distinct from Continue Watching, which only
+ *  holds episodes stopped part-way through.
+ *
+ *  Labelled and postered from the parent series by [continueWatchingTiles], so a bare
+ *  "S02E03" reads as the show it belongs to. Clicking a tile opens that show's detail page
+ *  - see onHomeItemClick. Shared by the Series sidebar row, its content grid, and the
+ *  Series poster shelf. */
+internal fun MainActivity.seriesUpNextItems(): List<Channel> {
+    val server = (jellyfinNextUpItems + plexNextUpItems).filter { it.mediaType == MediaType.SERIES }
+    val local = buildUpNextSeriesTiles()
+    return continueWatchingTiles(
+        (server + local)
+            .distinctBy { it.id.ifBlank { it.url } }
+            .filterNot(::isAdultHomeItem)
+    )
+}
+
+/**
+ * The Series poster's single lead shelf: everything the user has a personal claim on, in the
+ * order they are likely to want it - what is part-watched, then what is next, then what they
+ * starred.
+ *
+ * One row rather than three because three near-identical rows of five tiles each pushed the
+ * catalogue itself below the fold, and the same show could head all three of them. The
+ * sidebar still lists Continue Watching and Up Next separately: the rail is for picking a
+ * filter, where the distinction is the whole point, while the poster is for picking a title.
+ *
+ * Deduped by *show*, not by tile. A Continue Watching episode, an Up Next episode and a
+ * favourite are three different Channels carrying three different ids that can all stand for
+ * one series, so what gets claimed is the series each tile belongs to - an episode through
+ * its parent id, a top-level entry through its own. First tile in wins, which makes the
+ * order above the priority order too.
+ */
+internal fun MainActivity.seriesPosterLeadShelfItems(favourites: List<Channel>): List<Channel> {
+    val claimed = HashSet<String>()
+    return (seriesContinueItems() + seriesUpNextItems() + favourites).filter { item ->
+        val show = item.categoryId?.takeIf { it.isNotBlank() && item.episodeNum != null }
+            ?: item.id.ifBlank { item.url }
+        show.isNotBlank() && claimed.add(show)
     }
 }
 

@@ -2813,7 +2813,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="10"
+                android:text="60"
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/text_display"
                 android:textStyle="bold" />

@@ -461,19 +461,18 @@ internal fun MainActivity.deriveFilmsSeriesHalf(list: List<Channel>): MainActivi
         animeSections = animeSectionsSnapshot, useClassicLayout = false, favoriteChannelIds = emptySet(),
         categorize = categorizeVod
     )
-    // Newest and Favourites stay pinned at the very top of the poster, above the
-    // sidebar-derived category shelves. Continue Watching slots between them, matching
-    // the sidebar order (Favourites > Continue Watching > Newest > categories).
+    // Newest stays pinned at the top of the poster, above the sidebar-derived category
+    // shelves, and one merged Continue Watching row leads the lot - Continue Watching, Up
+    // Next and Favourites are a single shelf here rather than the three separate rows the
+    // sidebar keeps (see seriesPosterLeadShelfItems).
     val seriesShelvesLocal = shelvesFromCategoryRows(seriesCategoryRows.rows, series)
         .let { shelves ->
             (if (newestSeries.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_newest), newestSeries, categoryId = NEWEST_CATEGORY_ID)) + shelves)
         }
         .let { shelves ->
-            val cw = seriesContinueItems()
-            if (cw.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_continue_watching), cw)) + shelves
-        }
-        .let { shelves ->
-            if (favoriteSeries.isEmpty()) shelves else listOf(ContentShelf(getString(R.string.category_favourites), favoriteSeries)) + shelves
+            val lead = seriesPosterLeadShelfItems(favoriteSeries)
+            if (lead.isEmpty()) shelves
+            else listOf(ContentShelf(getString(R.string.category_continue_watching), lead)) + shelves
         }
 
     perf("deriveFilmsSeriesHalf", startedAt, "${films.size} films / ${series.size} series")

@@ -196,6 +196,14 @@ internal const val NEWEST_CATEGORY_ID = "__newest__"
  *  shelf, filtered to series entries. Renders its own grid because the episodes it carries
  *  are not seriesList members (a grid-filter on seriesList would come up empty). */
 internal const val CONTINUE_WATCHING_CATEGORY_ID = "__continue_watching__"
+/** Series sidebar row for what to watch next: the next *unwatched* episode of everything in
+ *  flight - the media servers' own Next Up lists plus the locally resolved up-next tiles.
+ *  Series only, because "next episode" is the whole idea: a film has no next anything, and a
+ *  row of part-watched films is Continue Watching under a name that doesn't fit it. Like
+ *  Continue Watching it renders its own grid: the episodes it carries are not seriesList
+ *  members. Clicking a tile opens the show's detail page rather than playing - see
+ *  onHomeItemClick. */
+internal const val UP_NEXT_CATEGORY_ID = "__up_next__"
 internal const val CLASSIC_LAYOUT_TOGGLE_ID = "__classic_layout_toggle__"
 /** Sidebar utility row that collapses the category rail; persisted so the rail stays
  *  collapsed across launches. */
@@ -633,17 +641,25 @@ class MainActivity : AppCompatActivity() {
      *  by design. */
     internal val MAX_UP_NEXT_SERIES = 6
     /** seriesId -> resolved next-episode tile. Null value = resolved but no next episode
-     *  (fully watched / no seasons) - memoized so Home rebuilds don't refetch it. */
-    internal val upNextTiles = LinkedHashMap<String, Channel?>()
+     *  (fully watched / no seasons) - memoized so Home rebuilds don't refetch it.
+     *
+     *  Synchronized: written by fetchUpNextSeries on the main thread, read from
+     *  Dispatchers.Default by the Series category/shelf pipelines. Every access here is a
+     *  single map operation (get/contains/putAll/clear), never an iteration, so the
+     *  wrapper's per-call lock is all the guarding needed. A ConcurrentHashMap can't
+     *  stand in: the null value is what memoizes "resolved, no next episode". */
+    internal val upNextTiles: MutableMap<String, Channel?> =
+        java.util.Collections.synchronizedMap(LinkedHashMap<String, Channel?>())
     /** seriesId currently being fetched, so Home rebuilds don't stack duplicate fetches. */
-    internal val upNextFetching = mutableSetOf<String>()
+    internal val upNextFetching: MutableSet<String> =
+        java.util.Collections.synchronizedSet(mutableSetOf<String>())
     /** Bumped on every clearUpNextMemo; in-flight fetches snapshot it and discard their
      *  results if it moved - a fetch launched before a watched-state change must not write
      *  pre-change tiles after the memo was reset. */
-    internal var upNextEpoch = 0
+    @Volatile internal var upNextEpoch = 0
     /** next-episode id -> full cross-season episode chain, so clicking an up-next tile
      *  plays with auto-advance instead of as a lone episode. */
-    internal val upNextQueues = HashMap<String, List<Channel>>()
+    internal val upNextQueues = java.util.concurrent.ConcurrentHashMap<String, List<Channel>>()
 
     /** The memo is only valid while watched state is unchanged - any toggle or playback end
      *  shifts which episode is "next", so drop everything and re-resolve lazily on the next
@@ -654,6 +670,7 @@ class MainActivity : AppCompatActivity() {
         upNextFetching.clear()
         upNextQueues.clear()
     }
+
     /** The negotiated stream for whatever Jellyfin item is playing (see
      *  JellyfinProvider.resolveStream). Its PlaySessionId is what ties every progress report
      *  to this play, and what lets the server tear a transcode down when it ends. */
@@ -781,7 +798,12 @@ class MainActivity : AppCompatActivity() {
         internal const val REQUEST_IMPORT_BACKUP = 2002
         private const val EDGE_SWIPE_ZONE_DP = 24f
         private const val EDGE_SWIPE_THRESHOLD_DP = 64f
-        internal const val UP_NEXT_COUNTDOWN_SECONDS = 30
+        /** How long before an episode ends the Up Next overlay appears, and therefore what the
+         *  countdown starts at - one value, because the countdown has to reach zero exactly as
+         *  the episode does (that is what makes auto-advance land on the end rather than cut
+         *  in early). 60s gives time to read the next episode's title and hit Play now, or to
+         *  cancel, without having to catch it inside the closing seconds. */
+        internal const val UP_NEXT_COUNTDOWN_SECONDS = 60
     }
 
     internal val liveAdapter = LiveGuideAdapter(
@@ -1685,6 +1707,17 @@ class MainActivity : AppCompatActivity() {
     internal data class CategoryBuildResult(
         val rows: List<CategoryFilter>,
         val childrenByParent: Map<String, List<CategoryFilter>>
+    )
+
+    /** Everything buildCategoriesForActiveTab computes on Dispatchers.Default in one pass:
+     *  the real category rows plus the synthetic ones prepended above them. A named type
+     *  rather than a Triple/Quadruple because there are four of them now and positional
+     *  destructuring of same-typed lists is exactly how they get swapped by accident. */
+    internal data class SyntheticCategoryRows(
+        val result: CategoryBuildResult,
+        val newest: List<Channel>,
+        val continueWatching: List<Channel>,
+        val upNext: List<Channel>
     )
 
     internal var lastFocusedLiveChannel: Channel? = null

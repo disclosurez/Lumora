@@ -425,7 +425,14 @@ internal fun MainActivity.refreshPlexRowsAfterPlayback() {
         delay(1500)
         val stub = plexProviderStub(plexServerUrl(cfg))
         runCatching { refreshPlexRows(client, cfg, stub) }
+        // The lists that just moved back both Home's rows and the Series tab's Up Next row,
+        // and the Series tab is where a play most often starts. hidePlayer() already
+        // refreshed those shelves - but it did so 1500ms ago, against the pre-stop state.
         if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
+        else if (activeTab == 1) {
+            refreshSeriesShelvesIfShowing()
+            rebuildCategoriesForActiveTab()
+        }
     }
 }
 

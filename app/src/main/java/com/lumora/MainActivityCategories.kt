@@ -151,7 +151,7 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
     // moves them nowhere, and pin is inert for them anyway (guards in
     // buildCategoriesForActiveTab skip rows whose id is pinned).
     if (id == JELLYFIN_CATEGORY_ID || id == PLEX_CATEGORY_ID || id == NEWEST_CATEGORY_ID ||
-        id == CONTINUE_WATCHING_CATEGORY_ID
+        id == CONTINUE_WATCHING_CATEGORY_ID || id == UP_NEXT_CATEGORY_ID
     ) {
         AlertDialog.Builder(this)
             .setTitle(category.name)
@@ -221,9 +221,10 @@ internal fun MainActivity.toggleFavoriteVodItem(item: Channel) {
         }
     }
     refreshHomeShelvesIfShowing()
-    // Rebuilds the Series/Films shelves so the "Favourites" shelf at their top picks the
-    // change up without a tab switch. Only worth doing on those tabs - Home is handled
-    // above, and Live TV has no VOD shelf to redraw.
+    // Rebuilds the Series/Films shelves so the merged Continue Watching shelf leading the
+    // Series poster - favourites are folded into it now - picks the change up without a tab
+    // switch. Only worth doing on those tabs: Home is handled above, and Live TV has no VOD
+    // shelf to redraw.
     if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
 }
 
@@ -234,10 +235,10 @@ internal fun MainActivity.refreshHomeShelvesIfShowing() {
     if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
 }
 
-/** Series-shelf counterpart of [refreshHomeShelvesIfShowing]: Continue Watching (and
- *  favourites/newest) move when playback ends, so the Series poster needs the same
- *  lightweight refresh. Rebuilds the shelf list from cachedSeriesCategoryRows - never
- *  re-runs the expensive buildCategoryRows() pass. */
+/** Series-shelf counterpart of [refreshHomeShelvesIfShowing]: the merged lead shelf
+ *  (continue watching + up next + favourites) and Newest all move when playback ends, so the
+ *  Series poster needs the same lightweight refresh. Rebuilds the shelf list from
+ *  cachedSeriesCategoryRows - never re-runs the expensive buildCategoryRows() pass. */
 internal fun MainActivity.refreshSeriesShelvesIfShowing() {
     if (showingHome || activeTab != 1) return
     if (binding.seriesContent.visibility != View.VISIBLE) return
@@ -246,10 +247,10 @@ internal fun MainActivity.refreshSeriesShelvesIfShowing() {
     val shelves = shelvesFromCategoryRows(cachedSeriesCategoryRows, seriesList)
         .let { s -> (if (newestSeries.isEmpty()) s else listOf(ContentShelf(getString(R.string.category_newest), newestSeries, categoryId = NEWEST_CATEGORY_ID)) + s) }
         .let { s ->
-            val cw = seriesContinueItems()
-            if (cw.isEmpty()) s else listOf(ContentShelf(getString(R.string.category_continue_watching), cw)) + s
+            val lead = seriesPosterLeadShelfItems(favoriteSeries)
+            if (lead.isEmpty()) s
+            else listOf(ContentShelf(getString(R.string.category_continue_watching), lead)) + s
         }
-        .let { s -> if (favoriteSeries.isEmpty()) s else listOf(ContentShelf(getString(R.string.category_favourites), favoriteSeries)) + s }
     seriesShelves = shelves
     seriesShelfAdapter.submitList(shelves)
 }
@@ -475,10 +476,11 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
     val useClassicLayout = tab == 0 && prefs.getBoolean(PREF_CLASSIC_CATEGORY_LAYOUT, false)
     val categorize = if (tab == 0) prefs.getBoolean(PREF_CATEGORIZE_LIVE, true) else prefs.getBoolean(PREF_CATEGORIZE_VOD, true)
     // Synthetic Films/Series sidebar rows are computed on the same Default thread as the
-    // category pipeline: newestByDate sorts the whole tab list, and seriesContinueItems()
-    // reads the position store. Both prepend ABOVE Jellyfin, so the sidebar leads
-    // Continue Watching > Newest > Jellyfin > the real categories.
-    val (result, newestByTab, seriesContinue) = withContext(Dispatchers.Default) {
+    // category pipeline: newestByDate sorts the whole tab list, and seriesContinueItems()/
+    // seriesUpNextItems() read the position store and scan the catalogue for parent series.
+    // All three prepend ABOVE Jellyfin, so the sidebar leads
+    // Up Next > Continue Watching > Newest > Jellyfin > the real categories.
+    val synthetic = withContext(Dispatchers.Default) {
         val rows = buildCategoryRows(
             list = list,
             versionsById = versionsById,
@@ -491,12 +493,16 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
             favoriteChannelIds = favoriteChannelIds,
             categorize = categorize
         )
-        Triple(
-            rows,
-            if (tab != 0) newestByDate(list) else emptyList(),
-            if (tab == 1) seriesContinueItems() else emptyList()
+        MainActivity.SyntheticCategoryRows(
+            result = rows,
+            newest = if (tab != 0) newestByDate(list) else emptyList(),
+            continueWatching = if (tab == 1) seriesContinueItems() else emptyList(),
+            upNext = if (tab == 1) seriesUpNextItems() else emptyList()
         )
     }
+    val result = synthetic.result
+    val newestByTab = synthetic.newest
+    val seriesContinue = synthetic.continueWatching
     // The children cache backs the on-screen sidebar's expand/collapse - only the tab
     // that owns the sidebar may write it (the side menu builds other tabs too).
     if (tab == activeTab) categoryChildrenCache = result.childrenByParent
@@ -527,6 +533,24 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
                     id = CONTINUE_WATCHING_CATEGORY_ID,
                     name = getString(R.string.category_continue_watching),
                     count = seriesContinue.size,
+                    isDynamic = true
+                )
+            )
+        }
+    }
+    // Up Next leads the rail - it is the row that answers "what do I put on now", and it
+    // holds what Continue Watching structurally cannot: the *next* episode of a show whose
+    // last episode was finished. Series only (see UP_NEXT_CATEGORY_ID). Same special-case
+    // treatment in applyCategoryFilter, for the same reason as Continue Watching: its items
+    // aren't seriesList members.
+    if (tab == 1 && UP_NEXT_CATEGORY_ID !in hiddenIds && UP_NEXT_CATEGORY_ID !in pinned) {
+        if (synthetic.upNext.isNotEmpty()) {
+            rows.add(
+                0,
+                CategoryFilter(
+                    id = UP_NEXT_CATEGORY_ID,
+                    name = getString(R.string.category_next_up),
+                    count = synthetic.upNext.size,
                     isDynamic = true
                 )
             )
@@ -1250,6 +1274,16 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
                 setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
                 binding.seriesContent.adapter = seriesGridAdapter
                 seriesGridAdapter.replaceAll(seriesContinueItems())
+                binding.seriesContent.scrollToPosition(0)
+                return
+            }
+            // Up Next is episodes too, and not seriesList members either - same reason,
+            // same direct serve. seriesGridAdapter's click is onHomeItemClick, which
+            // resolves an episode tile to its series' detail page.
+            if (selectedRowId == UP_NEXT_CATEGORY_ID) {
+                setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
+                binding.seriesContent.adapter = seriesGridAdapter
+                seriesGridAdapter.replaceAll(seriesUpNextItems())
                 binding.seriesContent.scrollToPosition(0)
                 return
             }

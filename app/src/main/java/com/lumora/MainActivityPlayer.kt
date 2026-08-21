@@ -1795,7 +1795,7 @@ internal fun MainActivity.hidePlayer() {
     // Whatever just finished playing may have changed Continue Watching - refresh
     // Home so it's not stale until the next unrelated rebuild happens to touch it.
     if (showingHome) homeShelfAdapter.submitList(buildHomeShelves())
-    // Same for the Series poster shelf and its Continue Watching row.
+    // Same for the Series poster shelf and its Continue Watching / Up Next rows.
     refreshSeriesShelvesIfShowing()
     // Backing out of a film or an episode lands on that title's poster - the screen it was
     // started from - instead of the grid behind it, which is several D-pad moves and a
