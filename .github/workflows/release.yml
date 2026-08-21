@@ -25,8 +25,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      # Trakt credentials come from repository secrets: there is no keystore.properties on a
+      # runner, and without these the published APK builds fine but ships a dead Trakt pane.
+      # Unset (a fork with no secrets), they resolve to empty and the app reports itself
+      # unconfigured rather than failing.
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --no-daemon
+        env:
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
 
       - name: Install matching build-tools
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"

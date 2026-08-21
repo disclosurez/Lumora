@@ -15,6 +15,18 @@ val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
 }
 
+/**
+ * A credential as a quoted Java string literal for buildConfigField, from keystore.properties
+ * or else the environment. Escaped rather than interpolated raw: a stray quote or backslash in
+ * a secret would otherwise generate BuildConfig.java that doesn't compile, and the failure
+ * would point at generated code rather than at the value that caused it.
+ */
+fun traktCredential(propertyKey: String, envKey: String): String {
+    val raw = (keystoreProperties[propertyKey] as? String)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(envKey).orEmpty()
+    return "\"" + raw.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+}
+
 android {
     namespace = "com.lumora"
     compileSdk = 36
@@ -30,19 +42,24 @@ android {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
 
-        // Trakt OAuth app credentials, from the same gitignored keystore.properties the
-        // signing config reads. They end up in the APK either way - a device-flow client
-        // secret has to travel with the app, and Trakt's own guidance accepts that for
-        // native clients - but keeping them out of the repo means a public checkout carries
-        // no working key, and rotating one is a rebuild rather than a commit.
+        // Trakt OAuth app credentials. They end up in the APK either way - a device-flow
+        // client secret has to travel with the app, and Trakt's own guidance accepts that
+        // for native clients - but keeping them out of the repo means a public checkout
+        // carries no working key, and rotating one is a rebuild rather than a commit.
         //
-        // Absent from keystore.properties, both come through blank and the Trakt pane says
-        // so instead of failing at the first request. Register an app at
-        // https://trakt.tv/oauth/applications and add:
+        // Two sources, local first: keystore.properties (gitignored, same file the signing
+        // config reads) for a developer build, then the environment for CI, which has no
+        // such file and gets them from repository secrets instead. Absent from both, they
+        // come through blank and the Trakt pane reports the build as unconfigured rather
+        // than failing at the first request - so a fork with no secrets still builds.
+        //
+        // Register an app at https://trakt.tv/oauth/applications, then either add to
+        // keystore.properties:
         //   traktClientId=...
         //   traktClientSecret=...
-        buildConfigField("String", "TRAKT_CLIENT_ID", "\"${keystoreProperties["traktClientId"] ?: ""}\"")
-        buildConfigField("String", "TRAKT_CLIENT_SECRET", "\"${keystoreProperties["traktClientSecret"] ?: ""}\"")
+        // or set TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET in the environment.
+        buildConfigField("String", "TRAKT_CLIENT_ID", traktCredential("traktClientId", "TRAKT_CLIENT_ID"))
+        buildConfigField("String", "TRAKT_CLIENT_SECRET", traktCredential("traktClientSecret", "TRAKT_CLIENT_SECRET"))
     }
 
     signingConfigs {

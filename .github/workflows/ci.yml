@@ -28,8 +28,14 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      # Same as the release workflow - so the debug artifact from a push to this repo has a
+      # working Trakt pane to test against. Pull requests from forks get no secrets and build
+      # with it unconfigured, which is the intended graceful case rather than a failure.
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
+        env:
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
