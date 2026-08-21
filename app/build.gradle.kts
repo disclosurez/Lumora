@@ -21,7 +21,7 @@ val keystoreProperties = Properties().apply {
  * a secret would otherwise generate BuildConfig.java that doesn't compile, and the failure
  * would point at generated code rather than at the value that caused it.
  */
-fun traktCredential(propertyKey: String, envKey: String): String {
+fun credentialField(propertyKey: String, envKey: String): String {
     val raw = (keystoreProperties[propertyKey] as? String)?.takeIf { it.isNotBlank() }
         ?: System.getenv(envKey).orEmpty()
     return "\"" + raw.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
@@ -58,8 +58,17 @@ android {
         //   traktClientId=...
         //   traktClientSecret=...
         // or set TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET in the environment.
-        buildConfigField("String", "TRAKT_CLIENT_ID", traktCredential("traktClientId", "TRAKT_CLIENT_ID"))
-        buildConfigField("String", "TRAKT_CLIENT_SECRET", traktCredential("traktClientSecret", "TRAKT_CLIENT_SECRET"))
+        buildConfigField("String", "TRAKT_CLIENT_ID", credentialField("traktClientId", "TRAKT_CLIENT_ID"))
+        buildConfigField("String", "TRAKT_CLIENT_SECRET", credentialField("traktClientSecret", "TRAKT_CLIENT_SECRET"))
+
+        // TMDB v3 API keys, comma-separated - TmdbClient tries them in order and falls through
+        // to the next on failure, so this stays a list rather than a single key. Same two
+        // sources and the same graceful absence as the Trakt pair above: with none configured
+        // TmdbClient.hasKey() is false, Discover shows its empty state, and the Series/Films
+        // no-provider fallback and the Trakt title resolution quietly do nothing.
+        //   tmdbApiKeys=key1,key2,key3
+        // or TMDB_API_KEYS in the environment.
+        buildConfigField("String", "TMDB_API_KEYS", credentialField("tmdbApiKeys", "TMDB_API_KEYS"))
     }
 
     signingConfigs {

@@ -15,9 +15,10 @@ import java.util.concurrent.TimeUnit
  * [Channel]s (with no playback URL) purely so the existing poster grid can render them; playing
  * one is handled separately by a stream-search plugin.
  *
- * Only public read endpoints are used, with a v3 API key. Set [API_KEY] to a real key (TMDB ->
- * Settings -> API -> API Read Access is the v4 token; the shorter "API Key (v3 auth)" is what
- * goes here). With no key the calls no-op and Discover shows an empty state.
+ * Only public read endpoints are used, with a v3 API key. Keys come from the build rather than
+ * from source - see [KEYS]. (TMDB -> Settings -> API: "API Read Access" is the v4 token, while
+ * the shorter "API Key (v3 auth)" is what goes here.) With no key the calls no-op and Discover
+ * shows an empty state.
  */
 class TmdbClient {
 
@@ -373,12 +374,19 @@ class TmdbClient {
     private val titleCache = java.util.concurrent.ConcurrentHashMap<String, Boxed>()
 
     companion object {
-        /** TMDB v3 API keys, tried in order (fallback on failure). Empty list = Discover disabled. */
-        val KEYS = listOf(
-            "c3515fdc674ea2bd7b514f4bc3616a4a",
-            "1865f43a0549ca50d341dd9ab8b29f49",
-            "f562845c2beca65e1028ff2e31ccaff1"
-        ).filter { it.isNotBlank() }
+        /**
+         * TMDB v3 API keys, tried in order (fallback on failure). Empty list = Discover disabled.
+         *
+         * Supplied at build time from the gitignored keystore.properties (`tmdbApiKeys=a,b,c`)
+         * or the TMDB_API_KEYS environment variable that CI fills from repository secrets - see
+         * app/build.gradle.kts. They used to be literals here, which put working keys in a
+         * public repository; they still travel in the APK, as any client-side key must, but a
+         * checkout no longer carries them and rotating one is a rebuild rather than a commit.
+         */
+        val KEYS: List<String> = com.lumora.BuildConfig.TMDB_API_KEYS
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
 
         /** First usable key, or "" if none are configured. For callers outside this client that
          *  take a bare key string rather than going through [request] - notably the ported

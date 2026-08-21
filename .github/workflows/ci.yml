@@ -36,6 +36,7 @@ jobs:
         env:
           TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
           TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          TMDB_API_KEYS: ${{ secrets.TMDB_API_KEYS }}
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
