@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.4
+
+### Trakt
+- **Lumora can now connect to your Trakt account.** Settings > Trakt shows a short code to enter at trakt.tv/activate, or a QR to scan that fills the code in for you - no password typed on a remote. Once connected, what you watch is scrobbled to your profile as it plays, and your watched history can be kept in step in both directions.
+- **Your existing watched history is sent up when you connect.** Everything already marked watched in Lumora is matched to its title and pushed to Trakt, not just what you watch from now on. Anything Trakt already has is skipped, so nothing is duplicated, and a large library fills in over a few syncs rather than in one long burst. Watched history sync is off by default - turn it on in the Trakt pane, where there is also a "Sync watched history now" button.
+
+### Series
+- **Clicking a Continue Watching tile opens the show instead of starting playback.** A tile is one episode, and pressing it began playing that episode immediately - so a mistaken press on a row full of episodes started something you did not choose. It now opens the show's page, with the season already selected and the Play button pointing at your next unwatched episode, so you can pick an episode yourself.
+- **A new Up Next row on TV Shows.** It holds the next unwatched episode of everything you have in flight - which is what Continue Watching cannot show you, since that only keeps episodes you stopped part-way through. A show whose last episode you finished now has somewhere to appear.
+- **Up Next and Continue Watching work for Jellyfin and Plex shows.** Shows on a media server were left to the server's own "next up" list, which is only re-read when the catalogue reloads or a play ends - so marking episodes watched left those shows missing from both rows entirely. Their next episode is now worked out here as well, so it shows up whether you played the episode or ticked it off.
+- **Continue Watching, Up Next and Favourites are one row on the TV Shows poster.** Three near-identical rows pushed the catalogue itself off the bottom of the screen, and the same show could head all three of them. They are now a single row, with each show appearing once. The sidebar still lists them separately, where picking between them is the point.
+
+### Playback
+- **The next-episode countdown appears a minute before the end, instead of thirty seconds.** Thirty seconds was tight for reading the next episode's title and deciding whether to let it run, cancel, or start it now.
+
 ## 4.3.3
 
 ### Plugins
