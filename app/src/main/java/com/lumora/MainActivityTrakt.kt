@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import com.lumora.cache.PlaybackPositionStore
 import com.lumora.cache.WatchedStore
 import com.lumora.data.TraktStore
 import com.lumora.data.remote.trakt.TraktClient
@@ -262,14 +263,48 @@ internal fun MainActivity.pullTraktWatched(force: Boolean = false, onDone: ((Int
             runCatching { traktClient.watched(token) }.getOrDefault(emptyList())
         }
         if (entries.isEmpty()) { onDone?.invoke(0); return@launch }
+        // Top-level series only, keyed the same way isItemWatched/watchedKeyFor normalise a
+        // title - so a show watched purely on trakt.tv (never played through this install)
+        // can still be found in the local catalog below.
+        val seriesIndex = withContext(Dispatchers.Default) {
+            allChannels.asSequence()
+                .filter { it.mediaType == MediaType.SERIES && it.episodeNum == null }
+                .associateBy { com.lumora.util.normalizeTitleForGrouping(cleanVodTitle(it.name)) }
+        }
         val added = withContext(Dispatchers.Default) {
             var count = 0
             for (entry in entries) {
                 if (entry.isSeries) {
+                    var seriesAdded = false
                     for ((season, numbers) in entry.episodes) {
                         for (number in numbers) {
                             val key = episodeWatchedKey(entry.title, season, number) ?: continue
-                            if (WatchedStore.setWatched(this@pullTraktWatched, key, true)) count++
+                            if (WatchedStore.setWatched(this@pullTraktWatched, key, true)) {
+                                count++
+                                seriesAdded = true
+                            }
+                        }
+                    }
+                    // Up Next is only ever surfaced for a series with a *local* trail (see
+                    // PlaybackPositionStore.getCompletedSeriesTrails) - a show whose history
+                    // lives entirely on Trakt (watched on another client, or with trakt.tv
+                    // itself) never gets one, so its next episode was silently unreachable
+                    // from Home/Series even though WatchedStore now knows it's in progress.
+                    // A cheap completed-trail stub closes that gap; the real next episode is
+                    // still resolved from the catalog by nextEpisodeFor, this only marks the
+                    // show as "has a trail".
+                    if (seriesAdded) {
+                        val normalized = com.lumora.util.normalizeTitleForGrouping(cleanVodTitle(entry.title))
+                        val series = seriesIndex[normalized]
+                        if (series != null && series.id.isNotBlank()) {
+                            val copyKey = "trakt|${series.id}"
+                            PlaybackPositionStore.save(
+                                this@pullTraktWatched,
+                                copyKey,
+                                1L,
+                                1L,
+                                series.copy(id = copyKey, categoryId = series.id)
+                            )
                         }
                     }
                 } else {
