@@ -1424,8 +1424,11 @@ internal fun MainActivity.showProviderSettings() {
         // Appended rather than slotted in next to Plugins, where it sits visually: selectSection()
         // addresses these by list index, so inserting in the middle would silently renumber every
         // section below it - including the hardcoded selectSection(7) the plugin rail rows use.
-        R.id.navSites to R.id.paneSites
+        R.id.navSites to R.id.paneSites,
+        // Same reason - appended, not slotted in above Sites where the rail shows it.
+        R.id.navTrakt to R.id.paneTrakt
     ).map { (navId, paneId) -> dialogView.findViewById<View>(navId) to dialogView.findViewById<View>(paneId) }
+    wireTraktPane(dialogView)
     // Last section chosen - the rail's re-expand pill refocuses it (mirrors the category
     // rail refocusing the previously selected row).
     var activeSection = 0
@@ -1562,6 +1565,10 @@ internal fun MainActivity.showProviderSettings() {
         // plugin rather than leaving another app's service bound with nowhere to report.
         pluginDiscoveryJob?.cancel()
         pluginDiscoveryJob = null
+        // Same: a device-code poll is only meaningful while its code is on screen, and its
+        // callbacks write into views that are about to be detached.
+        traktSignInJob?.cancel()
+        traktSignInJob = null
         activeSettingsOverlay = null
         applyStatus()
         refreshIptvProviderList = {}

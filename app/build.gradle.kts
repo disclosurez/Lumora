@@ -29,6 +29,20 @@ android {
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
+
+        // Trakt OAuth app credentials, from the same gitignored keystore.properties the
+        // signing config reads. They end up in the APK either way - a device-flow client
+        // secret has to travel with the app, and Trakt's own guidance accepts that for
+        // native clients - but keeping them out of the repo means a public checkout carries
+        // no working key, and rotating one is a rebuild rather than a commit.
+        //
+        // Absent from keystore.properties, both come through blank and the Trakt pane says
+        // so instead of failing at the first request. Register an app at
+        // https://trakt.tv/oauth/applications and add:
+        //   traktClientId=...
+        //   traktClientSecret=...
+        buildConfigField("String", "TRAKT_CLIENT_ID", "\"${keystoreProperties["traktClientId"] ?: ""}\"")
+        buildConfigField("String", "TRAKT_CLIENT_SECRET", "\"${keystoreProperties["traktClientSecret"] ?: ""}\"")
     }
 
     signingConfigs {

@@ -62,6 +62,16 @@ object WatchedStore {
         return changed
     }
 
+    /**
+     * Snapshot of every mark, for the passes that have to walk the whole set rather than ask
+     * about one title - the Trakt backfill, which turns marks back into titles to push.
+     *
+     * A copy, not the live set: callers iterate it off the main thread while a mark written in
+     * the meantime would otherwise be a ConcurrentModificationException.
+     */
+    @Synchronized
+    fun allKeys(context: Context): Set<String> = LinkedHashSet(ensureLoaded(context))
+
     @Synchronized
     fun clearAll(context: Context) {
         cache = mutableSetOf()

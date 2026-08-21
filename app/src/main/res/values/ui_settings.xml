@@ -118,4 +118,29 @@
     <string name="sett_update_available_message">Lumora v%1$s is available.\nCurrent: v%2$s\n\n%3$s</string>
     <string name="sett_later">Later</string>
     <string name="sett_latest_version">You\'re on the latest version</string>
+
+    <!-- MainActivityTrakt.kt - Trakt pane (OAuth device flow, scrobbling, watched sync) -->
+    <!-- Brand name - the one string here that is the same in every locale. -->
+    <string name="trakt" translatable="false">Trakt</string>
+    <string name="trakt_pane_caption">Scrobble what you watch to trakt.tv and keep watched state in step across your devices.</string>
+    <string name="trakt_not_configured">This build has no Trakt credentials compiled in.</string>
+    <string name="trakt_not_connected">Not connected.</string>
+    <string name="trakt_connect">Connect Trakt account</string>
+    <string name="trakt_sign_out">Sign out of Trakt</string>
+    <string name="trakt_sync_now">Sync watched history now</string>
+    <string name="trakt_starting">Asking Trakt for a code…</string>
+    <string name="trakt_couldnt_start">Couldn\'t reach Trakt to start sign-in</string>
+    <string name="trakt_enter_code_at">Go to %1$s and enter this code — or scan the QR.</string>
+    <string name="trakt_denied">Sign-in was declined on Trakt</string>
+    <string name="trakt_code_expired">That code expired — try again</string>
+    <string name="trakt_timed_out">Timed out waiting for Trakt</string>
+    <string name="trakt_signed_in">Connected to Trakt</string>
+    <string name="trakt_signed_in_as">Connected as %1$s</string>
+    <string name="trakt_signed_out">Signed out of Trakt</string>
+    <string name="trakt_syncing">Syncing…</string>
+    <string name="trakt_scrobble">Scrobble playback</string>
+    <string name="trakt_watched_sync">Sync watched history</string>
+    <string name="trakt_pushing">Pushing your watched history to Trakt…</string>
+    <string name="trakt_synced_both">Synced · %1$d in, %2$d out</string>
+    <string name="trakt_synced_both_partial">Synced · %1$d in, %2$d out · %3$d titles unmatched</string>
 </resources>

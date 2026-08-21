@@ -671,6 +671,25 @@ class MainActivity : AppCompatActivity() {
         upNextQueues.clear()
     }
 
+    // ── Trakt ───────────────────────────────────
+    /** One client for the whole app; it holds no session of its own, so every call is handed
+     *  the access token the store currently has (see traktAccessToken()). */
+    internal val traktClient by lazy {
+        com.lumora.data.remote.trakt.TraktClient(BaseApplication.instance.okHttpClient)
+    }
+    /** What the item now playing is, in Trakt's terms. Null while nothing is playing, while
+     *  the TMDB lookup that identifies it is still in flight, or when the title can't be
+     *  matched at all - a scrobble needs an id, and there is nothing to send without one. */
+    internal var traktScrobbleTarget: com.lumora.data.remote.trakt.TraktClient.ScrobbleTarget? = null
+    /** The play that [traktScrobbleTarget] belongs to, so a lookup that lands after the user
+     *  has moved on to something else is discarded instead of scrobbling the wrong title. */
+    internal var traktScrobbleForKey: String? = null
+    /** Paused state at the last report. The player ticks every second but Trakt only wants to
+     *  hear about transitions, so a report goes out when this stops matching reality. */
+    internal var traktLastReportedPaused: Boolean? = null
+    internal var traktResolveJob: Job? = null
+    /** The running device-code sign-in, cancelled when its dialog closes. */
+    internal var traktSignInJob: Job? = null
     /** The negotiated stream for whatever Jellyfin item is playing (see
      *  JellyfinProvider.resolveStream). Its PlaySessionId is what ties every progress report
      *  to this play, and what lets the server tear a transcode down when it ends. */
@@ -991,6 +1010,11 @@ class MainActivity : AppCompatActivity() {
         showCarDisclaimerIfProjected()
         pruneStoredEpg()
         checkAndPromptUpdate()
+        // Reconcile with Trakt once a launch. Rate-limited inside to six hours, and a no-op
+        // unless the account is connected with watched sync on, so this is a prefs read in
+        // every other case. Writes only to WatchedStore, which is keyed by title rather than
+        // by catalogue id - it does not need the catalogue to have loaded.
+        pullTraktWatched()
 
         // Downloads are a mobile-only affordance - a TV box has nowhere meaningful to
         // browse a downloaded file, and it's not what "download for offline" means there.

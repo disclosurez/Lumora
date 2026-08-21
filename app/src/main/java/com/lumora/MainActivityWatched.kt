@@ -159,7 +159,13 @@ internal fun MainActivity.setItemWatched(
         WatchedStore.setWatched(this, shared, watched)
         clearSiblingCopyPositions(item, shared)
     }
-    if (alsoPushToServers) pushWatchedToMediaServers(item, watched)
+    if (alsoPushToServers) {
+        pushWatchedToMediaServers(item, watched)
+        // Trakt gets the same mark, under its own toggle. A play that went through the player
+        // was already scrobbled; Trakt de-duplicates a history add against that scrobble, so
+        // the overlap costs a request rather than a duplicate entry.
+        pushWatchedToTrakt(item, watched)
+    }
 }
 
 /**

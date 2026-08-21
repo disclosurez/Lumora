@@ -595,6 +595,10 @@ internal fun MainActivity.showPlayerFor(
     currentEpisodeQueueIndex = -1
     isPlayerVisible = true
     nowPlayingChannel = channel
+    // Trakt's `start`. Deliberately after nowPlayingChannel is set - the TMDB lookup that
+    // identifies the title runs in the background and checks what is playing when it lands,
+    // so a quick surf past a title doesn't scrobble it.
+    traktReportStart(channel)
     // Cleared unconditionally, same as the episode queue above - the series version
     // context only applies to playback started from a series detail screen, which re-sets
     // it right after this call.
@@ -1715,6 +1719,10 @@ internal fun MainActivity.hidePlayer() {
     // watched mark or a resume point, and closes out any transcode it started.
     if (reportJellyfinStopped()) refreshJellyfinRowsAfterPlayback()
     if (reportPlexStopped()) refreshPlexRowsAfterPlayback()
+    // Same ordering constraint, for the same reason: Trakt turns the progress in this report
+    // into either a watched mark (>=80%) or a resume point, so it has to read the real
+    // position before the player is torn down.
+    traktReportStopped()
     hideTrickplayPreview()
     // What was playing is the best preview target when nothing in the guide was ever
     // focused - a launch that resumes straight into the player never fires a focus

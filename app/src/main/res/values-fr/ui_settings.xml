@@ -118,4 +118,27 @@
     <string name="sett_update_available_message">Lumora v%1$s est disponible.\nVersion actuelle : v%2$s\n\n%3$s</string>
     <string name="sett_later">Plus tard</string>
     <string name="sett_latest_version">Vous disposez de la dernière version</string>
+
+    <!-- MainActivityTrakt.kt - volet Trakt (flux OAuth par code d\'appareil, scrobbling, synchro des vus) -->
+    <string name="trakt_pane_caption">Envoyez ce que vous regardez vers trakt.tv et gardez l\'état « vu » synchronisé entre vos appareils.</string>
+    <string name="trakt_not_configured">Cette version ne contient aucun identifiant Trakt.</string>
+    <string name="trakt_not_connected">Non connecté.</string>
+    <string name="trakt_connect">Connecter un compte Trakt</string>
+    <string name="trakt_sign_out">Se déconnecter de Trakt</string>
+    <string name="trakt_sync_now">Synchroniser l\'historique maintenant</string>
+    <string name="trakt_starting">Demande d\'un code à Trakt…</string>
+    <string name="trakt_couldnt_start">Impossible de joindre Trakt pour démarrer la connexion</string>
+    <string name="trakt_enter_code_at">Rendez-vous sur %1$s et saisissez ce code — ou scannez le QR.</string>
+    <string name="trakt_denied">Connexion refusée sur Trakt</string>
+    <string name="trakt_code_expired">Ce code a expiré — réessayez</string>
+    <string name="trakt_timed_out">Délai dépassé en attendant Trakt</string>
+    <string name="trakt_signed_in">Connecté à Trakt</string>
+    <string name="trakt_signed_in_as">Connecté en tant que %1$s</string>
+    <string name="trakt_signed_out">Déconnecté de Trakt</string>
+    <string name="trakt_syncing">Synchronisation…</string>
+    <string name="trakt_scrobble">Scrobbler la lecture</string>
+    <string name="trakt_watched_sync">Synchroniser l\'historique des vus</string>
+    <string name="trakt_pushing">Envoi de votre historique vers Trakt…</string>
+    <string name="trakt_synced_both">Synchronisé · %1$d entrants, %2$d sortants</string>
+    <string name="trakt_synced_both_partial">Synchronisé · %1$d entrants, %2$d sortants · %3$d titres non associés</string>
 </resources>
