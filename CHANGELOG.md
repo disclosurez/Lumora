@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.2
+
+### Trakt
+- **Fixed a launch-time race that could still leave a Trakt-only show out of Up Next.** 4.4.1's fix matched Trakt titles against the local catalog at pull time, but the catalog loads asynchronously and wasn't always ready yet when the pull ran - so the match could silently miss depending on timing. The match is now retried whenever the catalog finishes loading, not just once at pull time.
+
 ## 4.4.1
 
 ### Trakt

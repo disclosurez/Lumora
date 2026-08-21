@@ -51,6 +51,11 @@ internal suspend fun MainActivity.classifyAndShow(preserveUi: Boolean = false) {
     seriesVersions = derived.seriesVersions
     seriesShelves = derived.seriesShelves
 
+    // A Trakt pull that ran before this catalog had loaded (both race off app launch) could
+    // not match its titles against anything - retry now that allChannels is current. Cheap
+    // and idempotent once a series has its stub; see reconcileTraktUpNextTrails.
+    withContext(Dispatchers.Default) { reconcileTraktUpNextTrails() }
+
     // Discover (TMDB browsing) and any stream_search plugin's Find Stream flow need no
     // provider-sourced channels at all - gating the whole content area on allChannels alone
     // trapped a plugin-only setup (e.g. just torrent-search enabled, which contributes no

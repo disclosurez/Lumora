@@ -263,48 +263,14 @@ internal fun MainActivity.pullTraktWatched(force: Boolean = false, onDone: ((Int
             runCatching { traktClient.watched(token) }.getOrDefault(emptyList())
         }
         if (entries.isEmpty()) { onDone?.invoke(0); return@launch }
-        // Top-level series only, keyed the same way isItemWatched/watchedKeyFor normalise a
-        // title - so a show watched purely on trakt.tv (never played through this install)
-        // can still be found in the local catalog below.
-        val seriesIndex = withContext(Dispatchers.Default) {
-            allChannels.asSequence()
-                .filter { it.mediaType == MediaType.SERIES && it.episodeNum == null }
-                .associateBy { com.lumora.util.normalizeTitleForGrouping(cleanVodTitle(it.name)) }
-        }
         val added = withContext(Dispatchers.Default) {
             var count = 0
             for (entry in entries) {
                 if (entry.isSeries) {
-                    var seriesAdded = false
                     for ((season, numbers) in entry.episodes) {
                         for (number in numbers) {
                             val key = episodeWatchedKey(entry.title, season, number) ?: continue
-                            if (WatchedStore.setWatched(this@pullTraktWatched, key, true)) {
-                                count++
-                                seriesAdded = true
-                            }
-                        }
-                    }
-                    // Up Next is only ever surfaced for a series with a *local* trail (see
-                    // PlaybackPositionStore.getCompletedSeriesTrails) - a show whose history
-                    // lives entirely on Trakt (watched on another client, or with trakt.tv
-                    // itself) never gets one, so its next episode was silently unreachable
-                    // from Home/Series even though WatchedStore now knows it's in progress.
-                    // A cheap completed-trail stub closes that gap; the real next episode is
-                    // still resolved from the catalog by nextEpisodeFor, this only marks the
-                    // show as "has a trail".
-                    if (seriesAdded) {
-                        val normalized = com.lumora.util.normalizeTitleForGrouping(cleanVodTitle(entry.title))
-                        val series = seriesIndex[normalized]
-                        if (series != null && series.id.isNotBlank()) {
-                            val copyKey = "trakt|${series.id}"
-                            PlaybackPositionStore.save(
-                                this@pullTraktWatched,
-                                copyKey,
-                                1L,
-                                1L,
-                                series.copy(id = copyKey, categoryId = series.id)
-                            )
+                            if (WatchedStore.setWatched(this@pullTraktWatched, key, true)) count++
                         }
                     }
                 } else {
@@ -319,10 +285,50 @@ internal fun MainActivity.pullTraktWatched(force: Boolean = false, onDone: ((Int
             // Watched state decides what "next episode" means, so the memo behind Up Next is
             // stale the moment any mark lands.
             clearUpNextMemo()
+            // The catalog this install is matching Trakt titles against may not be loaded yet
+            // (this whole pull runs off app launch, racing loadSavedProvider's own async
+            // fetch) - reconcileTraktUpNextTrails is also called from classifyAndShow, so a
+            // catalog that lands after this point still picks these marks up.
+            reconcileTraktUpNextTrails()
             refreshHomeShelvesIfShowing()
             refreshSeriesShelvesIfShowing()
         }
         onDone?.invoke(added)
+    }
+}
+
+/**
+ * Gives every series [WatchedStore] knows has at least one watched episode a completed-trail
+ * stub in [PlaybackPositionStore], so [PlaybackPositionStore.getCompletedSeriesTrails] - and so
+ * Up Next - can find it.
+ *
+ * Reads from [WatchedStore] rather than a Trakt response directly, which is what makes this
+ * safe to call from anywhere the catalog might have just changed (see [classifyAndShow]) as
+ * well as from [pullTraktWatched] itself: a mark that arrived from Trakt before the catalog had
+ * loaded this show is still on disk in [WatchedStore], and gets matched up the next time the
+ * catalog does load - not silently dropped because the two raced on app launch.
+ *
+ * Idempotent and cheap once a series has a stub: an existing `trakt|<id>` entry is left alone
+ * rather than rewritten, so this can run on every catalog rebuild without spamming disk writes
+ * or reshuffling Up Next's most-recent ordering.
+ */
+internal fun MainActivity.reconcileTraktUpNextTrails() {
+    if (allChannels.isEmpty()) return
+    val seriesIndex = allChannels.asSequence()
+        .filter { it.mediaType == MediaType.SERIES && it.episodeNum == null }
+        .associateBy { com.lumora.util.normalizeTitleForGrouping(cleanVodTitle(it.name)) }
+    if (seriesIndex.isEmpty()) return
+    val seenTitles = HashSet<String>()
+    for (key in WatchedStore.allKeys(this)) {
+        val parts = key.split('|')
+        if (parts.size != 4 || parts[0] != "e") continue
+        val normalized = parts[1]
+        if (!seenTitles.add(normalized)) continue
+        val series = seriesIndex[normalized] ?: continue
+        if (series.id.isBlank()) continue
+        val copyKey = "trakt|${series.id}"
+        if (PlaybackPositionStore.get(this, copyKey) != null) continue
+        PlaybackPositionStore.save(this, copyKey, 1L, 1L, series.copy(id = copyKey, categoryId = series.id))
     }
 }
 
