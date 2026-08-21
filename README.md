@@ -211,10 +211,28 @@ Issues and pull requests are welcome. Please open an issue describing the change
 
 **No warranty.** Lumora is provided "as is", without warranty of any kind, express or implied. The authors accept no liability for any loss, damage, penalty, data loss, or service termination arising from its use. See [LICENSE](LICENSE).
 
+**Noncommercial licence.** Lumora is licensed for noncommercial use only — see [License](#license) below. Selling it, selling access to it, or bundling it with anything paid is not permitted.
+
 **Trademarks.** Lumora is an independent project with no affiliation with, endorsement by, or certification from any of the following. Android, Android TV, Android Auto, Google Cast, Google Drive and Google Play are trademarks of Google LLC. Fire TV and Amazon are trademarks of Amazon.com, Inc. Jellyfin is a trademark of the Jellyfin project. Plex is a trademark of Plex, Inc. Xtream Codes and Stalker Portal are the marks of their respective owners. All other names are used descriptively and belong to their owners.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## License
 
-[MIT](LICENSE) © 2026 Lumora.
+[PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Lumora.
+
+**Noncommercial use only.** Use, copy, modify and share Lumora freely for any
+noncommercial purpose — personal use, hobby projects, study, research, and use by
+charities, schools, public research bodies and government institutions all qualify.
+
+What is not permitted is using Lumora for commercial advantage or monetary
+compensation: selling it or a modified version of it, selling access to it or to a
+service built on it, bundling it with a paid product, subscription or device, or
+charging for support, installation or configuration of it.
+
+Lumora was MIT-licensed up to and including v4.4, and that change is not
+retroactive — copies obtained under MIT remain under MIT for those versions. The
+new terms apply from the first release after them.
+
+This is a source-available license, not an OSI-approved open-source one; GitHub
+lists it as a custom license rather than showing a licence badge.
