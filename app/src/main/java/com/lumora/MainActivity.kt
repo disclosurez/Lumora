@@ -1696,8 +1696,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Side menu: DPAD_LEFT opens it (TV remotes have no touch; the phone gets the
-        // btnPlayerMenu hamburger instead). While it's open, LEFT stays consumed so focus
+        // Side menu: on live, DPAD_LEFT opens it (TV remotes have no touch; the phone gets
+        // the btnPlayerMenu hamburger instead) - on VOD the same key rewinds instead, see
+        // below. While it's open, LEFT stays consumed so focus
         // never tries to leave the panel, RIGHT crosses into the category column when one
         // is flown out (and dismisses the whole menu otherwise), and UP/DOWN/CENTER fall
         // through to the framework to navigate/activate rows. LEFT back out of the column
@@ -1721,7 +1722,30 @@ class MainActivity : AppCompatActivity() {
                     showControls()
                     return true
                 }
+                // On a film or episode LEFT is a transport control, not a drawer: what the
+                // side menu offers (the channel list and its categories) is a live-TV thing,
+                // while a VOD stream has a timeline the remote otherwise has no blind way to
+                // scrub - the same 15s step the rewind button and a media remote's REWIND key
+                // use. Live keeps the drawer, where surfing the channel list is the point.
+                // Revealed without focus, so a second LEFT rewinds again instead of being
+                // eaten by the button row the first press would otherwise have focused.
+                if (nowPlayingChannel?.mediaType != MediaType.LIVE) {
+                    playerManager.seekBy(-15_000)
+                    showControls(takeFocus = false)
+                    return true
+                }
                 openSideMenu()
+                return true
+            }
+            // RIGHT is LEFT's counterpart on a VOD timeline (the same 30s step the fast-forward
+            // button uses), and claiming it here also keeps the key from reaching a focus search
+            // while the bar is up but unfocused - there is nothing focusable to the right inside
+            // the overlay then, and the browse screen behind the player is still focusable.
+            if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT && !isPlayerSideMenuOpen() &&
+                nowPlayingChannel?.mediaType != MediaType.LIVE && !binding.controlsOverlay.hasFocus()
+            ) {
+                playerManager.seekBy(30_000)
+                showControls(takeFocus = false)
                 return true
             }
             if (isPlayerSideMenuOpen()) {
@@ -1779,6 +1803,17 @@ class MainActivity : AppCompatActivity() {
         )
         if (isPlayerVisible && !isPlayerSideMenuOpen() && isDirectionalKey) {
             if (binding.controlsOverlay.visibility != View.VISIBLE) {
+                showControls()
+                return true
+            }
+            // The bar can be up with nothing in it focused - that is how VOD's LEFT-rewind
+            // reveals it. UP/DOWN/CENTER is the deliberate "I want the buttons" press, so it
+            // puts focus on play/pause explicitly rather than leaving it to a focus search
+            // that has the whole browse screen behind the player to choose from.
+            if (!binding.controlsOverlay.hasFocus() && keyCode != android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                keyCode != android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+            ) {
+                binding.btnPlayPause.requestFocus()
                 showControls()
                 return true
             }

@@ -383,7 +383,11 @@ internal fun MainActivity.navigateChannel(dir: Int) {
     else { Toast.makeText(this, if (dir < 0) getString(R.string.play_first) else getString(R.string.play_last), Toast.LENGTH_SHORT).show() }
 }
 
-internal fun MainActivity.showControls() {
+/** [takeFocus] false reveals the bar without pulling D-pad focus into it - used by the VOD
+ *  LEFT-rewind path, where grabbing focus would mean the second press walked the button row
+ *  instead of rewinding again. The bar is still entered deliberately with UP/DOWN/CENTER
+ *  (see MainActivity.onKeyDown). */
+internal fun MainActivity.showControls(takeFocus: Boolean = true) {
     // The side menu and the bottom bar are mutually exclusive chrome - any other
     // reveal path (center press, media key, gesture tap) dismisses the drawer
     // rather than stacking the bar over it.
@@ -402,7 +406,7 @@ internal fun MainActivity.showControls() {
     // auto-hide timer while the bar is already up, and the narrower test dragged focus
     // back to play/pause from whatever button the user had walked to (or had just
     // clicked - btnRewind/btnFastForward call showControls() themselves).
-    if (!binding.controlsOverlay.hasFocus()) binding.btnPlayPause.requestFocus()
+    if (takeFocus && !binding.controlsOverlay.hasFocus()) binding.btnPlayPause.requestFocus()
     mainHandler.removeCallbacks(hideControlsRunnable)
     mainHandler.postDelayed(hideControlsRunnable, 4000)
 }
