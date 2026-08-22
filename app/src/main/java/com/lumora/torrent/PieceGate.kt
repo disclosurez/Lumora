@@ -2,6 +2,7 @@ package com.lumora.torrent
 
 import org.libtorrent4j.Priority
 import org.libtorrent4j.TorrentHandle
+import java.io.IOException
 
 /**
  * Maps a position inside the chosen file to libtorrent pieces, and keeps only a small rolling
@@ -54,21 +55,32 @@ class PieceGate(
         }
     }
 
-    /** Blocks until the piece covering [posInFile] is downloaded, keeping the window primed. */
+    /**
+     * Blocks until the piece covering [posInFile] is downloaded, keeping the window primed.
+     *
+     * Gives up after [AWAIT_DEADLINE_MS]: peers can vanish and leave the poll spinning forever,
+     * parking a NanoHTTPD worker until teardown. Throwing lets the stalled HTTP reader unwind -
+     * the IOException propagates up through NanoHTTPD like any other read failure.
+     */
     fun awaitByte(posInFile: Long) {
         val piece = pieceOf(posInFile)
         prioritizeFrom(posInFile)
+        val deadline = System.currentTimeMillis() + AWAIT_DEADLINE_MS
         while (true) {
             val have = synchronized(nativeLock) {
                 if (!handle.isValid) throw IllegalStateException("Stream stopped")
                 handle.havePiece(piece)
             }
             if (have) return
+            if (System.currentTimeMillis() > deadline)
+                throw IOException("Timed out waiting for piece $piece")
             Thread.sleep(50)
         }
     }
 
     companion object {
+        /** How long awaitByte waits on a missing piece before failing the read. */
+        private const val AWAIT_DEADLINE_MS = 90_000L
         /** Pieces to keep downloading ahead of the read head. */
         private const val AHEAD_PIECES = 24
         /** Pieces to keep available behind the read head for short back-seeks. */

@@ -13,6 +13,11 @@ import com.lumora.R
 import com.lumora.download.DownloadRecord
 import com.lumora.download.DownloadStatus
 import com.lumora.util.PosterLoader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
 
 class DownloadAdapter(
     private val onClick: (DownloadRecord) -> Unit,
@@ -20,6 +25,20 @@ class DownloadAdapter(
 ) : ListAdapter<DownloadRecord, DownloadAdapter.ViewHolder>(DiffCallback()) {
 
     var topRowFocusUpTargetId: Int = View.NO_ID
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Cancel in-flight poster fetches when the adapter is detached. Children only, never
+     *  the scope's own Job - a cancelled scope Job stays cancelled forever, so later
+     *  launches silently no-op and posters never load again (see ShelfAdapter). */
+    fun cancelPendingWork() {
+        scope.coroutineContext.cancelChildren()
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        cancelPendingWork()
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_download, parent, false)
@@ -70,9 +89,22 @@ class DownloadAdapter(
         fun bind(record: DownloadRecord) {
             current = record
             title.text = record.title
-            poster.setImageDrawable(null)
-            record.posterUrl?.takeIf { it.isNotBlank() }?.let { url ->
-                PosterLoader.getCached(url)?.let { poster.setImageBitmap(it) }
+            val url = record.posterUrl?.takeIf { it.isNotBlank() }
+            // Placeholder first, like the grid/shelf adapters: a tile mid-load (or one whose
+            // fetch fails) never sits as a bare grey square.
+            poster.setImageResource(R.drawable.ic_launcher_foreground)
+            if (url != null) {
+                val cached = PosterLoader.getCached(url)
+                if (cached != null) {
+                    poster.setImageBitmap(cached)
+                } else {
+                    scope.launch {
+                        val bitmap = PosterLoader.fetch(url)
+                        if (current !== record) return@launch
+                        if (bitmap != null) poster.setImageBitmap(bitmap)
+                        else poster.setImageResource(R.drawable.ic_launcher_foreground)
+                    }
+                }
             }
             when (record.status) {
                 DownloadStatus.QUEUED -> {

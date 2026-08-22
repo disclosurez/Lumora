@@ -76,6 +76,8 @@ class ShelfAdapter(
             seeAllButton.setOnClickListener { current?.let(onSeeAllClick) }
             pinButton.setOnClickListener { current?.let(onPinClick) }
             hideButton.setOnClickListener { current?.let(onHideClick) }
+            // Static glyph (✕) - label it once; only the pin star swaps per state.
+            hideButton.contentDescription = hideButton.context.getString(R.string.hide_shelf)
         }
 
         fun bind(shelf: ContentShelf) {
@@ -87,6 +89,11 @@ class ShelfAdapter(
                 pinButton.visibility = View.VISIBLE
                 pinButton.text = if (shelf.pinned) "★" else "☆"
                 pinButton.setTextColor(pinButton.context.getColor(if (shelf.pinned) R.color.primary else R.color.text_secondary))
+                // Glyph alone gives TalkBack nothing - announce what a press would now do
+                // (same per-bind swap as EpisodeAdapter's check button).
+                pinButton.contentDescription = pinButton.context.getString(
+                    if (shelf.pinned) R.string.unpin_category else R.string.pin_category
+                )
             } else {
                 pinButton.visibility = View.GONE
             }
@@ -176,11 +183,10 @@ private class ShelfPosterAdapter(
             } else channel.name
 
             val url = channel.posterUrl ?: channel.logoUrl
-            posterImage.setImageDrawable(null)
-            if (url.isNullOrBlank()) {
-                posterImage.setImageResource(R.drawable.ic_launcher_foreground)
-                return
-            }
+            // Placeholder before the async fetch: a loading tile isn't blank, and a failed
+            // fetch keeps it instead of leaving an empty cell forever.
+            posterImage.setImageResource(R.drawable.ic_launcher_foreground)
+            if (url.isNullOrBlank()) return
             PosterLoader.getCached(url)?.let { posterImage.setImageBitmap(it); return }
 
             scope.launch {

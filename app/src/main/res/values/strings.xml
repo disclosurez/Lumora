@@ -94,6 +94,9 @@
     <string name="play">Play</string>
     <string name="find_stream">Find &amp; Play</string>
     <string name="trailer">Trailer</string>
+    <!-- Image-only detail-screen action (detailDownloadButton) - the glyph alone gives
+         TalkBack nothing. Deliberately generic: it serves films and series alike. -->
+    <string name="download">Download</string>
     <string name="speed_default">1.0x</string>
     <string name="sleep_timer_button">Sleep</string>
     <string name="diag">Diag</string>
@@ -237,6 +240,15 @@
     <string name="episode_mark_unwatched">Mark episode as unwatched</string>
     <string name="season_mark_watched">Mark season as watched</string>
     <string name="season_mark_unwatched">Mark season as unwatched</string>
+
+    <!-- Glyph-only toggle buttons (★/☆ stars, ✕) - contentDescriptions the adapters swap
+         per bind so TalkBack announces what a press would now do. Default values only;
+         no close matches existed for these. -->
+    <string name="pin_category">Pin category</string>
+    <string name="unpin_category">Unpin category</string>
+    <string name="favourite">Favourite</string>
+    <string name="unfavourite">Unfavourite</string>
+    <string name="hide_shelf">Hide shelf</string>
 
     <!-- dialog_search.xml - search overlay -->
     <string name="search_overlay_hint">Search live TV, films &amp; series…</string>

@@ -466,34 +466,39 @@ class XtreamClient(private val client: OkHttpClient) {
                 .header("User-Agent", "Lumora/1.0")
                 .header("Accept", "application/json, text/plain, */*")
                 .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                lastFetchError = "Server returned HTTP ${response.code}"
-                Log.w(TAG, "HTTP ${response.code} for $url")
-                return null
-            }
-            val body = response.body?.string() ?: return null
-            if (body.isBlank()) {
-                lastFetchError = "Server returned an empty response"
-                Log.w(TAG, "Empty response body")
-                return null
-            }
-            // Xtream's get_live_streams/get_vod_streams/get_series return a bare JSON array
-            // at the root on most panels - large ones can be tens of MB of channels. Peeking
-            // the first non-whitespace char picks the right parser up front: JSONObject(body)
-            // on array text doesn't fail cheaply, it fully parses the array and THEN throws,
-            // with org.json's mismatch message serializing that whole parsed array back to a
-            // string just to describe the error - an OOM-sized allocation nobody ever reads.
-            val firstToken = body.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 }?.let { body[it] }
-            return try {
-                if (firstToken == '[') {
-                    JSONObject().apply { put("items", JSONArray(body)) }
-                } else {
-                    JSONObject(body)
+            // use{}, because the early returns below left the response unread and unclosed -
+            // a leaked connection that never returns to the pool. Repeated 401/403 polls (a
+            // stale/expired provider polled every guide refresh) starved the pool into fresh
+            // TCP+TLS handshakes - same fix as JellyfinProvider.fetchItems/PlexProvider.getJson.
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    lastFetchError = "Server returned HTTP ${response.code}"
+                    Log.w(TAG, "HTTP ${response.code} for $url")
+                    return@use null
                 }
-            } catch (e: JSONException) {
-                Log.w(TAG, "Invalid JSON response: ${body.take(200)}")
-                null
+                val body = response.body?.string() ?: return@use null
+                if (body.isBlank()) {
+                    lastFetchError = "Server returned an empty response"
+                    Log.w(TAG, "Empty response body")
+                    return@use null
+                }
+                // Xtream's get_live_streams/get_vod_streams/get_series return a bare JSON array
+                // at the root on most panels - large ones can be tens of MB of channels. Peeking
+                // the first non-whitespace char picks the right parser up front: JSONObject(body)
+                // on array text doesn't fail cheaply, it fully parses the array and THEN throws,
+                // with org.json's mismatch message serializing that whole parsed array back to a
+                // string just to describe the error - an OOM-sized allocation nobody ever reads.
+                val firstToken = body.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 }?.let { body[it] }
+                try {
+                    if (firstToken == '[') {
+                        JSONObject().apply { put("items", JSONArray(body)) }
+                    } else {
+                        JSONObject(body)
+                    }
+                } catch (e: JSONException) {
+                    Log.w(TAG, "Invalid JSON response: ${body.take(200)}")
+                    null
+                }
             }
         } catch (e: Exception) {
             lastFetchError = e.message ?: e.javaClass.simpleName

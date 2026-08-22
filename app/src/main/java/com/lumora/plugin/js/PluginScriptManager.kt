@@ -2,6 +2,7 @@ package com.lumora.plugin.js
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.lumora.BaseApplication
 import com.lumora.R
 import java.io.File
 
@@ -17,7 +18,10 @@ import java.io.File
 class PluginScriptManager(
     private val context: Context,
     private val prefs: SharedPreferences,
-    private val engine: JsPluginEngine = JsPluginEngine(),
+    // Explicit shared client (same as JsPluginEngine's own default) so this engine never
+    // falls back to a private connection pool. Managers are built after Application.onCreate,
+    // so BaseApplication.instance is set by then.
+    private val engine: JsPluginEngine = JsPluginEngine(BaseApplication.instance.okHttpClient),
 ) {
     private var scripts: List<PluginScript> = emptyList()
 

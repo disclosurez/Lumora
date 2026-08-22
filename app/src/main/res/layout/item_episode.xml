@@ -159,6 +159,8 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Focusable is NOT set here: EpisodeAdapter.bind drives it from the enabled state -
+         a disabled button (episode already downloaded) must stay out of the D-pad chain. -->
     <ImageButton
         android:id="@+id/episodeDownloadButton"
         android:layout_width="40dp"
@@ -167,7 +169,6 @@
         android:background="@drawable/bg_toolbar_button"
         android:clickable="true"
         android:contentDescription="@string/episode_download"
-        android:focusable="true"
         android:padding="9dp"
         android:src="@android:drawable/stat_sys_download"
         android:stateListAnimator="@animator/focus_scale"

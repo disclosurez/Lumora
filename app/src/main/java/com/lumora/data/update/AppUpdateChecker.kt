@@ -2,9 +2,8 @@ package com.lumora.data.update
 
 import android.content.Context
 import android.util.Log
-import okhttp3.OkHttpClient
+import com.lumora.BaseApplication
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
 
 /**
  * Checks for app updates via GitHub Releases API.
@@ -14,10 +13,6 @@ class AppUpdateChecker(private val context: Context) {
 
     private val TAG = "AppUpdate"
     private val GITHUB_REPO = "disclosurez/Lumora"
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
 
     data class UpdateInfo(
         val latestVersion: String,
@@ -38,44 +33,49 @@ class AppUpdateChecker(private val context: Context) {
                 .header("User-Agent", "Lumora/2.0")
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Log.w(TAG, "GitHub API: HTTP ${response.code}")
-                return null
-            }
+            // The app-wide client (this class is constructed per check, so a private one
+            // built a fresh connection pool each time), and use{} because the non-2xx early
+            // return below used to leak the response - a connection never returned to the
+            // pool (same pattern as JellyfinProvider.fetchItems).
+            BaseApplication.instance.okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "GitHub API: HTTP ${response.code}")
+                    return@use null
+                }
 
-            val body = response.body?.string() ?: return null
-            val json = org.json.JSONObject(body)
+                val body = response.body?.string() ?: return@use null
+                val json = org.json.JSONObject(body)
 
-            val latestTag = json.optString("tag_name", "")?.removePrefix("v")
-            val releaseNotes = json.optString("body", "")
-            val assets = json.optJSONArray("assets")
+                val latestTag = json.optString("tag_name", "")?.removePrefix("v")
+                val releaseNotes = json.optString("body", "")
+                val assets = json.optJSONArray("assets")
 
-            var downloadUrl = ""
-            if (assets != null) {
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.optString("name", "")
-                    if (name.endsWith(".apk")) {
-                        downloadUrl = asset.optString("browser_download_url", "")
-                        break
+                var downloadUrl = ""
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        val name = asset.optString("name", "")
+                        if (name.endsWith(".apk")) {
+                            downloadUrl = asset.optString("browser_download_url", "")
+                            break
+                        }
                     }
                 }
+
+                val currentVersion = try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
+                } catch (e: Exception) { "1.0" }
+
+                val isUpdate = latestTag != null && isNewerVersion(latestTag, currentVersion)
+
+                UpdateInfo(
+                    latestVersion = latestTag ?: currentVersion,
+                    currentVersion = currentVersion,
+                    downloadUrl = downloadUrl,
+                    releaseNotes = releaseNotes.take(500),
+                    isUpdateAvailable = isUpdate
+                )
             }
-
-            val currentVersion = try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
-            } catch (e: Exception) { "1.0" }
-
-            val isUpdate = latestTag != null && isNewerVersion(latestTag, currentVersion)
-
-            UpdateInfo(
-                latestVersion = latestTag ?: currentVersion,
-                currentVersion = currentVersion,
-                downloadUrl = downloadUrl,
-                releaseNotes = releaseNotes.take(500),
-                isUpdateAvailable = isUpdate
-            )
         } catch (e: Exception) {
             Log.w(TAG, "Update check failed: ${e.message}")
             null

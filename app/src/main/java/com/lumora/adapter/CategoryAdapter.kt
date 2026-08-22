@@ -175,6 +175,11 @@ class CategoryAdapter(
             star.setTextColor(
                 star.context.getColor(if (category.pinned) R.color.text_primary else R.color.text_secondary)
             )
+            // Glyph alone gives TalkBack nothing - announce what a press would now do
+            // (same per-bind swap as EpisodeAdapter's check button).
+            star.contentDescription = star.context.getString(
+                if (category.pinned) R.string.unpin_category else R.string.pin_category
+            )
             updateStarVisibility()
         }
 

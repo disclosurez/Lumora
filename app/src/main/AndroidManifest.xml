@@ -121,6 +121,9 @@
         <receiver android:name=".reminder.ReminderBootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Its code branches on MY_PACKAGE_REPLACED; unregistered, app updates never
+                     re-armed reminders. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

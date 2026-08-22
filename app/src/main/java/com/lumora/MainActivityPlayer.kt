@@ -1695,6 +1695,10 @@ internal fun MainActivity.beginStreamAttempt() {
     // one goes on to play fine.
     externalPlayerDialog?.dismiss()
     externalPlayerDialog = null
+    // Same rule: a resume prompt left over from the attempt that just ended must not
+    // survive into the one starting now - its answers would seek a stream being replaced.
+    resumePromptDialog?.dismiss()
+    resumePromptDialog = null
 }
 
 // ── Black-frame auto-failover ──────────────────
@@ -1846,11 +1850,21 @@ internal fun MainActivity.maybeShowResumePrompt() {
     if (saved.isNearComplete || saved.positionMs < 5000) return
 
     playerManager.pause()
-    AlertDialog.Builder(this)
+    // Stored so hidePlayer()/beginStreamAttempt() can take it down with the playback it
+    // belongs to - non-cancelable, an abandoned one owned the window and swallowed Back.
+    resumePromptDialog = AlertDialog.Builder(this)
         .setTitle(getString(R.string.play_resume_playback_title))
         .setMessage(getString(R.string.play_resume_message, formatTime(saved.positionMs)))
-        .setPositiveButton(getString(R.string.play_resume)) { _, _ -> playerManager.seekTo(saved.positionMs); playerManager.play() }
-        .setNegativeButton(getString(R.string.play_start_over)) { _, _ -> playerManager.seekTo(0); playerManager.play() }
+        .setPositiveButton(getString(R.string.play_resume)) { _, _ ->
+            // The player can have been hidden while this sat up (Back, a new stream) -
+            // answering then would start invisible audio-only playback behind Home.
+            if (!isPlayerVisible) return@setPositiveButton
+            playerManager.seekTo(saved.positionMs); playerManager.play()
+        }
+        .setNegativeButton(getString(R.string.play_start_over)) { _, _ ->
+            if (!isPlayerVisible) return@setNegativeButton
+            playerManager.seekTo(0); playerManager.play()
+        }
         .setCancelable(false)
         .show()
 }
@@ -1931,6 +1945,10 @@ internal fun MainActivity.hidePlayer() {
     mainHandler.removeCallbacks(blackFrameCheckRunnable)
     mainHandler.removeCallbacks(vodQualityCheckRunnable)
     mainHandler.removeCallbacks(upNextTickRunnable)
+    // A "Resume playback?" prompt left up from the stream just closing is non-cancelable -
+    // it would own the window (Back dead) and either answer would seek a stream that's gone.
+    resumePromptDialog?.dismiss()
+    resumePromptDialog = null
     playerManager.stop()
     sleepTimer.stop()
     // A plugin-served stream (Find Stream) keeps a torrent + local server alive for as long

@@ -254,6 +254,11 @@ class LiveGuideAdapter(
             favStar.setTextColor(
                 favStar.context.getColor(if (fav) R.color.text_primary else R.color.text_secondary)
             )
+            // Glyph alone gives TalkBack nothing - announce what a press would now do
+            // (same per-bind swap as EpisodeAdapter's check button).
+            favStar.contentDescription = favStar.context.getString(
+                if (fav) R.string.unfavourite else R.string.favourite
+            )
 
             val initial = channel.name.firstOrNull()?.uppercase() ?: "?"
             initialText.text = initial
@@ -427,7 +432,10 @@ class LiveGuideAdapter(
             // (EPG gap), the first upcoming program.
             val next = if (currentIndex >= 0) programs.getOrNull(currentIndex + 1)
             else programs.firstOrNull { it.startTimestamp > nowSeconds }
-            val focused = channelInfo.isFocused
+            // The fav star is a second focus target in the channel column (see its
+            // OnFocusChangeListener) - focusing it must expand the now/next line exactly
+            // like focusing the channel column does, not read as "left the channel".
+            val focused = channelInfo.isFocused || favStar.isFocused
             val context = itemView.context
             nowText.text = when {
                 focused && current != null && next != null ->

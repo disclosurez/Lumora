@@ -31,9 +31,17 @@ class BackupManager(private val context: Context) {
     private val TAG = "BackupManager"
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
     private     companion object {
+        // Deliberately not bumped for the fields this change adds: they are additive and
+        // Gson-tolerant in both directions. An old build reading a new backup drops the
+        // unknown fields; a new build reading an old backup sees them absent, which Gson
+        // surfaces as null - normalised back to "leave existing data alone" by
+        // restoreBackupData rather than crashing.
         const val BACKUP_VERSION = 1
     }
 
+    // The list fields are nullable on purpose: gson.fromJson leaves them null when the JSON
+    // array is missing outright (backups written before a field existed), Kotlin defaults
+    // notwithstanding. Null means "absent" to the restore path - see restoreBackupData.
     data class BackupData(
         val version: Int = BACKUP_VERSION,
         val createdAt: String = "",
@@ -41,20 +49,20 @@ class BackupManager(private val context: Context) {
         // Legacy field: the Room `providers` table was never written by anything except the
         // old export path, so real backups always carried an empty list. Kept for format
         // stability; the live configs live in iptvProviders/mediaServers below.
-        val providers: List<ProviderBackup> = emptyList(),
-        val iptvProviders: List<IptvProviderBackup> = emptyList(),
-        val mediaServers: List<MediaServerBackup> = emptyList(),
-        val epgSources: List<EpgSourceBackup> = emptyList(),
-        val customGroups: List<CustomGroupBackup> = emptyList(),
+        val providers: List<ProviderBackup>? = emptyList(),
+        val iptvProviders: List<IptvProviderBackup>? = emptyList(),
+        val mediaServers: List<MediaServerBackup>? = emptyList(),
+        val epgSources: List<EpgSourceBackup>? = emptyList(),
+        val customGroups: List<CustomGroupBackup>? = emptyList(),
         // Legacy field, always empty in practice (the old export hardcoded it). Favorites are
         // carried in favoriteSeries/favoriteChannels so restore knows which set each id
         // belongs to.
-        val favorites: List<String> = emptyList(),
-        val favoriteSeries: List<String> = emptyList(),
-        val favoriteChannels: List<String> = emptyList(),
-        val watchHistory: List<WatchHistoryBackup> = emptyList(),
+        val favorites: List<String>? = emptyList(),
+        val favoriteSeries: List<String>? = emptyList(),
+        val favoriteChannels: List<String>? = emptyList(),
+        val watchHistory: List<WatchHistoryBackup>? = emptyList(),
         val recordingStorage: RecordingStorageBackup? = null,
-        val recordingSchedules: List<RecordingScheduleBackup> = emptyList(),
+        val recordingSchedules: List<RecordingScheduleBackup>? = emptyList(),
         val checksum: String = ""
     )
 
@@ -84,9 +92,14 @@ class BackupManager(private val context: Context) {
         val liveEnabled: Boolean, val moviesEnabled: Boolean, val seriesEnabled: Boolean
     )
 
+    // refreshIntervalHours is nullable so a backup written before the field existed imports
+    // as "absent" rather than as Gson's raw 0 - a 0-hour interval would make the EPG worker
+    // treat every source as perpetually due. Restore substitutes the entity's default.
     data class EpgSourceBackup(
         val id: String, val name: String, val url: String,
-        val enabled: Boolean, val priority: Int
+        val enabled: Boolean, val priority: Int,
+        val userAgent: String? = null,
+        val refreshIntervalHours: Int? = null
     )
 
     data class CustomGroupBackup(
@@ -127,7 +140,11 @@ class BackupManager(private val context: Context) {
         val customGroupsImported: Int = 0,
         val watchHistoryImported: Int = 0,
         val recordingSchedulesImported: Int = 0,
-        val conflicts: Int = 0
+        val conflicts: Int = 0,
+        // Set when the import failed outright (unreadable file, checksum mismatch, restore
+        // error) so callers can tell "imported nothing because there was nothing to import"
+        // apart from "imported nothing because it went wrong". Null on success.
+        val errorMessage: String? = null
     )
 
     /**
@@ -172,7 +189,7 @@ class BackupManager(private val context: Context) {
         try {
             val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).readText()
-            } ?: return@withContext ImportResult()
+            } ?: return@withContext ImportResult(errorMessage = "Could not open backup file")
 
             val data = gson.fromJson(json, BackupData::class.java)
 
@@ -181,7 +198,9 @@ class BackupManager(private val context: Context) {
                 val expectedChecksum = md5(gson.toJson(data.copy(checksum = "")))
                 if (data.checksum != expectedChecksum) {
                     Log.e(TAG, "Backup checksum mismatch - rejecting import")
-                    return@withContext ImportResult()
+                    return@withContext ImportResult(
+                        errorMessage = "Checksum mismatch - backup is corrupt or was modified"
+                    )
                 }
             }
 
@@ -201,7 +220,9 @@ class BackupManager(private val context: Context) {
             result
         } catch (e: Exception) {
             Log.e(TAG, "Import failed: ${e.message}")
-            ImportResult()
+            // Surface the failure instead of returning a zeroed result that read as a
+            // successful-but-empty import.
+            ImportResult(errorMessage = e.message ?: e.javaClass.simpleName)
         }
     }
 
@@ -233,7 +254,9 @@ class BackupManager(private val context: Context) {
         val prefs = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
         val epgSources = db.epgSourceDao().getAll()
         val customGroups = db.customGroupDao().getAll()
-        val watchHistory = db.watchHistoryDao().getRecent()
+        // getAll, not getRecent: the LIMIT 50 read truncated every backup to the 50 most
+        // recent entries and the rest was unrecoverable once the user cleared the app.
+        val watchHistory = db.watchHistoryDao().getAll()
         val recordingStorage = db.recordingDao().getStorageConfig()
         val recordings = db.recordingDao().getAll()
 
@@ -252,7 +275,9 @@ class BackupManager(private val context: Context) {
             mediaServers = MediaServerStore.load(prefs).map { it.toBackup() },
             epgSources = epgSources.map { EpgSourceBackup(
                 id = it.id, name = it.name, url = it.url,
-                enabled = it.enabled, priority = it.priority
+                enabled = it.enabled, priority = it.priority,
+                userAgent = it.userAgent,
+                refreshIntervalHours = it.refreshIntervalHours
             )},
             customGroups = customGroups.map { group ->
                 val members = db.customGroupDao().getMembers(group.id)
@@ -290,41 +315,59 @@ class BackupManager(private val context: Context) {
     private suspend fun restoreBackupData(data: BackupData): ImportResult {
         val db = LumoraDatabase.getInstance(context)
         val prefs = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+        // gson.fromJson answers null for every array that is absent from the file - backups
+        // written before a field existed, so Kotlin's emptyList defaults never apply. Null
+        // means "absent": per the contract below, an absent list leaves what the device
+        // holds untouched, which is exactly what these normalised empties do. Normalising
+        // once here also stops a mid-restore NPE from being swallowed by importFrom's catch
+        // and reported as a silently zeroed result.
+        val iptvProviders = data.iptvProviders.orEmpty()
+        val mediaServers = data.mediaServers.orEmpty()
+        val favoriteSeries = data.favoriteSeries.orEmpty()
+        val favoriteChannels = data.favoriteChannels.orEmpty()
+        val epgSources = data.epgSources.orEmpty()
+        val customGroups = data.customGroups.orEmpty()
+        val watchHistory = data.watchHistory.orEmpty()
+        val recordingSchedules = data.recordingSchedules.orEmpty()
         var result = ImportResult()
 
         // Restore IPTV provider configs. The backup is a snapshot of the whole list, so a
         // present list replaces the current one outright (no merge); an absent list (old
         // backup format) leaves existing configs untouched.
-        if (data.iptvProviders.isNotEmpty()) {
-            IptvProviderStore.save(prefs, data.iptvProviders.map { it.toConfig() })
+        if (iptvProviders.isNotEmpty()) {
+            IptvProviderStore.save(prefs, iptvProviders.map { it.toConfig() })
         }
 
         // Restore Jellyfin/Plex sessions the same way - replace when present, leave alone
         // when the backup predates this field.
-        if (data.mediaServers.isNotEmpty()) {
-            MediaServerStore.save(prefs, data.mediaServers.map { it.toConfig() })
+        if (mediaServers.isNotEmpty()) {
+            MediaServerStore.save(prefs, mediaServers.map { it.toConfig() })
         }
 
         // Restore favourites, replacing both sets outright.
-        if (data.favoriteSeries.isNotEmpty() || data.favoriteChannels.isNotEmpty()) {
-            FavoritesStore.replaceAll(context, data.favoriteSeries.toSet(), data.favoriteChannels.toSet())
+        if (favoriteSeries.isNotEmpty() || favoriteChannels.isNotEmpty()) {
+            FavoritesStore.replaceAll(context, favoriteSeries.toSet(), favoriteChannels.toSet())
         }
 
-        result = result.copy(providersImported = data.iptvProviders.size + data.mediaServers.size)
+        result = result.copy(providersImported = iptvProviders.size + mediaServers.size)
 
         // Restore EPG sources
-        for (e in data.epgSources) {
+        for (e in epgSources) {
             db.epgSourceDao().insert(
                 EpgSourceEntity(
                     id = e.id, name = e.name, url = e.url,
-                    enabled = e.enabled, priority = e.priority
+                    enabled = e.enabled, priority = e.priority,
+                    userAgent = e.userAgent,
+                    // Absent on old backups (null) -> keep the entity default rather than
+                    // writing a 0-hour interval.
+                    refreshIntervalHours = e.refreshIntervalHours ?: 24
                 )
             )
             result = result.copy(epgSourcesImported = result.epgSourcesImported + 1)
         }
 
         // Restore custom groups
-        for (g in data.customGroups) {
+        for (g in customGroups) {
             db.customGroupDao().insert(
                 CustomGroupEntity(
                     id = g.id, name = g.name,
@@ -348,7 +391,7 @@ class BackupManager(private val context: Context) {
         // entries for one channel stay distinct (the old "backup_<channelId>" key collapsed
         // them via REPLACE) and firstWatchedAt survives. Old backups without an id fall back
         // to a per-entry key derived from lastWatchedAt, which is still unique per entry.
-        for (h in data.watchHistory) {
+        for (h in watchHistory) {
             db.watchHistoryDao().insert(
                 WatchHistoryEntity(
                     id = h.id ?: "backup_${h.channelId}_${h.lastWatchedAt}",
@@ -365,7 +408,7 @@ class BackupManager(private val context: Context) {
         // Restore recording schedules. The original row id is carried so re-importing the
         // same backup REPLACEs the schedule instead of inserting a fresh UUID and
         // duplicating it. Old backups without an id get a fresh UUID as before.
-        for (r in data.recordingSchedules) {
+        for (r in recordingSchedules) {
             db.recordingDao().insert(
                 RecordingEntity(
                     id = r.id ?: UUID.randomUUID().toString(),
@@ -376,6 +419,20 @@ class BackupManager(private val context: Context) {
                 )
             )
             result = result.copy(recordingSchedulesImported = result.recordingSchedulesImported + 1)
+        }
+
+        // Restore the recording-storage settings row - exported but never written back until
+        // now. It is read at export time from RecordingDao.getStorageConfig(); that DAO has
+        // no write method and the dao file is outside this change's scope, so the row goes
+        // back through Room's SQLite handle directly. Only the three portable fields are
+        // restored: localPath/safTreeUri are device-specific (an absolute path or SAF tree
+        // grant cannot survive a reinstall) and were not exported either.
+        data.recordingStorage?.let { s ->
+            db.openHelper.writableDatabase.execSQL(
+                "INSERT OR REPLACE INTO recording_storage " +
+                    "(id, maxSimultaneous, retentionDays, fileNamePattern) VALUES (?,?,?,?)",
+                arrayOf("default", s.maxSimultaneous, s.retentionDays, s.fileNamePattern)
+            )
         }
 
         return result

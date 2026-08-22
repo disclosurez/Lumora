@@ -10,28 +10,40 @@ import java.util.concurrent.TimeUnit
 private val ISO_DATE_PREFIX = Regex("""^(\d{4})-(\d{2})-(\d{2})""")
 
 /**
- * Whole days from today to the ISO date leading [raw]: 0 is today, 1 tomorrow, negative is
+ * Whole days from [now] to the ISO date leading [raw]: 0 is today, 1 tomorrow, negative is
  * already past. Null when the field states no parseable date.
  *
- * Both ends are normalised to local midnight before subtracting, so the answer is a count of
- * calendar days rather than of 24-hour periods - an episode airing later today is "0", not "1"
- * because the clock has not passed its hour yet.
+ * The answer is a count of calendar days, not of 24-hour periods - an episode airing later
+ * today is "0" because the clock has not passed its hour yet. Both ends are normalised to
+ * their own zone-local midnight and the millisecond gap rounded to whole days, so it is
+ * immune to DST: subtracting raw millis and dividing-truncating lost a whole day across a
+ * spring-forward (US 2026-03-07 -> 03-14 computed 6, and "tomorrow" on transition night
+ * computed 0).
+ *
+ * [now] exists for tests; callers omit it and get the current instant.
  */
-fun daysUntilAirDate(raw: String?): Int? {
+fun daysUntilAirDate(raw: String?, now: Calendar = Calendar.getInstance()): Int? {
     val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val (year, month, day) = (ISO_DATE_PREFIX.find(value) ?: return null).destructured
-    val air = Calendar.getInstance().apply {
+    // Built in [now]'s zone so both halves share one local calendar - the difference is only
+    // meaningful when the dates are days of the same zone.
+    val air = Calendar.getInstance(now.timeZone).apply {
         clear()
         set(year.toInt(), month.toInt() - 1, day.toInt())
     }
-    val today = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    return TimeUnit.MILLISECONDS.toDays(air.timeInMillis - today.timeInMillis).toInt()
+    // Round rather than truncate: across a transition the two midnights are 23 or 25 hours
+    // apart, and rounding to nearest is what puts that back on the true calendar-day count.
+    val dayMillis = TimeUnit.DAYS.toMillis(1)
+    return Math.round((localMidnight(air) - localMidnight(now)).toDouble() / dayMillis).toInt()
 }
+
+/** Millis at this calendar's own zone-local midnight - strips hours/minutes/seconds. */
+private fun localMidnight(c: Calendar): Long = (c.clone() as Calendar).apply {
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
 
 /**
  * True when an episode row is a title that has not aired yet and that nothing can play.

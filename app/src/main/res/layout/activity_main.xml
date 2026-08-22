@@ -1609,6 +1609,7 @@
                             android:layout_marginStart="10dp"
                             android:background="@drawable/bg_toolbar_button"
                             android:clickable="true"
+                            android:contentDescription="@string/download"
                             android:focusable="true"
                             android:gravity="center"
                             android:stateListAnimator="@animator/focus_scale"

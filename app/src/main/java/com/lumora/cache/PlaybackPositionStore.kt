@@ -132,6 +132,12 @@ object PlaybackPositionStore {
             .sortedByDescending { trailUpdated[it.categoryId] ?: 0L }
     }
 
+    // @Synchronized like WatchedStore's identical guard: callers race here from the main
+    // thread and Dispatchers.Default (seriesContinueItems), and the unsynchronised
+    // check-then-act let two workers both see a null cache and both run the file load - the
+    // loser's assignment could then clobber entries saved by the winner in between. Safe
+    // against deadlock: this is the only monitor the method ever takes.
+    @Synchronized
     private fun ensureLoaded(context: Context): MutableMap<String, PlaybackPosition> {
         cache?.let { return it }
         // Cancel any pending flush so we don't overwrite the freshly loaded data with stale

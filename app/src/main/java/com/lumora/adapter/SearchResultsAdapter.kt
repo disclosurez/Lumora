@@ -203,11 +203,10 @@ class SearchResultsAdapter(
             }
 
             val url = channel.posterUrl ?: channel.logoUrl
-            posterImage.setImageDrawable(null)
-            if (url.isNullOrBlank()) {
-                posterImage.setImageResource(R.drawable.ic_launcher_foreground)
-                return
-            }
+            // Placeholder before the async fetch: a loading tile isn't blank, and a failed
+            // fetch keeps it instead of leaving an empty cell forever.
+            posterImage.setImageResource(R.drawable.ic_launcher_foreground)
+            if (url.isNullOrBlank()) return
             PosterLoader.getCached(url)?.let { posterImage.setImageBitmap(it); return }
             scope.launch {
                 val bitmap = PosterLoader.fetch(url)
@@ -232,11 +231,10 @@ class SearchResultsAdapter(
             titleText.text = result.programTitle
             metaText.text = result.metaLine
             val url = result.channel.posterUrl ?: result.channel.logoUrl
-            posterImage.setImageDrawable(null)
-            if (url.isNullOrBlank()) {
-                posterImage.setImageResource(R.drawable.ic_launcher_foreground)
-                return
-            }
+            // Placeholder before the async fetch: a loading tile isn't blank, and a failed
+            // fetch keeps it instead of leaving an empty cell forever.
+            posterImage.setImageResource(R.drawable.ic_launcher_foreground)
+            if (url.isNullOrBlank()) return
             PosterLoader.getCached(url)?.let { posterImage.setImageBitmap(it); return }
             scope.launch {
                 val bitmap = PosterLoader.fetch(url)

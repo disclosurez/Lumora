@@ -116,6 +116,7 @@ internal fun MainActivity.showTrailerForDiscoverItem(item: Channel) {
  *  by title/year search since provider/Jellyfin content carries no TMDB id of its own. */
 internal fun MainActivity.wireTrailerButton(item: Channel) {
     val button = binding.detailTrailerButton
+    val requestedItemId = item.id
     button.visibility = View.GONE
     button.setOnClickListener(null)
     if (!tmdbClient.hasKey()) {
@@ -143,6 +144,10 @@ internal fun MainActivity.wireTrailerButton(item: Channel) {
             val key = tmdbClient.trailerKey(type, id)
             android.util.Log.d("TrailerPlayer", "wireTrailerButton('${item.name}'): trailerKey=$key")
             if (key == null) return@launch
+            // The lookup spans two network calls - the user can have moved to another title
+            // while they ran. Showing then would attach this title's trailer to theirs
+            // (same staleness rule enrichDetailsFromTmdb applies).
+            if (nowShowingDetailId != requestedItemId) return@launch
             button.visibility = View.VISIBLE
             button.setOnClickListener { showTrailerPlayer(key) }
         } catch (e: Exception) {
@@ -381,7 +386,12 @@ internal fun MainActivity.showStreamSearchDialog(
     val dialog = AlertDialog.Builder(this)
         .setTitle(getString(R.string.plug_find_stream_title, item.name, epTag))
         .setView(container)
-        .setNegativeButton(getString(R.string.cancel), null)
+        // Cancel must actually cancel: a plain (dialog, null) listener only dismisses, so
+        // the cleanup in setOnCancelListener below never ran and a torrent resolve kept
+        // running unattended. Routed through cancel() rather than moving that cleanup into
+        // an on-dismiss listener - the success path dismisses this dialog while its torrent
+        // has to stay alive for playback (see hidePlayer).
+        .setNegativeButton(getString(R.string.cancel)) { d, _ -> d.cancel() }
         .create()
 
     val source = pluginScriptManager.readSource(plugin)

@@ -593,14 +593,20 @@ internal fun MainActivity.showSeriesEpisodePicker(
 ) {
     val tvId = item.id.substringAfterLast(':').toIntOrNull()
     if (tvId == null) { onPick(null, null); return }
+    // Set by the loading dialog's Cancel. The fetch keeps running either way, so the
+    // result below must check this rather than popping the season chooser nobody asked for.
+    var cancelled = false
     val loading = AlertDialog.Builder(this)
         .setTitle(item.name)
         .setMessage(getString(R.string.plug_loading_episodes))
-        .setNegativeButton(getString(R.string.cancel), null)
+        .setNegativeButton(getString(R.string.cancel)) { _, _ -> cancelled = true }
         .create()
     loading.show()
     scope.launch {
         val seasons = tmdbClient.tvSeasons(tvId)
+        // Cancel (button or Back) only removed the loading dialog - without this bail-out
+        // the season chooser still appeared seconds later, floating over nothing.
+        if (cancelled || !loading.isShowing) return@launch
         loading.dismiss()
         if (seasons.isEmpty()) {
             // No season data - fall back to searching the title as a whole.

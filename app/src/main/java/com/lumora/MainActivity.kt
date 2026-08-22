@@ -675,6 +675,12 @@ class MainActivity : AppCompatActivity() {
      *  dialog still telling the user it couldn't. */
     internal var externalPlayerDialog: AlertDialog? = null
     internal var resumePromptShown = false
+    /** The "Resume playback?" prompt [resumePromptShown] produced, while it's showing.
+     *  It's non-cancelable, so once up it owns the window: Back gets swallowed and its two
+     *  answers keep seeking a stream that is no longer on screen. Dismissed by
+     *  hidePlayer() and beginStreamAttempt() so it can't outlive the playback it asked
+     *  about - same lifecycle rule as [externalPlayerDialog] above. */
+    internal var resumePromptDialog: AlertDialog? = null
     /** Set right before an auto-advanced episode starts so its STATE_READY does not throw a
      *  "Resume playback?" dialog at the top of a brand-new episode; consumed and cleared in
      *  maybeShowResumePrompt, and cleared again by every user-initiated play entry point so a
@@ -1378,6 +1384,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Keyed by View, nothing ever removed entries - drop it so this Activity's
+        // view hierarchies aren't pinned forever (see clearContentBasePaddingCache).
+        clearContentBasePaddingCache()
         scope.cancel()
         mainHandler.removeCallbacksAndMessages(null)
         qrManager.stop()
@@ -1656,7 +1665,10 @@ class MainActivity : AppCompatActivity() {
             }
             val typed = event.unicodeChar.takeIf { it != 0 }?.toChar()
             if (typed != null && !Character.isISOControl(typed)) {
-                onSearchKey(typed.uppercase())
+                // Appended as-is: unicodeChar already reflects shift/caps state - forcing
+                // .uppercase() here made physical keyboards type all-caps queries only,
+                // which the recent-search chips then stored verbatim.
+                onSearchKey(typed.toString())
                 return true
             }
         }
@@ -2028,6 +2040,11 @@ class MainActivity : AppCompatActivity() {
         private val initialFocus: (() -> View?)? = null
     ) {
         private var dismissListener: (() -> Unit)? = null
+        // Late async completions (a Jellyfin Quick Connect sign-in can land up to 120s, Plex
+        // up to 180s, after the user left Settings) call dismiss() on an already-removed
+        // overlay - without this latch the already-consumed listener fired a second time,
+        // yanking navigation somewhere the user hadn't asked to go.
+        private var dismissed = false
 
         init {
             closeButton.setOnClickListener { dismiss() }
@@ -2061,6 +2078,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun dismiss() {
+            if (dismissed) return
+            dismissed = true
             if (view.parent === container) container.removeView(view)
             container.visibility = View.GONE
             dismissListener?.invoke()

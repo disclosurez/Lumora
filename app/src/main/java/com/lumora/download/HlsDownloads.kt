@@ -142,6 +142,9 @@ object HlsDownloads {
             ),
         ).apply {
             maxParallelDownloads = MAX_PARALLEL_DOWNLOADS
+            // DownloadManager starts paused; resume at creation so downloads interrupted by
+            // process death don't sit QUEUED/DOWNLOADING forever until some new enqueue.
+            resumeDownloads()
             managerInstance = this
         }
     }

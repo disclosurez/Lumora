@@ -621,6 +621,10 @@ internal fun MainActivity.showProviderSettings() {
      *  follows it on the UI thread. */
     var pendingPlexPin: PlexProvider.PinLogin? = null
     var serverRunning = false
+    // Countdown ticker for the QR session currently showing. Held so a restart (provider
+    // type switched mid-pairing) can cancel the old ticker - left running it kept counting
+    // its old deadline against the new session and stopped the fresh QR early.
+    var qrTickerJob: Job? = null
     // One form shared by every provider type, incl. Jellyfin - it used to be a
     // separate always-visible section, but that meant asking for its server/user/pass
     // even when someone only wanted IPTV. Now it's just another type card, and only
@@ -717,6 +721,10 @@ internal fun MainActivity.showProviderSettings() {
     fun startQrServer(type: String) {
         if (serverRunning) return
         serverRunning = true
+        // Any ticker still counting down a previous session belongs to a QR that is no
+        // longer on screen - kill it before this session's own ticker starts.
+        qrTickerJob?.cancel()
+        qrTickerJob = null
         qrSection.visibility = View.VISIBLE
         qrFrame.visibility = View.GONE
         qrTimer.visibility = View.GONE
@@ -729,14 +737,20 @@ internal fun MainActivity.showProviderSettings() {
                 qrFrame.visibility = View.VISIBLE
                 qrTimer.visibility = View.VISIBLE
                 qrStatus.text = getString(R.string.sett_scan_qr)
-                launch {
-                    while (qrManager.result != null) {
+                // Loop on *this* result object's identity: a newer session replaces
+                // qrManager.result, so an old ticker that wakes up past the swap exits
+                // instead of expiring "early" and tearing the new session down.
+                qrTickerJob = launch {
+                    while (qrManager.result === result) {
                         val rem = (result.expiresAtMs - System.currentTimeMillis()) / 1000
                         if (rem <= 0) break
                         qrTimer.text = getString(R.string.sett_expires_in, rem / 60, rem % 60)
                         delay(1000)
                     }
-                    if (serverRunning) {
+                    // Expired while this session is still the live one (or the manager just
+                    // stopped it itself) - close it out as before. A superseded session's
+                    // ticker must not touch the newer session now showing.
+                    if (serverRunning && (qrManager.result === result || qrManager.result == null)) {
                         qrTimer.text = getString(R.string.sett_expired)
                         stopQrServer()
                     }

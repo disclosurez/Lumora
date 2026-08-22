@@ -61,7 +61,10 @@ class TorrentEngine(private val context: android.content.Context) {
         step("Starting libtorrent session")
         startSession()
 
-        val work = File(cacheDir, "torrent-stream").apply { deleteRecursively(); mkdirs() }
+        // Unique dir per engine: engines overlap briefly (the caller stops the old one async), and
+        // a shared dir meant the old stop() deleted the new engine's live files mid-session. No
+        // cleanup-on-start any more - leftovers sit under cacheDir for the OS to reclaim.
+        val work = File(cacheDir, "torrent-stream-${System.nanoTime()}").apply { mkdirs() }
         downloadDir = work
 
         // Append open trackers to the magnet string so `session.download` bakes them into the

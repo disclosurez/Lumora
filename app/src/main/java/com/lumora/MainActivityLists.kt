@@ -637,7 +637,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         item.categoryName?.takeIf { it.isNotBlank() }
     ).joinToString("  ·  ")
     itemsList.layoutManager = LinearLayoutManager(this)
-    loadDetailImage(item.posterUrl ?: item.logoUrl, backdrop)
+    loadDetailImage(item.posterUrl ?: item.logoUrl, backdrop, item.id)
     wireFindStreamButton(item)
     wireTrailerButton(item)
 
@@ -835,7 +835,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
             castText.visibility = View.VISIBLE
             castLabel.visibility = View.VISIBLE
         }
-        if (!details.backdropUrl.isNullOrBlank()) loadDetailImage(details.backdropUrl, backdrop)
+        if (!details.backdropUrl.isNullOrBlank()) loadDetailImage(details.backdropUrl, backdrop, item.id)
     }
 
     /**
@@ -1399,7 +1399,7 @@ internal fun MainActivity.restoreTabFocus() {
     target.post { target.requestFocus() }
 }
 
-internal fun MainActivity.loadDetailImage(url: String?, imageView: ImageView) {
+internal fun MainActivity.loadDetailImage(url: String?, imageView: ImageView, requestedItemId: String) {
     if (url.isNullOrBlank()) return
     scope.launch {
         val bitmap = withContext(Dispatchers.IO) {
@@ -1409,7 +1409,10 @@ internal fun MainActivity.loadDetailImage(url: String?, imageView: ImageView) {
                     .body?.byteStream()?.use { BitmapFactory.decodeStream(it) }
             }.getOrNull()
         }
-        if (bitmap != null) imageView.setImageBitmap(bitmap)
+        // Same staleness rule as every other async writer on this screen: the views are
+        // reused across titles, so a decode that lands after another title opened must
+        // not hang its artwork there.
+        if (bitmap != null && nowShowingDetailId == requestedItemId) imageView.setImageBitmap(bitmap)
     }
 }
 

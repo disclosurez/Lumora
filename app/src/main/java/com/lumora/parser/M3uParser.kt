@@ -174,7 +174,7 @@ object M3uParser {
                 }
             }
 
-            val commaIndex = extInf.lastIndexOf(',')
+            val commaIndex = titleSeparatorIndex(extInf)
             if (commaIndex >= 0) {
                 val rawName = extInf.substring(commaIndex + 1).trim()
                 if (rawName.isNotBlank()) name = rawName
@@ -206,5 +206,22 @@ object M3uParser {
             year = year,
             rating = rating
         )
+    }
+
+    /** Index of the comma separating the EXTINF attribute list from the display title: the
+     *  FIRST comma outside double quotes. Attribute values routinely contain commas
+     *  (group-title="Films, Drama"), so lastIndexOf(',') turned every title that has a comma
+     *  of its own into its tail ("Breaking Bad, Season 5" became "Season 5"); and the
+     *  separator can sit before a quote inside the title itself ("Best "Of" Show"), which
+     *  rules out scanning after the last quoted span instead. -1 when no such comma exists. */
+    private fun titleSeparatorIndex(extInf: String): Int {
+        var inQuotes = false
+        for ((index, c) in extInf.withIndex()) {
+            when (c) {
+                '"' -> inQuotes = !inQuotes
+                ',' -> if (!inQuotes) return index
+            }
+        }
+        return -1
     }
 }

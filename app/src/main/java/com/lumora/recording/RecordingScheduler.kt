@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.local.entity.RecordingEntity
@@ -46,11 +47,7 @@ class RecordingScheduler {
             )
 
             val startTimeMs = recording.startTimeUtc * 1000 - (recording.paddingBeforeMin * 60 * 1000L)
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                startTimeMs,
-                startPendingIntent
-            )
+            armWhileIdle(alarmManager, startTimeMs, startPendingIntent)
 
             // Stop alarm
             val stopIntent = Intent(context, RecordingAlarmReceiver::class.java).apply {
@@ -65,11 +62,19 @@ class RecordingScheduler {
             )
 
             val stopTimeMs = recording.stopTimeUtc * 1000 + (recording.paddingAfterMin * 60 * 1000L)
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                stopTimeMs,
-                stopPendingIntent
-            )
+            armWhileIdle(alarmManager, stopTimeMs, stopPendingIntent)
+        }
+
+        // Exact alarms throw SecurityException on API 31+ without SCHEDULE_EXACT_ALARM /
+        // USE_EXACT_ALARM; mirror ReminderScheduler.armAlarm() by falling back to an
+        // inexact-while-idle alarm when canScheduleExactAlarms() is false. Below API 31
+        // exact is always permitted.
+        private fun armWhileIdle(alarmManager: AlarmManager, triggerAtMs: Long, operation: PendingIntent) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, operation)
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, operation)
+            }
         }
 
         /**
@@ -109,8 +114,14 @@ class RecordingScheduler {
          */
         suspend fun rescheduleAll(context: Context) {
             val db = LumoraDatabase.getInstance(context)
-            val recordings = db.recordingDao().getScheduled()
-            recordings.forEach { schedule(context, it) }
+            // getScheduled() has no time filter and the DAO isn't touched here: read `now` once
+            // and skip rows whose recording window already ended - re-arming them fires stale
+            // alarms right after reboot, flipping finished entries through RECORDING to
+            // COMPLETED with fresh timestamps (same pruning idea as ReminderScheduler).
+            val nowSeconds = System.currentTimeMillis() / 1000
+            db.recordingDao().getScheduled()
+                .filter { it.stopTimeUtc > nowSeconds }
+                .forEach { schedule(context, it) }
         }
 
         /**

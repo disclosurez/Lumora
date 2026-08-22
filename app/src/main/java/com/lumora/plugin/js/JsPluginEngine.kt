@@ -10,6 +10,7 @@ import com.lumora.plugin.SearchResult
 import com.lumora.plugin.TorrentResult
 import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.QuickJSContext
+import com.lumora.BaseApplication
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
@@ -17,6 +18,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
+
+/** The app-wide client, resolved lazily: the constructor default below is evaluated at the
+ *  first engine built without an explicit client (production paths reach that only after
+ *  Application.onCreate has set BaseApplication.instance), and every JVM unit test passes its
+ *  own client - so nothing test-hostile ever touches this lookup. */
+private val sharedHttpClient: OkHttpClient by lazy { BaseApplication.instance.okHttpClient }
 
 /**
  * Runs a JS plugin script's `discover()`/`search()`/`resolve()` entry points, replacing
@@ -26,7 +33,12 @@ import okhttp3.OkHttpClient
  * per-operation Messenger bind, so there's no state to leak between runs and no pool to reason
  * about. See [JsPluginContract] for the script-facing contract this drives.
  */
-class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
+class JsPluginEngine(
+    // Shared client instead of a bare OkHttpClient() per engine: engines are constructed per
+    // manager/feature, and each private one meant its own connection pool whose connections
+    // were never reused by anything else.
+    private val httpClient: OkHttpClient = sharedHttpClient,
+) {
 
     /**
      * `onProgress`/`onCandidate`/`onResult` are called from [runScript]'s dedicated background

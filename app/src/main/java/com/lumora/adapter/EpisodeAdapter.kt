@@ -148,7 +148,10 @@ class EpisodeAdapter(
                     // "watched" is meaningless before it airs), so RIGHT has nowhere to go -
                     // consuming it would make the key dead; leaving it unhandled lets normal
                     // focus search take over.
-                    val target = listOf(downloadButton, checkButton).firstOrNull { it.visibility == View.VISIBLE }
+                    // A disabled download button isn't focusable (see bind) - skip it here
+                    // too, or RIGHT would be consumed by a requestFocus that can't succeed.
+                    val target = listOf(downloadButton, checkButton)
+                        .firstOrNull { it.visibility == View.VISIBLE && it.isFocusable }
                     target?.requestFocus()
                     target != null
                 } else {
@@ -176,7 +179,12 @@ class EpisodeAdapter(
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     when (keyCode) {
                         KeyEvent.KEYCODE_DPAD_LEFT -> {
-                            val target = if (downloadButton.visibility == View.VISIBLE) downloadButton else itemView
+                            // Skip a disabled (non-focusable) download button - see bind.
+                            val target = if (downloadButton.visibility == View.VISIBLE && downloadButton.isFocusable) {
+                                downloadButton
+                            } else {
+                                itemView
+                            }
                             target.requestFocus(); true
                         }
                         KeyEvent.KEYCODE_DPAD_RIGHT -> true
@@ -296,7 +304,10 @@ class EpisodeAdapter(
 
             if (showDownloadButton && !unreleased) {
                 downloadButton.visibility = View.VISIBLE
+                // A disabled button must also leave the D-pad chain: staying focusable made
+                // it a stop whose press can never do anything.
                 downloadButton.isEnabled = isDownloaded?.invoke(episode) != true
+                downloadButton.isFocusable = downloadButton.isEnabled
                 downloadButton.alpha = if (downloadButton.isEnabled) 1f else 0.4f
             } else {
                 downloadButton.visibility = View.GONE
@@ -306,7 +317,9 @@ class EpisodeAdapter(
             // specific episode (movie_image in get_series_info) - not every provider or
             // every episode has one. The play-button overlay always shows either way;
             // without an image it just sits on the plain rounded card background.
-            thumbImage.setImageDrawable(null)
+            // Placeholder before the async fetch: a loading thumbnail isn't blank, and a
+            // failed fetch keeps it instead of leaving an empty frame forever.
+            thumbImage.setImageResource(R.drawable.ic_launcher_foreground)
             val url = episode.posterUrl
             if (!url.isNullOrBlank()) {
                 PosterLoader.getCached(url)?.let { thumbImage.setImageBitmap(it) } ?: run {

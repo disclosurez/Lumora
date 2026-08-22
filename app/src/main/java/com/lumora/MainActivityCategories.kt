@@ -453,6 +453,10 @@ internal fun MainActivity.isSidebarCollapsed(): Boolean =
  *  touches it - so the reserve added below can be undone exactly rather than guessed. */
 private val contentBasePaddingTop = mutableMapOf<View, Int>()
 
+/** The map keys whole view hierarchies by View reference and nothing removes entries, so
+ *  destroyed Activity instances piled up in it forever - dropped once at teardown. */
+internal fun MainActivity.clearContentBasePaddingCache() = contentBasePaddingTop.clear()
+
 /** Single place that decides the sidebar's visibility for a categorized tab: the
  *  tab-context decision (categorized tab with more than one row) comes in as
  *  [tabWantsSidebar], and the collapse pref composes on top. Also drives the
@@ -1757,7 +1761,14 @@ internal fun MainActivity.closeSideMenu() {
     // Menu closed over the video - bring Up Next back if it was mid-countdown,
     // exactly like hideControls does. The bottom bar stays hidden, so the video is
     // fullscreen again = "back to what's playing".
-    if (upNextActive) binding.upNextOverlay.visibility = View.VISIBLE
+    // ...and resume its tick too (removeCallbacks first, same as hideControls): openSideMenu
+    // paused it when it hid the controls overlay, so without this the card came back frozen
+    // and auto-advance never fired.
+    if (upNextActive) {
+        binding.upNextOverlay.visibility = View.VISIBLE
+        mainHandler.removeCallbacks(upNextTickRunnable)
+        mainHandler.postDelayed(upNextTickRunnable, 1000)
+    }
 }
 
 /** The side-menu row for the section currently on screen - mirrors the top tab bar:

@@ -43,7 +43,7 @@ class StreamHttpServer(
         return response
     }
 
-    /** Parses a single "bytes=start-end" range; defaults to the whole file. */
+    /** Parses a single "bytes=start-end" (or suffix "bytes=-N") range; defaults to the whole file. */
     private fun parseRange(header: String?, total: Long): Pair<Long, Long> {
         // Zero-byte (or single-byte) files: coerceIn(0, total - 1) would be an empty range and
         // throw for total == 0, so clamp to the whole (possibly empty) file up front.
@@ -54,7 +54,20 @@ class StreamHttpServer(
         if (dash < 0) return 0L to (total - 1)
         val startStr = spec.substring(0, dash).trim()
         val endStr = spec.substring(dash + 1).trim()
-        val start = startStr.toLongOrNull() ?: 0L
+        // Suffix form "bytes=-N": the LAST N bytes per RFC 7233, i.e. total-N..total-1. An empty
+        // start string used to parse as byte 0, so players probing MKV tails read wrong offsets.
+        if (startStr.isEmpty()) {
+            val n = endStr.toLongOrNull()
+            // "-0" (unsatisfiable) or garbage: serve the whole file rather than silently byte-0.
+            return if (n != null && n > 0) {
+                val start = (total - n).coerceAtLeast(0L)
+                start to (total - 1)
+            } else {
+                0L to (total - 1)
+            }
+        }
+        // Malformed numbers ("bytes=a-b") fall back to the whole file instead of coercing to 0.
+        val start = startStr.toLongOrNull() ?: return 0L to (total - 1)
         val end = endStr.toLongOrNull() ?: (total - 1)
         return start.coerceIn(0, total - 1) to end.coerceIn(start, total - 1)
     }

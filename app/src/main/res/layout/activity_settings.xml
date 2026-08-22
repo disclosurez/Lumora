@@ -1252,7 +1252,10 @@
                     android:fontFamily="@font/inter_regular"
                     android:visibility="gone" />
 
-                <androidx.recyclerview.widget.RecyclerView
+                <!-- FullHeightRecyclerView, not a plain RecyclerView: inside the
+                     settingsContentScroll ScrollView a plain one measures itself to a single
+                     row. Same usage as activity_main.xml's detailItemsList. -->
+                <com.lumora.view.FullHeightRecyclerView
                     android:id="@+id/settingsDownloadsList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
