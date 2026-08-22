@@ -33,6 +33,7 @@ private inline fun <V : Any> ConcurrentHashMap<String, V>.memoize(key: String, c
 
 private val stripDecorativeTagsMemo = ConcurrentHashMap<String, String>(4096)
 private val liveQualityScoreMemo = ConcurrentHashMap<String, Int>(4096)
+private val vodQualityScoreMemo = ConcurrentHashMap<String, Int>(4096)
 private val liveChannelKeyMemo = ConcurrentHashMap<String, String>(4096)
 private val normalizeTitleMemo = ConcurrentHashMap<String, String>(4096)
 private val nonEnglishTitleMemo = ConcurrentHashMap<String, Boolean>(4096)
@@ -127,6 +128,43 @@ fun extractYearFromName(name: String): String? {
 fun Channel.withResolvedYear(): Channel =
     if (!year.isNullOrBlank()) this else extractYearFromName(name)?.let { copy(year = it) } ?: this
 
+// Quality/source badges a VOD title carries *after* the title itself - "The Breadwinner
+// 2160p WEB-DL", "The Breadwinner 4K". A leading tag chain ("4K-AMZ - ") is already handled
+// by leadingTagMatch, but a trailing badge stayed in the grouping key, so a provider's 4K
+// repost never merged with its own 1080p copy: two cards for one film, and no version list
+// to pick the better copy out of.
+//
+// Split strong/weak because plenty of real titles END in a word that is also a badge ("The
+// Web", "Raw", "Cam"). Stripping those on sight collapses distinct films onto the same
+// grouping key, which is far worse than failing to merge - so a weak token is only dropped
+// as a continuation of a chain that STARTS with a strong one ("The Web 1080p WEB" strips
+// back to "The Web"; "The Web" alone is untouched). Cut markers ("EXTENDED", "DIRECTORS CUT", "UNRATED") are in neither list:
+// those are different versions of the film, not different encodes of one.
+private const val VOD_BADGE_STRONG =
+    """4K|UHD|ULTRA\s?HD|FHD|HDR10|HDR|HEVC|H\.?265|H\.?264|X265|X264|AV1|10BIT|8BIT|""" +
+    """REMUX|BDREMUX|BLURAY|BLU-RAY|BDRIP|BRRIP|WEB-?DL|WEB-?RIP|HDRIP|DVDRIP|DVDSCR|HDTV|""" +
+    """CAMRIP|HDCAM|HDTS|TELESYNC|TELECINE|SCREENER|WORKPRINT|""" +
+    """\d{3,4}\s?[x×]\s?\d{3,4}|\d{3,4}\s?[PI]"""
+private const val VOD_BADGE_WEAK = """HD|SD|RAW|VIP|MULTI|DUAL|WEB|DVD|CAM|TS|TC|DV|SCR"""
+// Cheap gate for the chain regex below, in the same spirit as the char gates in
+// normalizeTitleForGrouping: a chain has to END in a badge token, and almost no title does,
+// so this single end-anchored token test skips the nested-alternation scan for the whole
+// catalogue bar a handful of items.
+private val VOD_BADGE_TAIL_REGEX = Regex(
+    """(?i)[\s\-_.|](?:$VOD_BADGE_STRONG|$VOD_BADGE_WEAK)\s*$"""
+)
+private val VOD_TRAILING_BADGE_REGEX = Regex(
+    run {
+        val sep = """[\s\-_.|]+"""
+        val weak = """(?:$sep(?:$VOD_BADGE_WEAK)(?![A-Za-z0-9]))"""
+        val strong = """(?:$sep(?:$VOD_BADGE_STRONG)(?![A-Za-z0-9]))"""
+        // Chain must START at a strong token: a weak one is only ever swallowed as a
+        // trailing continuation. Otherwise "The Web 1080p WEB" eats the title's own last
+        // word ("Web" reads as weak) and keys as "the".
+        """(?i)$strong(?:$weak|$strong)*\s*$"""
+    }
+)
+
 /**
  * Normalizes a title for duplicate grouping: strips a leading source tag
  * ("TOP - ", "NF - ", "4K-D+ - "), the release year, and any bracketed or parenthesised
@@ -141,6 +179,12 @@ fun normalizeTitleForGrouping(name: String): String = normalizeTitleMemo.memoize
     if ('(' in n) n = YEAR_PAREN_REGEX.replace(n, "")
     if ('[' in n) n = BRACKET_REGEX.replace(n, "")
     if ('(' in n) n = PAREN_TAG_REGEX.replace(n, "")
+    // One pass covers a whole chain ("... 2160p WEB-DL HDR"), and a title that is nothing but
+    // badges keeps its raw form rather than collapsing to an empty key shared with every
+    // other such title.
+    if (VOD_BADGE_TAIL_REGEX.containsMatchIn(n)) {
+        VOD_TRAILING_BADGE_REGEX.replace(n, "").takeIf { it.isNotBlank() }?.let { n = it }
+    }
     // \s collapse only matters when whitespace is actually present (isWhitespace is a
     // superset of \s, so a non-\s whitespace char still takes the regex path unchanged).
     if (n.any(Char::isWhitespace)) n = WHITESPACE_REGEX.replace(n, " ").trim() else n = n.trim()
@@ -168,7 +212,7 @@ fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String,
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (group in groups.values) {
-        val versions = ownLibraryFirst(group)
+        val versions = bestQualityFirst(group)
         val representative = pickRepresentative(versions)
         representatives.add(representative)
         if (versions.size > 1) versionsById[representative.id] = versions
@@ -176,13 +220,24 @@ fun groupDuplicateMovies(movies: List<Channel>): Pair<List<Channel>, Map<String,
     return representatives to versionsById
 }
 
-/** The user's own media-server library (Jellyfin or Plex) always outranks an IPTV copy of
- *  the same title: it's the copy they curated, and it streams off their own server. Ordering
- *  the group this way makes it the first (default-played) version chip; ties keep provider
- *  order, so with both servers configured whichever loaded first stays first. */
-private fun ownLibraryFirst(versions: List<Channel>): List<Channel> =
-    if (versions.size > 1 && versions.any { it.isOwnLibrary }) {
-        versions.sortedBy { if (it.isOwnLibrary) 0 else 1 }
+/** Version order for a duplicated title. Two rules, in this order:
+ *
+ *  1. The user's own media-server library (Jellyfin or Plex) always outranks an IPTV copy of
+ *     the same title: it's the copy they curated, and it streams off their own server. An
+ *     own-library file carries no quality tag in its name (it's a real file, not a reposted
+ *     stream), so scoring it against tagged IPTV copies would rank it as if it were SD - it
+ *     stays pinned on top instead, and quality only orders the copies below it.
+ *  2. Everything else best-quality-first, so the version that plays by default (and the
+ *     first chip) is the 4K/UHD copy whenever a provider carries one - providers repost the
+ *     same film at several tiers and the untagged/SD copy used to win purely by load order.
+ *
+ *  The sort is stable, so equal-quality copies keep provider order. */
+private fun bestQualityFirst(versions: List<Channel>): List<Channel> =
+    if (versions.size > 1) {
+        versions.sortedWith(
+            compareBy<Channel> { if (it.isOwnLibrary) 0 else 1 }
+                .thenByDescending { vodQualityScore(it.name) }
+        )
     } else {
         versions
     }
@@ -224,7 +279,7 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
     val representatives = mutableListOf<Channel>()
     val versionsById = mutableMapOf<String, List<Channel>>()
     for (group in groups.values) {
-        val versions = ownLibraryFirst(group)
+        val versions = bestQualityFirst(group)
         val representative = pickRepresentative(versions)
         representatives.add(representative)
         if (versions.size > 1) versionsById[representative.id] = versions
@@ -479,6 +534,25 @@ fun liveQualityScore(rawName: String): Int = liveQualityScoreMemo.memoize(rawNam
         resWidth != null -> 1
         else -> 0
     }
+}
+
+// A VOD title states how the copy was *made* on top of its resolution, which a live feed
+// never does. Two copies at the same resolution are not the same copy: a camcorder/telesync
+// rip is unwatchable next to anything else and must lose even to an untagged copy, while a
+// disc rip is the best of a tier. Matched as whole word-tags, so "Camera Obscura" or a film
+// actually called "Cam" isn't read as a rip - and a false positive there would hit every
+// copy in the group equally anyway, since they all share the title.
+private val VOD_SOURCE_RIP_REGEX = wordTagRegex("""CAM|CAMRIP|HDCAM|TS|HDTS|TELESYNC|TC|TELECINE|SCR|SCREENER|DVDSCR|WORKPRINT|WP""")
+private val VOD_SOURCE_DISC_REGEX = wordTagRegex("""REMUX|BLURAY|BLU-RAY|BDRIP|BRRIP|BDREMUX""")
+
+/** Higher is better; orders the versions of one film/series so the best copy plays first.
+ *  Resolution dominates (a 4K web copy beats a 1080p disc rip), the source tier only splits
+ *  copies that tie on it, and a cam/telesync rip drops below every other copy including an
+ *  untagged one. */
+fun vodQualityScore(rawName: String): Int = vodQualityScoreMemo.memoize(rawName) {
+    val name = deSuperscript(rawName)
+    if (VOD_SOURCE_RIP_REGEX.containsMatchIn(name)) -1
+    else liveQualityScore(rawName) * 2 + (if (VOD_SOURCE_DISC_REGEX.containsMatchIn(name)) 1 else 0)
 }
 
 /**

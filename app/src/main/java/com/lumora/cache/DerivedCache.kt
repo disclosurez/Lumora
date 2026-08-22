@@ -45,7 +45,7 @@ object DerivedCache {
      *  as an empty string. */
     private const val NULL_ID = "\u0003"
     /** Bump when the line format changes - old files then miss instead of mis-parsing. */
-    private const val FORMAT_VERSION = "1"
+    private const val FORMAT_VERSION = "2"
 
     class LiveSnapshot(val channels: List<Channel>, val versions: Map<String, List<Channel>>)
 
