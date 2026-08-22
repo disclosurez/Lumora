@@ -84,6 +84,7 @@
     <string name="sett_enter_current_pin">Entrez le code PIN actuel</string>
     <string name="sett_ok">OK</string>
     <string name="sett_incorrect_pin">Code PIN incorrect</string>
+    <string name="sett_pin_locked">Trop de tentatives. Réessayez dans %1$s secondes.</string>
     <string name="sett_pin_hint">Code PIN à 4 chiffres</string>
     <string name="sett_next">Suivant</string>
     <string name="sett_pin_length_error">Le code PIN doit comporter 4 chiffres</string>

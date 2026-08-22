@@ -138,14 +138,17 @@ internal suspend fun MainActivity.connectPlex(cfg: MediaServerConfig): Result<Pl
  *  channel cache returns from loadAllConfiguredProviders() before any Plex fetch runs, so the
  *  client map is empty while Plex series are already on screen - without this a series detail
  *  page would show "No episodes found" on every cached launch. */
+/** The live session for [cfg], or null when there isn't one - never connects. Same
+ *  enabled-account guard as [jellyfinCachedClient], for the same reason. */
+internal fun MainActivity.plexCachedClient(cfg: MediaServerConfig?): PlexProvider? {
+    if (cfg == null) return null
+    if (MediaServerStore.get(prefs, cfg.id)?.enabled != true) return null
+    return plexClients[cfg.id]
+}
+
 internal suspend fun MainActivity.plexClientOrConnect(cfg: MediaServerConfig?): PlexProvider? {
     if (cfg == null) return null
-    // Only serve the cached session while the account it belongs to still exists and is
-    // enabled - a backup restore or an edited config can drop it while the map still
-    // holds a live client, which would otherwise keep serving stale credentials.
-    if (MediaServerStore.get(prefs, cfg.id)?.enabled == true) {
-        plexClients[cfg.id]?.let { return it }
-    }
+    plexCachedClient(cfg)?.let { return it }
     return connectPlex(cfg).getOrNull()?.also { plexClients[cfg.id] = it }
 }
 
@@ -165,9 +168,12 @@ internal suspend fun MainActivity.fetchPlexChannels(cfg: MediaServerConfig): Fet
     return try {
         // Reuse the live session when one is already cached - a password-login account
         // would otherwise re-authenticate over the network on every catalog load.
-        val plex = plexClientOrConnect(cfg) ?: connectPlex(cfg).getOrElse {
-            return FetchResult.Failure(it.message ?: "Plex: couldn't connect")
-        }
+        // Cached session first, then a *single* connect - see fetchJellyfinChannels for why
+        // the pair of them cost two auth round trips against a server that was not answering.
+        val plex = plexCachedClient(cfg)
+            ?: connectPlex(cfg)
+                .onSuccess { plexClients[cfg.id] = it }
+                .getOrElse { return FetchResult.Failure(it.message ?: "Plex: couldn't connect") }
         val stub = plexProviderStub(url)
         val items: List<Channel> = withContext(Dispatchers.IO) {
             // Both crawls run together rather than one after the other: each is a paginated

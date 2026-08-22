@@ -713,7 +713,17 @@ internal suspend fun MainActivity.fetchStalkerChannels(config: IptvProviderConfi
  */
 internal fun MainActivity.fetchAnimeChannels(): List<Channel> {
     return try {
-        val client = AnimeCatalogClient(BaseApplication.instance.okHttpClient)
+        // The call timeout is what actually bounds this. The caller wraps it in
+        // withTimeoutOrNull, but every call below is blocking and non-suspending, so there is
+        // no suspension point for cancellation to land on - the coroutine timeout can only
+        // return null once the blocking work has already finished. OkHttp's own callTimeout
+        // is the one that can end a hung request, and newBuilder shares the connection pool
+        // and dispatcher with the app-wide client.
+        val client = AnimeCatalogClient(
+            BaseApplication.instance.okHttpClient.newBuilder()
+                .callTimeout(PROVIDER_FETCH_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+        )
         val catalog = client.fetchCatalog()
         // Sections are only meaningful alongside the channels they point at - a stale set
         // left over from a previous load would build sidebar rows whose ids aren't in the

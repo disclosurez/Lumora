@@ -555,6 +555,10 @@ class MainActivity : AppCompatActivity() {
     internal var currentEpisodeQueue: List<Channel> = emptyList()
     internal var currentEpisodeQueueIndex: Int = -1
     internal var isPlayerVisible = false
+    /** Set once the "channel offline" toast has been shown for the current black-frame
+     *  outage, so the watchdog can keep sampling without repeating it. Cleared by the first
+     *  frame that isn't black (see MainActivityPlayer's black-frame check). */
+    internal var blackFrameOfflineNotified = false
     /** True when the user explicitly paused playback (play/pause button or remote key), so
      *  onResume doesn't auto-resume a pause the user asked for. Cleared on any new playback
      *  and on any explicit play. */
@@ -1149,10 +1153,16 @@ class MainActivity : AppCompatActivity() {
         }
         // The app behind the warning has the same problem: still in touch mode, still nothing
         // focused, so the first knob press after dismissal would go nowhere too. Hand focus to
-        // the tab bar so the rotary has somewhere to start.
+        // the first tab that is actually on screen - Live is GONE on a setup with no live
+        // provider (Plex carries no Live TV at all), and focusing a hidden view would leave
+        // the rotary with nothing again.
         dialog.setOnDismissListener {
-            binding.tabLive.isFocusableInTouchMode = true
-            binding.tabLive.requestFocus()
+            val tab = listOf(
+                binding.tabLive, binding.tabHome, binding.tabFilms,
+                binding.tabSeries, binding.tabDiscover, binding.btnSearch, binding.btnSettings,
+            ).firstOrNull { it.isShown }
+            tab?.isFocusableInTouchMode = true
+            tab?.requestFocus()
         }
         dialog.show()
     }
@@ -1751,7 +1761,7 @@ class MainActivity : AppCompatActivity() {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
-                    playerManager.togglePlayPause(); userPausedPlayback = !playerManager.isPlaying; updatePlayPauseIcon(); showControls(); return true
+                    playerManager.togglePlayPause(); userPausedPlayback = !playerManager.playWhenReady; updatePlayPauseIcon(); showControls(); return true
                 }
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
                     playerManager.play(); userPausedPlayback = false; updatePlayPauseIcon(); showControls(); return true

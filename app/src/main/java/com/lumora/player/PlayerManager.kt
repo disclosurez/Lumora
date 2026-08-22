@@ -117,6 +117,13 @@ class PlayerManager(
     val isPlaying: Boolean
         get() = player.isPlaying
 
+    /** Whether playback is *wanted*, as opposed to [isPlaying], which is false whenever the
+     *  player is buffering. Anything asking "did the user mean this to be playing?" - the
+     *  play/pause toggle, the resume-on-return check - has to read this one: a press during a
+     *  rebuffer would otherwise be recorded as a pause the user never asked for. */
+    val playWhenReady: Boolean
+        get() = player.playWhenReady
+
     val currentPosition: Long
         get() = player.currentPosition
 
@@ -591,10 +598,12 @@ class PlayerManager(
         if (surface == null) player.clearVideoSurface() else player.setVideoSurface(surface)
     }
 
-    /** Toggle play/pause. */
+    /** Toggle play/pause. Keyed off [playWhenReady] rather than isPlaying: a stream that is
+     *  rebuffering is not "playing", so a press meant to pause it would otherwise call play()
+     *  and leave it running. */
     fun togglePlayPause() {
         if (released) return
-        if (player.isPlaying) player.pause() else player.play()
+        if (player.playWhenReady) player.pause() else player.play()
     }
 
     fun play() {

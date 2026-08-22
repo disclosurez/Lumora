@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Large screens (4K TVs, ~1280dp+ wide): more columns of smaller posters. The sw540dp
+     TV bucket caps 720p/1080p sets at 5; a 4K grid has room for well over double. -->
+<!-- The directory carries sw540dp *and* w1280dp deliberately. Android weighs smallestWidth
+     before available width, so a plain values-w1280dp was eliminated at the sw step on every
+     device that also matched values-sw540dp - which defines all the same names, making the
+     whole file dead. Qualifying it with both keeps it in the running through the sw step and
+     lets the width qualifier decide, which is what "a TV wider than 1280dp" meant all along. -->
+<resources>
+    <integer name="poster_grid_max_span">14</integer>
+</resources>

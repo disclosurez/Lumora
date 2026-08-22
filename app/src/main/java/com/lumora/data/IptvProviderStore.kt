@@ -15,10 +15,12 @@ object IptvProviderStore {
     private const val LEGACY_ENABLED_KEY = "iptv_provider_enabled"
     private const val TAG = "IptvProviderStore"
 
-    /** Set when the stored JSON fails to parse. save() then refuses to write, so a later
-     *  upsert/remove/setEnabled can't overwrite the corrupt blob with `[]` and destroy the
-     *  user's configs for good. Cleared only by a process restart. */
-    @Volatile private var corrupt = false
+    /** Where an unparseable blob is kept when one is found. The parse failure itself must
+     *  not stop later writes: refusing to save left the app in a dead end - the user saw the
+     *  first-run chooser, added a provider, got no error, and watched the entry vanish on the
+     *  next read, on every launch, with only a logcat line to say why. Copying the blob aside
+     *  once preserves whatever could be salvaged from it and lets the app be used again. */
+    private const val CORRUPT_KEY = "iptv_providers_json_corrupt"
 
     fun load(prefs: SharedPreferences): List<IptvProviderConfig> {
         val raw = prefs.getString(KEY, null)
@@ -27,19 +29,18 @@ object IptvProviderStore {
             val arr = JSONArray(raw)
             (0 until arr.length()).mapNotNull { i -> fromJson(arr.getJSONObject(i)) }
         } catch (e: Exception) {
-            if (!corrupt) {
-                corrupt = true
-                Log.e(TAG, "Corrupt provider JSON; refusing to overwrite it. ${e.message}")
+            // Preserved under CORRUPT_KEY, not overwritten in place - and only the first
+            // time, so a later good save followed by a second failure can't bury the
+            // original. Writing is allowed to continue from here.
+            if (prefs.getString(CORRUPT_KEY, null) == null) {
+                prefs.edit().putString(CORRUPT_KEY, raw).apply()
             }
+            Log.e(TAG, "Corrupt provider JSON; kept a copy under $CORRUPT_KEY. ${e.message}")
             emptyList()
         }
     }
 
     fun save(prefs: SharedPreferences, list: List<IptvProviderConfig>) {
-        if (corrupt) {
-            Log.e(TAG, "Refusing to overwrite corrupt provider JSON")
-            return
-        }
         val arr = JSONArray()
         list.forEach { arr.put(toJson(it)) }
         prefs.edit().putString(KEY, arr.toString()).apply()

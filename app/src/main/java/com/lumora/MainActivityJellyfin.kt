@@ -70,14 +70,20 @@ internal suspend fun MainActivity.connectJellyfin(cfg: MediaServerConfig): Resul
  *  the channel cache returns from loadAllConfiguredProviders() before any Jellyfin fetch runs,
  *  so the client map is empty while Jellyfin series are already on screen - without this a
  *  series detail page silently showed "No episodes found" on every cached launch. */
+/** The live session for [cfg], or null when there isn't one - never connects.
+ *
+ *  Only serves the cached session while the account it belongs to still exists and is
+ *  enabled: a backup restore or an edited config can drop it while the map still holds a
+ *  live client, which would otherwise keep serving stale credentials. */
+internal fun MainActivity.jellyfinCachedClient(cfg: MediaServerConfig?): JellyfinProvider? {
+    if (cfg == null) return null
+    if (MediaServerStore.get(prefs, cfg.id)?.enabled != true) return null
+    return jellyfinClients[cfg.id]
+}
+
 internal suspend fun MainActivity.jellyfinClientOrConnect(cfg: MediaServerConfig?): JellyfinProvider? {
     if (cfg == null) return null
-    // Only serve the cached session while the account it belongs to still exists and is
-    // enabled - a backup restore or an edited config can drop it while the map still
-    // holds a live client, which would otherwise keep serving stale credentials.
-    if (MediaServerStore.get(prefs, cfg.id)?.enabled == true) {
-        jellyfinClients[cfg.id]?.let { return it }
-    }
+    jellyfinCachedClient(cfg)?.let { return it }
     return connectJellyfin(cfg).getOrNull()?.also { jellyfinClients[cfg.id] = it }
 }
 
@@ -92,9 +98,15 @@ internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig):
     return try {
         // Reuse the live session when one is already cached - a password-login account
         // would otherwise re-authenticate over the network on every catalog load.
-        val jellyfin = jellyfinClientOrConnect(cfg) ?: connectJellyfin(cfg).getOrElse {
-            return FetchResult.Failure(it.message ?: "Jellyfin: auth failed")
-        }
+        // Cached session first, then a *single* connect. jellyfinClientOrConnect already
+        // connects on a miss and returns null when that fails, so pairing it with a second
+        // connectJellyfin spent two full auth round trips against an unreachable server -
+        // both inside the one PROVIDER_FETCH_TIMEOUT_MS budget, which turned a clean auth
+        // error into a timeout on a slow-but-reachable server.
+        val jellyfin = jellyfinCachedClient(cfg)
+            ?: connectJellyfin(cfg)
+                .onSuccess { jellyfinClients[cfg.id] = it }
+                .getOrElse { return FetchResult.Failure(it.message ?: "Jellyfin: auth failed") }
         val stub = jellyfinProviderStub(url)
         val items: List<Channel> = withContext(Dispatchers.IO) {
             // The three crawls run together rather than one after another. Each is a

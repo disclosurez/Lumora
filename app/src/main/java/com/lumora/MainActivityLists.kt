@@ -1185,6 +1185,13 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 applyDetails(details)
                 enrichDetailsFromTmdb(details, isSeries = false, requestedItemId = requestedItemId)
                 val versions = versionGroupContaining(filmVersions, item.id) ?: listOf(item)
+                // The group is ordered best-copy-first, and that is what Play uses for a card
+                // opened from a shelf (where the opened item *is* the first). Opened from
+                // Continue Watching or a search hit, though, the item is some other copy in
+                // the group - and the resume position, the "Resume" label and the highlighted
+                // chip all belong to that copy, so playing the group's best one instead would
+                // start a different file from zero while the screen said Resume.
+                val opened = versions.firstOrNull { it.id == item.id } ?: versions.first()
                 statusText.visibility = View.GONE
 
                 // The obvious action for a film is "play it" - a button, not a list
@@ -1221,13 +1228,13 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                         return@setOnClickListener
                     }
                     currentIndex = filmList.indexOf(item)
-                    showPlayerFor(versions.first())
+                    showPlayerFor(opened)
                     detailReturnItem = item
                     detailReturnGroup = versionGroup
                 }
                 if (!isTv) {
                     downloadButton.visibility = View.VISIBLE
-                    downloadButton.setOnClickListener { downloadItem(versions.first()) }
+                    downloadButton.setOnClickListener { downloadItem(opened) }
                 }
                 // Version picker sits right next to Play as small chips, not buried
                 // in a full-width list below the plot/cast - tapping one plays that

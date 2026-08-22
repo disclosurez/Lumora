@@ -3,6 +3,11 @@
      columns so more fit per row, shorter poster cards, and a higher column cap. The
      sw540dp TV bucket keeps the big-poster look on smaller sets (720p/1080p), so a small
      TV shows fewer, larger posters and a big TV shows more, smaller ones. -->
+<!-- The directory carries sw540dp *and* w1280dp deliberately. Android weighs smallestWidth
+     before available width, so a plain values-w1280dp was eliminated at the sw step on every
+     device that also matched values-sw540dp - which defines all the same names, making the
+     whole file dead. Qualifying it with both keeps it in the running through the sw step and
+     lets the width qualifier decide, which is what "a TV wider than 1280dp" meant all along. -->
 <resources>
     <dimen name="poster_grid_min_column_width">80dp</dimen>
     <dimen name="poster_image_height">88dp</dimen>

@@ -93,7 +93,7 @@ internal fun MainActivity.setupPlayerControls() {
     // itself, so the Activity-level timer refresh in onKeyDown never sees it, and the
     // bar would otherwise vanish right after the press that paused.
     binding.btnPlayPause.setOnClickListener {
-        playerManager.togglePlayPause(); userPausedPlayback = !playerManager.isPlaying; updatePlayPauseIcon(); showControls()
+        playerManager.togglePlayPause(); userPausedPlayback = !playerManager.playWhenReady; updatePlayPauseIcon(); showControls()
     }
     binding.btnPrevChannel.setOnClickListener { navigateChannel(-1) }
     binding.btnNextChannel.setOnClickListener { navigateChannel(1) }
@@ -262,8 +262,11 @@ internal fun MainActivity.setupPlayerControls() {
                 }
             }
             // The local player was paused when casting started; without this it stays paused
-            // forever once the cast session ends.
-            onCastSessionDisconnected = { playerManager.play() }
+            // forever once the cast session ends. Only while the player is actually on screen
+            // and the user had not paused it themselves: a session that ends because the TV
+            // was switched off while the user browses elsewhere would otherwise start a stream
+            // playing with no player visible to stop it.
+            onCastSessionDisconnected = { if (isPlayerVisible && !userPausedPlayback) playerManager.play() }
         }
         try {
             com.google.android.gms.cast.framework.CastButtonFactory.setUpMediaRouteButton(
@@ -1735,10 +1738,18 @@ internal fun MainActivity.checkForBlackFrame() {
             val isBlack = result == PixelCopy.SUCCESS && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
             sample.recycle()
             blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
+            if (!isBlack) blackFrameOfflineNotified = false
             if (blackFrameStreak >= BLACK_FRAME_STREAK_THRESHOLD && !withinFailoverGrace()) {
                 blackFrameStreak = 0
                 if (!tryNextQualityVersion(getString(R.string.play_channel_offline_switching))) {
-                    Toast.makeText(this, getString(R.string.play_channel_offline), Toast.LENGTH_SHORT).show()
+                    // Said once per outage, not once per streak: the watchdog keeps sampling
+                    // below, so without the latch a dead channel left on screen re-toasts
+                    // every few seconds for as long as it is left there. Cleared by the first
+                    // frame that isn't black.
+                    if (!blackFrameOfflineNotified) {
+                        blackFrameOfflineNotified = true
+                        Toast.makeText(this, getString(R.string.play_channel_offline), Toast.LENGTH_SHORT).show()
+                    }
                     // No version to fail over to, but the watchdog must keep sampling - a
                     // dead feed that later recovers (or a version whose dead-mark expires)
                     // would otherwise never be noticed again.
