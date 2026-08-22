@@ -79,6 +79,11 @@ import kotlinx.coroutines.*
 
 internal const val PREF_HIDE_NON_ENGLISH = "hide_non_english_vod"
 internal const val PREF_HIDE_ADULT = "hide_adult_categories"
+/** Series the user has taken off Up Next, by parent series id (qualified, as an episode's
+ *  categoryId carries it). Up Next is derived from watch state rather than chosen, so the only
+ *  way to say "not this one" is to remember the refusal - a removal that lived in memory would
+ *  be undone by the next catalog load recomputing the same trail. */
+internal const val PREF_UP_NEXT_HIDDEN = "up_next_hidden_series"
 // Dub handling: prefer dub-flagged search results, and keep sideloaded subtitles on when a
 // stream plays back with its dubbed audio track (both default off).
 internal const val PREF_PREFER_DUB_AUDIO = "prefer_dub_audio"

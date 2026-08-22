@@ -868,6 +868,16 @@ internal fun MainActivity.removeFromContinueWatching(item: Channel) {
  * is the only place the row can be browsed in full.
  */
 internal fun MainActivity.onGridItemLongClick(item: Channel) {
+    if (selectedRowId == UP_NEXT_CATEGORY_ID) {
+        AlertDialog.Builder(this)
+            .setTitle(item.name)
+            .setItems(arrayOf(getString(R.string.list_upnext_remove_item))) { _, _ ->
+                removeFromUpNext(item)
+                Toast.makeText(this, R.string.list_upnext_removed, Toast.LENGTH_SHORT).show()
+            }
+            .show()
+        return
+    }
     if (selectedRowId != CONTINUE_WATCHING_CATEGORY_ID) {
         toggleFavoriteVodItem(item)
         return
@@ -1045,11 +1055,84 @@ internal fun MainActivity.fetchUpNextSeries(seriesIds: List<String>) {
 internal fun MainActivity.seriesUpNextItems(): List<Channel> {
     val server = (jellyfinNextUpItems + plexNextUpItems).filter { it.mediaType == MediaType.SERIES }
     val local = buildUpNextSeriesTiles()
+    val hidden = getHiddenUpNextSeries()
     return continueWatchingTiles(
         (server + local)
             .distinctBy { it.id.ifBlank { it.url } }
+            // Applied to both halves: a show refused here has to stay gone whether the tile
+            // came from a media server's own Next Up list or from a local trail, or removing
+            // it would only work until the other source answered for the same series.
+            .filterNot { upNextSeriesId(it) in hidden }
             .filterNot(::isAdultHomeItem)
     )
+}
+
+/** The series an Up Next tile stands for: an episode through its parent id, anything else
+ *  through its own. The key the hidden set is written in. */
+internal fun upNextSeriesId(item: Channel): String =
+    item.categoryId?.takeIf { it.isNotBlank() && item.episodeNum != null } ?: item.id.ifBlank { item.url }
+
+internal fun MainActivity.getHiddenUpNextSeries(): MutableSet<String> =
+    prefs.getStringSet(PREF_UP_NEXT_HIDDEN, emptySet())?.toMutableSet() ?: mutableSetOf()
+
+/**
+ * Takes one show off Up Next for good.
+ *
+ * Up Next is computed from watch state, not chosen, so there is nothing to delete - the tile
+ * would be recomputed on the next catalog load. What is stored instead is the refusal, keyed by
+ * parent series id, and every source the row is built from is filtered through it.
+ *
+ * Deliberately not a watched mark: marking the episode watched would just promote the one after
+ * it, which is the opposite of what "take this off the row" means. Nothing is reported to
+ * Jellyfin, Plex or Trakt either - none of them model "don't suggest this to me" in a way the
+ * app can write, and asserting watched state to make a row shorter would corrupt real history.
+ */
+internal fun MainActivity.removeFromUpNext(item: Channel) {
+    val seriesId = upNextSeriesId(item)
+    if (seriesId.isBlank()) return
+    val hidden = getHiddenUpNextSeries()
+    if (!hidden.add(seriesId)) return
+    prefs.edit().putStringSet(PREF_UP_NEXT_HIDDEN, hidden).apply()
+    // The memo is what buildUpNextSeriesTiles serves from; leaving the tile in it costs a
+    // pointless resolve on every rebuild even though the filter now drops it.
+    upNextTiles.remove(seriesId)
+    refreshHomeShelvesIfShowing()
+    refreshSeriesShelvesIfShowing()
+    if (showingHome || activeTab != 1) return
+    val grid = binding.seriesContent
+    val removedAt = seriesGridAdapter.currentList.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+    val wasOnUpNext = selectedRowId == UP_NEXT_CATEGORY_ID
+    scope.launch {
+        // Same as Continue Watching: the row only exists while it has items, so emptying it
+        // has to move the pane off it rather than leave a selection nothing lists.
+        if (selectedRowId == UP_NEXT_CATEGORY_ID && seriesUpNextItems().isEmpty()) {
+            selectedRowId = null
+            selectedCategoryLabel = null
+            selectedBrandChannelIds = null
+            selectedCategoryIds = null
+        }
+        rebuildCategoriesForActiveTab()
+        applyCategoryFilter()
+        if (!wasOnUpNext) return@launch
+        if (selectedRowId == UP_NEXT_CATEGORY_ID) focusItemWhenReady(grid, removedAt)
+        else focusSelectedSidebarRow()
+    }
+}
+
+/** Puts every refused show back. The only way back from [removeFromUpNext], which is otherwise
+ *  permanent - offered on the sidebar row's own menu, where the row is. */
+internal fun MainActivity.restoreRemovedUpNext() {
+    if (getHiddenUpNextSeries().isEmpty()) return
+    prefs.edit().remove(PREF_UP_NEXT_HIDDEN).apply()
+    // Trails for the restored shows were never resolved while they were hidden.
+    clearUpNextMemo()
+    refreshHomeShelvesIfShowing()
+    refreshSeriesShelvesIfShowing()
+    if (showingHome || activeTab != 1) return
+    scope.launch {
+        rebuildCategoriesForActiveTab()
+        applyCategoryFilter()
+    }
 }
 
 /**

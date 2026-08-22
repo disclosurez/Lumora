@@ -59,4 +59,8 @@
     <string name="list_cw_clear_all_confirm">Clear every item from Continue Watching? This also clears them on your media servers and on Trakt.</string>
     <string name="list_cw_removed">Removed from Continue Watching</string>
     <string name="list_cw_cleared">Continue Watching cleared</string>
+    <string name="list_upnext_remove_item">Remove from Up Next</string>
+    <string name="list_upnext_removed">Removed from Up Next</string>
+    <string name="list_upnext_restore">Restore removed shows</string>
+    <string name="list_upnext_restored">Removed shows restored</string>
 </resources>

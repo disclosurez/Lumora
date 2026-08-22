@@ -59,4 +59,8 @@
     <string name="list_cw_clear_all_confirm">Vider tous les éléments de Reprendre la lecture ? Ils seront aussi effacés sur vos serveurs multimédias et sur Trakt.</string>
     <string name="list_cw_removed">Retiré de Reprendre la lecture</string>
     <string name="list_cw_cleared">Reprendre la lecture vidé</string>
+    <string name="list_upnext_remove_item">Retirer de À suivre</string>
+    <string name="list_upnext_removed">Retiré de À suivre</string>
+    <string name="list_upnext_restore">Restaurer les séries retirées</string>
+    <string name="list_upnext_restored">Séries retirées restaurées</string>
 </resources>

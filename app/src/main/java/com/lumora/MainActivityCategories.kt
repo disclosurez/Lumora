@@ -168,6 +168,26 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
             .show()
         return
     }
+    // Up Next carries the way back from a removal (see removeFromUpNext) - a refused show is
+    // otherwise gone for good, and the row it was refused on is the only place anyone would
+    // think to look for it. Only offered while something is actually hidden.
+    if (id == UP_NEXT_CATEGORY_ID && getHiddenUpNextSeries().isNotEmpty()) {
+        AlertDialog.Builder(this)
+            .setTitle(category.name)
+            .setItems(
+                arrayOf(getString(R.string.list_upnext_restore), getString(R.string.plug_hide))
+            ) { _, which ->
+                when (which) {
+                    0 -> {
+                        restoreRemovedUpNext()
+                        Toast.makeText(this, R.string.list_upnext_restored, Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> toggleHiddenSidebarCategory(category)
+                }
+            }
+            .show()
+        return
+    }
     if (id == JELLYFIN_CATEGORY_ID || id == PLEX_CATEGORY_ID || id == NEWEST_CATEGORY_ID ||
         id == UP_NEXT_CATEGORY_ID || id == FAVOURITES_CATEGORY_ID
     ) {
