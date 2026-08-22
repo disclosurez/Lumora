@@ -48,6 +48,16 @@ object FavoritesStore {
 
     fun getFavoriteChannelIds(context: Context): Set<String> = readSet(context, KEY_FAVORITE_CHANNELS)
 
+    /** Replaces both favourites sets outright - for backup restore, where the backup is the
+     *  truth and anything currently stored must go. Updates the in-memory mirror like every
+     *  other writer, so the cache cannot go stale. */
+    fun replaceAll(context: Context, seriesIds: Set<String>, channelIds: Set<String>) {
+        synchronized(lock) {
+            write(context, KEY_FAVORITE_SERIES, seriesIds)
+            write(context, KEY_FAVORITE_CHANNELS, channelIds)
+        }
+    }
+
     /** Returns the new membership state (true = now favorited). */
     private fun toggle(context: Context, key: String, id: String): Boolean = synchronized(lock) {
         val current = readSet(context, key)

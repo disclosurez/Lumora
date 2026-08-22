@@ -52,7 +52,6 @@ import com.lumora.databinding.ActivityMainBinding
 import com.lumora.model.Channel
 import com.lumora.model.ContentShelf
 import com.lumora.model.MediaType
-import com.lumora.model.Provider
 import com.lumora.model.IptvProviderConfig
 import com.lumora.pairing.QrPairingManager
 import com.lumora.plugin.DiscoveredProvider
@@ -99,15 +98,17 @@ internal const val PREF_SUBTITLE_LANGUAGE = "subtitle_language"
 /** Preferred audio language, ISO 639-1. Applied to VOD only - a live channel's own audio is
  *  the point of it. Read by PlayerManager from the same prefs file. */
 internal const val PREF_AUDIO_LANGUAGE = "audio_language"
-/** Language code -> display name for the audio/subtitle pickers. Ordered by how often these
- *  turn up as tracks in IPTV catalogues rather than alphabetically. */
+/** Language code -> display name for the audio/subtitle pickers. Native names, so the list
+ *  reads the same no matter which language the interface is currently in (same pattern as
+ *  [UI_LANGUAGES]). Ordered by how often these turn up as tracks in IPTV catalogues rather
+ *  than alphabetically. */
 internal val PLAYBACK_LANGUAGES = listOf(
-    "en" to "English", "es" to "Spanish", "fr" to "French", "de" to "German",
-    "it" to "Italian", "pt" to "Portuguese", "nl" to "Dutch", "pl" to "Polish",
-    "ru" to "Russian", "tr" to "Turkish", "ar" to "Arabic", "hi" to "Hindi",
-    "zh" to "Chinese", "ja" to "Japanese", "ko" to "Korean", "sv" to "Swedish",
-    "no" to "Norwegian", "da" to "Danish", "fi" to "Finnish", "el" to "Greek",
-    "ro" to "Romanian", "cs" to "Czech", "hu" to "Hungarian"
+    "en" to "English", "es" to "Español", "fr" to "Français", "de" to "Deutsch",
+    "it" to "Italiano", "pt" to "Português", "nl" to "Nederlands", "pl" to "Polski",
+    "ru" to "Русский", "tr" to "Türkçe", "ar" to "العربية", "hi" to "हिन्दी",
+    "zh" to "中文", "ja" to "日本語", "ko" to "한국어", "sv" to "Svenska",
+    "no" to "Norsk", "da" to "Dansk", "fi" to "Suomi", "el" to "Ελληνικά",
+    "ro" to "Română", "cs" to "Čeština", "hu" to "Magyar"
 )
 /** UI (interface) language of the whole app. "system" follows the device language; any other
  *  value is an ISO 639-1 code with a matching res/values-<code>/ directory. Picking a language
@@ -148,6 +149,12 @@ internal val UI_LANGUAGES = listOf(
     "uk" to "Українська"
 )
 internal const val PREF_PARENTAL_PIN = "parental_pin"
+/** Per-install salt for the parental PIN hash (see MainActivitySettings.promptForPin). */
+internal const val PREF_PARENTAL_PIN_SALT = "parental_pin_salt"
+/** Consecutive wrong PIN entries; reaching the cap arms the lockout window. */
+internal const val PREF_PIN_FAILURES = "pin_failures"
+/** Epoch ms before which PIN entry is refused after too many wrong attempts. */
+internal const val PREF_PIN_LOCKOUT_UNTIL = "pin_lockout_until"
 /** Package of the video app external playback always uses; absent = ask each time. */
 internal const val PREF_EXTERNAL_PLAYER_PACKAGE = "external_player_package"
 /** Whether the app may offer to hand a stream over when it cannot play it properly. */
@@ -336,7 +343,17 @@ class MainActivity : AppCompatActivity() {
      *  Discover metadata follows the device language when no explicit override is set. */
     internal fun tmdbLanguageTagFor(code: String): String = when (code) {
         "system" -> java.util.Locale.getDefault().toLanguageTag().takeIf { it.length in 2..5 } ?: "en-US"
-        else -> if (code.contains("-")) code else "${code.lowercase()}-${code.uppercase()}"
+        // Real region per language - the naive xx-XX scheme mints invalid regions (ja-JA,
+        // zh-ZH, ko-KO, uk-UK, cs-CS, da-DA, hi-HI, ur-UR) that TMDB rejects or misroutes.
+        "en" -> "en-US"; "fr" -> "fr-FR"; "de" -> "de-DE"; "es" -> "es-ES"; "it" -> "it-IT"
+        "sv" -> "sv-SE"; "fi" -> "fi-FI"; "pt" -> "pt-PT"; "tr" -> "tr-TR"; "hr" -> "hr-HR"
+        "el" -> "el-GR"; "ru" -> "ru-RU"; "ar" -> "ar-SA"; "ur" -> "ur-PK"; "zh" -> "zh-CN"
+        "ja" -> "ja-JP"; "hi" -> "hi-IN"; "nl" -> "nl-NL"; "pl" -> "pl-PL"; "ko" -> "ko-KR"
+        "ro" -> "ro-RO"; "no" -> "no-NO"; "da" -> "da-DK"; "cs" -> "cs-CZ"; "hu" -> "hu-HU"
+        "id" -> "id-ID"; "uk" -> "uk-UA"
+        // Already-qualified tag passes through; anything unknown stays a bare lowercase
+        // code, which TMDB accepts, rather than a fabricated xx-XX region.
+        else -> if (code.contains("-")) code else code.lowercase()
     }
 
     /** Applies [code] to the running process (recreating the activity), and cascades it into
@@ -446,10 +463,9 @@ class MainActivity : AppCompatActivity() {
     // window instead of being retried again a few seconds later.
     internal val deadStreamUntil = mutableMapOf<String, Long>()
 
-    internal var provider: Provider = Provider()
     // Every configured Xtream provider, keyed by IptvProviderConfig.id - detail/EPG calls
     // resolve the right one per-Channel via Channel.sourceProviderId instead of assuming
-    // whichever Xtream provider loaded last (the old single `provider` field above).
+    // whichever Xtream provider loaded last (the old single `provider` field, deleted).
     internal var xtreamProviderConfigs: Map<String, IptvProviderConfig> = emptyMap()
     /** IptvProviderConfig id -> display name, for showing which provider an item came from. */
     internal var providerNamesById: Map<String, String> = emptyMap()
@@ -539,6 +555,10 @@ class MainActivity : AppCompatActivity() {
     internal var currentEpisodeQueue: List<Channel> = emptyList()
     internal var currentEpisodeQueueIndex: Int = -1
     internal var isPlayerVisible = false
+    /** True when the user explicitly paused playback (play/pause button or remote key), so
+     *  onResume doesn't auto-resume a pause the user asked for. Cleared on any new playback
+     *  and on any explicit play. */
+    internal var userPausedPlayback = false
     internal var isContentDetailVisible = false
     /** Channel id of the item whose detail screen is open, so closing it can return focus to
      *  the poster it was opened from rather than to the tab bar. */
@@ -887,20 +907,20 @@ class MainActivity : AppCompatActivity() {
         onPinClick = { shelf -> togglePinShelfCategory(1, shelf) },
         onHideClick = { shelf -> if (shelf.title == getString(R.string.category_continue_watching)) clearContinueWatching() else toggleHiddenShelfCategory(1, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
-    )
+    ).apply { topRowFocusUpTargetId = R.id.tabSeries }
     internal val filmsShelfAdapter = ShelfAdapter(
         onItemClick = { item -> playItem(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onPinClick = { shelf -> togglePinShelfCategory(2, shelf) },
         onHideClick = { shelf -> if (shelf.title == getString(R.string.category_continue_watching)) clearContinueWatching() else toggleHiddenShelfCategory(2, shelf) },
         onSeeAllClick = { shelf -> showSeeAll(shelf) }
-    )
+    ).apply { topRowFocusUpTargetId = R.id.tabFilms }
     internal val homeShelfAdapter = ShelfAdapter(
         onItemClick = { item -> onHomeItemClick(item) },
         onItemLongClick = { item -> toggleFavoriteVodItem(item) },
         onHideClick = { shelf -> if (shelf.title == getString(R.string.category_continue_watching)) clearContinueWatching() else toggleHiddenHomeShelf(shelf.title) },
         showPinButton = false
-    )
+    ).apply { topRowFocusUpTargetId = R.id.tabHome }
     // Single-category selection swaps to these - a vertical, scrollable grid instead of
     // the shelves' horizontal strip, since one category's whole catalog doesn't fit a
     // single row.
@@ -939,7 +959,7 @@ class MainActivity : AppCompatActivity() {
     internal val downloadAdapter = DownloadAdapter(
         onClick = { record -> playDownload(record) },
         onDelete = { record -> deleteDownload(record) }
-    )
+    ).apply { topRowFocusUpTargetId = R.id.tabDownloads }
     internal val hideControlsRunnable = Runnable { hideControls() }
     internal val progressRunnable = object : Runnable {
         override fun run() {
@@ -1220,7 +1240,7 @@ class MainActivity : AppCompatActivity() {
         // Resync on return: the clock may have been stopped across a long background stint,
         // and the time (or the 12/24h setting) can have changed while it was.
         startToolbarClock()
-        if (isPlayerVisible && playerManager.playbackState == Player.STATE_READY) playerManager.play()
+        if (isPlayerVisible && playerManager.playbackState == Player.STATE_READY && !userPausedPlayback) playerManager.play()
         else if (activeTab == 0) showLivePreviewPane()
     }
 
@@ -1672,13 +1692,13 @@ class MainActivity : AppCompatActivity() {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
-                    playerManager.togglePlayPause(); updatePlayPauseIcon(); showControls(); return true
+                    playerManager.togglePlayPause(); userPausedPlayback = !playerManager.isPlaying; updatePlayPauseIcon(); showControls(); return true
                 }
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    playerManager.play(); updatePlayPauseIcon(); showControls(); return true
+                    playerManager.play(); userPausedPlayback = false; updatePlayPauseIcon(); showControls(); return true
                 }
                 android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    playerManager.pause(); updatePlayPauseIcon(); showControls(); return true
+                    playerManager.pause(); userPausedPlayback = true; updatePlayPauseIcon(); showControls(); return true
                 }
                 // Same seek steps the on-screen buttons use. Remotes split across two
                 // codes for this pair - the transport keys on a media remote send

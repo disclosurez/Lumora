@@ -140,7 +140,12 @@ internal suspend fun MainActivity.connectPlex(cfg: MediaServerConfig): Result<Pl
  *  page would show "No episodes found" on every cached launch. */
 internal suspend fun MainActivity.plexClientOrConnect(cfg: MediaServerConfig?): PlexProvider? {
     if (cfg == null) return null
-    plexClients[cfg.id]?.let { return it }
+    // Only serve the cached session while the account it belongs to still exists and is
+    // enabled - a backup restore or an edited config can drop it while the map still
+    // holds a live client, which would otherwise keep serving stale credentials.
+    if (MediaServerStore.get(prefs, cfg.id)?.enabled == true) {
+        plexClients[cfg.id]?.let { return it }
+    }
     return connectPlex(cfg).getOrNull()?.also { plexClients[cfg.id] = it }
 }
 
@@ -158,7 +163,9 @@ internal fun MainActivity.plexPlayingClient(): PlexProvider? =
 internal suspend fun MainActivity.fetchPlexChannels(cfg: MediaServerConfig): FetchResult {
     val url = plexServerUrl(cfg) ?: return FetchResult.Failure("Plex: no server")
     return try {
-        val plex = connectPlex(cfg).getOrElse {
+        // Reuse the live session when one is already cached - a password-login account
+        // would otherwise re-authenticate over the network on every catalog load.
+        val plex = plexClientOrConnect(cfg) ?: connectPlex(cfg).getOrElse {
             return FetchResult.Failure(it.message ?: "Plex: couldn't connect")
         }
         val stub = plexProviderStub(url)

@@ -166,7 +166,7 @@
         android:layout_marginStart="10dp"
         android:background="@drawable/bg_toolbar_button"
         android:clickable="true"
-        android:contentDescription="Download episode"
+        android:contentDescription="@string/episode_download"
         android:focusable="true"
         android:padding="9dp"
         android:src="@android:drawable/stat_sys_download"

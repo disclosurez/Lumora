@@ -23,10 +23,9 @@ import com.lumora.util.PosterLoader
 import com.lumora.util.cleanVodTitle
 
 /** Vertical stack of horizontally-scrolling category shelves. D-pad UP/DOWN
- *  between shelf rows and OUT to the tab bar above is handled entirely by Android's default
- *  focus search - no manual key interception needed here (confirmed on-device; an earlier,
- *  much more involved manual-jump implementation turned out to be solving a problem that
- *  didn't actually exist, and was itself the source of several real navigation regressions). */
+ *  between shelf rows is handled by RecyclerView, but UP from the top shelf to the tab bar
+ *  is intercepted manually - RecyclerView.focusSearch scopes itself as root, so a target
+ *  outside the RecyclerView never resolves via nextFocusUpId (see PosterGridAdapter). */
 class ShelfAdapter(
     private val onItemClick: (Channel) -> Unit,
     /** Long-press on a poster - favourites the item (see MainActivity.toggleFavoriteVodItem).
@@ -41,6 +40,12 @@ class ShelfAdapter(
     // a fixed, meaningful order, so the star has nothing to do there.
     private val showPinButton: Boolean = true
 ) : ListAdapter<ContentShelf, ShelfAdapter.ShelfViewHolder>(DiffCallback()) {
+
+    /** Where D-pad UP from posters in the top shelf should land - the active tab button
+     *  or the Home search bar, which lives outside this RecyclerView and so is unreachable
+     *  through nextFocusUpId (RecyclerView.focusSearch scopes itself as root). Mirrors
+     *  PosterGridAdapter.topRowFocusUpTargetId. */
+    var topRowFocusUpTargetId: Int = View.NO_ID
 
     // Shared across every shelf row so scrolling vertically past a shelf and
     // back doesn't re-inflate its poster views from scratch every time.
@@ -85,6 +90,8 @@ class ShelfAdapter(
             } else {
                 pinButton.visibility = View.GONE
             }
+            posterAdapter.topRowFocusUpTargetId = topRowFocusUpTargetId
+            posterAdapter.isTopShelf = bindingAdapterPosition == 0
             posterAdapter.submitList(shelf.items)
         }
     }
@@ -99,6 +106,9 @@ private class ShelfPosterAdapter(
     private val onItemClick: (Channel) -> Unit,
     private val onItemLongClick: ((Channel) -> Unit)?
 ) : ListAdapter<Channel, ShelfPosterAdapter.ViewHolder>(DiffCallback()) {
+
+    var topRowFocusUpTargetId: Int = View.NO_ID
+    var isTopShelf: Boolean = false
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -135,6 +145,22 @@ private class ShelfPosterAdapter(
             itemView.setOnClickListener { current?.let(onItemClick) }
             onItemLongClick?.let { handler ->
                 itemView.setOnLongClickListener { current?.let(handler); true }
+            }
+            itemView.setOnKeyListener { v, keyCode, event ->
+                if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                    keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
+                    isTopShelf
+                ) {
+                    val root = v.rootView
+                    // Home's search bar sits directly above the shelves when visible -
+                    // prefer it over the tab so the bar stays reachable via D-pad.
+                    var target: View? = root.findViewById<View>(R.id.homeSearchBar)?.takeIf { it.isShown }
+                    if (target == null && topRowFocusUpTargetId != View.NO_ID) {
+                        target = root.findViewById<View>(topRowFocusUpTargetId)
+                    }
+                    if (target != null && target.requestFocus()) return@setOnKeyListener true
+                }
+                false
             }
         }
 

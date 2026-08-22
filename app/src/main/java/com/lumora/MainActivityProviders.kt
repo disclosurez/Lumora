@@ -501,10 +501,16 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 visible = true
             )
         }
-        val animeDeferred = if (enabledAnimePlugin() != null) {
+        val animeDeferred: Deferred<List<Channel>>? = if (enabledAnimePlugin() != null) {
             // fetchAnimeChannels does synchronous OkHttp calls, and this loader coroutine
             // runs on Main - the Dispatchers.IO hop mirrors the sequential version below.
-            async { withContext(Dispatchers.IO) { fetchAnimeChannels() } }
+            // Bounded like every other provider: an unresponsive anime catalog must not
+            // hold the whole load open.
+            async {
+                withContext(Dispatchers.IO) {
+                    withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) { fetchAnimeChannels() } ?: emptyList()
+                }
+            }
         } else null
         // Fetched concurrently, not one after another - they used to run sequentially, so
         // a single dead/slow provider (up to PROVIDER_FETCH_TIMEOUT_MS - a Stalker portal
@@ -532,12 +538,18 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 } ?: FetchResult.Failure("${server.name}: timed out")
             }
         }
+        // Providers whose channels were merged into allChannels before their fetch finished
+        // (Stalker's live half lands first, then VOD/series). If that second half then fails
+        // or times out, the final replace below must not wipe the live channels that are
+        // already on screen - they're seeded into `combined` from the partial merge instead.
+        val partialMergedIds = mutableSetOf<String>()
         val fetchResults = enabledConfigs.map { config ->
             async {
                 val result = withTimeoutOrNull(PROVIDER_FETCH_TIMEOUT_MS) {
                     when (config.type) {
                         "xtream" -> fetchXtreamChannels(config) { expiryText = it }
                         "stalker" -> fetchStalkerChannels(config) { live ->
+                            partialMergedIds += config.id
                             mergeProviderPartial(config.id, live)
                             renderLivePartial()
                         }
@@ -545,6 +557,7 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                     }
                 } ?: FetchResult.Failure("timed out")
                 if (result is FetchResult.Success) {
+                    partialMergedIds += config.id
                     mergeProviderPartial(config.id, result.channels)
                     renderLivePartial()
                 }
@@ -560,7 +573,16 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
             when (result) {
                 is FetchResult.Success ->
                     combined += result.channels.filter { it.sourceProviderId == null || it.sourceProviderId in enabledProviderIds }
-                is FetchResult.Failure -> errors += "${config.name}: ${result.message}"
+                is FetchResult.Failure -> {
+                    // A Stalker portal that failed/timed out on its VOD/series half still
+                    // delivered its live channels through the partial merge - keep them
+                    // rather than letting the final replace wipe them off screen. Skipped
+                    // when the provider was toggled off mid-load (same gate as Success).
+                    if (config.id in partialMergedIds && config.id in enabledProviderIds) {
+                        combined += allChannels.filter { it.sourceProviderId == config.id }
+                    }
+                    errors += "${config.name}: ${result.message}"
+                }
             }
         }
         for ((server, deferred) in mediaServerDeferred) {
@@ -741,10 +763,6 @@ internal suspend fun MainActivity.fetchXtreamChannels(config: IptvProviderConfig
         val authResult = withContext(Dispatchers.IO) { client.authenticate(xtreamProvider) }
         val auth = authResult.getOrElse { return FetchResult.Failure(it.message?.take(60) ?: "auth error") }
         if (!auth.valid) return FetchResult.Failure("auth failed - check server URL and credentials")
-        // Remembered for EPG lookups and the subscription-expiry line, both inherently
-        // "the" Xtream account concepts - first enabled Xtream provider wins if there's
-        // more than one configured.
-        provider = xtreamProvider
 
         val live: List<Channel>
         val films: List<Channel>

@@ -22,6 +22,7 @@
     <string name="play_sleep_60_min">60 min</string>
     <string name="play_sleep_90_min">90 min</string>
     <string name="play_sleep_120_min">120 min</string>
+    <string name="play_sleep_timer_ended">Sleep timer ended</string>
     <string name="play_cast_failed">Cast failed: check TV and try again</string>
     <string name="play_cast_play_content_first">Play content first, then Cast</string>
     <string name="play_diag_body">Decoder: %1$s\nVideo: %2$s\nAudio: %3$s\nStalls: %4$d (%5$ds)\nState: %6$s</string>

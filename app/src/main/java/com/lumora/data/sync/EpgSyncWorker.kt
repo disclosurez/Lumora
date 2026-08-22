@@ -39,6 +39,14 @@ class EpgSyncWorker(
 
         var allSuccess = true
         for (source in sources) {
+            // A source that has failed MAX_CONSECUTIVE_FAILURES times in a row is treated as
+            // permanently broken: skip it rather than let it keep forcing Result.retry(), which
+            // re-fetches every enabled source on each attempt. The count resets on any success
+            // (markRefreshed), and a re-added source starts at zero.
+            if (source.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                Log.w(TAG, "Skipping EPG source ${source.name}: ${source.consecutiveFailures} consecutive failures")
+                continue
+            }
             try {
                 Log.d(TAG, "Fetching EPG: ${source.name}")
                 val request = Request.Builder().url(source.url)
@@ -52,11 +60,18 @@ class EpgSyncWorker(
                 response.use {
                     if (!it.isSuccessful) {
                         Log.w(TAG, "HTTP ${it.code} for ${source.name}")
+                        db.epgSourceDao().incrementFailures(source.id)
                         allSuccess = false
                         return@use
                     }
 
-                    val body = it.body ?: return@use
+                    val body = it.body
+                    if (body == null) {
+                        Log.w(TAG, "Empty response body for ${source.name}")
+                        db.epgSourceDao().incrementFailures(source.id)
+                        allSuccess = false
+                        return@use
+                    }
                     val result = XmltvParser.parse(body.byteStream())
 
                     Log.d(TAG, "Parsed ${result.channels.size} channels, ${result.programmes.size} programs from ${source.name}")
@@ -108,12 +123,20 @@ class EpgSyncWorker(
                             }
                             db.epgProgramDao().upsertAll(rows)
                         }
+                        // Only a sync that actually wrote guide rows counts as a success -
+                        // lastSuccessAt is what the UI reads to decide the guide is fresh, and
+                        // stamping it on a source that mapped nothing would paint a stale guide
+                        // as current. Zero mapped rows is a failure like any other.
+                        db.epgSourceDao().markRefreshed(source.id, System.currentTimeMillis())
+                    } else {
+                        Log.w(TAG, "No programmes mapped for ${source.name}; treating as failure")
+                        db.epgSourceDao().incrementFailures(source.id)
+                        allSuccess = false
                     }
-
-                    db.epgSourceDao().markRefreshed(source.id, System.currentTimeMillis())
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "EPG sync error for ${source.name}: ${e.message}")
+                db.epgSourceDao().incrementFailures(source.id)
                 allSuccess = false
             }
         }
@@ -141,6 +164,9 @@ class EpgSyncWorker(
 
     companion object {
         private const val UNIQUE_WORK_NAME = "epg_sync"
+
+        /** Consecutive failures before a source is skipped outright (see doWork). */
+        private const val MAX_CONSECUTIVE_FAILURES = 3
 
         fun enqueue(context: Context) {
             val request = OneTimeWorkRequestBuilder<EpgSyncWorker>()

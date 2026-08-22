@@ -156,21 +156,33 @@ class EpisodeAdapter(
                 }
             }
             downloadButton.setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    itemView.requestFocus()
-                    true
-                } else {
-                    false
-                }
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> { itemView.requestFocus(); true }
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (checkButton.visibility == View.VISIBLE) {
+                                checkButton.requestFocus(); true
+                            } else {
+                                // At row's right edge - consume to prevent escape into
+                                // the window's next focusable (the toolbar).
+                                true
+                            }
+                        }
+                        else -> false
+                    }
+                } else false
             }
             checkButton.setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    val target = if (downloadButton.visibility == View.VISIBLE) downloadButton else itemView
-                    target.requestFocus()
-                    true
-                } else {
-                    false
-                }
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            val target = if (downloadButton.visibility == View.VISIBLE) downloadButton else itemView
+                            target.requestFocus(); true
+                        }
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> true
+                        else -> false
+                    }
+                } else false
             }
         }
 

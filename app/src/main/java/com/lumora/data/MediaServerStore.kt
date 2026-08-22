@@ -1,6 +1,7 @@
 package com.lumora.data
 
 import android.content.SharedPreferences
+import android.util.Log
 import com.lumora.model.MediaServerConfig
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,18 +14,32 @@ import java.util.UUID
  *  them together means the Settings list, the load loop and the gates iterate once. */
 object MediaServerStore {
     private const val KEY = "media_servers_json"
+    private const val TAG = "MediaServerStore"
+
+    /** Set when the stored JSON fails to parse. save() then refuses to write, so a later
+     *  upsert/remove/setEnabled can't overwrite the corrupt blob with `[]` and destroy the
+     *  user's accounts for good. Cleared only by a process restart. */
+    @Volatile private var corrupt = false
 
     fun load(prefs: SharedPreferences): List<MediaServerConfig> {
         val raw = prefs.getString(KEY, null) ?: return migrateLegacy(prefs)
         return try {
             val arr = JSONArray(raw)
-            (0 until arr.length()).map { i -> fromJson(arr.getJSONObject(i)) }
+            (0 until arr.length()).mapNotNull { i -> fromJson(arr.getJSONObject(i)) }
         } catch (e: Exception) {
+            if (!corrupt) {
+                corrupt = true
+                Log.e(TAG, "Corrupt media-server JSON; refusing to overwrite it. ${e.message}")
+            }
             emptyList()
         }
     }
 
     fun save(prefs: SharedPreferences, list: List<MediaServerConfig>) {
+        if (corrupt) {
+            Log.e(TAG, "Refusing to overwrite corrupt media-server JSON")
+            return
+        }
         val arr = JSONArray()
         list.forEach { arr.put(toJson(it)) }
         prefs.edit().putString(KEY, arr.toString()).apply()
@@ -157,22 +172,28 @@ object MediaServerStore {
         c.accountToken?.let { put("accountToken", it) }
     }
 
-    private fun fromJson(o: JSONObject): MediaServerConfig = MediaServerConfig(
-        id = o.optString("id").ifBlank { newId() },
-        type = o.optString("type", "jellyfin"),
-        name = o.optString("name", "Media server"),
-        enabled = o.optBoolean("enabled", true),
-        url = o.optString("url").takeIf { it.isNotBlank() },
-        altUrls = o.optJSONArray("altUrls")?.let { arr ->
-            (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { u -> u.isNotBlank() } }
-        }.orEmpty(),
-        username = o.optString("username").takeIf { it.isNotBlank() },
-        password = o.optString("password").takeIf { it.isNotBlank() },
-        token = o.optString("token").takeIf { it.isNotBlank() },
-        userId = o.optString("userId").takeIf { it.isNotBlank() },
-        accountToken = o.optString("accountToken").takeIf { it.isNotBlank() },
-        liveEnabled = o.optBoolean("liveEnabled", true),
-        moviesEnabled = o.optBoolean("moviesEnabled", true),
-        seriesEnabled = o.optBoolean("seriesEnabled", true)
-    )
+    private fun fromJson(o: JSONObject): MediaServerConfig? {
+        // An entry with no id can't be looked up again (favourites/positions key off it), and
+        // minting a fresh id here would hand out a different one on every load without ever
+        // persisting it - orphaning anything keyed by a previous minted id. Drop the entry.
+        val id = o.optString("id").takeIf { it.isNotBlank() } ?: return null
+        return MediaServerConfig(
+            id = id,
+            type = o.optString("type", "jellyfin"),
+            name = o.optString("name", "Media server"),
+            enabled = o.optBoolean("enabled", true),
+            url = o.optString("url").takeIf { it.isNotBlank() },
+            altUrls = o.optJSONArray("altUrls")?.let { arr ->
+                (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { u -> u.isNotBlank() } }
+            }.orEmpty(),
+            username = o.optString("username").takeIf { it.isNotBlank() },
+            password = o.optString("password").takeIf { it.isNotBlank() },
+            token = o.optString("token").takeIf { it.isNotBlank() },
+            userId = o.optString("userId").takeIf { it.isNotBlank() },
+            accountToken = o.optString("accountToken").takeIf { it.isNotBlank() },
+            liveEnabled = o.optBoolean("liveEnabled", true),
+            moviesEnabled = o.optBoolean("moviesEnabled", true),
+            seriesEnabled = o.optBoolean("seriesEnabled", true)
+        )
+    }
 }

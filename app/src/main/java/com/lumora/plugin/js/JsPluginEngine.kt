@@ -161,7 +161,7 @@ class JsPluginEngine(private val httpClient: OkHttpClient = OkHttpClient()) {
     }
 
     suspend fun resolve(source: String, token: String, season: Int?, episode: Int?): ResolveResult {
-        PluginLog.i(TAG, "resolve() start: token=$token season=$season episode=$episode")
+        PluginLog.i(TAG, "resolve() start: season=$season episode=$episode")
         val host = JsHostImpl(
             client = httpClient,
             token = token,

@@ -15,7 +15,8 @@
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingHorizontal="@dimen/settings_gap_s"
-    android:paddingVertical="@dimen/settings_gap_xs">
+    android:paddingVertical="@dimen/settings_gap_xs"
+    android:stateListAnimator="@animator/focus_scale_flat">
 
     <TextView
         android:id="@+id/pluginNavState"

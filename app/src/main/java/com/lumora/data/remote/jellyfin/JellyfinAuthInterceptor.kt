@@ -12,7 +12,7 @@ class JellyfinAuthInterceptor : Interceptor {
         val request = chain.request()
         val host = JellyfinSession.serverHost
         val token = JellyfinSession.accessToken
-        if (host == null || token == null || (!request.url.host.endsWith(host) && request.url.host != host) || !request.header("X-Emby-Token").isNullOrBlank()) {
+        if (host == null || token == null || (request.url.host != host && !request.url.host.endsWith(".$host")) || !request.header("X-Emby-Token").isNullOrBlank()) {
             return chain.proceed(request)
         }
         return chain.proceed(request.newBuilder().header("X-Emby-Token", token).build())

@@ -11,6 +11,7 @@
         <item name="android:background">@drawable/nav_rail_item_background</item>
         <item name="android:focusable">true</item>
         <item name="android:clickable">true</item>
+        <item name="android:stateListAnimator">@animator/focus_scale_flat</item>
         <item name="android:layout_marginBottom">@dimen/settings_gap_xs</item>
     </style>
 

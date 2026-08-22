@@ -393,8 +393,12 @@ internal fun MainActivity.showControls(takeFocus: Boolean = true) {
     // rather than stacking the bar over it.
     if (isPlayerSideMenuOpen()) closeSideMenu()
     // Up Next shares the bottom-right corner with the controls bar's track buttons -
-    // don't let both render at once.
-    if (upNextActive) binding.upNextOverlay.visibility = View.GONE
+    // don't let both render at once. The countdown is paused too: a card hidden under
+    // the bar must not keep ticking down to an auto-advance the user can't see.
+    if (upNextActive) {
+        binding.upNextOverlay.visibility = View.GONE
+        mainHandler.removeCallbacks(upNextTickRunnable)
+    }
     binding.controlsOverlay.visibility = View.VISIBLE
     // Cheap re-link (~10 children) each reveal, so the row is never navigated with a chain
     // left stale by a button that changed visibility since setup.
@@ -413,7 +417,13 @@ internal fun MainActivity.showControls(takeFocus: Boolean = true) {
 
 internal fun MainActivity.hideControls() {
     binding.controlsOverlay.visibility = View.GONE
-    if (upNextActive) binding.upNextOverlay.visibility = View.VISIBLE
+    // Bar gone - Up Next can come back, and its countdown resumes where it paused
+    // (removeCallbacks first so a resume can never double-schedule the tick).
+    if (upNextActive) {
+        binding.upNextOverlay.visibility = View.VISIBLE
+        mainHandler.removeCallbacks(upNextTickRunnable)
+        mainHandler.postDelayed(upNextTickRunnable, 1000)
+    }
 }
 
 internal fun MainActivity.toggleControls() {

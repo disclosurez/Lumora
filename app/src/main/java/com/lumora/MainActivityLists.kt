@@ -502,9 +502,18 @@ internal suspend fun MainActivity.loadSeriesContent(
             }
         }
         else -> {
-            val client = XtreamClient(BaseApplication.instance.okHttpClient)
-            val info = withContext(Dispatchers.IO) { client.getSeriesFull(xtreamProviderFor(item) ?: provider, item.id) }
-            info.details to info.seasons
+            // Xtream items resolve their own provider via sourceProviderId; anything else
+            // (an M3U series, or a provider since removed) has no Xtream credentials to
+            // query, so return the item's own metadata with no episodes rather than run
+            // getSeriesFull against the wrong account.
+            val xtream = xtreamProviderFor(item)
+            if (xtream == null) {
+                itemDetails to emptyList()
+            } else {
+                val client = XtreamClient(BaseApplication.instance.okHttpClient)
+                val info = withContext(Dispatchers.IO) { client.getSeriesFull(xtream, item.id) }
+                info.details to info.seasons
+            }
         }
     }
 }

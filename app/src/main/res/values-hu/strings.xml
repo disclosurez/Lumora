@@ -287,4 +287,22 @@
     <string name="ui_not_driving_continue">Nem vezetek - folytatás</string>
     <string name="list_find_and_play">Keresés és lejátszás</string>
     <string name="list_season_number">%1$d. évad</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">Bővítmények automatikus frissítése indításkor</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">%1$d nap múlva</item>
+        <item quantity="other">%1$d nap múlva</item>
+    </plurals>
+    <string name="episode_airs_on">Megjelenik: %1$s</string>
+    <string name="episode_not_released">Ez az epizód még nem került adásba.</string>
+    <string name="play_rewind_15">Visszatekerés 15 mp</string>
+    <string name="play_play_pause">Lejátszás/Szünet</string>
+    <string name="play_ff_30">Előretekerés 30 mp</string>
+    <string name="episode_download">Epizód letöltése</string>
+    <string name="download_delete">Letöltés törlése</string>
+    <string name="provider_name_hint">pl. My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Jellyfin felhasználónév</string>
 </resources>

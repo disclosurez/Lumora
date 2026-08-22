@@ -287,4 +287,23 @@
     <string name="ui_not_driving_continue">Ne vozim - nastavi</string>
     <string name="list_find_and_play">Pronađi i reproduciraj</string>
     <string name="list_season_number">Sezona %1$d</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">Automatski ažuriraj dodatke pri pokretanju</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">Za %1$d dan</item>
+        <item quantity="few">Za %1$d dana</item>
+        <item quantity="other">Za %1$d dana</item>
+    </plurals>
+    <string name="episode_airs_on">Prikazuje se %1$s</string>
+    <string name="episode_not_released">Ova epizoda još nije prikazana.</string>
+    <string name="play_rewind_15">Premotaj 15 s unatrag</string>
+    <string name="play_play_pause">Reproduciraj/Pauza</string>
+    <string name="play_ff_30">Premotaj 30 s naprijed</string>
+    <string name="episode_download">Preuzmi epizodu</string>
+    <string name="download_delete">Obriši preuzimanje</string>
+    <string name="provider_name_hint">npr. My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Jellyfin korisničko ime</string>
 </resources>

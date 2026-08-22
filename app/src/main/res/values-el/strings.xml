@@ -291,4 +291,22 @@
     <string name="ui_not_driving_continue">Δεν οδηγώ - συνέχεια</string>
     <string name="list_find_and_play">Εύρεση και αναπαραγωγή</string>
     <string name="list_season_number">Σεζόν %1$d</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">Αυτόματη ενημέρωση προσθηκών κατά την εκκίνηση</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">Σε %1$d ημέρα</item>
+        <item quantity="other">Σε %1$d ημέρες</item>
+    </plurals>
+    <string name="episode_airs_on">Προβάλλεται %1$s</string>
+    <string name="episode_not_released">Αυτό το επεισόδιο δεν έχει προβληθεί ακόμα.</string>
+    <string name="play_rewind_15">Επιστροφή 15 δευτ.</string>
+    <string name="play_play_pause">Αναπαραγωγή/Παύση</string>
+    <string name="play_ff_30">Προώθηση 30 δευτ.</string>
+    <string name="episode_download">Λήψη επεισοδίου</string>
+    <string name="download_delete">Διαγραφή λήψης</string>
+    <string name="provider_name_hint">π.χ. My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Όνομα χρήστη Jellyfin</string>
 </resources>

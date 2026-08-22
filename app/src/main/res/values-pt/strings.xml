@@ -289,4 +289,22 @@
     <string name="ui_not_driving_continue">Não estou a conduzir - continuar</string>
     <string name="list_find_and_play">Procurar e reproduzir</string>
     <string name="list_season_number">Temporada %1$d</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">Atualizar plugins automaticamente ao iniciar</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">Em %1$d dia</item>
+        <item quantity="other">Em %1$d dias</item>
+    </plurals>
+    <string name="episode_airs_on">Vai ao ar %1$s</string>
+    <string name="episode_not_released">Este episódio ainda não foi ao ar.</string>
+    <string name="play_rewind_15">Retroceder 15 s</string>
+    <string name="play_play_pause">Reproduzir/Pausar</string>
+    <string name="play_ff_30">Avançar 30 s</string>
+    <string name="episode_download">Baixar episódio</string>
+    <string name="download_delete">Excluir download</string>
+    <string name="provider_name_hint">ex. My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Usuário do Jellyfin</string>
 </resources>

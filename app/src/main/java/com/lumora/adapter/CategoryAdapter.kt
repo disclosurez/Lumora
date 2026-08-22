@@ -37,6 +37,10 @@ class CategoryAdapter(
     var selectedId: String? = null
         private set
 
+    /** Where D-pad UP from the first rail row should land - the active tab button.
+     *  Outside this RecyclerView, so unreachable via nextFocusUpId (see PosterGridAdapter). */
+    var topRowFocusUpTargetId: Int = View.NO_ID
+
     fun setSelected(id: String?) {
         val oldId = selectedId
         if (oldId == id) return
@@ -104,6 +108,7 @@ class CategoryAdapter(
                         if (star.visibility == View.VISIBLE) star.requestFocus()
                         true
                     }
+                    keyCode == KeyEvent.KEYCODE_DPAD_UP -> moveUp()
                     keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> moveDown()
                     else -> false
                 }
@@ -115,6 +120,7 @@ class CategoryAdapter(
                         itemView.requestFocus()
                         true
                     }
+                    keyCode == KeyEvent.KEYCODE_DPAD_UP -> moveUp()
                     // The star sits inside the row, so a DOWN landing on it escapes the rail
                     // exactly the way one on the row does - same handler, and it steps to the
                     // next row rather than that row's own star.
@@ -198,6 +204,29 @@ class CategoryAdapter(
                 // path uses after making the rail visible.
                 rv.scrollToPosition(next)
                 rv.post { rv.layoutManager?.findViewByPosition(next)?.requestFocus() }
+            }
+            return true
+        }
+
+        private fun moveUp(): Boolean {
+            val pos = bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION) return true
+            if (pos == 0) {
+                if (topRowFocusUpTargetId != View.NO_ID) {
+                    val target = itemView.rootView.findViewById<View>(topRowFocusUpTargetId)
+                    if (target != null && target.isShown && target.requestFocus()) return true
+                }
+                // Consume the key even if no target resolved - leaving the rail
+                // via UP is that target's job, not a geometric escape into the content grid.
+                return true
+            }
+            val rv = itemView.parent as? RecyclerView ?: return true
+            val target = rv.layoutManager?.findViewByPosition(pos - 1)
+            if (target != null) {
+                target.requestFocus()
+            } else {
+                rv.scrollToPosition(pos - 1)
+                rv.post { rv.layoutManager?.findViewByPosition(pos - 1)?.requestFocus() }
             }
             return true
         }

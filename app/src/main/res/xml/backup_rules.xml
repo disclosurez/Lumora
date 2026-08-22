@@ -9,8 +9,11 @@
      user chose to install from a store; it should not come back by itself, and a stale copy
      restored from an old backup is worse than none.
 
-     Everything else still backs up, so provider configs, favourites and playback positions
-     survive a reinstall as before. -->
+     iptv_prefs.xml is excluded too: it holds the provider configs and media-server sessions
+     (IPTV credentials, Jellyfin tokens, Plex account tokens) in plaintext, and Auto Backup
+     would otherwise restore those credentials onto any device signed into the same Google
+     account. Favourites and playback positions live in the same file and are lost with it -
+     the manual JSON backup (Settings -> Backup) is the supported way to move them. -->
 <full-backup-content>
     <exclude domain="file" path="plugin_scripts" />
     <!-- Which plugins are on. Kept in its own SharedPreferences file precisely so it can be
@@ -18,6 +21,9 @@
          (which do want backing up) meant a reinstall restored the enabled set and plugins came
          back switched on. See PluginScriptManager.pluginPrefs. -->
     <exclude domain="sharedpref" path="plugin_prefs.xml" />
+    <!-- Provider configs and media-server sessions (IPTV credentials, Jellyfin/Plex tokens)
+         live in this file in plaintext - see the note above. -->
+    <exclude domain="sharedpref" path="iptv_prefs.xml" />
     <!-- The cached catalogue is large (tens of MB on a merged setup), rebuilt from the network
          on first load anyway, and pins the restore to whatever the providers looked like then. -->
     <exclude domain="file" path="channels_cache.txt" />

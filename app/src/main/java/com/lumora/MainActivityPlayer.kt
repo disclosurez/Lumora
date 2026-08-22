@@ -91,7 +91,9 @@ internal fun MainActivity.setupPlayerControls() {
     // showControls() here restarts the 4s auto-hide: this button consumes the OK press
     // itself, so the Activity-level timer refresh in onKeyDown never sees it, and the
     // bar would otherwise vanish right after the press that paused.
-    binding.btnPlayPause.setOnClickListener { playerManager.togglePlayPause(); updatePlayPauseIcon(); showControls() }
+    binding.btnPlayPause.setOnClickListener {
+        playerManager.togglePlayPause(); userPausedPlayback = !playerManager.isPlaying; updatePlayPauseIcon(); showControls()
+    }
     binding.btnPrevChannel.setOnClickListener { navigateChannel(-1) }
     binding.btnNextChannel.setOnClickListener { navigateChannel(1) }
     binding.btnBack.setOnClickListener { hidePlayer(); restoreSearchIfPending() }
@@ -198,6 +200,14 @@ internal fun MainActivity.setupPlayerControls() {
     // Sleep timer
     sleepTimer = com.lumora.player.playback.SleepTimer(playerManager.getExoPlayer()).apply {
         onTickCallback = { display -> binding.btnSleepTimer.text = display }
+        // The timer's own onFinish stops the player, which leaves a frozen frame behind with
+        // no sign playback ended - surface the controls and say so, and reset the button label
+        // (the timer does not reset its own preset state on finish).
+        onSleep = {
+            binding.btnSleepTimer.text = getString(R.string.sleep_timer_button)
+            showControls()
+            Toast.makeText(this@setupPlayerControls, getString(R.string.play_sleep_timer_ended), Toast.LENGTH_SHORT).show()
+        }
     }
     binding.btnSleepTimer.setOnClickListener {
         val presets = arrayOf(
@@ -250,6 +260,9 @@ internal fun MainActivity.setupPlayerControls() {
                     Toast.makeText(this@setupPlayerControls, getString(R.string.play_cast_play_content_first), Toast.LENGTH_SHORT).show()
                 }
             }
+            // The local player was paused when casting started; without this it stays paused
+            // forever once the cast session ends.
+            onCastSessionDisconnected = { playerManager.play() }
         }
         try {
             com.google.android.gms.cast.framework.CastButtonFactory.setUpMediaRouteButton(
@@ -498,12 +511,14 @@ internal fun MainActivity.setupPlayerControls() {
                     binding.bufferingSpinner.visibility = View.VISIBLE
                     mainHandler.postDelayed({
                         if (nowPlayingChannel?.id != liveChannel.id) return@postDelayed
-                        val current = currentVersionGroup.getOrNull(currentVersionIndex) ?: liveChannel
-                        playerManager.playUrl(
-                            current.url,
-                            current.streamUserAgent,
-                            preferAudioLanguage = false
-                        )
+                        // Replayed through PlayerManager rather than rebuilt from the URL: the
+                        // original call also carried per-stream headers (a hotlink Referer) and,
+                        // for a Stalker live channel, the resolved create_link URL - rebuilding
+                        // from current.url alone dropped the headers (403 on retry) and replayed
+                        // a blank URL for Stalker.
+                        if (!playerManager.replayLast(0L)) {
+                            showPlaybackFailed(getString(R.string.play_stream_error_reason, error.errorCodeName))
+                        }
                     }, delayMs)
                 } else {
                     // Every internal recovery is spent: retries, version failover and
@@ -596,6 +611,8 @@ internal fun MainActivity.showPlayerFor(
     currentEpisodeQueue = emptyList()
     currentEpisodeQueueIndex = -1
     isPlayerVisible = true
+    // A fresh playback session is never a continuation of a user pause.
+    userPausedPlayback = false
     nowPlayingChannel = channel
     // Trakt's `start`. Deliberately after nowPlayingChannel is set - the TMDB lookup that
     // identifies the title runs in the background and checks what is playing when it lands,
@@ -1224,6 +1241,7 @@ internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = nu
     playerManager.playUrl(
         next.url,
         next.streamUserAgent,
+        headers = next.streamHeaders,
         preferAudioLanguage = next.mediaType != MediaType.LIVE
     )
 }
@@ -1726,6 +1744,10 @@ internal fun MainActivity.checkForBlackFrame() {
                 blackFrameStreak = 0
                 if (!tryNextQualityVersion(getString(R.string.play_channel_offline_switching))) {
                     Toast.makeText(this, getString(R.string.play_channel_offline), Toast.LENGTH_SHORT).show()
+                    // No version to fail over to, but the watchdog must keep sampling - a
+                    // dead feed that later recovers (or a version whose dead-mark expires)
+                    // would otherwise never be noticed again.
+                    mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
                 }
             } else {
                 mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)

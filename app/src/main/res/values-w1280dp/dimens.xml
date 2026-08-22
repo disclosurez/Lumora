@@ -9,4 +9,14 @@
     <dimen name="shelf_poster_width">67dp</dimen>
     <dimen name="shelf_poster_image_height">106dp</dimen>
     <dimen name="search_poster_image_height">77dp</dimen>
+
+    <!-- Settings text: the sw540dp bucket (720p/1080p sets) already steps these up from the
+         phone base; a 4K set sits further from the sofa than either, so it gets the largest
+         step of all. Without this the Settings UI fell back to the phone base (8-11sp). -->
+    <dimen name="settings_text_micro">10sp</dimen>
+    <dimen name="settings_text_caption">12sp</dimen>
+    <dimen name="settings_text_body">13sp</dimen>
+    <dimen name="settings_text_subtitle">14sp</dimen>
+    <dimen name="settings_text_section">16sp</dimen>
+    <dimen name="settings_text_title">19sp</dimen>
 </resources>

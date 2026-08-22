@@ -72,7 +72,12 @@ internal suspend fun MainActivity.connectJellyfin(cfg: MediaServerConfig): Resul
  *  series detail page silently showed "No episodes found" on every cached launch. */
 internal suspend fun MainActivity.jellyfinClientOrConnect(cfg: MediaServerConfig?): JellyfinProvider? {
     if (cfg == null) return null
-    jellyfinClients[cfg.id]?.let { return it }
+    // Only serve the cached session while the account it belongs to still exists and is
+    // enabled - a backup restore or an edited config can drop it while the map still
+    // holds a live client, which would otherwise keep serving stale credentials.
+    if (MediaServerStore.get(prefs, cfg.id)?.enabled == true) {
+        jellyfinClients[cfg.id]?.let { return it }
+    }
     return connectJellyfin(cfg).getOrNull()?.also { jellyfinClients[cfg.id] = it }
 }
 
@@ -85,7 +90,9 @@ internal suspend fun MainActivity.jellyfinClientFor(channel: Channel): JellyfinP
 internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig): FetchResult {
     val url = jellyfinServerUrl(cfg) ?: return FetchResult.Failure("Jellyfin: no server URL")
     return try {
-        val jellyfin = connectJellyfin(cfg).getOrElse {
+        // Reuse the live session when one is already cached - a password-login account
+        // would otherwise re-authenticate over the network on every catalog load.
+        val jellyfin = jellyfinClientOrConnect(cfg) ?: connectJellyfin(cfg).getOrElse {
             return FetchResult.Failure(it.message ?: "Jellyfin: auth failed")
         }
         val stub = jellyfinProviderStub(url)

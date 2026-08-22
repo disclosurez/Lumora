@@ -347,6 +347,12 @@ internal fun MainActivity.submitCategories(categories: List<CategoryFilter>) {
     // single canonical re-show point for the rail, so the collapsed pref applies
     // everywhere a tab is (re)built (tab switch, category rebuild, catalog refresh).
     applySidebarVisibility(onCategorizedTab && categories.size > 1)
+    categoryAdapter.topRowFocusUpTargetId = when (activeTab) {
+        0 -> R.id.tabLive
+        1 -> R.id.tabSeries
+        2 -> R.id.tabFilms
+        else -> R.id.tabLive
+    }
     // submitList uses AsyncListDiffer which commits the list asynchronously.
     // Set the selected highlight only after the list is committed, otherwise
     // the diff callback can reset the adapter's selected state.
@@ -1688,6 +1694,7 @@ internal fun MainActivity.selectDownloads() {
     binding.liveRow.visibility = View.GONE
     binding.seriesContent.visibility = View.GONE
     binding.filmsContent.visibility = View.GONE
+    downloadAdapter.topRowFocusUpTargetId = if (binding.tabDownloads.isShown) R.id.tabDownloads else R.id.tabHome
     updateTabStyles(binding.tabDownloads)
     refreshDownloadsList()
     mainHandler.post(downloadsProgressRunnable)

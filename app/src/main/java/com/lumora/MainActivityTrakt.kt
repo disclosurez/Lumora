@@ -685,8 +685,8 @@ internal fun MainActivity.wireTraktPane(dialogView: View) {
      * the scrobble checkbox could resolve to the rail rather than to the row directly beneath
      * it, which is what made Sync watched history unreachable.
      *
-     * Same reasoning as the shelf/grid adapters naming their own focus targets rather than
-     * trusting focusSearch - see ShelfAdapter.nextFocusUpTargetId. Ids are reassigned on every
+     * Same reasoning as the grid adapter naming its own focus target rather than trusting
+     * focusSearch - see PosterGridAdapter.topRowFocusUpTargetId. Ids are reassigned on every
      * render, including back to NO_ID, so a row hidden by a later state change never leaves a
      * stale target pointing at it.
      */

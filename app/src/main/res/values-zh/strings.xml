@@ -283,4 +283,22 @@
     <string name="ui_not_driving_continue">我不是驾驶员 - 继续</string>
     <string name="list_find_and_play">查找并播放</string>
     <string name="list_season_number">第 %1$d 季</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">启动时自动更新插件</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">%1$d天后</item>
+        <item quantity="other">%1$d天后</item>
+    </plurals>
+    <string name="episode_airs_on">%1$s播出</string>
+    <string name="episode_not_released">该剧集尚未播出。</string>
+    <string name="play_rewind_15">后退15秒</string>
+    <string name="play_play_pause">播放/暂停</string>
+    <string name="play_ff_30">快进30秒</string>
+    <string name="episode_download">下载剧集</string>
+    <string name="download_delete">删除下载</string>
+    <string name="provider_name_hint">例如 My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Jellyfin用户名</string>
 </resources>

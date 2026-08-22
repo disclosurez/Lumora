@@ -3,8 +3,13 @@ package com.lumora.data.backup
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.lumora.cache.FavoritesStore
+import com.lumora.data.IptvProviderStore
+import com.lumora.data.MediaServerStore
 import com.lumora.data.local.LumoraDatabase
 import com.lumora.data.local.entity.*
+import com.lumora.model.IptvProviderConfig
+import com.lumora.model.MediaServerConfig
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
@@ -18,7 +23,8 @@ import java.util.*
 
 /**
  * Manages export/import of app data for backup and restore.
- * Exports providers, favorites, preferences, watch history to JSON.
+ * Exports IPTV provider configs, Jellyfin/Plex sessions, favorites, EPG sources,
+ * custom groups, watch history and recording schedules to JSON.
  */
 class BackupManager(private val context: Context) {
 
@@ -32,10 +38,20 @@ class BackupManager(private val context: Context) {
         val version: Int = BACKUP_VERSION,
         val createdAt: String = "",
         val appVersion: String = "2.0",
+        // Legacy field: the Room `providers` table was never written by anything except the
+        // old export path, so real backups always carried an empty list. Kept for format
+        // stability; the live configs live in iptvProviders/mediaServers below.
         val providers: List<ProviderBackup> = emptyList(),
+        val iptvProviders: List<IptvProviderBackup> = emptyList(),
+        val mediaServers: List<MediaServerBackup> = emptyList(),
         val epgSources: List<EpgSourceBackup> = emptyList(),
         val customGroups: List<CustomGroupBackup> = emptyList(),
+        // Legacy field, always empty in practice (the old export hardcoded it). Favorites are
+        // carried in favoriteSeries/favoriteChannels so restore knows which set each id
+        // belongs to.
         val favorites: List<String> = emptyList(),
+        val favoriteSeries: List<String> = emptyList(),
+        val favoriteChannels: List<String> = emptyList(),
         val watchHistory: List<WatchHistoryBackup> = emptyList(),
         val recordingStorage: RecordingStorageBackup? = null,
         val recordingSchedules: List<RecordingScheduleBackup> = emptyList(),
@@ -50,6 +66,24 @@ class BackupManager(private val context: Context) {
         val syncEnabled: Boolean, val epgSyncEnabled: Boolean
     )
 
+    /** One IptvProviderConfig (Xtream/M3U/Stalker), round-tripped through the JSON backup. */
+    data class IptvProviderBackup(
+        val id: String, val type: String, val name: String,
+        val enabled: Boolean, val liveEnabled: Boolean,
+        val moviesEnabled: Boolean, val seriesEnabled: Boolean,
+        val url: String?, val username: String?, val password: String?,
+        val userAgent: String?
+    )
+
+    /** One MediaServerConfig (Jellyfin/Plex session), round-tripped through the JSON backup. */
+    data class MediaServerBackup(
+        val id: String, val type: String, val name: String,
+        val enabled: Boolean, val url: String?, val altUrls: List<String> = emptyList(),
+        val username: String?, val password: String?,
+        val token: String?, val userId: String?, val accountToken: String?,
+        val liveEnabled: Boolean, val moviesEnabled: Boolean, val seriesEnabled: Boolean
+    )
+
     data class EpgSourceBackup(
         val id: String, val name: String, val url: String,
         val enabled: Boolean, val priority: Int
@@ -61,10 +95,16 @@ class BackupManager(private val context: Context) {
     )
 
     data class WatchHistoryBackup(
+        // Original row id, carried so restore keeps entries distinct per channel instead of
+        // collapsing them onto one "backup_<channelId>" key. Null on backups written by old
+        // builds; restore falls back to a per-entry id.
+        val id: String? = null,
         val channelId: String, val channelName: String,
         val mediaType: String, val positionMs: Long,
         val durationMs: Long, val status: String,
-        val lastWatchedAt: Long
+        val lastWatchedAt: Long,
+        // Carried so restore doesn't lose firstWatchedAt (old backups only had lastWatchedAt).
+        val firstWatchedAt: Long? = null
     )
 
     data class RecordingStorageBackup(
@@ -73,6 +113,9 @@ class BackupManager(private val context: Context) {
     )
 
     data class RecordingScheduleBackup(
+        // Original row id, carried so re-import REPLACEs the schedule instead of inserting a
+        // fresh UUID and duplicating it. Null on old backups; restore falls back to a new UUID.
+        val id: String? = null,
         val channelId: String, val channelName: String,
         val programTitle: String, val startTimeUtc: Long,
         val stopTimeUtc: Long, val recurringRule: String?
@@ -142,10 +185,14 @@ class BackupManager(private val context: Context) {
                 }
             }
 
-            // If not confirmed and there is existing data, return conflicts to prompt confirmation
+            // If not confirmed and there is existing data, return conflicts to prompt confirmation.
+            // The gate runs on the real stores (provider configs, media-server sessions,
+            // favourites, Room tables) - the old check on the Room `providers` table always
+            // returned false because nothing ever writes that table, so the confirmation never
+            // fired and every import silently merged into existing data.
             if (!confirmed && hasExistingData()) {
                 val existingCount = countExistingData()
-                Log.d(TAG, "Existing data detected ($existingCount providers), confirmation required")
+                Log.d(TAG, "Existing data detected ($existingCount items), confirmation required")
                 return@withContext ImportResult(conflicts = existingCount)
             }
 
@@ -158,18 +205,32 @@ class BackupManager(private val context: Context) {
         }
     }
 
-    private suspend fun hasExistingData(): Boolean {
-        val db = LumoraDatabase.getInstance(context)
-        return db.providerDao().getAll().isNotEmpty()
-    }
+    /** True when the device already holds any data a restore would touch: IPTV provider
+     *  configs, media-server sessions, favourites, or any of the Room tables. The old
+     *  implementation only checked the Room `providers` table, which nothing ever writes,
+     *  so this was always false and the confirmation gate never fired. */
+    private suspend fun hasExistingData(): Boolean = countExistingData() > 0
 
+    /** Counts existing data across the real stores, used as the `conflicts` figure that
+     *  prompts the confirmation dialog. A heuristic count is fine - it only needs to be
+     *  non-zero to gate, and roughly right for the prompt. */
     private suspend fun countExistingData(): Int {
         val db = LumoraDatabase.getInstance(context)
-        return db.providerDao().getAll().size
+        val prefs = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+        var count = 0
+        count += IptvProviderStore.load(prefs).size
+        count += MediaServerStore.load(prefs).size
+        count += FavoritesStore.getFavoriteSeriesIds(context).size
+        count += FavoritesStore.getFavoriteChannelIds(context).size
+        count += db.epgSourceDao().getAll().size
+        count += db.customGroupDao().getAll().size
+        count += db.watchHistoryDao().getRecent().size
+        count += db.recordingDao().getAll().size
+        return count
     }
 
     private suspend fun collectBackupData(db: LumoraDatabase): BackupData {
-        val providers = db.providerDao().getAll()
+        val prefs = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
         val epgSources = db.epgSourceDao().getAll()
         val customGroups = db.customGroupDao().getAll()
         val watchHistory = db.watchHistoryDao().getRecent()
@@ -183,15 +244,12 @@ class BackupManager(private val context: Context) {
             version = BACKUP_VERSION,
             createdAt = dateFormat.format(Date()),
             appVersion = "2.0",
-            providers = providers.map { ProviderBackup(
-                id = it.id, name = it.name, type = it.type,
-                serverUrl = it.serverUrl, username = it.username,
-                password = it.passwordEncrypted,
-                m3uUrl = it.m3uUrl, userAgent = it.userAgent,
-                macAddress = it.macAddress, serialNumber = it.serialNumber,
-                active = it.active, syncEnabled = it.syncEnabled,
-                epgSyncEnabled = it.epgSyncEnabled
-            )},
+            // The Room `providers` table is dead (nothing writes it) - the real configs live
+            // in SharedPreferences via IptvProviderStore/MediaServerStore, so those are what
+            // get serialized. `providers` stays empty for format stability.
+            providers = emptyList(),
+            iptvProviders = IptvProviderStore.load(prefs).map { it.toBackup() },
+            mediaServers = MediaServerStore.load(prefs).map { it.toBackup() },
             epgSources = epgSources.map { EpgSourceBackup(
                 id = it.id, name = it.name, url = it.url,
                 enabled = it.enabled, priority = it.priority
@@ -205,11 +263,13 @@ class BackupManager(private val context: Context) {
                 )
             },
             favorites = emptyList(),
+            favoriteSeries = FavoritesStore.getFavoriteSeriesIds(context).toList(),
+            favoriteChannels = FavoritesStore.getFavoriteChannelIds(context).toList(),
             watchHistory = watchHistory.map { WatchHistoryBackup(
-                channelId = it.channelId, channelName = it.channelName,
+                id = it.id, channelId = it.channelId, channelName = it.channelName,
                 mediaType = it.mediaType, positionMs = it.positionMs,
                 durationMs = it.durationMs, status = it.status,
-                lastWatchedAt = it.lastWatchedAt
+                lastWatchedAt = it.lastWatchedAt, firstWatchedAt = it.firstWatchedAt
             )},
             recordingStorage = recordingStorage?.let { RecordingStorageBackup(
                 maxSimultaneous = it.maxSimultaneous,
@@ -218,7 +278,7 @@ class BackupManager(private val context: Context) {
             )},
             recordingSchedules = recordings.filter { it.status == "SCHEDULED" }.map {
                 RecordingScheduleBackup(
-                    channelId = it.channelId, channelName = it.channelName,
+                    id = it.id, channelId = it.channelId, channelName = it.channelName,
                     programTitle = it.programTitle,
                     startTimeUtc = it.startTimeUtc, stopTimeUtc = it.stopTimeUtc,
                     recurringRule = it.recurringRule
@@ -229,22 +289,28 @@ class BackupManager(private val context: Context) {
 
     private suspend fun restoreBackupData(data: BackupData): ImportResult {
         val db = LumoraDatabase.getInstance(context)
+        val prefs = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
         var result = ImportResult()
 
-        // Restore providers
-        for (p in data.providers) {
-            db.providerDao().insert(
-                ProviderEntity(
-                    id = p.id, name = p.name, type = p.type,
-                    serverUrl = p.serverUrl, username = p.username,
-                    passwordEncrypted = p.password, m3uUrl = p.m3uUrl,
-                    userAgent = p.userAgent, macAddress = p.macAddress,
-                    serialNumber = p.serialNumber, active = p.active,
-                    syncEnabled = p.syncEnabled, epgSyncEnabled = p.epgSyncEnabled
-                )
-            )
-            result = result.copy(providersImported = result.providersImported + 1)
+        // Restore IPTV provider configs. The backup is a snapshot of the whole list, so a
+        // present list replaces the current one outright (no merge); an absent list (old
+        // backup format) leaves existing configs untouched.
+        if (data.iptvProviders.isNotEmpty()) {
+            IptvProviderStore.save(prefs, data.iptvProviders.map { it.toConfig() })
         }
+
+        // Restore Jellyfin/Plex sessions the same way - replace when present, leave alone
+        // when the backup predates this field.
+        if (data.mediaServers.isNotEmpty()) {
+            MediaServerStore.save(prefs, data.mediaServers.map { it.toConfig() })
+        }
+
+        // Restore favourites, replacing both sets outright.
+        if (data.favoriteSeries.isNotEmpty() || data.favoriteChannels.isNotEmpty()) {
+            FavoritesStore.replaceAll(context, data.favoriteSeries.toSet(), data.favoriteChannels.toSet())
+        }
+
+        result = result.copy(providersImported = data.iptvProviders.size + data.mediaServers.size)
 
         // Restore EPG sources
         for (e in data.epgSources) {
@@ -278,26 +344,31 @@ class BackupManager(private val context: Context) {
             result = result.copy(customGroupsImported = result.customGroupsImported + 1)
         }
 
-        // Restore watch history
+        // Restore watch history. The original row id is carried in the backup so multiple
+        // entries for one channel stay distinct (the old "backup_<channelId>" key collapsed
+        // them via REPLACE) and firstWatchedAt survives. Old backups without an id fall back
+        // to a per-entry key derived from lastWatchedAt, which is still unique per entry.
         for (h in data.watchHistory) {
             db.watchHistoryDao().insert(
                 WatchHistoryEntity(
-                    id = "backup_${h.channelId}",
+                    id = h.id ?: "backup_${h.channelId}_${h.lastWatchedAt}",
                     channelId = h.channelId, channelName = h.channelName,
                     mediaType = h.mediaType, positionMs = h.positionMs,
                     durationMs = h.durationMs, status = h.status,
                     lastWatchedAt = h.lastWatchedAt,
-                    firstWatchedAt = h.lastWatchedAt
+                    firstWatchedAt = h.firstWatchedAt ?: h.lastWatchedAt
                 )
             )
             result = result.copy(watchHistoryImported = result.watchHistoryImported + 1)
         }
 
-        // Restore recording schedules
+        // Restore recording schedules. The original row id is carried so re-importing the
+        // same backup REPLACEs the schedule instead of inserting a fresh UUID and
+        // duplicating it. Old backups without an id get a fresh UUID as before.
         for (r in data.recordingSchedules) {
             db.recordingDao().insert(
                 RecordingEntity(
-                    id = UUID.randomUUID().toString(),
+                    id = r.id ?: UUID.randomUUID().toString(),
                     channelId = r.channelId, channelName = r.channelName,
                     programTitle = r.programTitle,
                     startTimeUtc = r.startTimeUtc, stopTimeUtc = r.stopTimeUtc,
@@ -309,6 +380,36 @@ class BackupManager(private val context: Context) {
 
         return result
     }
+
+    private fun IptvProviderConfig.toBackup() = IptvProviderBackup(
+        id = id, type = type, name = name, enabled = enabled,
+        liveEnabled = liveEnabled, moviesEnabled = moviesEnabled,
+        seriesEnabled = seriesEnabled, url = url, username = username,
+        password = password, userAgent = userAgent
+    )
+
+    private fun MediaServerConfig.toBackup() = MediaServerBackup(
+        id = id, type = type, name = name, enabled = enabled,
+        url = url, altUrls = altUrls, username = username, password = password,
+        token = token, userId = userId, accountToken = accountToken,
+        liveEnabled = liveEnabled, moviesEnabled = moviesEnabled,
+        seriesEnabled = seriesEnabled
+    )
+
+    private fun IptvProviderBackup.toConfig() = IptvProviderConfig(
+        id = id, type = type, name = name, enabled = enabled,
+        liveEnabled = liveEnabled, moviesEnabled = moviesEnabled,
+        seriesEnabled = seriesEnabled, url = url, username = username,
+        password = password, userAgent = userAgent
+    )
+
+    private fun MediaServerBackup.toConfig() = MediaServerConfig(
+        id = id, type = type, name = name, enabled = enabled,
+        url = url, altUrls = altUrls, username = username, password = password,
+        token = token, userId = userId, accountToken = accountToken,
+        liveEnabled = liveEnabled, moviesEnabled = moviesEnabled,
+        seriesEnabled = seriesEnabled
+    )
 
     private fun md5(input: String): String {
         val digest = MessageDigest.getInstance("MD5")

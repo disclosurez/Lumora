@@ -10,7 +10,7 @@ import com.lumora.data.local.dao.*
 import com.lumora.data.local.entity.*
 
 @Database(
-    version = 3,
+    version = 4,
     exportSchema = true,
     entities = [
         ProviderEntity::class,
@@ -66,6 +66,14 @@ abstract class LumoraDatabase : RoomDatabase() {
             }
         }
 
+        /** v4 adds `consecutiveFailures` to `epg_sources`, so the EPG worker can skip a
+         *  permanently-broken source instead of retrying it (and every other source) forever. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `epg_sources` ADD COLUMN `consecutiveFailures` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): LumoraDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -73,7 +81,7 @@ abstract class LumoraDatabase : RoomDatabase() {
                     LumoraDatabase::class.java,
                     "lumora.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

@@ -5,6 +5,7 @@ import android.widget.*
 import com.lumora.adapter.DYNAMIC_BUCKET_ID_PREFIX
 import com.lumora.cache.DerivedCache
 import com.lumora.cache.FavoritesStore
+import com.lumora.data.IptvProviderStore
 import com.lumora.model.CategoryFilter
 import com.lumora.model.Channel
 import com.lumora.model.ContentShelf
@@ -242,9 +243,16 @@ internal fun MainActivity.deriveFilmsSeries() {
 }
 
 /** Merges one provider's freshly-fetched channels into allChannels, replacing anything
- *  previously loaded from that same provider (matched by config id). */
+ *  previously loaded from that same provider (matched by config id).
+ *
+ *  Channels are filtered by the currently-enabled provider ids first - the same set the
+ *  final catalog replace uses (see loadAllConfiguredProviders). Without it, a provider
+ *  toggled off mid-load would have its channels merged here and rendered, only to be
+ *  wiped by that final replace a moment later. */
 internal fun MainActivity.mergeProviderPartial(configId: String?, channels: List<Channel>) {
-    allChannels = allChannels.filterNot { it.sourceProviderId == configId } + channels
+    val enabledIds = IptvProviderStore.load(prefs).filter { it.enabled }.map { it.id }.toSet()
+    val filtered = channels.filter { it.sourceProviderId == null || it.sourceProviderId in enabledIds }
+    allChannels = allChannels.filterNot { it.sourceProviderId == configId } + filtered
 }
 
 /** Live-only re-render, coalesced: the first call paints the Live tab ASAP (live half +

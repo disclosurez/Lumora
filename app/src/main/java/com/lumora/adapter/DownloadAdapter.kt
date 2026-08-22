@@ -19,6 +19,8 @@ class DownloadAdapter(
     private val onDelete: (DownloadRecord) -> Unit
 ) : ListAdapter<DownloadRecord, DownloadAdapter.ViewHolder>(DiffCallback()) {
 
+    var topRowFocusUpTargetId: Int = View.NO_ID
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_download, parent, false)
         return ViewHolder(view)
@@ -37,6 +39,32 @@ class DownloadAdapter(
         init {
             itemView.setOnClickListener { current?.let(onClick) }
             deleteButton.setOnClickListener { current?.let(onDelete) }
+            val keyHandler = View.OnKeyListener { v, keyCode, event ->
+                if (event.action != android.view.KeyEvent.ACTION_DOWN) return@OnKeyListener false
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (v === itemView) { deleteButton.requestFocus(); true } else true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (v === deleteButton) { itemView.requestFocus(); true } else false
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                        if (bindingAdapterPosition == 0) {
+                            val root = v.rootView
+                            val candidates = intArrayOf(topRowFocusUpTargetId, R.id.tabDownloads, R.id.tabHome, R.id.btnSettings)
+                            for (id in candidates) {
+                                if (id == View.NO_ID) continue
+                                val t = root.findViewById<View>(id)
+                                if (t != null && t.isShown && t.requestFocus()) return@OnKeyListener true
+                            }
+                        }
+                        false
+                    }
+                    else -> false
+                }
+            }
+            itemView.setOnKeyListener(keyHandler)
+            deleteButton.setOnKeyListener(keyHandler)
         }
 
         fun bind(record: DownloadRecord) {

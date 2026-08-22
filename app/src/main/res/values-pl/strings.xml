@@ -290,4 +290,24 @@
     <string name="ui_not_driving_continue">Nie prowadzę - kontynuuj</string>
     <string name="list_find_and_play">Znajdź i odtwórz</string>
     <string name="list_season_number">Sezon %1$d</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">Automatycznie aktualizuj wtyczki przy starcie</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">Za %1$d dzień</item>
+        <item quantity="few">Za %1$d dni</item>
+        <item quantity="many">Za %1$d dni</item>
+        <item quantity="other">Za %1$d dnia</item>
+    </plurals>
+    <string name="episode_airs_on">Premiera %1$s</string>
+    <string name="episode_not_released">Ten odcinek nie został jeszcze wyemitowany.</string>
+    <string name="play_rewind_15">Przewiń o 15 s</string>
+    <string name="play_play_pause">Odtwarzaj/Wstrzymaj</string>
+    <string name="play_ff_30">Przewiń o 30 s do przodu</string>
+    <string name="episode_download">Pobierz odcinek</string>
+    <string name="download_delete">Usuń pobranie</string>
+    <string name="provider_name_hint">np. My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Nazwa użytkownika Jellyfin</string>
 </resources>

@@ -718,10 +718,14 @@ internal fun MainActivity.populateHomeTileEpisodeQueue(channel: Channel) {
     scope.launch {
         val ordered = withContext(Dispatchers.IO) {
             val seriesId = channel.categoryId ?: return@withContext emptyList<Channel>()
+            // Only Xtream items have a resolvable provider; anything else (an M3U series,
+            // or a provider since removed) has no credentials to query, so leave the queue
+            // empty rather than run getSeriesFull against the wrong account.
+            val xtream = xtreamProviderFor(channel) ?: return@withContext emptyList<Channel>()
             val client = XtreamClient(BaseApplication.instance.okHttpClient)
             // Seasons arrive season-major already; sort each season's episodes by
             // episode number, then flatten into the cross-season chain.
-            client.getSeriesFull(xtreamProviderFor(channel) ?: provider, seriesId).seasons
+            client.getSeriesFull(xtream, seriesId).seasons
                 .flatMap { (_, eps) -> eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
         }
         // Don't clobber a queue belonging to whatever is playing now if the user moved on
@@ -771,11 +775,11 @@ internal fun MainActivity.clearContinueWatching(onRebuilt: (() -> Unit)? = null)
     jellyfinResumeByServer.clear()
     plexResumeByServer.clear()
     for ((serverId, ids) in jellyfinIdsByServer) {
-        val client = jellyfinClients[serverId] ?: jellyfinClients.values.singleOrNull() ?: continue
+        val client = jellyfinClients[serverId] ?: continue
         scope.launch(Dispatchers.IO) { ids.forEach { id -> runCatching { client.clearUserData(id) } } }
     }
     for ((serverId, ids) in plexIdsByServer) {
-        val client = plexClients[serverId] ?: plexClients.values.singleOrNull() ?: continue
+        val client = plexClients[serverId] ?: continue
         scope.launch(Dispatchers.IO) { ids.forEach { id -> runCatching { client.clearUserData(id) } } }
     }
     getHiddenHomeShelves().let { if (it.remove(getString(R.string.category_continue_watching))) prefs.edit().putStringSet("hidden_home_shelves", it).apply() }
@@ -819,12 +823,12 @@ internal fun MainActivity.removeFromContinueWatching(item: Channel) {
     if (item.isJellyfin) {
         // Same resolution rule as everywhere else a media-server call is made: the entry's own
         // account, never "the current one" - with two servers configured an id means nothing
-        // outside the one that issued it.
-        val client = jellyfinClients[serverId] ?: jellyfinClients.values.singleOrNull()
+        // outside the one that issued it. Skip when that account is no longer connected.
+        val client = jellyfinClients[serverId]
         if (client != null) scope.launch(Dispatchers.IO) { runCatching { client.clearUserData(rawId) } }
     }
     if (item.isPlex) {
-        val client = plexClients[serverId] ?: plexClients.values.singleOrNull()
+        val client = plexClients[serverId]
         if (client != null) scope.launch(Dispatchers.IO) { runCatching { client.clearUserData(rawId) } }
     }
     traktRemovePlayback(listOf(item))

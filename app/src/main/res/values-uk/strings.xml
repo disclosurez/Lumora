@@ -291,4 +291,24 @@
     <string name="ui_not_driving_continue">Я не за кермом - продовжити</string>
     <string name="list_find_and_play">Знайти й відтворити</string>
     <string name="list_season_number">Сезон %1$d</string>
+
+    <!-- i18n pass: transport contentDescriptions, form hints, plugin auto-update, upcoming-episode labels. -->
+    <string name="plug_auto_update">Автоматично оновлювати плагіни під час запуску</string>
+    <plurals name="episode_airs_in_days">
+        <item quantity="one">Через %1$d день</item>
+        <item quantity="few">Через %1$d дні</item>
+        <item quantity="many">Через %1$d днів</item>
+        <item quantity="other">Через %1$d дня</item>
+    </plurals>
+    <string name="episode_airs_on">У ефірі %1$s</string>
+    <string name="episode_not_released">Цю серію ще не показали.</string>
+    <string name="play_rewind_15">Назад на 15 с</string>
+    <string name="play_play_pause">Відтворити/Пауза</string>
+    <string name="play_ff_30">Вперед на 30 с</string>
+    <string name="episode_download">Завантажити серію</string>
+    <string name="download_delete">Видалити завантаження</string>
+    <string name="provider_name_hint">напр. My IPTV</string>
+    <string name="server_url_hint">http://example.com:8080</string>
+    <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
+    <string name="jellyfin_username_hint">Ім\'я користувача Jellyfin</string>
 </resources>

@@ -17,6 +17,9 @@ interface EpgSourceDao {
     @Delete
     suspend fun delete(source: EpgSourceEntity)
 
-    @Query("UPDATE epg_sources SET lastRefreshedAt = :timestamp, lastSuccessAt = :timestamp WHERE id = :id")
+    @Query("UPDATE epg_sources SET lastRefreshedAt = :timestamp, lastSuccessAt = :timestamp, consecutiveFailures = 0 WHERE id = :id")
     suspend fun markRefreshed(id: String, timestamp: Long)
+
+    @Query("UPDATE epg_sources SET consecutiveFailures = consecutiveFailures + 1 WHERE id = :id")
+    suspend fun incrementFailures(id: String)
 }

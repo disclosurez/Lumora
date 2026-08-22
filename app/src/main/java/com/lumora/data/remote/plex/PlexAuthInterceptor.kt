@@ -17,7 +17,7 @@ class PlexAuthInterceptor : Interceptor {
         val host = PlexSession.serverHost
         val token = PlexSession.accessToken
         if (host == null || token == null ||
-            (!request.url.host.endsWith(host) && request.url.host != host) ||
+            (request.url.host != host && !request.url.host.endsWith(".$host")) ||
             !request.header("X-Plex-Token").isNullOrBlank() ||
             !request.url.queryParameter("X-Plex-Token").isNullOrBlank()
         ) {

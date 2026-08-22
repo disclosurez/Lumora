@@ -22,6 +22,7 @@
     <string name="play_sleep_60_min">60 min</string>
     <string name="play_sleep_90_min">90 min</string>
     <string name="play_sleep_120_min">120 min</string>
+    <string name="play_sleep_timer_ended">Minuteur de veille terminé</string>
     <string name="play_cast_failed">Échec du Cast : vérifiez la TV et réessayez</string>
     <string name="play_cast_play_content_first">Lancez d\'abord un contenu, puis Cast</string>
     <string name="play_diag_body">Décodeur : %1$s\nVidéo : %2$s\nAudio : %3$s\nMicrocoupures : %4$d (%5$ds)\nÉtat : %6$s</string>

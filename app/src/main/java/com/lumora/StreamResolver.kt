@@ -123,17 +123,6 @@ internal class StreamResolver(
         val expectedSearches = (if (plugin != null) 1 else 0) + (if (siteProviders.isNotEmpty()) 1 else 0)
         lateinit var searchJob: Job
 
-        val dialog = AlertDialog.Builder(activity)
-            .setTitle(activity.getString(R.string.scraper_dialog_title, item.name + epTag))
-            .setView(container)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setOnDismissListener { if (!playbackStarted) searchJob.cancel() }
-            .create()
-        // No "pick a source" button. An embed host or release name is not a decision anyone can make
-        // usefully - the names are interchangeable and nothing on screen predicts which will work -
-        // so the dialog only ever reports progress while the ranked queue is walked. Cancel is the
-        // one control, and it stops the search.
-
         /** Stops watching the current attempt, whether it succeeded or is being abandoned. */
         fun clearWatch() {
             watchdog?.let { activity.mainHandler.removeCallbacks(it) }
@@ -141,6 +130,25 @@ internal class StreamResolver(
             watching?.let { activity.playerManager.getExoPlayer().removeListener(it) }
             watching = null
         }
+
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(activity.getString(R.string.scraper_dialog_title, item.name + epTag))
+            .setView(container)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setOnDismissListener {
+                if (!playbackStarted) {
+                    searchJob.cancel()
+                    // A dismiss mid-trial leaves the watchdog armed and the player listener
+                    // attached - the attempt would keep being watched (and could still advance
+                    // the queue) after the dialog is gone.
+                    clearWatch()
+                }
+            }
+            .create()
+        // No "pick a source" button. An embed host or release name is not a decision anyone can make
+        // usefully - the names are interchangeable and nothing on screen predicts which will work -
+        // so the dialog only ever reports progress while the ranked queue is walked. Cancel is the
+        // one control, and it stops the search.
 
         /**
          * This attempt is producing something. The search can stop and the queue can be let go.

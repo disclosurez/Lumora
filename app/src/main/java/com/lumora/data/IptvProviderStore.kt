@@ -1,6 +1,7 @@
 package com.lumora.data
 
 import android.content.SharedPreferences
+import android.util.Log
 import com.lumora.model.IptvProviderConfig
 import org.json.JSONArray
 import org.json.JSONObject
@@ -12,19 +13,33 @@ import java.util.UUID
 object IptvProviderStore {
     private const val KEY = "iptv_providers_json"
     private const val LEGACY_ENABLED_KEY = "iptv_provider_enabled"
+    private const val TAG = "IptvProviderStore"
+
+    /** Set when the stored JSON fails to parse. save() then refuses to write, so a later
+     *  upsert/remove/setEnabled can't overwrite the corrupt blob with `[]` and destroy the
+     *  user's configs for good. Cleared only by a process restart. */
+    @Volatile private var corrupt = false
 
     fun load(prefs: SharedPreferences): List<IptvProviderConfig> {
         val raw = prefs.getString(KEY, null)
         if (raw == null) return migrateLegacy(prefs)
         return try {
             val arr = JSONArray(raw)
-            (0 until arr.length()).map { i -> fromJson(arr.getJSONObject(i)) }
+            (0 until arr.length()).mapNotNull { i -> fromJson(arr.getJSONObject(i)) }
         } catch (e: Exception) {
+            if (!corrupt) {
+                corrupt = true
+                Log.e(TAG, "Corrupt provider JSON; refusing to overwrite it. ${e.message}")
+            }
             emptyList()
         }
     }
 
     fun save(prefs: SharedPreferences, list: List<IptvProviderConfig>) {
+        if (corrupt) {
+            Log.e(TAG, "Refusing to overwrite corrupt provider JSON")
+            return
+        }
         val arr = JSONArray()
         list.forEach { arr.put(toJson(it)) }
         prefs.edit().putString(KEY, arr.toString()).apply()
@@ -132,13 +147,17 @@ object IptvProviderStore {
         c.userAgent?.let { put("userAgent", it) }
     }
 
-    private fun fromJson(o: JSONObject): IptvProviderConfig {
+    private fun fromJson(o: JSONObject): IptvProviderConfig? {
+        // An entry with no id can't be looked up again (favourites/positions key off it), and
+        // minting a fresh id here would hand out a different one on every load without ever
+        // persisting it - orphaning anything keyed by a previous minted id. Drop the entry.
+        val id = o.optString("id").takeIf { it.isNotBlank() } ?: return null
         // Legacy migration: configs saved before the per-type split carry disableVod
         // (movies+series off together). Newer entries have the individual flags.
         val legacyVodOff = o.optBoolean("disableVod", false)
         fun flag(key: String) = if (o.has(key)) o.optBoolean(key, true) else !legacyVodOff
         return IptvProviderConfig(
-            id = o.optString("id").ifBlank { newId() },
+            id = id,
             type = o.optString("type", "m3u"),
             name = o.optString("name", "Provider"),
             enabled = o.optBoolean("enabled", true),
