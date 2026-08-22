@@ -54,6 +54,8 @@
     <string name="play_loading_version">Chargement de %1$s…</string>
     <string name="play_this_episode">cet épisode</string>
     <string name="play_provider_missing_episode">Ce fournisseur n\'a pas %1$s</string>
+    <string name="play_frame_skips_switching">Images perdues, bascule vers une autre version…</string>
+    <string name="play_low_quality_switching">Image de faible qualité, bascule vers une meilleure version…</string>
     <string name="play_stream_buffering_switching">Le flux est en cours de chargement, bascule de version…</string>
     <string name="play_buffering_no_fallback">Ce flux continue de charger et il n\'y a pas d\'autre version de secours.</string>
     <string name="play_channel_offline_switching">La chaîne semble hors ligne, bascule de version…</string>

@@ -34,6 +34,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -291,6 +292,27 @@ internal const val PREF_DEAD_STREAMS = "dead_streams_until"
 // so the best version stays skipped for hours afterwards.
 internal const val FAILOVER_GRACE_MS = 12_000L
 
+// A VOD copy fails in ways live never does: it decodes and plays, but the picture is wrong.
+// Either the device is dropping frames it can't decode in real time (a heavy 4K/HEVC encode on
+// a budget stick), or the copy itself is an upscaled SD encode behind an "HD" label. Neither
+// stalls, errors, or goes black, so none of the failover watchdogs above see it - a film or
+// episode with other copies in its version group gets swapped to one of those instead, from
+// the same position.
+internal const val VOD_QUALITY_CHECK_INTERVAL_MS = 2_500L
+// Dropped frames arrive in batches (the renderer notifies every 50 by default), so they're
+// counted over a window rather than per callback: one batch is a hiccup after a seek, several
+// inside the window is a copy this device cannot play smoothly.
+internal const val DROPPED_FRAME_WINDOW_MS = 20_000L
+internal const val DROPPED_FRAME_THRESHOLD = 150
+// Decoded height at or below this is standard definition being upscaled onto a TV panel -
+// the "blurry copy" case. Judged on the decoded frame, not the title's badge, because the
+// badge is exactly what lies about it.
+internal const val BLUR_MAX_VIDEO_HEIGHT = 576
+internal const val BLUR_STREAK_THRESHOLD = 2
+// Two swaps per title, then the watchdog goes quiet: past that it's the device or the title
+// itself rather than the copy, and a third interruption helps nobody.
+internal const val MAX_VOD_QUALITY_SWITCHES = 2
+
 // Phone touch gestures on the player: double-tap seek step and pinch-zoom range.
 internal const val GESTURE_SEEK_MS = 10_000L
 internal const val ZOOM_MIN = 1.0f
@@ -403,6 +425,22 @@ class MainActivity : AppCompatActivity() {
     internal val longStallCheckRunnable = Runnable { attemptBufferFailover() }
     internal var blackFrameStreak = 0
     internal val blackFrameCheckRunnable = Runnable { checkForBlackFrame() }
+    // ── VOD quality watchdog (see MainActivityPlayer) ──
+    internal val vodQualityCheckRunnable = Runnable { checkVodPlaybackQuality() }
+    /** (when, how many) for every dropped-frame batch inside DROPPED_FRAME_WINDOW_MS. */
+    internal val droppedFrameEvents = mutableListOf<Pair<Long, Int>>()
+    internal var blurStreak = 0
+    /** Decoded height of the stream playing right now, 0 until the first frame is sized.
+     *  Separate from lastVideoHeight, which keeps the last known size for PiP's aspect
+     *  ratio and so must not be cleared between streams. */
+    internal var currentStreamVideoHeight = 0
+    internal var vodQualitySwitchCount = 0
+    /** Versions the watchdog has already switched away from, so it walks a title's copies
+     *  once instead of bouncing between two equally bad ones. */
+    internal val vodQualityTriedIds = mutableSetOf<String>()
+    /** Which title the two above belong to: they survive a version swap (same title, new
+     *  stream) and reset when playback moves to a different title. */
+    internal var vodQualityGroupKey: String? = null
     // Keyed by stream key (id, or url when id is blank) - a version that just failed over
     // out of is skipped by both fullscreen and preview auto-pick/failover for a cooldown
     // window instead of being retried again a few seconds later.
@@ -972,6 +1010,15 @@ class MainActivity : AppCompatActivity() {
         playerManager = PlayerManager(this)
         playerDiagnostics = PlayerDiagnostics(playerManager.getExoPlayer())
         playerManager.getExoPlayer().addAnalyticsListener(playerDiagnostics.getAnalyticsListener())
+        // Dropped frames are only reported through the analytics path - Player.Listener never
+        // sees them - and they're the one signal that says "this copy plays, but badly".
+        playerManager.getExoPlayer().addAnalyticsListener(object : AnalyticsListener {
+            override fun onDroppedVideoFrames(
+                eventTime: AnalyticsListener.EventTime,
+                droppedFrames: Int,
+                elapsedMs: Long
+            ) = onVideoFramesDropped(droppedFrames)
+        })
         database = LumoraDatabase.getInstance(this)
 
         // Periodic XMLTV EPG re-download. Nothing scheduled this before — the call here went to

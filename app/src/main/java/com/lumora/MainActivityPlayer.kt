@@ -34,6 +34,7 @@ import com.lumora.util.extractLeadingTag
 import com.lumora.util.isAdultCategory
 import com.lumora.util.normalizeServerUrl
 import com.lumora.util.rawMediaItemId
+import com.lumora.util.vodQualityScore
 import com.lumora.data.remote.stalker.StalkerProvider
 import kotlinx.coroutines.*
 import okhttp3.Request
@@ -535,6 +536,7 @@ internal fun MainActivity.setupPlayerControls() {
             binding.playerAspectContainer.videoAspectRatio = (w * videoSize.pixelWidthHeightRatio) / h
             lastVideoWidth = w
             lastVideoHeight = h
+            currentStreamVideoHeight = h
         }
     })
 }
@@ -701,6 +703,7 @@ internal fun MainActivity.showPlayerFor(
     resetStallTracking()
     beginStreamAttempt()
     startBlackFrameWatch()
+    startVodQualityWatch(channel)
     binding.playerAspectContainer.videoAspectRatio = 0f
     playerManager.setSurfaceView(binding.playerSurface)
     showControls()
@@ -1358,7 +1361,10 @@ internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
             dialog.dismiss()
             when {
                 which >= versions.size -> showFindStreamDialog(playing)
-                which != currentIndex -> showPlayerFor(versions[which], resumeFromMs = resumeMs)
+                which != currentIndex -> {
+                    suppressVodQualityWatchForCurrentTitle()
+                    showPlayerFor(versions[which], resumeFromMs = resumeMs)
+                }
             }
         }
         .setNegativeButton(getString(R.string.cancel), null)
@@ -1404,6 +1410,7 @@ internal fun MainActivity.showSeriesVersionPicker(playing: Channel) {
             }
             if (which == currentIndex) return@setSingleChoiceItems
             val target = versions[which]
+            suppressVodQualityWatchForCurrentTitle()
             Toast.makeText(this, getString(R.string.play_loading_version, versionChipLabel(target, which)), Toast.LENGTH_SHORT).show()
             val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
             scope.launch {
@@ -1467,6 +1474,147 @@ internal suspend fun MainActivity.switchToSeriesVersion(
     currentSeriesVersionContext = target to group
     updateVersionsButtonVisibility()
     return true
+}
+
+// ── VOD quality watchdog: frame skips & blurry copies ──
+// The failover watchdogs below judge whether a stream is *working*. This one judges whether
+// the copy being played is the right one to be playing: a device dropping frames it can't
+// decode, or an SD encode wearing an HD label. Both play fine as far as ExoPlayer is
+// concerned, so nothing else ever fires - and both have the same fix when the title has
+// other copies, which grouping already collected: play a different one from here.
+
+/** Arms the watchdog for a newly started stream. Live has its own stall/black-frame
+ *  failover and no quality ladder to climb, so it is left alone. */
+internal fun MainActivity.startVodQualityWatch(channel: Channel) {
+    mainHandler.removeCallbacks(vodQualityCheckRunnable)
+    droppedFrameEvents.clear()
+    blurStreak = 0
+    currentStreamVideoHeight = 0
+    if (channel.mediaType == MediaType.LIVE) return
+    mainHandler.postDelayed(vodQualityCheckRunnable, VOD_QUALITY_CHECK_INTERVAL_MS)
+}
+
+/** Records one dropped-frame batch from the analytics listener (see MainActivity.onCreate). */
+internal fun MainActivity.onVideoFramesDropped(count: Int) {
+    if (count <= 0) return
+    droppedFrameEvents.add(System.currentTimeMillis() to count)
+}
+
+internal fun MainActivity.checkVodPlaybackQuality() {
+    val playing = nowPlayingChannel
+    if (playing == null || playing.mediaType == MediaType.LIVE || !isPlayerVisible) return
+    mainHandler.postDelayed(vodQualityCheckRunnable, VOD_QUALITY_CHECK_INTERVAL_MS)
+    // Paused/seeking playback drops frames and reports stale sizes; the grace window covers
+    // the first seconds of a stream, where a decoder still settling drops frames it will
+    // never drop again.
+    if (!playerManager.isPlaying || withinFailoverGrace()) return
+    val (groupKey, group) = vodVersionGroupFor(playing) ?: return
+    if (group.size <= 1) return
+    // A different title means a fresh budget - the counters deliberately survive a swap
+    // within one title, since that is the thing being limited.
+    if (vodQualityGroupKey != groupKey) {
+        vodQualityGroupKey = groupKey
+        vodQualitySwitchCount = 0
+        vodQualityTriedIds.clear()
+    }
+    if (vodQualitySwitchCount >= MAX_VOD_QUALITY_SWITCHES) return
+
+    val now = System.currentTimeMillis()
+    droppedFrameEvents.removeAll { it.first < now - DROPPED_FRAME_WINDOW_MS }
+    if (droppedFrameEvents.sumOf { it.second } >= DROPPED_FRAME_THRESHOLD) {
+        droppedFrameEvents.clear()
+        blurStreak = 0
+        // Frames are being dropped because this copy is more than the device can decode in
+        // real time, so the swap goes DOWN the ladder - handing it an even bigger encode
+        // would make the stutter worse, not better.
+        attemptVodQualitySwitch(preferHigherQuality = false, message = getString(R.string.play_frame_skips_switching))
+        return
+    }
+
+    val height = currentStreamVideoHeight
+    // Two consecutive samples, so a single frame reported mid-switch can't condemn a copy.
+    blurStreak = if (height in 1..BLUR_MAX_VIDEO_HEIGHT) blurStreak + 1 else 0
+    if (blurStreak >= BLUR_STREAK_THRESHOLD) {
+        blurStreak = 0
+        attemptVodQualitySwitch(preferHigherQuality = true, message = getString(R.string.play_low_quality_switching))
+    }
+}
+
+/** The version group of whatever film or episode is playing, keyed by the title it belongs
+ *  to. A series' alternatives are whole shows carried by other providers (the episode itself
+ *  has no link back to them), a film's are the entries in its own duplicate group - and the
+ *  playing copy may not be the group's representative, so films are found by membership. */
+internal fun MainActivity.vodVersionGroupFor(playing: Channel): Pair<String, List<Channel>>? {
+    currentSeriesVersionContext?.let { (series, group) ->
+        // Keyed by the group's first member, not by the show currently playing: a swap
+        // rewrites the context to the copy it landed on, and keying off that would read as a
+        // different title on the next tick - resetting the switch budget the key exists to
+        // enforce, so the watchdog could bounce between two copies forever.
+        return (group.firstOrNull()?.id?.ifBlank { null } ?: series.id.ifBlank { series.name }) to group
+    }
+    filmVersions[playing.id]?.let { return playing.id to it }
+    return filmVersions.entries
+        .firstOrNull { entry -> entry.value.any { it.id == playing.id } }
+        ?.let { it.key to it.value }
+}
+
+/**
+ * Swaps the playing film/episode for another copy of the same title, from the same position.
+ *
+ * [preferHigherQuality] picks which way along the quality ladder to step: up for a blurry
+ * copy, down for one the device can't keep up with. A copy the watchdog has already left is
+ * never handed back, and neither is a dead one; when nothing on the wanted side of the ladder
+ * is left, an untried copy scoring the same is taken (a title's copies are often all untagged,
+ * and an untagged copy can be anything) - and failing that the switch is declined, because
+ * interrupting playback to land on a copy that is no better is worse than the picture is.
+ */
+internal fun MainActivity.attemptVodQualitySwitch(preferHigherQuality: Boolean, message: String): Boolean {
+    val playing = nowPlayingChannel ?: return false
+    val (_, group) = vodVersionGroupFor(playing) ?: return false
+    val seriesContext = currentSeriesVersionContext
+    // A series group holds shows, not episodes: the member currently playing is the context's
+    // show, and the episode is what gets re-matched inside the copy that replaces it.
+    val current = seriesContext?.first ?: playing
+    val currentScore = vodQualityScore(current.name)
+    val candidates = group.filter { it.id != current.id && it.id !in vodQualityTriedIds && !isStreamDead(it) }
+    val better = if (preferHigherQuality) {
+        candidates.filter { vodQualityScore(it.name) > currentScore }.maxByOrNull { vodQualityScore(it.name) }
+    } else {
+        candidates.filter { vodQualityScore(it.name) < currentScore }.maxByOrNull { vodQualityScore(it.name) }
+    }
+    val target = better
+        ?: candidates.firstOrNull { vodQualityScore(it.name) == currentScore }
+        ?: return false
+
+    vodQualityTriedIds.add(current.id)
+    vodQualitySwitchCount++
+    val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
+    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    binding.bufferingSpinner.visibility = View.VISIBLE
+    if (seriesContext != null) {
+        scope.launch {
+            // Unlike failover, nothing is broken here: if the other provider doesn't carry
+            // this episode, the copy already playing keeps playing rather than the user being
+            // dropped into an error offer.
+            if (!switchToSeriesVersion(target, playing, seriesContext.second, resumeMs)) {
+                binding.bufferingSpinner.visibility = View.GONE
+            }
+        }
+    } else {
+        showPlayerFor(target, resumeFromMs = resumeMs)
+    }
+    return true
+}
+
+/** Stands the watchdog down for the title playing now. A version the user picked by hand is
+ *  the version they want: being moved off it a few seconds later by an automatic verdict is
+ *  the app arguing with them. Spends the title's whole switch budget rather than adding a
+ *  flag, so it lifts on its own when playback moves to a different title. */
+internal fun MainActivity.suppressVodQualityWatchForCurrentTitle() {
+    val playing = nowPlayingChannel ?: return
+    val (key, _) = vodVersionGroupFor(playing) ?: return
+    vodQualityGroupKey = key
+    vodQualitySwitchCount = MAX_VOD_QUALITY_SWITCHES
 }
 
 // ── Buffer-based auto-failover ─────────────────
@@ -1753,6 +1901,7 @@ internal fun MainActivity.hidePlayer() {
     mainHandler.removeCallbacks(progressRunnable)
     mainHandler.removeCallbacks(longStallCheckRunnable)
     mainHandler.removeCallbacks(blackFrameCheckRunnable)
+    mainHandler.removeCallbacks(vodQualityCheckRunnable)
     mainHandler.removeCallbacks(upNextTickRunnable)
     playerManager.stop()
     sleepTimer.stop()

@@ -55,6 +55,10 @@
     <string name="play_loading_version">Loading %1$s…</string>
     <string name="play_this_episode">this episode</string>
     <string name="play_provider_missing_episode">That provider doesn\'t have %1$s</string>
+    <!-- The VOD quality watchdog: a copy that plays but is either stuttering on this device
+         or visibly upscaled, swapped for another copy of the same title mid-playback. -->
+    <string name="play_frame_skips_switching">Frames dropping, switching to another version…</string>
+    <string name="play_low_quality_switching">Low-quality picture, switching to a better version…</string>
     <string name="play_stream_buffering_switching">Stream buffering, switching version…</string>
     <string name="play_buffering_no_fallback">This stream keeps buffering and there\'s no other version to fall back on.</string>
     <string name="play_channel_offline_switching">Channel appears offline, switching version…</string>
