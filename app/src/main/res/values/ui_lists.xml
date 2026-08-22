@@ -52,4 +52,11 @@
     <string name="list_off">Off</string>
     <string name="list_no_alt_audio">No alternate audio tracks</string>
     <string name="list_no_subtitles">No subtitles available</string>
+
+    <!-- Continue Watching row/grid (MainActivityDiscover.kt / MainActivityCategories.kt) -->
+    <string name="list_cw_remove_item">Remove from Continue Watching</string>
+    <string name="list_cw_clear_all">Clear Continue Watching</string>
+    <string name="list_cw_clear_all_confirm">Clear every item from Continue Watching? This also clears them on your media servers and on Trakt.</string>
+    <string name="list_cw_removed">Removed from Continue Watching</string>
+    <string name="list_cw_cleared">Continue Watching cleared</string>
 </resources>

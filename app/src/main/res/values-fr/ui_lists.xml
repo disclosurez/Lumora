@@ -52,4 +52,11 @@
     <string name="list_off">Désactivé</string>
     <string name="list_no_alt_audio">Aucune piste audio alternative</string>
     <string name="list_no_subtitles">Aucun sous-titre disponible</string>
+
+    <!-- Ligne/grille Reprendre la lecture (MainActivityDiscover.kt / MainActivityCategories.kt) -->
+    <string name="list_cw_remove_item">Retirer de Reprendre la lecture</string>
+    <string name="list_cw_clear_all">Vider Reprendre la lecture</string>
+    <string name="list_cw_clear_all_confirm">Vider tous les éléments de Reprendre la lecture ? Ils seront aussi effacés sur vos serveurs multimédias et sur Trakt.</string>
+    <string name="list_cw_removed">Retiré de Reprendre la lecture</string>
+    <string name="list_cw_cleared">Reprendre la lecture vidé</string>
 </resources>

@@ -751,7 +751,11 @@ internal fun MainActivity.toggleHiddenHomeShelf(title: String) {
  *  entries are dropped there too (best effort) and removed from memory immediately. Also
  *  un-hides the CW shelf so future watching isn't stuck behind a stale hide flag. */
 internal fun MainActivity.clearContinueWatching() {
+    // Snapshot before the stores are emptied - Trakt keeps its own resume list, and matching
+    // an entry there needs the items that were on the row.
+    val cleared = PlaybackPositionStore.getAllInProgress(this) + jellyfinResumeItems + plexResumeItems
     PlaybackPositionStore.clearAll(this)
+    traktRemovePlayback(cleared)
     clearUpNextMemo()
     // Grouped by the account each entry came from: with several media servers configured, an
     // item id only means anything to its own server, and clearing it against another would at
@@ -779,6 +783,104 @@ internal fun MainActivity.clearContinueWatching() {
     getHiddenCategories(2).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(2), it).apply() }
     homeShelfAdapter.submitList(buildHomeShelves())
     if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
+}
+
+/**
+ * Drops one title from Continue Watching, everywhere it is kept.
+ *
+ * The counterpart of [clearContinueWatching] for a single tile: the row is a merge of the local
+ * position store and the media servers' own resume lists, so an item is only really gone once
+ * it has left whichever of those it came from - clearing just the local key leaves a Jellyfin
+ * or Plex entry to be handed straight back by the next resume pull. Trakt keeps a third list
+ * ([traktRemovePlayback]) and is told too.
+ *
+ * The server call is best effort and off-main; the in-memory resume lists are pruned
+ * immediately so the tile disappears on this frame rather than after the next catalog load.
+ */
+internal fun MainActivity.removeFromContinueWatching(item: Channel) {
+    PlaybackPositionStore.clear(this, streamKey(item))
+    // Continue Watching tiles are re-labelled copies (continueWatchingTiles) that keep the
+    // original id, so this matches the entry the server list actually holds.
+    for ((serverId, items) in jellyfinResumeByServer.toMap()) {
+        jellyfinResumeByServer[serverId] = items.filterNot { it.id == item.id }
+    }
+    for ((serverId, items) in plexResumeByServer.toMap()) {
+        plexResumeByServer[serverId] = items.filterNot { it.id == item.id }
+    }
+    val rawId = com.lumora.util.rawMediaItemId(item.id)
+    val serverId = item.sourceProviderId.orEmpty()
+    if (item.isJellyfin) {
+        // Same resolution rule as everywhere else a media-server call is made: the entry's own
+        // account, never "the current one" - with two servers configured an id means nothing
+        // outside the one that issued it.
+        val client = jellyfinClients[serverId] ?: jellyfinClients.values.singleOrNull()
+        if (client != null) scope.launch(Dispatchers.IO) { runCatching { client.clearUserData(rawId) } }
+    }
+    if (item.isPlex) {
+        val client = plexClients[serverId] ?: plexClients.values.singleOrNull()
+        if (client != null) scope.launch(Dispatchers.IO) { runCatching { client.clearUserData(rawId) } }
+    }
+    traktRemovePlayback(listOf(item))
+    refreshHomeShelvesIfShowing()
+    refreshSeriesShelvesIfShowing()
+    if (showingHome || activeTab == 0) return
+    scope.launch {
+        val remaining = if (activeTab == 1) seriesContinueItems() else emptyList()
+        // The row only exists while it has items: dropping the last one has to move the pane
+        // off it, or the grid sits on a selection the rebuilt sidebar no longer contains.
+        if (selectedRowId == CONTINUE_WATCHING_CATEGORY_ID && remaining.isEmpty()) {
+            selectedRowId = null
+            selectedCategoryLabel = null
+            selectedBrandChannelIds = null
+            selectedCategoryIds = null
+        }
+        rebuildCategoriesForActiveTab()
+        applyCategoryFilter()
+    }
+}
+
+/**
+ * Long-press on a Films/Series grid poster.
+ *
+ * Everywhere else that is the favourite toggle, and stays so. Inside the Continue Watching
+ * grid it isn't: the row is a list of things to *finish*, so what a hold there is asking for is
+ * to take one off it - a star on a half-watched episode is not what anyone reached for. The
+ * menu keeps both the single removal and the clear-all the Home shelf's X does, since the grid
+ * is the only place the row can be browsed in full.
+ */
+internal fun MainActivity.onGridItemLongClick(item: Channel) {
+    if (selectedRowId != CONTINUE_WATCHING_CATEGORY_ID) {
+        toggleFavoriteVodItem(item)
+        return
+    }
+    AlertDialog.Builder(this)
+        .setTitle(item.name)
+        .setItems(
+            arrayOf(getString(R.string.list_cw_remove_item), getString(R.string.list_cw_clear_all))
+        ) { _, which ->
+            when (which) {
+                0 -> {
+                    removeFromContinueWatching(item)
+                    Toast.makeText(this, R.string.list_cw_removed, Toast.LENGTH_SHORT).show()
+                }
+                1 -> confirmClearContinueWatching()
+            }
+        }
+        .show()
+}
+
+/** Clear-all asks first: it empties the row for every provider at once and reaches the media
+ *  servers and Trakt, none of which can be undone from here. */
+internal fun MainActivity.confirmClearContinueWatching() {
+    AlertDialog.Builder(this)
+        .setTitle(R.string.list_cw_clear_all)
+        .setMessage(R.string.list_cw_clear_all_confirm)
+        .setPositiveButton(R.string.list_cw_clear_all) { _, _ ->
+            clearContinueWatching()
+            Toast.makeText(this, R.string.list_cw_cleared, Toast.LENGTH_SHORT).show()
+        }
+        .setNegativeButton(android.R.string.cancel, null)
+        .show()
 }
 
 /** Adult content never reaches a Home shelf, regardless of the "Hide adult categories"

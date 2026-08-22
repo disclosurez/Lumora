@@ -302,6 +302,67 @@ class TraktClient(private val http: OkHttpClient) {
         code == 200 || code == 201
     }
 
+    // ── Playback (resume) list ──────────────────
+
+    /**
+     * One paused item in the account's playback list - Trakt's own Continue Watching.
+     *
+     * [id] is the *playback entry's* id, which is the only thing `/sync/playback/:id` accepts;
+     * it has nothing to do with the movie's or episode's ids and is not stable across
+     * re-watches. [target] is the same shape a scrobble uses, so an entry can be matched
+     * against a local item through [MainActivity]'s existing target resolution.
+     */
+    data class PlaybackEntry(val id: Long, val target: ScrobbleTarget)
+
+    /**
+     * The account's paused-playback list, films and episodes.
+     *
+     * `/sync/playback` with no type returns both. Entries whose show/movie carries no tmdb id
+     * are dropped: tmdb is the only id the app can produce for a catalogue title, so an entry
+     * it can't match is an entry it must not delete.
+     */
+    suspend fun playback(accessToken: String): List<PlaybackEntry> = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext emptyList()
+        val arr = getArray("$API_BASE/sync/playback?limit=$PLAYBACK_PAGE_LIMIT", accessToken)
+            ?: return@withContext emptyList()
+        val out = mutableListOf<PlaybackEntry>()
+        for (i in 0 until arr.length()) {
+            val row = arr.optJSONObject(i) ?: continue
+            val id = row.optLong("id", 0L).takeIf { it > 0L } ?: continue
+            when (row.optString("type")) {
+                "movie" -> {
+                    val tmdb = row.optJSONObject("movie")?.optJSONObject("ids")?.optInt("tmdb", 0)
+                        ?.takeIf { it > 0 } ?: continue
+                    out.add(PlaybackEntry(id, ScrobbleTarget(tmdbId = tmdb, isSeries = false)))
+                }
+                "episode" -> {
+                    // The show's tmdb id, not the episode's - same rule as ScrobbleTarget.
+                    val tmdb = row.optJSONObject("show")?.optJSONObject("ids")?.optInt("tmdb", 0)
+                        ?.takeIf { it > 0 } ?: continue
+                    val ep = row.optJSONObject("episode") ?: continue
+                    val season = ep.optInt("season", -1).takeIf { it >= 0 } ?: continue
+                    val number = ep.optInt("number", -1).takeIf { it > 0 } ?: continue
+                    out.add(
+                        PlaybackEntry(
+                            id,
+                            ScrobbleTarget(tmdbId = tmdb, isSeries = true, season = season, episode = number)
+                        )
+                    )
+                }
+            }
+        }
+        out
+    }
+
+    /** Deletes one playback entry - what removes a title from Trakt's own Continue Watching.
+     *  Trakt answers 204 with no body; a 404 means it is already gone, which is the same
+     *  outcome the caller wanted. */
+    suspend fun removePlayback(accessToken: String, playbackId: Long): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext false
+        val code = delete("$API_BASE/sync/playback/$playbackId", accessToken)
+        code == 204 || code == 200 || code == 404
+    }
+
     /** One watched title pulled from Trakt: a film, or a show with the episodes seen in it. */
     data class WatchedEntry(
         val title: String,
@@ -467,6 +528,16 @@ class TraktClient(private val http: OkHttpClient) {
         }.onFailure { android.util.Log.w("TraktClient", "POST $url failed", it) }.getOrNull()
     }
 
+    /** Status code of a DELETE, or null when the request never completed. Trakt's deletes
+     *  answer 204 with an empty body, so there is nothing to parse. */
+    private fun delete(url: String, accessToken: String): Int? = runCatching {
+        http.newCall(Request.Builder().url(url).delete().applyTraktHeaders(accessToken).build())
+            .execute().use { response ->
+                if (!response.isSuccessful) android.util.Log.w("TraktClient", "DELETE $url -> ${response.code}")
+                response.code
+            }
+    }.onFailure { android.util.Log.w("TraktClient", "DELETE $url failed", it) }.getOrNull()
+
     private fun getJson(url: String, accessToken: String): JSONObject? = runCatching {
         http.newCall(Request.Builder().url(url).applyTraktHeaders(accessToken).build()).execute().use { response ->
             if (!response.isSuccessful) {
@@ -517,6 +588,10 @@ class TraktClient(private val http: OkHttpClient) {
          *  episode breakdown, so an account with dozens of them can't turn one sync into a long
          *  burst against Trakt's rate limit. */
         const val PROGRESS_FALLBACK_BUDGET = 25
+
+        /** Ceiling on one /sync/playback read. The list is what is *paused*, so it is small by
+         *  nature - this only stops a pathological account from pulling an unbounded page. */
+        const val PLAYBACK_PAGE_LIMIT = 500
         /** Where the user types the code. Shown verbatim in the Settings pane. */
         const val ACTIVATE_URL = "https://trakt.tv/activate"
 

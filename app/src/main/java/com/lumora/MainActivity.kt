@@ -862,10 +862,10 @@ class MainActivity : AppCompatActivity() {
     // the shelves' horizontal strip, since one category's whole catalog doesn't fit a
     // single row.
     internal val seriesGridAdapter = com.lumora.adapter.PosterGridAdapter(
-        onItemLongClick = { item -> toggleFavoriteVodItem(item) }
+        onItemLongClick = { item -> onGridItemLongClick(item) }
     ) { item -> onHomeItemClick(item) }
     internal val filmsGridAdapter = com.lumora.adapter.PosterGridAdapter(
-        onItemLongClick = { item -> toggleFavoriteVodItem(item) }
+        onItemLongClick = { item -> onGridItemLongClick(item) }
     ) { item -> playItem(item) }
     internal val tmdbClient = com.lumora.data.remote.tmdb.TmdbClient()
     /** Discover tile id -> short badge naming the sources that already carry the title.
@@ -1741,7 +1741,8 @@ class MainActivity : AppCompatActivity() {
         val result: CategoryBuildResult,
         val newest: List<Channel>,
         val continueWatching: List<Channel>,
-        val upNext: List<Channel>
+        val upNext: List<Channel>,
+        val favouriteVod: List<Channel>
     )
 
     internal var lastFocusedLiveChannel: Channel? = null

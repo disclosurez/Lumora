@@ -150,8 +150,26 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
     // Continue Watching rows: they're prepended above the pinned block, so pinning them
     // moves them nowhere, and pin is inert for them anyway (guards in
     // buildCategoriesForActiveTab skip rows whose id is pinned).
+    // Continue Watching gets one action the other synthetic rows don't: emptying it. The row
+    // is a queue rather than a view of the catalogue, so "clear it" is a thing to do to it -
+    // and the sidebar is where the user goes looking for that once the Home shelf with its X
+    // is behind a tab switch.
+    if (id == CONTINUE_WATCHING_CATEGORY_ID) {
+        AlertDialog.Builder(this)
+            .setTitle(category.name)
+            .setItems(
+                arrayOf(getString(R.string.list_cw_clear_all), getString(R.string.plug_hide))
+            ) { _, which ->
+                when (which) {
+                    0 -> confirmClearContinueWatching()
+                    1 -> toggleHiddenSidebarCategory(category)
+                }
+            }
+            .show()
+        return
+    }
     if (id == JELLYFIN_CATEGORY_ID || id == PLEX_CATEGORY_ID || id == NEWEST_CATEGORY_ID ||
-        id == CONTINUE_WATCHING_CATEGORY_ID || id == UP_NEXT_CATEGORY_ID
+        id == UP_NEXT_CATEGORY_ID || id == FAVOURITES_CATEGORY_ID
     ) {
         AlertDialog.Builder(this)
             .setTitle(category.name)
@@ -466,6 +484,9 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
     val hiddenIds = getHiddenCategories(tab)
     val expandedSnapshot = expandedGroupKeys.toSet()
     val favoriteChannelIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this) else emptySet()
+    // Films and series share one favourite set (FavoritesStore.KEY_FAVORITE_SERIES), so both
+    // tabs read the same ids and each keeps whichever of them its own list actually holds.
+    val favoriteVodIds = if (tab != 0) FavoritesStore.getFavoriteSeriesIds(this) else emptySet()
     val animeSectionsSnapshot = animeSections
     // Snapshot on the caller's thread - the pipeline below runs on Dispatchers.Default.
     val versionsById = when (tab) {
@@ -497,7 +518,8 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
             result = rows,
             newest = if (tab != 0) newestByDate(list) else emptyList(),
             continueWatching = if (tab == 1) seriesContinueItems() else emptyList(),
-            upNext = if (tab == 1) seriesUpNextItems() else emptyList()
+            upNext = if (tab == 1) seriesUpNextItems() else emptyList(),
+            favouriteVod = if (tab != 0) list.filter { it.id in favoriteVodIds } else emptyList()
         )
     }
     val result = synthetic.result
@@ -551,6 +573,27 @@ internal suspend fun MainActivity.buildCategoriesForActiveTab(tab: Int = activeT
                     id = UP_NEXT_CATEGORY_ID,
                     name = getString(R.string.category_next_up),
                     count = synthetic.upNext.size,
+                    isDynamic = true
+                )
+            )
+        }
+    }
+    // Favourites leads the Films/Series rail the way it leads Live TV's: a star is the
+    // user's own curation, so it outranks anything the app derived from watch state. The
+    // poster keeps favourites folded into its lead shelf - the rail is the place where the
+    // distinction between "favourite" and "up next" is the whole point of having the row.
+    // Carries channelIds like a brand row, but selecting it is special-cased in
+    // applyCategoryFilter so the grid re-reads the store: un-starring an item from inside
+    // the grid must drop it there and then, not on the next rebuild.
+    if (tab != 0 && FAVOURITES_CATEGORY_ID !in hiddenIds) {
+        if (synthetic.favouriteVod.isNotEmpty()) {
+            rows.add(
+                0,
+                CategoryFilter(
+                    id = FAVOURITES_CATEGORY_ID,
+                    name = getString(R.string.category_favourites),
+                    count = synthetic.favouriteVod.size,
+                    channelIds = synthetic.favouriteVod.map { it.id }.toSet(),
                     isDynamic = true
                 )
             )
@@ -1277,6 +1320,19 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
                 binding.seriesContent.scrollToPosition(0)
                 return
             }
+            // Favourites re-reads the store rather than using the row's channelIds: the grid
+            // is where items get un-starred (long-press), and a stale id set would leave the
+            // dropped poster on screen until the next rebuild.
+            if (selectedRowId == FAVOURITES_CATEGORY_ID) {
+                val favIds = FavoritesStore.getFavoriteSeriesIds(this)
+                val filtered = withContext(Dispatchers.Default) { source.filter { it.id in favIds } }
+                if (generation != categoryFilterGeneration) return
+                setGridSpan(binding.seriesContent, seriesGridAdapter, R.id.tabSeries)
+                binding.seriesContent.adapter = seriesGridAdapter
+                seriesGridAdapter.replaceAll(filtered)
+                binding.seriesContent.scrollToPosition(0)
+                return
+            }
             // Up Next is episodes too, and not seriesList members either - same reason,
             // same direct serve. seriesGridAdapter's click is onHomeItemClick, which
             // resolves an episode tile to its series' detail page.
@@ -1323,6 +1379,19 @@ internal suspend fun MainActivity.applyCategoryFilter(focusFirstLiveChannel: Boo
         2 -> {
             val source = filmList
             val shelfItems = selectedShelfItems
+            // Favourites re-reads the store rather than using the row's channelIds: the grid
+            // is where items get un-starred (long-press), and a stale id set would leave the
+            // dropped poster on screen until the next rebuild.
+            if (selectedRowId == FAVOURITES_CATEGORY_ID) {
+                val favIds = FavoritesStore.getFavoriteSeriesIds(this)
+                val filtered = withContext(Dispatchers.Default) { source.filter { it.id in favIds } }
+                if (generation != categoryFilterGeneration) return
+                setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)
+                binding.filmsContent.adapter = filmsGridAdapter
+                filmsGridAdapter.replaceAll(filtered)
+                binding.filmsContent.scrollToPosition(0)
+                return
+            }
             val brandIds = selectedBrandChannelIds // see the Series branch above
             if (shelfItems != null) {
                 setGridSpan(binding.filmsContent, filmsGridAdapter, R.id.tabFilms)

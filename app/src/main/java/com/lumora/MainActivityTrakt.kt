@@ -206,6 +206,51 @@ private fun MainActivity.traktSend(
     }
 }
 
+// ── Continue Watching ───────────────────────────
+
+/**
+ * Drops [items] from Trakt's own Continue Watching, to follow a local clear.
+ *
+ * Trakt keeps its resume points in a list of its own (`/sync/playback`) that scrobbling writes
+ * and nothing else touches - so clearing an item here and not there leaves it offered on every
+ * other Trakt client, and pulled straight back the next time anything reads that list.
+ *
+ * Entries are matched by [TraktClient.ScrobbleTarget], the same tmdb-id/season/episode identity
+ * a scrobble is sent under, because a playback entry's own id is per-entry and means nothing
+ * locally. Anything that doesn't resolve to a target is left alone: a delete is destructive and
+ * a guessed match would remove someone else's progress on an unrelated title.
+ *
+ * Gated on scrobbling rather than on watched sync - the playback list is what scrobbling
+ * writes, so an install that never scrobbled has nothing of its own to remove. Best effort and
+ * silent, like the rest of the Trakt path.
+ */
+internal fun MainActivity.traktRemovePlayback(items: List<Channel>) {
+    if (items.isEmpty()) return
+    if (!isTraktSignedIn() || !TraktStore.isScrobbleEnabled(prefs)) return
+    val subjects = items.filter { it.mediaType != MediaType.LIVE }
+    if (subjects.isEmpty()) return
+    scope.launch {
+        val token = traktAccessToken() ?: return@launch
+        // Read the list first: no resolution work is worth doing for an account with nothing
+        // paused, which is the common case right after a clear-all.
+        val entries = traktClient.playback(token)
+        if (entries.isEmpty()) return@launch
+        val wanted = entries.map { it.target }.toSet()
+        val targets = mutableSetOf<TraktClient.ScrobbleTarget>()
+        for (item in subjects) {
+            val target = traktTargetFor(item) ?: continue
+            // Each resolve is a TMDB lookup; stop as soon as every paused entry is accounted
+            // for rather than walking a long clear-all list to no purpose.
+            if (target in wanted) targets.add(target)
+            if (targets.size == wanted.size) break
+        }
+        if (targets.isEmpty()) return@launch
+        for (entry in entries) {
+            if (entry.target in targets) traktClient.removePlayback(token, entry.id)
+        }
+    }
+}
+
 // ── Watched sync ────────────────────────────────
 
 /**
