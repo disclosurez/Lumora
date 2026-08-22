@@ -34,6 +34,7 @@ import com.lumora.util.extractLeadingTag
 import com.lumora.util.isAdultCategory
 import com.lumora.util.normalizeServerUrl
 import com.lumora.util.rawMediaItemId
+import com.lumora.util.versionGroupContaining
 import com.lumora.util.vodQualityScore
 import com.lumora.data.remote.stalker.StalkerProvider
 import kotlinx.coroutines.*
@@ -1207,9 +1208,7 @@ internal fun MainActivity.tryNextVodVersion(): Boolean {
         }
         return true
     }
-    val group = filmVersions[playing.id]
-        ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
-        ?: return false
+    val group = versionGroupContaining(filmVersions, playing.id) ?: return false
     markStreamDead(playing)
     val next = group.firstOrNull { it.id != playing.id && !isStreamDead(it) } ?: return false
     Toast.makeText(this, getString(R.string.play_switching_source), Toast.LENGTH_SHORT).show()
@@ -1297,9 +1296,7 @@ internal fun MainActivity.updateVersionsButtonVisibility() {
             group.size > 1 || canFindStream(series)
         }
         else -> {
-            val group = filmVersions[playing.id]
-                ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
-                ?: emptyList()
+            val group = versionGroupContaining(filmVersions, playing.id).orEmpty()
             group.size > 1 || canFindStream(playing)
         }
     }
@@ -1354,9 +1351,7 @@ internal fun MainActivity.showVersionPicker() {
  *  representative, and the thing playing may itself be a non-representative version
  *  (picked from the detail screen's chips), so the group is found by membership. */
 internal fun MainActivity.showFilmVersionPicker(playing: Channel) {
-    val group = filmVersions[playing.id]
-        ?: filmVersions.values.firstOrNull { grp -> grp.any { it.id == playing.id } }
-        ?: emptyList()
+    val group = versionGroupContaining(filmVersions, playing.id).orEmpty()
     // One copy in the library is not "no versions": searching for another source is itself a
     // version of this title, and it's the only route left when the one copy is the one that
     // just failed. So the library's versions are listed when there are any, Find & Play is

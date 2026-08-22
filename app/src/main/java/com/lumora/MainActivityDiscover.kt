@@ -15,6 +15,7 @@ import com.lumora.model.MediaType
 import com.lumora.plugin.js.PluginScript
 import com.lumora.parser.XtreamClient
 import com.lumora.util.cleanVodTitle
+import com.lumora.util.versionGroupContaining
 import com.lumora.util.isAdultCategory
 import kotlinx.coroutines.*
 import java.util.Locale
@@ -543,7 +544,7 @@ internal fun MainActivity.catalogVersionsFor(matches: List<Channel>): List<Chann
     for (match in matches) {
         val key = match.id.ifBlank { match.url }
         out.putIfAbsent(key, match)
-        val group = versions[match.id] ?: versions.values.firstOrNull { g -> g.any { it.id == match.id } }
+        val group = versionGroupContaining(versions, match.id)
         group?.forEach { out.putIfAbsent(it.id.ifBlank { it.url }, it) }
     }
     return out.values.sortedBy { if (it.isOwnLibrary) 0 else 1 }

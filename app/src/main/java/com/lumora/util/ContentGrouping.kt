@@ -843,3 +843,16 @@ fun groupSeriesFilmCategories(leaves: List<CategoryFilter>): List<CategoryGroup>
 
     return result
 }
+
+/**
+ * The version group [id] belongs to, or null when it belongs to none.
+ *
+ * The maps are keyed by each group's *representative*, and the copy in hand is often not it -
+ * a Continue Watching entry, a search hit, or the version a detail screen's chip switched to.
+ * Membership is therefore the fallback, and it is a scan: the maps cannot be re-keyed by every
+ * member because callers that need a stable identity for a title (the failover watchdog's
+ * switch budget) read the key itself, and a member key would change under them on every swap.
+ * One pass per user action against a map of titles is not what costs anything here.
+ */
+fun versionGroupContaining(groups: Map<String, List<Channel>>, id: String): List<Channel>? =
+    groups[id] ?: groups.values.firstOrNull { group -> group.any { it.id == id } }

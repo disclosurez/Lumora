@@ -30,6 +30,7 @@ import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
 import com.lumora.util.isUnreleasedEpisode
 import com.lumora.util.rawMediaItemId
+import com.lumora.util.versionGroupContaining
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
 import com.lumora.data.remote.plex.PlexProvider
@@ -646,15 +647,13 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     // Before this, every duplicate but the representative was dropped at grouping time -
     // if the copy that won the card had a thin or broken episode list, the other
     // provider's was unreachable.
-    val seriesGroup = if (isSeries) versionGroup
-        ?: seriesVersions[item.id]
-        ?: seriesVersions.values.firstOrNull { g -> g.any { it.id == item.id } }
-    else null
+    val seriesGroup = if (isSeries) versionGroup ?: versionGroupContaining(seriesVersions, item.id) else null
     if (seriesGroup != null && seriesGroup.size > 1) {
         versionsScroll.visibility = View.VISIBLE
+        val openedIsInGroup = seriesGroup.any { it.id == item.id }
         seriesGroup.forEachIndexed { index, version ->
             val chip = inflateVersionChip(versionsRow, versionChipLabel(version, index))
-            chip.isSelected = version.id == item.id
+            chip.isSelected = if (openedIsInGroup) version.id == item.id else index == 0
             chip.nextFocusUpId = playButton.id
             chip.setOnClickListener {
                 if (version.id != item.id) showContentDetail(version, seriesGroup)
@@ -1185,9 +1184,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 if (nowShowingDetailId != requestedItemId) return@launch
                 applyDetails(details)
                 enrichDetailsFromTmdb(details, isSeries = false, requestedItemId = requestedItemId)
-                val versions = filmVersions[item.id]
-                    ?: filmVersions.values.firstOrNull { g -> g.any { it.id == item.id } }
-                    ?: listOf(item)
+                val versions = versionGroupContaining(filmVersions, item.id) ?: listOf(item)
                 statusText.visibility = View.GONE
 
                 // The obvious action for a film is "play it" - a button, not a list
@@ -1237,9 +1234,13 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 // specific version directly instead of requiring a second Play tap.
                 if (versions.size > 1) {
                     versionsScroll.visibility = View.VISIBLE
+                    // Which chip reads as current: the copy the detail was opened from, or
+                    // the first when the opened copy is not in the group at all (a stale
+                    // Continue Watching entry, say) - resolved once rather than per chip.
+                    val openedIsInGroup = versions.any { it.id == item.id }
                     versions.forEachIndexed { index, version ->
                         val chip = inflateVersionChip(versionsRow, versionChipLabel(version, index))
-                        chip.isSelected = version.id == item.id || (item.id !in versions.map { it.id } && index == 0)
+                        chip.isSelected = if (openedIsInGroup) version.id == item.id else index == 0
                         chip.nextFocusUpId = playButton.id
                         chip.setOnClickListener {
                             hideContentDetail()

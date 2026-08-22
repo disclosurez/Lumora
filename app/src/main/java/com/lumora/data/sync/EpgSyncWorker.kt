@@ -36,15 +36,33 @@ class EpgSyncWorker(
         // (single query, no N+1 per source) and map every programme onto the app channel ids
         // whose tvg-id matches.
         val tvgIdToChannelIds = buildTvgIdMapping()
+        // No catalogue yet (a fresh install, or a run that beat the first load) means no
+        // programme in any feed can match anything. Nothing about that is the sources' fault,
+        // and charging them a failure each would retire every EPG source on a device that had
+        // simply not finished loading - so the run is retried rather than scored.
+        if (tvgIdToChannelIds.isEmpty()) {
+            Log.w(TAG, "No channels with tvg-ids yet; deferring EPG sync")
+            return Result.retry()
+        }
 
         var allSuccess = true
+        val now = System.currentTimeMillis()
         for (source in sources) {
-            // A source that has failed MAX_CONSECUTIVE_FAILURES times in a row is treated as
-            // permanently broken: skip it rather than let it keep forcing Result.retry(), which
-            // re-fetches every enabled source on each attempt. The count resets on any success
-            // (markRefreshed), and a re-added source starts at zero.
-            if (source.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                Log.w(TAG, "Skipping EPG source ${source.name}: ${source.consecutiveFailures} consecutive failures")
+            // A source that keeps failing is rested, not retired. Past
+            // MAX_CONSECUTIVE_FAILURES it is skipped for a window that doubles with each
+            // further failure up to MAX_FAILURE_BACKOFF_MS, so it stops forcing Result.retry()
+            // - which re-fetches every enabled source on each attempt - without ever becoming
+            // unreachable. Retiring it outright could not work: a skipped source is never
+            // fetched, so its count could never reset, and three failures during one outage
+            // (the retry backoff starts at 30s, so that is a matter of minutes) would kill the
+            // guide until the user deleted and re-added the source. The count resets on any
+            // success (markRefreshed), and a re-added source starts at zero.
+            val backoff = failureBackoffMs(source.consecutiveFailures)
+            // A null lastRefreshedAt is a source that has never been attempted, which cannot
+            // be inside a backoff window - it is fetched.
+            val sinceAttempt = source.lastRefreshedAt?.let { now - it }
+            if (backoff > 0 && sinceAttempt != null && sinceAttempt < backoff) {
+                Log.w(TAG, "Resting EPG source ${source.name}: ${source.consecutiveFailures} consecutive failures, retrying in ${(backoff - sinceAttempt) / 60_000}m")
                 continue
             }
             try {
@@ -60,7 +78,7 @@ class EpgSyncWorker(
                 response.use {
                     if (!it.isSuccessful) {
                         Log.w(TAG, "HTTP ${it.code} for ${source.name}")
-                        db.epgSourceDao().incrementFailures(source.id)
+                        db.epgSourceDao().incrementFailures(source.id, System.currentTimeMillis())
                         allSuccess = false
                         return@use
                     }
@@ -68,7 +86,7 @@ class EpgSyncWorker(
                     val body = it.body
                     if (body == null) {
                         Log.w(TAG, "Empty response body for ${source.name}")
-                        db.epgSourceDao().incrementFailures(source.id)
+                        db.epgSourceDao().incrementFailures(source.id, System.currentTimeMillis())
                         allSuccess = false
                         return@use
                     }
@@ -130,13 +148,13 @@ class EpgSyncWorker(
                         db.epgSourceDao().markRefreshed(source.id, System.currentTimeMillis())
                     } else {
                         Log.w(TAG, "No programmes mapped for ${source.name}; treating as failure")
-                        db.epgSourceDao().incrementFailures(source.id)
+                        db.epgSourceDao().incrementFailures(source.id, System.currentTimeMillis())
                         allSuccess = false
                     }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "EPG sync error for ${source.name}: ${e.message}")
-                db.epgSourceDao().incrementFailures(source.id)
+                db.epgSourceDao().incrementFailures(source.id, System.currentTimeMillis())
                 allSuccess = false
             }
         }
@@ -165,8 +183,21 @@ class EpgSyncWorker(
     companion object {
         private const val UNIQUE_WORK_NAME = "epg_sync"
 
-        /** Consecutive failures before a source is skipped outright (see doWork). */
+        /** Consecutive failures tolerated before a source starts being rested (see doWork). */
         private const val MAX_CONSECUTIVE_FAILURES = 3
+
+        /** Longest a failing source is rested for. A day is well past any outage worth
+         *  waiting out, and short enough that a source fixed at the far end comes back on
+         *  its own rather than on the user noticing the guide is empty. */
+        private const val MAX_FAILURE_BACKOFF_MS = 24 * 60 * 60 * 1000L
+
+        /** How long to leave a source alone after [failures] consecutive failures: nothing
+         *  until the allowance is spent, then an hour, doubling to [MAX_FAILURE_BACKOFF_MS]. */
+        private fun failureBackoffMs(failures: Int): Long {
+            if (failures < MAX_CONSECUTIVE_FAILURES) return 0L
+            val steps = (failures - MAX_CONSECUTIVE_FAILURES).coerceAtMost(10)
+            return (60 * 60 * 1000L shl steps).coerceAtMost(MAX_FAILURE_BACKOFF_MS)
+        }
 
         fun enqueue(context: Context) {
             val request = OneTimeWorkRequestBuilder<EpgSyncWorker>()
