@@ -1121,17 +1121,70 @@ class MainActivity : AppCompatActivity() {
      * the projected display is the one being watched from a driver's seat.
      */
     private fun showCarDisclaimerIfProjected() {
-        val onCarDisplay =
-            if (Build.VERSION.SDK_INT >= 30) (display?.displayId ?: Display.DEFAULT_DISPLAY) != Display.DEFAULT_DISPLAY
-            else @Suppress("DEPRECATION") (windowManager.defaultDisplay.displayId != Display.DEFAULT_DISPLAY)
-        if (!onCarDisplay) return
+        if (!isOnCarDisplay()) return
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.app_name)
             .setMessage(R.string.car_disclaimer)
             .setCancelable(false)
             .setPositiveButton(R.string.ui_not_driving_continue) { d, _ -> d.dismiss() }
-            .show()
+            .create()
+
+        dialog.focusDefaultButtonForCarInput()
+        // The warning has exactly one button, so a knob press means one thing and can be taken
+        // directly - a route that survives even a unit whose press never reaches the focused
+        // view. The dialog consults this before the view hierarchy, so it wins wherever both
+        // fire; both paths end in the same dismissal.
+        dialog.setOnKeyListener { d, keyCode, event ->
+            val accept = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                keyCode == android.view.KeyEvent.KEYCODE_BUTTON_A
+            if (accept && event.action == android.view.KeyEvent.ACTION_UP) {
+                d.dismiss()
+                true
+            } else {
+                accept // swallow the matching ACTION_DOWN so it can't double-fire
+            }
+        }
+        // The app behind the warning has the same problem: still in touch mode, still nothing
+        // focused, so the first knob press after dismissal would go nowhere too. Hand focus to
+        // the tab bar so the rotary has somewhere to start.
+        dialog.setOnDismissListener {
+            binding.tabLive.isFocusableInTouchMode = true
+            binding.tabLive.requestFocus()
+        }
+        dialog.show()
+    }
+
+    /**
+     * Whether this Activity is the copy on the car's projected display rather than the one in
+     * someone's hand - a phone opened while the car is connected is still a phone.
+     */
+    private fun isOnCarDisplay(): Boolean =
+        if (Build.VERSION.SDK_INT >= 30) (display?.displayId ?: Display.DEFAULT_DISPLAY) != Display.DEFAULT_DISPLAY
+        else @Suppress("DEPRECATION") (windowManager.defaultDisplay.displayId != Display.DEFAULT_DISPLAY)
+
+    /**
+     * Give a dialog's default button focus before it is shown, on the car screen only.
+     *
+     * A head unit with no touchscreen drives the projected app with a rotary controller (an
+     * Audi MMI knob, say). A dialog opens in touch mode, and in touch mode no view holds
+     * focus: the knob's press arrives as DPAD_CENTER/ENTER rather than a tap, so it lands on
+     * nothing, and a unit that reports rotation as a scroll rather than DPAD_UP/DOWN never
+     * takes the window out of touch mode either. The dialog is then undismissable and the app
+     * unreachable behind it. Focusing the button *in touch mode* gives the first press a
+     * target, and shows the driver what it will do. Keys are left to flow to the focused view
+     * so a dialog with more than one button can still be moved across.
+     */
+    private fun AlertDialog.focusDefaultButtonForCarInput() {
+        if (!isOnCarDisplay()) return
+        setOnShowListener {
+            getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+                isFocusableInTouchMode = true
+                requestFocus()
+            }
+        }
     }
 
     /** Needed on API 33+ for reminder notifications to actually show; older Fire OS builds don't gate on it.
@@ -1149,8 +1202,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Checked once per launch, straight off GitHub Releases - not tucked inside Settings. */
+    /** Checked once per launch, straight off GitHub Releases - not tucked inside Settings.
+     *
+     *  Never on the car screen: the prompt would open on top of the driving warning, where a
+     *  rotary head unit has one focused button and it is "Update" - and that route ends in the
+     *  system package installer, which cannot be driven from a projected display at all. Same
+     *  reasoning as [requestNotificationPermissionIfNeeded]: the next launch off the car asks. */
     private fun checkAndPromptUpdate() {
+        if (isOnCarDisplay()) return
         scope.launch {
             val updater = AppUpdateChecker(this@MainActivity)
             val info = withContext(Dispatchers.IO) { updater.checkForUpdate() } ?: return@launch

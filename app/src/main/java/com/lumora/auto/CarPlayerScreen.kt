@@ -35,8 +35,10 @@ import com.lumora.model.Channel
  * what makes it a screen rather than a pixel buffer.
  *
  * The template itself ([PaneTemplate]) is nearly empty on purpose: the host draws it *over*
- * the surface, so it is chrome, not content. Controls live in its action strip because the
- * surface receives no touch of its own.
+ * the surface, so it is chrome, not content. Controls live in the template rather than on the
+ * surface because the surface receives no touch of its own - split between the action strip
+ * and the pane only because of the library's limit on titled strip actions (see
+ * [onGetTemplate]).
  */
 class CarPlayerScreen(
     carContext: CarContext,
@@ -60,6 +62,13 @@ class CarPlayerScreen(
 
     override fun onGetTemplate(): Template {
         val channel = session.playback.current
+        // Where each control sits is dictated by the library, not by taste: a template's
+        // action strip takes at most two actions and at most *one* of them may carry a custom
+        // title, so the three controls as three titled strip actions threw
+        // IllegalArgumentException out of setActionStrip and the player screen never rendered
+        // at all. Play/pause - the one a driver reaches for without looking, and the one a
+        // rotary head unit can reliably focus - keeps the strip; previous/next move into the
+        // pane, which allows two titled actions of its own.
         val pane = Pane.Builder()
             .addRow(
                 Row.Builder()
@@ -67,19 +76,19 @@ class CarPlayerScreen(
                     .addText(carContext.getString(com.lumora.R.string.ui_playing))
                     .build()
             )
+            .addAction(textAction(carContext.getString(com.lumora.R.string.ui_prev)) { session.playback.step(queue, -1); refreshAfterInput() })
+            .addAction(textAction(carContext.getString(com.lumora.R.string.ui_next)) { session.playback.step(queue, 1); refreshAfterInput() })
             .build()
         return PaneTemplate.Builder(pane)
             .setTitle(channel?.name ?: carContext.getString(com.lumora.R.string.app_name))
             .setHeaderAction(Action.BACK)
             .setActionStrip(
                 ActionStrip.Builder()
-                    .addAction(textAction(carContext.getString(com.lumora.R.string.ui_prev)) { session.playback.step(queue, -1); refreshAfterInput() })
                     .addAction(
                         textAction(if (session.playback.isPlaying) carContext.getString(com.lumora.R.string.ui_pause) else carContext.getString(com.lumora.R.string.play)) {
                             session.playback.togglePlayPause(); refreshAfterInput()
                         }
                     )
-                    .addAction(textAction(carContext.getString(com.lumora.R.string.ui_next)) { session.playback.step(queue, 1); refreshAfterInput() })
                     .build()
             )
             .build()
