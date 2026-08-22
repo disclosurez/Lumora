@@ -1403,6 +1403,53 @@ class MainActivity : AppCompatActivity() {
         list.post { if (!attempt()) list.post { attempt() } }
     }
 
+    /**
+     * Focuses [position] in [list] (clamped to what the list actually holds) once it has been
+     * laid out, falling back to the sidebar when the list ends up empty.
+     *
+     * The grid adapters replace their contents wholesale (submitList(null) then the new list),
+     * so every view that could hold focus is detached and the D-pad is left pointing at
+     * nothing - which is what removing the focused tile from a grid does. The commit is
+     * asynchronous on top of that, so a single post can land before the replacement items
+     * exist; retry a few frames rather than assume one is enough.
+     */
+    internal fun focusItemWhenReady(list: RecyclerView, position: Int, attempts: Int = 5) {
+        fun attempt(remaining: Int) {
+            val count = list.adapter?.itemCount ?: 0
+            if (count > 0) {
+                val target = position.coerceIn(0, count - 1)
+                list.scrollToPosition(target)
+                list.post {
+                    val view = list.layoutManager?.findViewByPosition(target)
+                    if (view?.requestFocus() != true) {
+                        if (remaining > 0) list.post { attempt(remaining - 1) } else focusSelectedSidebarRow()
+                    }
+                }
+                return
+            }
+            if (remaining > 0) list.post { attempt(remaining - 1) } else focusSelectedSidebarRow()
+        }
+        attempt(attempts)
+    }
+
+    /** Puts focus back on the rail, on the row that is selected. The landing place for
+     *  anything that empties the pane the user was in - the rail is always there, and the
+     *  selected row is where they were. A collapsed rail hands focus to the pill that
+     *  reopens it, which is the only thing on screen to aim at. */
+    internal fun focusSelectedSidebarRow() {
+        if (binding.categorySidebar.visibility != View.VISIBLE) {
+            binding.sidebarExpandButton.requestFocus()
+            return
+        }
+        val position = categoryAdapter.currentList
+            .indexOfFirst { it.id == categoryAdapter.selectedId }
+            .coerceAtLeast(0)
+        binding.categorySidebar.scrollToPosition(position)
+        fun attempt(): Boolean =
+            binding.categorySidebar.layoutManager?.findViewByPosition(position)?.requestFocus() == true
+        binding.categorySidebar.post { if (!attempt()) binding.categorySidebar.post { attempt() } }
+    }
+
     /** True while Back has somewhere to go - guards edge-swipe so a stray swipe can't exit
      *  the app. Anything but Home qualifies now that Back unwinds tabs too (see
      *  handleBackNavigation). */

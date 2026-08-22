@@ -750,7 +750,7 @@ internal fun MainActivity.toggleHiddenHomeShelf(title: String) {
  *  one clear empties the row everywhere. Media-server resume lives on the server, so those
  *  entries are dropped there too (best effort) and removed from memory immediately. Also
  *  un-hides the CW shelf so future watching isn't stuck behind a stale hide flag. */
-internal fun MainActivity.clearContinueWatching() {
+internal fun MainActivity.clearContinueWatching(onRebuilt: (() -> Unit)? = null) {
     // Snapshot before the stores are emptied - Trakt keeps its own resume list, and matching
     // an entry there needs the items that were on the row.
     val cleared = PlaybackPositionStore.getAllInProgress(this) + jellyfinResumeItems + plexResumeItems
@@ -782,7 +782,14 @@ internal fun MainActivity.clearContinueWatching() {
     getHiddenCategories(1).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(1), it).apply() }
     getHiddenCategories(2).let { if (it.remove("Continue Watching")) prefs.edit().putStringSet(hiddenCategoriesPrefsKey(2), it).apply() }
     homeShelfAdapter.submitList(buildHomeShelves())
-    if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
+    if (!showingHome && activeTab != 0) {
+        scope.launch {
+            classifyAndShow()
+            onRebuilt?.invoke()
+        }
+    } else {
+        onRebuilt?.invoke()
+    }
 }
 
 /**
@@ -824,6 +831,13 @@ internal fun MainActivity.removeFromContinueWatching(item: Channel) {
     refreshHomeShelvesIfShowing()
     refreshSeriesShelvesIfShowing()
     if (showingHome || activeTab == 0) return
+    val grid = if (activeTab == 1) binding.seriesContent else binding.filmsContent
+    val gridAdapter = if (activeTab == 1) seriesGridAdapter else filmsGridAdapter
+    // Where the tile that is going away sat. The grid is rebuilt from scratch below, taking
+    // the focused view with it, so focus has to be put somewhere deliberately afterwards -
+    // and the slot the removed tile occupied is where the eye already is.
+    val removedAt = gridAdapter.currentList.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+    val wasOnContinueWatching = selectedRowId == CONTINUE_WATCHING_CATEGORY_ID
     scope.launch {
         val remaining = if (activeTab == 1) seriesContinueItems() else emptyList()
         // The row only exists while it has items: dropping the last one has to move the pane
@@ -836,6 +850,11 @@ internal fun MainActivity.removeFromContinueWatching(item: Channel) {
         }
         rebuildCategoriesForActiveTab()
         applyCategoryFilter()
+        if (!wasOnContinueWatching) return@launch
+        // Still on the row: the next tile along. Emptied it: the pane is showing shelves the
+        // user never asked for, so the rail is the honest place to be.
+        if (selectedRowId == CONTINUE_WATCHING_CATEGORY_ID) focusItemWhenReady(grid, removedAt)
+        else focusSelectedSidebarRow()
     }
 }
 
@@ -876,7 +895,9 @@ internal fun MainActivity.confirmClearContinueWatching() {
         .setTitle(R.string.list_cw_clear_all)
         .setMessage(R.string.list_cw_clear_all_confirm)
         .setPositiveButton(R.string.list_cw_clear_all) { _, _ ->
-            clearContinueWatching()
+            // The row is gone once this lands, so the grid it was showing goes with it -
+            // hand focus to the rail rather than leave the D-pad on a detached tile.
+            clearContinueWatching(onRebuilt = { focusSelectedSidebarRow() })
             Toast.makeText(this, R.string.list_cw_cleared, Toast.LENGTH_SHORT).show()
         }
         .setNegativeButton(android.R.string.cancel, null)
