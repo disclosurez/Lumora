@@ -535,6 +535,7 @@ internal fun MainActivity.inflateVersionChip(parent: ViewGroup, label: String): 
     val chip = root.findViewById<TextView>(R.id.categoryLabel)
     (root as ViewGroup).removeView(chip)
     chip.text = label
+    chip.id = View.generateViewId()
     chip.setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_caption))
     val padH = (12 * resources.displayMetrics.density).toInt()
     val padV = (8 * resources.displayMetrics.density).toInt()
@@ -604,6 +605,7 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     selectedSeasonChip = null
     versionsScroll.visibility = View.GONE
     versionsRow.removeAllViews()
+    playButton.nextFocusDownId = View.NO_ID
     sectionLabel.text = ""
     itemsList.visibility = View.GONE
     itemsList.adapter = null
@@ -644,16 +646,26 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     // Before this, every duplicate but the representative was dropped at grouping time -
     // if the copy that won the card had a thin or broken episode list, the other
     // provider's was unreachable.
-    val seriesGroup = if (isSeries) versionGroup ?: seriesVersions[item.id] else null
+    val seriesGroup = if (isSeries) versionGroup
+        ?: seriesVersions[item.id]
+        ?: seriesVersions.values.firstOrNull { g -> g.any { it.id == item.id } }
+    else null
     if (seriesGroup != null && seriesGroup.size > 1) {
         versionsScroll.visibility = View.VISIBLE
         seriesGroup.forEachIndexed { index, version ->
             val chip = inflateVersionChip(versionsRow, versionChipLabel(version, index))
             chip.isSelected = version.id == item.id
+            chip.nextFocusUpId = playButton.id
             chip.setOnClickListener {
                 if (version.id != item.id) showContentDetail(version, seriesGroup)
             }
             versionsRow.addView(chip)
+        }
+        versionsRow.post {
+            val firstChip = versionsRow.getChildAt(0)
+            if (firstChip != null && firstChip.id != View.NO_ID) {
+                playButton.nextFocusDownId = firstChip.id
+            }
         }
     }
 
@@ -1173,7 +1185,9 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 if (nowShowingDetailId != requestedItemId) return@launch
                 applyDetails(details)
                 enrichDetailsFromTmdb(details, isSeries = false, requestedItemId = requestedItemId)
-                val versions = filmVersions[item.id] ?: listOf(item)
+                val versions = filmVersions[item.id]
+                    ?: filmVersions.values.firstOrNull { g -> g.any { it.id == item.id } }
+                    ?: listOf(item)
                 statusText.visibility = View.GONE
 
                 // The obvious action for a film is "play it" - a button, not a list
@@ -1225,7 +1239,8 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                     versionsScroll.visibility = View.VISIBLE
                     versions.forEachIndexed { index, version ->
                         val chip = inflateVersionChip(versionsRow, versionChipLabel(version, index))
-                        chip.isSelected = index == 0
+                        chip.isSelected = version.id == item.id || (item.id !in versions.map { it.id } && index == 0)
+                        chip.nextFocusUpId = playButton.id
                         chip.setOnClickListener {
                             hideContentDetail()
                             currentIndex = filmList.indexOf(item)
@@ -1234,6 +1249,14 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                             detailReturnGroup = versionGroup
                         }
                         versionsRow.addView(chip)
+                    }
+                    // Ensure version chips are reachable via D-pad from Play button:
+                    // Play DOWN -> first version chip, version UP -> Play.
+                    versionsRow.post {
+                        val firstChip = versionsRow.getChildAt(0)
+                        if (firstChip != null && firstChip.id != View.NO_ID) {
+                            playButton.nextFocusDownId = firstChip.id
+                        }
                     }
                 }
             }
