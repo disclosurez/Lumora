@@ -1,5 +1,54 @@
 # Changelog
 
+## 4.5
+
+### Films & Series
+- **The Play button now starts the best copy of a title, not an arbitrary one.** A film carried by several providers is one card with a version list behind it, and that list was ordered by whichever provider happened to load first - so a panel's SD repost could win over its own 4K feed purely by position. Versions are now ordered best-quality-first: resolution leads, a REMUX/BluRay tag only splits copies that tie on it, and a cam or telesync rip sorts below everything including untagged copies. Your own Jellyfin or Plex copy still stays pinned at the top.
+- **Lumora swaps to another copy when a film stutters or plays blurry.** A bad copy does not stall, error, or go black - it just drops frames the device cannot decode in time, or turns out to be an upscaled SD encode behind an "HD" label, so nothing was watching for it. Lumora now notices both and moves along the quality ladder in the direction that helps - up for a blurry copy, down for one that stutters - keeping your position. It is bounded to two swaps per title, and picking a version by hand in the player settles it for good.
+- **Version chips are selectable again when a title is opened from Continue Watching or search.** The version list was looked up only by the copy that headed the group, so opening any other copy showed no chips at all. The chips also now highlight the copy you actually opened, and the D-pad moves between Play and the chip row.
+- **Play and Download act on the copy you opened.** Opening a film from Continue Watching or a search hit could show "Resume" with your position on one copy and then start a different file from zero. Both buttons now use the copy on screen.
+
+### Playback
+- **LEFT rewinds a film instead of opening the side menu.** On a TV remote, LEFT opened the channel list drawer whatever was playing - a live-TV thing offered over a film, which had no blind way to scrub at all. LEFT now steps back 15 seconds on films and episodes (RIGHT steps forward 30), and still opens the drawer on live TV where surfing channels is the point. Holding LEFT keeps scrubbing.
+- **Pause works while a stream is rebuffering.** Pressing pause mid-rebuffer started playback instead of pausing it, and recorded a pause you never asked for, after which returning to the app refused to resume.
+- **A Cast session ending no longer starts a hidden stream.** Switching off a TV while browsing elsewhere left a stream playing with no player on screen.
+- **An offline channel says so once instead of toasting on repeat.**
+- **Interrupted downloads resume after the app is restarted**, and a "Resume playback?" prompt can no longer outlive the player it belonged to - which used to break Back and start invisible audio-only playback behind Home.
+
+### TV Shows
+- **A show can be taken off Up Next.** Up Next is worked out from what you have watched, so a show you have no intention of finishing sat there until you did. Long-press a tile to remove it; nothing is marked watched and nothing is reported to Jellyfin, Plex or Trakt. "Restore removed shows" in the row's sidebar menu brings them back, and only appears while something is hidden.
+- **Favourites are back in the Films and Series rail, along with a way to clear Continue Watching.**
+- **The D-pad no longer goes dead after removing an item from Continue Watching.**
+
+### Navigation
+- **D-pad escapes restored across shelves, the category rail and item rows.** Focus could trap inside a row with no way back up to the tab bar or search; the top of a shelf, the rail and the Downloads list all reach the tab chain again. Episode rows move between the download and watched buttons, and a disabled download button is no longer a focusable dead end.
+- **Screen-reader labels added** for the glyph-only controls (pin, hide shelf, favourite star, download).
+
+### Guide (EPG)
+- **A guide source that fails three times is now rested, not retired.** Once a source hit three failures it was skipped forever - and since the counter only reset on a successful refresh, which a skipped source can never have, the only fix was deleting and re-adding it. A short outage could burn all three attempts in about two minutes. Failing sources now come back on their own, after a wait that grows from an hour up to a day. A refresh that ran before the catalogue finished loading no longer counts against every source at once.
+
+### Recordings
+- **Recording a show no longer crashes on Android 12 and newer**, where scheduling an exact alarm needs a permission the app does not hold. It now falls back to an inexact alarm.
+- **A reboot no longer re-arms recordings that already finished**, which used to fire stale alarms and stamp completed recordings with fresh timestamps.
+
+### Backup
+- **Restoring a backup keeps what it used to drop.** Watch history exported only its 50 most recent entries, recording storage settings were never written back, and guide sources lost their user-agent and refresh interval. A partial or older backup could also fail silently and read as an empty one; a failed import now says what went wrong, and a missing section leaves your existing data alone.
+- **A corrupt settings file no longer leaves the app in a dead end** where providers could be added with no error and were gone on the next launch.
+
+### Android Auto
+- **The driving warning can be dismissed with a rotary controller.** On a car with no touchscreen the warning could be neither reached nor dismissed, leaving the whole app stuck behind it. The update prompt is also skipped on the car display, where it cannot be acted on.
+
+### Elsewhere
+- **Films and shows in an M3U playlist keep their full names.** A title like "Breaking Bad, Season 5" was cut at the last comma and became "Season 5".
+- **"Tomorrow" is correct on the night the clocks change.**
+- **The detail screen no longer paints the previous title's artwork or trailer** onto the one you just opened when a slow lookup lands late.
+- **Cancel actually cancels** in the Find Stream dialog, and on the season loading dialog, which used to pop the season chooser seconds after being dismissed.
+- **The Downloads list in Settings renders full height** instead of one row tall, and download tiles show their posters after a restart.
+- **QR pairing no longer expires early** after switching provider type.
+- **The Up Next countdown no longer freezes** when the side menu is opened from the player controls.
+- **Typing in search is no longer forced to uppercase** on a physical keyboard.
+- Faster, less wasteful connections to unreachable Jellyfin and Plex servers, which used to report an auth error as a timeout.
+
 ## 4.4.4
 
 ### Trakt
