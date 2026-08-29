@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.5.1
+
+### Live TV
+- **A dark scene no longer reads as an offline channel.** The black-frame watchdog treated any sustained near-black picture as a dead feed and switched version mid-playback even while the channel was playing fine. A feed is now declared dead only when it is dark *and* static - successive samples are compared and under 1% of pixels may have moved.
+
+### Android Auto
+- **The driving disclaimer can be dismissed with a rotary controller.** On head units without a touchscreen (Audi MMI and similar) the controller's press never reached the dialog: several hosts route input to the activity window rather than the dialog window, and some translate the press into a synthesized tap instead of a key event. Rotation, nudge, center-press and tap are now all intercepted at both windows, so any input dismisses the warning.
+
 ## 4.5
 
 ### Films & Series
