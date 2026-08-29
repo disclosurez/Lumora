@@ -684,6 +684,10 @@ class MainActivity : AppCompatActivity() {
      *  failed, so without dismissing it here, the stream can end up playing fine underneath a
      *  dialog still telling the user it couldn't. */
     internal var externalPlayerDialog: AlertDialog? = null
+    /** The projected-display disclaimer window, if it owns input right now. */
+    private var carDisclaimerDialog: AlertDialog? = null
+    /** Center-button release after a down event that already dismissed the disclaimer. */
+    private var carDisclaimerKeyCode = android.view.KeyEvent.KEYCODE_UNKNOWN
     internal var resumePromptShown = false
     /** The "Resume playback?" prompt [resumePromptShown] produced, while it's showing.
      *  It's non-cancelable, so once up it owns the window: Back gets swallowed and its two
@@ -1143,36 +1147,26 @@ class MainActivity : AppCompatActivity() {
     private fun showCarDisclaimerIfProjected() {
         if (!isOnCarDisplay()) return
 
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.app_name)
-            .setMessage(R.string.car_disclaimer)
-            .setCancelable(false)
-            .setPositiveButton(R.string.ui_not_driving_continue) { d, _ -> d.dismiss() }
-            .create()
-
-        dialog.focusDefaultButtonForCarInput()
-        // The warning has exactly one button, so a knob press means one thing and can be taken
-        // directly - a route that survives even a unit whose press never reaches the focused
-        // view. The dialog consults this before the view hierarchy, so it wins wherever both
-        // fire; both paths end in the same dismissal.
-        dialog.setOnKeyListener { d, keyCode, event ->
-            val accept = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
-                keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
-                keyCode == android.view.KeyEvent.KEYCODE_BUTTON_A
-            if (accept && event.action == android.view.KeyEvent.ACTION_UP) {
-                d.dismiss()
-                true
-            } else {
-                accept // swallow the matching ACTION_DOWN so it can't double-fire
-            }
+        val dialog = CarDisclaimerDialog(this).apply {
+            setTitle(R.string.app_name)
+            setMessage(getString(R.string.car_disclaimer))
+            setCancelable(false)
+            setButton(
+                AlertDialog.BUTTON_POSITIVE,
+                getString(R.string.ui_not_driving_continue)
+            ) { d, _ -> d.dismiss() }
         }
+
+        carDisclaimerDialog = dialog
+        carDisclaimerKeyCode = android.view.KeyEvent.KEYCODE_UNKNOWN
+        dialog.focusDefaultButtonForCarInput()
         // The app behind the warning has the same problem: still in touch mode, still nothing
         // focused, so the first knob press after dismissal would go nowhere too. Hand focus to
         // the first tab that is actually on screen - Live is GONE on a setup with no live
         // provider (Plex carries no Live TV at all), and focusing a hidden view would leave
         // the rotary with nothing again.
         dialog.setOnDismissListener {
+            if (carDisclaimerDialog === dialog) carDisclaimerDialog = null
             val tab = listOf(
                 binding.tabLive, binding.tabHome, binding.tabFilms,
                 binding.tabSeries, binding.tabDiscover, binding.btnSearch, binding.btnSettings,
@@ -1181,6 +1175,86 @@ class MainActivity : AppCompatActivity() {
             tab?.requestFocus()
         }
         dialog.show()
+    }
+
+    /** Center/select events a projected rotary host can inject for the focused action. */
+    private fun isCarDisclaimerAcceptKey(keyCode: Int): Boolean = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+        keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+        keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+        keyCode == android.view.KeyEvent.KEYCODE_BUTTON_A ||
+        keyCode == android.view.KeyEvent.KEYCODE_SPACE ||
+        keyCode == android.view.KeyEvent.KEYCODE_NAVIGATE_IN
+
+    /** Rotation/nudge variants used by Android Auto and OEM head units. */
+    private fun isCarDisclaimerNavigationKey(keyCode: Int): Boolean = keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP ||
+        keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN ||
+        keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||
+        keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ||
+        keyCode == android.view.KeyEvent.KEYCODE_TAB ||
+        keyCode == android.view.KeyEvent.KEYCODE_NAVIGATE_NEXT ||
+        keyCode == android.view.KeyEvent.KEYCODE_NAVIGATE_PREVIOUS ||
+        keyCode == android.view.KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP ||
+        keyCode == android.view.KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN ||
+        keyCode == android.view.KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT ||
+        keyCode == android.view.KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT
+
+    /** Android Auto projection uses AXIS_SCROLL; accept OEMs that expose a rotary axis as vertical or horizontal. */
+    private fun isCarRotaryScroll(event: MotionEvent): Boolean =
+        event.actionMasked == MotionEvent.ACTION_SCROLL &&
+            event.isFromSource(android.view.InputDevice.SOURCE_ROTARY_ENCODER) &&
+            (event.getAxisValue(MotionEvent.AXIS_SCROLL) != 0f ||
+                event.getAxisValue(MotionEvent.AXIS_VSCROLL) != 0f ||
+                event.getAxisValue(MotionEvent.AXIS_HSCROLL) != 0f)
+
+    /** A few head units send the knob press as a rotary-encoder button press instead of a key. */
+    private fun isCarRotaryButtonPress(event: MotionEvent): Boolean =
+        event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS &&
+            event.isFromSource(android.view.InputDevice.SOURCE_ROTARY_ENCODER)
+
+    /** Dialog window dispatch, not a child listener: projected rotary events may have no focus yet. */
+    private inner class CarDisclaimerDialog(context: Context) : AlertDialog(context) {
+        override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+            if (isCarRotaryScroll(event)) {
+                focusCarDisclaimerButton(this)
+                return true
+            }
+            if (isCarRotaryButtonPress(event)) {
+                getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+                return true
+            }
+            return super.dispatchGenericMotionEvent(event)
+        }
+
+        override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+            if (isCarDisclaimerNavigationKey(event.keyCode)) {
+                focusCarDisclaimerButton(this)
+                return true
+            }
+            if (!isCarDisclaimerAcceptKey(event.keyCode)) {
+                return super.dispatchKeyEvent(event)
+            }
+
+            // Most hosts send DOWN + UP. Some projected head units only deliver one edge of
+            // the click, so perform on the first edge we receive and consume both possibilities.
+            if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                carDisclaimerKeyCode = event.keyCode
+                getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+            } else if (event.action == android.view.KeyEvent.ACTION_UP &&
+                carDisclaimerKeyCode != event.keyCode
+            ) {
+                getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+            }
+            return true
+        }
+    }
+
+    /** Focus the one action even when rotation arrived while the dialog was in touch mode. */
+    private fun focusCarDisclaimerButton(dialog: AlertDialog) {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            requestFocus()
+        }
     }
 
     /**
@@ -1206,10 +1280,7 @@ class MainActivity : AppCompatActivity() {
     private fun AlertDialog.focusDefaultButtonForCarInput() {
         if (!isOnCarDisplay()) return
         setOnShowListener {
-            getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
-                isFocusableInTouchMode = true
-                requestFocus()
-            }
+            focusCarDisclaimerButton(this)
         }
     }
 
@@ -1393,6 +1464,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        carDisclaimerDialog?.let {
+            it.setOnDismissListener(null)
+            it.setOnKeyListener(null)
+            it.dismiss()
+        }
+        carDisclaimerDialog = null
+        carDisclaimerKeyCode = android.view.KeyEvent.KEYCODE_UNKNOWN
         super.onDestroy()
         // Keyed by View, nothing ever removed entries - drop it so this Activity's
         // view hierarchies aren't pinned forever (see clearContentBasePaddingCache).
@@ -1649,6 +1727,22 @@ class MainActivity : AppCompatActivity() {
         return super.dispatchTouchEvent(ev)
     }
 
+    /** Android Auto's projected rotary path injects its rotation as a generic motion event. */
+    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        val dialog = carDisclaimerDialog
+        if (dialog?.isShowing == true) {
+            if (isCarRotaryScroll(event)) {
+                focusCarDisclaimerButton(dialog)
+                return true
+            }
+            if (isCarRotaryButtonPress(event)) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+                return true
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
     /** Walks the episode list one adapter position per UP/DOWN press instead of letting the
      *  framework's FocusFinder choose.
      *
@@ -1665,6 +1759,42 @@ class MainActivity : AppCompatActivity() {
      *  same broken default search. Activity-level dispatch always sees the key, and resolving the
      *  holder from whatever view actually has focus covers both cases. */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // A few projected hosts route controller keys to the Activity instead of the dialog
+        // window. Keep the disclaimer usable in that path too, including hosts that emit only
+        // one edge of a center-button click.
+        val disclaimer = carDisclaimerDialog
+        if (carDisclaimerKeyCode != android.view.KeyEvent.KEYCODE_UNKNOWN &&
+            event.action == android.view.KeyEvent.ACTION_UP &&
+            event.keyCode == carDisclaimerKeyCode
+        ) {
+            carDisclaimerKeyCode = android.view.KeyEvent.KEYCODE_UNKNOWN
+            return true
+        }
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            carDisclaimerKeyCode != android.view.KeyEvent.KEYCODE_UNKNOWN
+        ) {
+            if (event.repeatCount > 0) return true
+            // A host that omits ACTION_UP must not make the next, independent click disappear.
+            carDisclaimerKeyCode = android.view.KeyEvent.KEYCODE_UNKNOWN
+        }
+        if (disclaimer?.isShowing == true) {
+            when {
+                isCarDisclaimerNavigationKey(event.keyCode) -> {
+                    focusCarDisclaimerButton(disclaimer)
+                    return true
+                }
+                isCarDisclaimerAcceptKey(event.keyCode) -> {
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                        carDisclaimerKeyCode = event.keyCode
+                        disclaimer.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+                    } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                        disclaimer.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+                    }
+                    return true
+                }
+            }
+            return true
+        }
         // Real-keyboard typing while search is open. The query field is deliberately not
         // focusable (see dialog_search.xml), so nothing else would receive these.
         val onSearchKey = searchKeyHandler
