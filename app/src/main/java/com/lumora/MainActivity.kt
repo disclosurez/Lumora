@@ -1213,6 +1213,21 @@ class MainActivity : AppCompatActivity() {
 
     /** Dialog window dispatch, not a child listener: projected rotary events may have no focus yet. */
     private inner class CarDisclaimerDialog(context: Context) : AlertDialog(context) {
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // Synthesized-tap hosts deliver the press to the dialog window itself (see
+            // MainActivity.dispatchTouchEvent for the Activity-window route). Any tap on
+            // the one-button warning is an acceptance, wherever it lands.
+            if (isShowing && (event.actionMasked == MotionEvent.ACTION_DOWN ||
+                    event.actionMasked == MotionEvent.ACTION_UP)
+            ) {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+                }
+                return true
+            }
+            return super.dispatchTouchEvent(event)
+        }
+
         override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
             if (isCarRotaryScroll(event)) {
                 focusCarDisclaimerButton(this)
@@ -1703,6 +1718,19 @@ class MainActivity : AppCompatActivity() {
      *  Observes via dispatchTouchEvent rather than consuming, so normal clicks/scrolls are
      *  untouched - it never returns true from here, just dispatches Back as a side effect. */
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        // Head units without a touchscreen often translate a rotary press into a
+        // synthesized tap delivered to the Activity window with arbitrary coordinates.
+        // While the one-button disclaimer is up, any tap means the one thing.
+        val carDialog = carDisclaimerDialog
+        if (carDialog?.isShowing == true &&
+            (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN ||
+                ev.actionMasked == android.view.MotionEvent.ACTION_UP)
+        ) {
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                carDialog.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+            }
+            return true
+        }
         if (!isTv) {
             val density = resources.displayMetrics.density
             when (ev.actionMasked) {
