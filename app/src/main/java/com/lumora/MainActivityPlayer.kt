@@ -1710,6 +1710,7 @@ internal fun MainActivity.beginStreamAttempt() {
 internal fun MainActivity.startBlackFrameWatch() {
     if (isDestroyed) return
     blackFrameStreak = 0
+    lastBlackFrameLuma = null
     mainHandler.removeCallbacks(blackFrameCheckRunnable)
     mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
 }
@@ -1739,7 +1740,14 @@ internal fun MainActivity.checkForBlackFrame() {
     try {
         PixelCopy.request(surfaceView, sample, { result ->
             if (isDestroyed || !isPlayerVisible) { sample.recycle(); return@request }
-            val isBlack = result == PixelCopy.SUCCESS && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+            val current = lumaArray(sample)
+            val luma = if (current.isNotEmpty()) current.sum() / (current.size * 3) else 255
+            val previous = lastBlackFrameLuma
+            lastBlackFrameLuma = current
+            val movedFraction = if (previous == null) 1f else motionFraction(previous, current)
+            val isBlack = result == PixelCopy.SUCCESS &&
+                luma < BLACK_FRAME_LUMA_THRESHOLD &&
+                movedFraction < BLACK_FRAME_MOTION_FRACTION
             sample.recycle()
             blackFrameStreak = if (isBlack) blackFrameStreak + 1 else 0
             if (!isBlack) blackFrameOfflineNotified = false
@@ -1769,16 +1777,31 @@ internal fun MainActivity.checkForBlackFrame() {
     }
 }
 
-internal fun MainActivity.averageLuma(bitmap: Bitmap): Int {
+/** Per-pixel luma as the raw RGB sum (0-765) - the motion comparison wants the extra
+ *  precision, and dividing by 3 first only adds rounding noise between frames. */
+internal fun lumaArray(bitmap: Bitmap): IntArray {
     val w = bitmap.width
     val h = bitmap.height
     val pixels = IntArray(w * h)
     bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-    var sum = 0L
-    for (p in pixels) {
-        sum += (((p shr 16) and 0xFF) + ((p shr 8) and 0xFF) + (p and 0xFF)) / 3
+    val luma = IntArray(pixels.size)
+    for (i in pixels.indices) {
+        val p = pixels[i]
+        luma[i] = (p shr 16 and 0xFF) + (p shr 8 and 0xFF) + (p and 0xFF)
     }
-    return if (pixels.isNotEmpty()) (sum / pixels.size).toInt() else 0
+    return luma
+}
+
+/** Fraction (0-1) of pixels that changed enough between two samples to be real motion
+ *  rather than codec noise - a static frame (dead feed, frozen decode) scores ~0 even if
+ *  it is not black, which the caller combines with the darkness verdict. */
+internal fun motionFraction(previous: IntArray, current: IntArray): Float {
+    if (previous.size != current.size) return 1f
+    var moved = 0
+    for (i in previous.indices) {
+        if (kotlin.math.abs(current[i] - previous[i]) > BLACK_FRAME_MOTION_DELTA) moved++
+    }
+    return moved.toFloat() / previous.size
 }
 
 /** Same black-frame detection as fullscreen playback, but for the muted inline preview
@@ -1787,6 +1810,7 @@ internal fun MainActivity.averageLuma(bitmap: Bitmap): Int {
  *  nothing to interrupt) skipping to the next non-dead version instead. */
 internal fun MainActivity.startPreviewBlackFrameWatch() {
     previewBlackFrameStreak = 0
+    lastPreviewBlackFrameLuma = null
     mainHandler.removeCallbacks(previewBlackFrameCheckRunnable)
     mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
 }
@@ -1807,7 +1831,16 @@ internal fun MainActivity.checkForPreviewBlackFrame() {
         return
     }
     val sample = runCatching { textureView.getBitmap(32, 18) }.getOrNull()
-    val isBlack = sample != null && averageLuma(sample) < BLACK_FRAME_LUMA_THRESHOLD
+    val current = sample?.let(::lumaArray)
+    val luma = if (current == null || current.isEmpty()) 255 else current.sum() / (current.size * 3)
+    val previous = lastPreviewBlackFrameLuma
+    lastPreviewBlackFrameLuma = current
+    val movedFraction = when {
+        current == null -> 0f
+        previous == null -> 1f
+        else -> motionFraction(previous, current)
+    }
+    val isBlack = current != null && luma < BLACK_FRAME_LUMA_THRESHOLD && movedFraction < BLACK_FRAME_MOTION_FRACTION
     sample?.recycle()
     previewBlackFrameStreak = if (isBlack) previewBlackFrameStreak + 1 else 0
     if (previewBlackFrameStreak < BLACK_FRAME_STREAK_THRESHOLD) {

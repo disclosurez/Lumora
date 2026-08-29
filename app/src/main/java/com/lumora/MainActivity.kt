@@ -289,6 +289,12 @@ internal const val STALL_COUNT_THRESHOLD = 3
 internal const val BLACK_FRAME_INITIAL_DELAY_MS = 3_000L
 internal const val BLACK_FRAME_CHECK_INTERVAL_MS = 2_000L
 internal const val BLACK_FRAME_LUMA_THRESHOLD = 10 // 0-255 average brightness
+// Per-pixel luma (sum of RGB, 0-765) must change by more than this to count as moved -
+// codec noise on a static frame moves pixels by 1-2 brightness units, real motion by more.
+internal const val BLACK_FRAME_MOTION_DELTA = 24
+// A frame with fewer than this fraction of moved pixels is treated as static. A dead feed
+// is dark AND static; real content that's dark still has grain/motion in far more pixels.
+internal const val BLACK_FRAME_MOTION_FRACTION = 0.01f
 internal const val BLACK_FRAME_STREAK_THRESHOLD = 2
 internal const val DEAD_STREAM_COOLDOWN_MS = 60 * 60 * 1000L
 // Dead marks, persisted so a cooldown survives the app being closed and reopened.
@@ -442,6 +448,10 @@ class MainActivity : AppCompatActivity() {
     internal val longStallCheckRunnable = Runnable { attemptBufferFailover() }
     internal var blackFrameStreak = 0
     internal val blackFrameCheckRunnable = Runnable { checkForBlackFrame() }
+    /** Per-pixel luma of the previous fullscreen sample, for the motion half of the
+     *  black-frame verdict: dead feeds are dark AND static. */
+    internal var lastBlackFrameLuma: IntArray? = null
+    internal var lastPreviewBlackFrameLuma: IntArray? = null
     // ── VOD quality watchdog (see MainActivityPlayer) ──
     internal val vodQualityCheckRunnable = Runnable { checkVodPlaybackQuality() }
     /** (when, how many) for every dropped-frame batch inside DROPPED_FRAME_WINDOW_MS. */
