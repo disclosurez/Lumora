@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.6
+
+### Jellyfin
+- **Works with Jellyfin 12.** Jellyfin 12.0 removed the legacy token headers and the `api_key` query parameter, so every request Lumora made against an upgraded server was rejected. Authentication now uses the `MediaBrowser` Authorization header and the `ApiKey` query parameter, which older 10.8+ servers accept too.
+
+### Discover
+- **Search opens a proper overlay with the on-screen keyboard.** TMDB matches land beside the keys as you type, and a title can be opened straight from the results; picking one leaves the Discover pane showing that search behind it. The pane's search box opens the same overlay, and reopening it starts from the current query so it can be refined instead of retyped.
+- **The search fields show a blinking caret again.** Both query boxes are deliberately non-focusable so the platform keyboard stays suppressed, and the caret stands in for the cursor they cannot draw.
+
+### Android Auto
+- **Lumora is browsable and playable in the car.** A media service publishes the catalogue to the car host - categories, favourites and recents, paged as the host scrolls - with voice search ("play BBC News on Lumora"). Where the host allows a projection app, the full player UI is offered as well; where it doesn't, audio playback still works.
+- **The projected-display driving warning accepts itself after 30 seconds.** On a head unit whose input the dialog cannot see, the warning was a dead end with the whole app stuck behind it.
+
+### Search
+- **Recent searches no longer spill outside the search panel.** The chip row drew over the keyboard and past the panel edge as it scrolled; it is now clipped to its own column.
+
 ## 4.5.1
 
 ### Live TV
