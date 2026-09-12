@@ -232,6 +232,11 @@ dependencies {
     // Android Auto (see auto/ - CarAppService).
     implementation("androidx.car.app:app:1.7.0")
 
+    // Legacy projected Android Auto SDK (com.google.android.apps.auto.sdk), used by
+    // auto/legacy/ for hosts that only list activity-based car apps. Not on any Maven
+    // repository any more, so the AAR is vendored in app/libs.
+    implementation(files("libs/aauto.aar"))
+
     // Android TV
     implementation("androidx.tvprovider:tvprovider:1.1.0")
 

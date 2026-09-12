@@ -2,6 +2,11 @@
 <resources>
     <!-- Android Auto / car screens -->
     <string name="ui_car_no_channels">No channels cached yet. Open Lumora on your phone once so it can load your providers.</string>
+    <!-- Car keep-alive foreground service (auto/CarForegroundService.kt) -->
+    <string name="ui_car_keep_alive_channel">Car connection</string>
+    <string name="ui_car_keep_alive_channel_desc">Keeps Lumora running while the car screen is connected</string>
+    <string name="ui_car_keep_alive_title">Lumora is active on the car screen</string>
+    <string name="ui_car_keep_alive_text">Tap to stop</string>
     <string name="ui_favourites">Favourites</string>
     <string name="ui_recent">Recent</string>
     <string name="ui_all_channels">All channels</string>

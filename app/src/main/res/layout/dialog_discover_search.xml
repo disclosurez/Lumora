@@ -38,26 +38,39 @@
                 android:tint="@color/text_secondary" />
 
             <!-- Not focusable, same as searchInput: a focused field with no IME is a dead
-                 end for the remote. The host feeds text from the keyboard below. -->
-            <EditText
-                android:id="@+id/discoverSearchQuery"
+                 end for the remote. The host feeds text from the keyboard below, and the
+                 BlinkingCursorView stands in for the caret a focused field would draw. -->
+            <FrameLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@drawable/bg_input"
-                android:cursorVisible="false"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
-                android:hint="@string/discover_search_hint"
-                android:imeOptions="actionSearch"
-                android:importantForAutofill="no"
-                android:inputType="text"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="12dp"
-                android:singleLine="true"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_tertiary"
-                android:textSize="@dimen/text_subhead" />
+                android:layout_weight="1">
+
+                <EditText
+                    android:id="@+id/discoverSearchQuery"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_input"
+                    android:cursorVisible="false"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:hint="@string/discover_search_hint"
+                    android:imeOptions="actionSearch"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="12dp"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_tertiary"
+                    android:textSize="@dimen/text_subhead" />
+
+                <com.lumora.ui.BlinkingCursorView
+                    android:id="@+id/discoverSearchCursor"
+                    android:layout_width="2dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="start|center_vertical"
+                    android:background="@color/text_primary" />
+            </FrameLayout>
 
             <LinearLayout
                 android:id="@+id/discoverSearchClose"
@@ -92,42 +105,13 @@
             android:clipToPadding="false"
             android:orientation="horizontal">
 
-            <!-- Keyboard + submit as one block, centred in the column: on a TV the panel is
-                 far taller than the keys. Submit takes the keyboard's width so the two read
-                 as one unit rather than a pill floating under a wider slab. -->
-            <LinearLayout
+            <!-- Keyboard, centred in its column exactly like the main search overlay's:
+                 on a TV the panel is far taller than the keys. -->
+            <com.lumora.ui.OnScreenKeyboard
+                android:id="@+id/discoverSearchKeyboard"
                 android:layout_width="@dimen/search_keyboard_width"
-                android:layout_height="match_parent"
-                android:clipChildren="false"
-                android:clipToPadding="false"
-                android:gravity="center_vertical"
-                android:orientation="vertical">
-
-                <com.lumora.ui.OnScreenKeyboard
-                    android:id="@+id/discoverSearchKeyboard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-
-                <!-- Submit: takes the whole result set back to the Discover pane and closes
-                     the overlay (picking a poster on the right opens that one title instead).
-                     Filled play-button treatment - it's the one primary action here. -->
-                <TextView
-                    android:id="@+id/discoverSearchSubmit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/search_section_gap"
-                    android:background="@drawable/bg_play_button"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:fontFamily="@font/inter_semibold"
-                    android:gravity="center"
-                    android:paddingHorizontal="32dp"
-                    android:paddingVertical="12dp"
-                    android:stateListAnimator="@animator/focus_scale"
-                    android:text="@string/search"
-                    android:textColor="@color/text_on_primary"
-                    android:textSize="@dimen/text_body_l" />
-            </LinearLayout>
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical" />
 
             <!-- Status above the grid as its own row, not stacked behind it: the grid is
                  opaque and full-bleed, so anything behind it is simply never seen. -->

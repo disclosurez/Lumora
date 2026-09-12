@@ -212,6 +212,18 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         }
     }
 
+    /** Authorization header for an already-authenticated call, in Jellyfin's current
+     *  `MediaBrowser` scheme. Jellyfin 12.0 removed the legacy `X-Emby-Token` /
+     *  `X-MediaBrowser-Token` headers, so this is the only accepted way to present a
+     *  session token. The same scheme has been supported since 10.8, so this stays
+     *  compatible with older servers. */
+    private fun tokenAuthHeader(token: String): String = "MediaBrowser Token=\"$token\""
+
+    /** Token carried in the URL instead of a header, for URLs fetched by Media3 (playback,
+     *  subtitles) rather than by OkHttp - those never see [JellyfinAuthInterceptor]. Jellyfin
+     *  12.0 removed the legacy lowercase `api_key`; `ApiKey` is the current name. */
+    private fun apiKeyParam(token: String): String = "ApiKey=$token"
+
     /**
      * Authenticate with a Jellyfin server using username/password.
      */
@@ -567,7 +579,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
     fun trickplayTileUrl(itemId: String, info: TrickplayInfo, tileIndex: Int): String? {
         val base = serverBase ?: return null
         val token = accessToken ?: return null
-        return "$base/Videos/$itemId/Trickplay/${info.width}/$tileIndex.jpg?api_key=$token"
+        return "$base/Videos/$itemId/Trickplay/${info.width}/$tileIndex.jpg?${apiKeyParam(token)}"
     }
 
     /** Adds or removes [itemId] from the server's favourites, so a star set here shows up in
@@ -578,7 +590,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         val url = "$base/Users/$userId/FavoriteItems/$itemId"
         return runCatching {
             val builder = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
+                .header("Authorization", tokenAuthHeader(token))
                 .header("User-Agent", "Lumora/1.0")
             val request = if (favorite) {
                 builder.post("{}".toRequestBody("application/json".toMediaType())).build()
@@ -599,7 +611,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         val url = "$base/Users/$uid/PlayedItems/$itemId"
         return runCatching {
             val builder = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
+                .header("Authorization", tokenAuthHeader(token))
                 .header("User-Agent", "Lumora/1.0")
             val request = if (played) {
                 builder.post("{}".toRequestBody("application/json".toMediaType())).build()
@@ -619,7 +631,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         val url = "$base/Users/$uid/Items/$itemId/UserData"
         return runCatching {
             val request = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
+                .header("Authorization", tokenAuthHeader(token))
                 .header("User-Agent", "Lumora/1.0")
                 .delete()
                 .build()
@@ -716,7 +728,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
     /** One page: the items, plus TotalRecordCount when the endpoint reports one. */
     private suspend fun fetchItems(url: String, token: String): Pair<List<JSONObject>, Int?> {
         val request = Request.Builder().url(url)
-            .header("X-Emby-Token", token)
+            .header("Authorization", tokenAuthHeader(token))
             .header("User-Agent", "Lumora/1.0")
             .build()
 
@@ -741,7 +753,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         val token = accessToken ?: return null
         return runCatching {
             val request = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
+                .header("Authorization", tokenAuthHeader(token))
                 .header("User-Agent", "Lumora/1.0")
                 .build()
             client.newCall(request).execute().use { response ->
@@ -757,7 +769,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
         val token = accessToken ?: return false
         return runCatching {
             val request = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
+                .header("Authorization", tokenAuthHeader(token))
                 .header("Content-Type", "application/json")
                 .header("User-Agent", "Lumora/1.0")
                 .post(payload.toString().toRequestBody("application/json".toMediaType()))
@@ -955,7 +967,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
 
         // Direct play beats a transcode whenever the server says the file is playable as-is:
         // no re-encode on the server, no quality loss, and seeking stays instant. Only when
-        // it isn't do we take the TranscodingUrl (already carries its own api_key and
+        // it isn't do we take the TranscodingUrl (already carries its own ApiKey and
         // PlaySessionId, so it's used verbatim).
         val (streamUrl, playMethod) = when {
             directPlay || directStream -> {
@@ -963,7 +975,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
                     append("static=true")
                     mediaSourceId?.let { append("&mediaSourceId=$it") }
                     playSessionId?.let { append("&playSessionId=$it") }
-                    append("&api_key=$token")
+                    append("&").append(apiKeyParam(token))
                 }
                 "$base/Videos/$itemId/stream?$query" to if (directPlay) "DirectPlay" else "DirectStream"
             }
@@ -1030,7 +1042,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
 
         return runCatching {
             val request = Request.Builder().url(url)
-                .header("X-Emby-Token", token)
+                .header("Authorization", tokenAuthHeader(token))
                 .header("Content-Type", "application/json")
                 .header("User-Agent", "Lumora/1.0")
                 .post(payload.toString().toRequestBody("application/json".toMediaType()))
@@ -1090,7 +1102,7 @@ class JellyfinProvider(baseClient: OkHttpClient) {
             val url = when {
                 deliveryUrl != null -> if (deliveryUrl.startsWith("http")) deliveryUrl else "$base$deliveryUrl"
                 supportsExternal && mediaSourceId != null && isTextSubtitle(codec) ->
-                    "$base/Videos/$itemId/$mediaSourceId/Subtitles/$index/0/Stream.vtt?api_key=$token"
+                    "$base/Videos/$itemId/$mediaSourceId/Subtitles/$index/0/Stream.vtt?${apiKeyParam(token)}"
                 else -> null
             }
             SubtitleStream(

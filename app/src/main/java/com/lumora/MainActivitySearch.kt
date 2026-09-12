@@ -14,6 +14,7 @@ import com.lumora.cache.EpgListCache
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.parser.XtreamClient
+import com.lumora.ui.attachBlinkingCursor
 import kotlinx.coroutines.*
 
 // ── Search dialog, ranking & recents ──
@@ -32,6 +33,7 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
     activeSettingsOverlay?.dismiss()
     val searchView = layoutInflater.inflate(R.layout.dialog_search, null)
     val input = searchView.findViewById<EditText>(R.id.searchInput)
+    attachBlinkingCursor(input, searchView.findViewById(R.id.searchCursor))
     val statusText = searchView.findViewById<TextView>(R.id.searchStatus)
     val resultsList = searchView.findViewById<RecyclerView>(R.id.searchResults)
     val recentsBlock = searchView.findViewById<View>(R.id.searchRecentsBlock)

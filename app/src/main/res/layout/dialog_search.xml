@@ -40,26 +40,40 @@
                  dead end: the remote's select does nothing and every key press vanishes,
                  which is exactly what "it won't show the letters I type" looks like. Focus
                  belongs on the keys; this is a display of what they've produced. Hardware
-                 keyboards are handled in dispatchKeyEvent instead. -->
-            <EditText
-                android:id="@+id/searchInput"
+                 keyboards are handled in dispatchKeyEvent instead, and the cursor the
+                 platform would only draw on a focused field is stood in for by the
+                 BlinkingCursorView below. -->
+            <FrameLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@drawable/bg_input"
-                android:cursorVisible="false"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
-                android:hint="@string/search_overlay_hint"
-                android:imeOptions="actionSearch"
-                android:importantForAutofill="no"
-                android:inputType="text"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="12dp"
-                android:singleLine="true"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_tertiary"
-                android:textSize="@dimen/text_subhead" />
+                android:layout_weight="1">
+
+                <EditText
+                    android:id="@+id/searchInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_input"
+                    android:cursorVisible="false"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:hint="@string/search_overlay_hint"
+                    android:imeOptions="actionSearch"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="12dp"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_tertiary"
+                    android:textSize="@dimen/text_subhead" />
+
+                <com.lumora.ui.BlinkingCursorView
+                    android:id="@+id/searchCursor"
+                    android:layout_width="2dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="start|center_vertical"
+                    android:background="@color/text_primary" />
+            </FrameLayout>
 
             <LinearLayout
                 android:id="@+id/searchCloseButton"

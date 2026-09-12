@@ -173,6 +173,10 @@ internal const val PREF_GROUP_CHANNELS = "group_channels"
 // this is CATALOG_TTL_MS old (a provider change force-refreshes regardless).
 internal const val PREF_CATALOG_REFRESHED_AT = "catalog_refreshed_at"
 internal const val CATALOG_TTL_MS = 24 * 60 * 60 * 1000L
+/** How long the projected-display driving warning stays up before accepting itself. The
+ *  warning must never be a dead end on a head unit whose only input this dialog cannot see,
+ *  and the app behind it is unreachable until the warning is gone. */
+internal const val CAR_DISCLAIMER_AUTO_ACCEPT_MS = 30_000L
 // How long a channel's stored guide is served without re-checking the provider. Short EPG
 // covers the next few hours, so a few hours of reuse is the useful window - long enough that
 // relaunching the app doesn't re-fetch, short enough that same-day schedule changes land.
@@ -1160,12 +1164,18 @@ class MainActivity : AppCompatActivity() {
         carDisclaimerDialog = dialog
         carDisclaimerKeyCode = android.view.KeyEvent.KEYCODE_UNKNOWN
         dialog.focusDefaultButtonForCarInput()
+        // Accepts itself after a fixed window: the warning is a notice, not a gate the
+        // driver can be stranded behind (see CAR_DISCLAIMER_AUTO_ACCEPT_MS). Removed on
+        // dismissal so a manual accept can't fire it later against whatever dialog is up.
+        val autoAccept = Runnable { if (dialog.isShowing) dialog.dismiss() }
+        mainHandler.postDelayed(autoAccept, CAR_DISCLAIMER_AUTO_ACCEPT_MS)
         // The app behind the warning has the same problem: still in touch mode, still nothing
         // focused, so the first knob press after dismissal would go nowhere too. Hand focus to
         // the first tab that is actually on screen - Live is GONE on a setup with no live
         // provider (Plex carries no Live TV at all), and focusing a hidden view would leave
         // the rotary with nothing again.
         dialog.setOnDismissListener {
+            mainHandler.removeCallbacks(autoAccept)
             if (carDisclaimerDialog === dialog) carDisclaimerDialog = null
             val tab = listOf(
                 binding.tabLive, binding.tabHome, binding.tabFilms,

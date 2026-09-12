@@ -850,31 +850,30 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <!-- The field is a fake input: it's the discover search overlay's trigger,
-                     not a real text box. Focusable + clickable so D-pad and touch both
-                     reach it, with focus_scale_flat like the Home search bar; clicking it
-                     opens dialog_discover_search.xml (the platform IME is never involved,
-                     so the inner EditText stays non-focusable). The trailing chevron reads
-                     as "opens something". -->
+                <!-- The field is a fake input and reads exactly like Home's search bar: the
+                     platform IME is never involved here (TV remotes and car controllers have
+                     none), so the whole pill is one focusable target that opens the
+                     on-screen-keyboard overlay. The inner EditText only displays the query
+                     the overlay hands back, which is why it is not focusable. -->
                 <LinearLayout
                     android:id="@+id/discoverSearchField"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:layout_gravity="center_horizontal"
                     android:background="@drawable/bg_input"
                     android:clickable="true"
                     android:focusable="true"
                     android:nextFocusUp="@id/tabDiscover"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="14dp"
+                    android:paddingHorizontal="16dp"
                     android:paddingVertical="12dp"
                     android:stateListAnimator="@animator/focus_scale_flat">
 
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:layout_marginEnd="10dp"
+                        android:layout_marginEnd="12dp"
                         android:src="@drawable/ic_search"
                         android:tint="@color/text_secondary" />
 
@@ -884,6 +883,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:background="@null"
+                        android:ellipsize="end"
                         android:focusable="false"
                         android:focusableInTouchMode="false"
                         android:hint="@string/discover_search_hint"
@@ -892,32 +892,7 @@
                         android:maxLines="1"
                         android:textColor="@color/text_primary"
                         android:textColorHint="@color/text_secondary" />
-
-                    <ImageView
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:layout_marginStart="8dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_chevron_right"
-                        android:tint="@color/text_tertiary" />
                 </LinearLayout>
-
-                <TextView
-                    android:id="@+id/discoverSearchButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:background="@drawable/card_surface_background"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:nextFocusUp="@id/tabDiscover"
-                    android:nextFocusDown="@id/discoverFilterSeries"
-                    android:fontFamily="@font/inter_medium"
-                    android:paddingHorizontal="20dp"
-                    android:paddingVertical="12dp"
-                    android:stateListAnimator="@animator/focus_scale"
-                    android:text="@string/search"
-                    android:textColor="@color/text_primary" />
             </LinearLayout>
 
             <!-- Type filter: Trending (default, also what a submitted search runs under),
@@ -979,7 +954,7 @@
                     android:background="@drawable/bg_season_chip"
                     android:clickable="true"
                     android:focusable="true"
-                    android:nextFocusUp="@id/discoverSearchButton"
+                    android:nextFocusUp="@id/discoverSearchField"
                     android:nextFocusLeft="@id/discoverFilterMovies"
                     android:nextFocusRight="@id/discoverFilterSeries"
                     android:fontFamily="@font/inter_medium"

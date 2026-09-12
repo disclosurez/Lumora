@@ -14,6 +14,7 @@ import com.lumora.model.ContentShelf
 import com.lumora.model.MediaType
 import com.lumora.plugin.js.PluginScript
 import com.lumora.parser.XtreamClient
+import com.lumora.ui.attachBlinkingCursor
 import com.lumora.util.cleanVodTitle
 import com.lumora.util.versionGroupContaining
 import com.lumora.util.isAdultCategory
@@ -28,43 +29,40 @@ internal fun MainActivity.setupDiscover() {
     // setGridSpan only wires the layout manager/span; the adapter still has to be attached.
     binding.discoverGrid.adapter = discoverGridAdapter
     // The inline field isn't a real input (no platform IME on TV, and a focused field
-    // with the IME suppressed is a dead end for the remote) - both the field and the
-    // Search button open the on-screen-keyboard overlay instead.
+    // with the IME suppressed is a dead end for the remote) - the whole pill opens the
+    // on-screen-keyboard overlay instead, exactly like Home's search bar.
     binding.discoverSearchField.setOnClickListener { showDiscoverSearchOverlay() }
-    binding.discoverSearchButton.setOnClickListener { showDiscoverSearchOverlay() }
+    applyPanelWidth(binding.discoverSearchField, R.dimen.home_search_bar_width)
     binding.discoverFilterAll.setOnClickListener { selectDiscoverFilter(null) }
     binding.discoverFilterMovies.setOnClickListener { selectDiscoverFilter(MediaType.MOVIE) }
     binding.discoverFilterSeries.setOnClickListener { selectDiscoverFilter(MediaType.SERIES) }
     updateDiscoverFilterChipStyles()
 }
 
-/** Opens the Discover (TMDB) search overlay - the main search overlay's pattern, keys on the
- *  left and matches on the right, queried as the query changes. A poster can be opened straight
- *  from here; Submit takes the whole result set back to the Discover pane and closes.
- *  Dismissing leaves the query behind in the inline field. */
+/** Opens the Discover (TMDB) search overlay - an exact match for the main search overlay's
+ *  layout: keys on the left, matches on the right, queried as the query changes. Picking a
+ *  poster opens that title and leaves the pane showing this search behind it. Closing the
+ *  overlay without a pick leaves the Discover pane as it was. */
 internal fun MainActivity.showDiscoverSearchOverlay() {
     if (activeSettingsOverlay != null || activeSearchOverlay != null) return
     val view = layoutInflater.inflate(R.layout.dialog_discover_search, null)
     val input = view.findViewById<EditText>(R.id.discoverSearchQuery)
     val keyboard = view.findViewById<com.lumora.ui.OnScreenKeyboard>(R.id.discoverSearchKeyboard)
-    val submit = view.findViewById<View>(R.id.discoverSearchSubmit)
     val status = view.findViewById<TextView>(R.id.discoverSearchStatus)
     val resultsList = view.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.discoverSearchResults)
     applyPanelWidth(view.findViewById(R.id.discoverSearchPanel), R.dimen.search_panel_width)
     input.showSoftInputOnFocus = false
+    attachBlinkingCursor(input, view.findViewById(R.id.discoverSearchCursor))
 
     // Fixed span, same as the main overlay: the grid shares the panel with the keyboard, so
     // overall screen width no longer describes the space it actually has.
     val span = resources.getInteger(R.integer.search_results_span)
     resultsList.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, span)
-    // Results and their library badges as last published to the grid - what Submit and a
-    // poster pick hand over to the Discover pane, so neither has to refetch what is already
-    // on screen.
+    // Results and their library badges as last published to the grid - what a poster pick
+    // hands over to the Discover pane, so it doesn't have to refetch what is already on
+    // screen.
     var shown: List<Channel> = emptyList()
     var shownBadges: Map<String, String> = emptyMap()
-    /** Which query [shown] belongs to - Submit pressed inside the debounce window would
-     *  otherwise hand the pane the previous query's results. */
-    var shownQuery: String? = null
     val resultsAdapter = com.lumora.adapter.PosterGridAdapter(
         badgeFor = { item -> shownBadges[item.id]?.let { it to R.color.primary } }
     ) { item ->
@@ -89,10 +87,9 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
 
     var searchJob: Job? = null
     var pendingSearch: Runnable? = null
-    fun showResults(query: String?, results: List<Channel>, badges: Map<String, String>, statusText: String?) {
+    fun showResults(results: List<Channel>, badges: Map<String, String>, statusText: String?) {
         shown = results
         shownBadges = badges
-        shownQuery = query
         resultsAdapter.replaceAll(results)
         resultsList.visibility = if (results.isEmpty()) View.GONE else View.VISIBLE
         status.text = statusText ?: ""
@@ -114,7 +111,6 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
                 results.filter { findCatalogMatches(it).isNotEmpty() }
             }
             showResults(
-                query,
                 visible,
                 emptyMap(),
                 when {
@@ -138,7 +134,7 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
         pendingSearch?.let { mainHandler.removeCallbacks(it) }
         if (query.length < 2) {
             searchJob?.cancel()
-            showResults(null, emptyList(), emptyMap(), getString(R.string.type_to_search))
+            showResults(emptyList(), emptyMap(), getString(R.string.type_to_search))
             return
         }
         val runnable = Runnable { runSearch(query) }
@@ -160,10 +156,10 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
     keyboard.onKey = { ch -> input.setText(input.text.toString() + ch) }
     keyboard.onBackspace = { input.setText(input.text.toString().dropLast(1)) }
     keyboard.onClear = { input.setText("") }
-    // DOWN off the bottom key row (SHIFT/SPACE/DEL/CLEAR) has only Submit below it - route
-    // it there explicitly rather than leaving the crossing out of the keyboard's own focus
-    // tree to default focus search.
-    keyboard.bottomRowDownTarget = submit
+    // DOWN off the bottom key row (SHIFT/SPACE/DEL/CLEAR) lands on the first result row,
+    // exactly like the main search overlay - default focus search can't cross out of the
+    // keyboard's own tree.
+    keyboard.bottomRowDownTarget = resultsList
     // Hardware (BT/USB) keyboard routes here while the overlay is up.
     searchKeyHandler = { ch ->
         if (ch == null) keyboard.onBackspace?.invoke()
@@ -175,27 +171,6 @@ internal fun MainActivity.showDiscoverSearchOverlay() {
         closeButton = view.findViewById(R.id.discoverSearchClose),
         initialFocus = { keyboard.firstKey() ?: input }
     )
-    submit.setOnClickListener {
-        val query = input.text.toString().trim()
-        overlay.dismiss()
-        binding.discoverSearchInput.setText(query)
-        discoverTypeFilter = null
-        updateDiscoverFilterChipStyles()
-        when {
-            // Submitting an emptied query is how a search is undone - it puts Discover back
-            // on Trending, the same state the Trending chip gives. Doing nothing there left
-            // the grid showing the old results with an empty field above them.
-            query.isEmpty() -> loadDiscover(null)
-            // The overlay already holds this query's results; handing them straight over
-            // saves a second identical round trip to TMDB.
-            shownQuery == query && shown.isNotEmpty() -> {
-                discoverLibrarySources = shownBadges
-                discoverGridAdapter.replaceAll(shown)
-                setDiscoverStatus(null)
-            }
-            else -> loadDiscover(query)
-        }
-    }
     val tabBarWasVisible = binding.tabBar.visibility == View.VISIBLE
     if (tabBarWasVisible) binding.tabBar.visibility = View.GONE
     // searchContainer is a weighted sibling of discoverContent in the same vertical
