@@ -184,22 +184,33 @@
                             android:textSize="@dimen/text_body_s" />
                     </LinearLayout>
 
-                    <HorizontalScrollView
+                    <!-- This wrapper must keep clipChildren at its default (true): a scrolled
+                         HorizontalScrollView's content is only clipped to its viewport by its
+                         parent's clipChildren, and the block above disables that for focus-scale
+                         overflow. Without this layer the row of recent searches draws straight
+                         over the keyboard and past the panel edge - same fix as
+                         item_guide_channel_row.xml. -->
+                    <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:clipChildren="false"
-                        android:clipToPadding="false"
-                        android:scrollbars="none">
+                        android:layout_marginTop="8dp">
 
-                        <LinearLayout
-                            android:id="@+id/searchRecentsRow"
-                            android:layout_width="wrap_content"
+                        <HorizontalScrollView
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:clipChildren="false"
                             android:clipToPadding="false"
-                            android:orientation="horizontal" />
-                    </HorizontalScrollView>
+                            android:scrollbars="none">
+
+                            <LinearLayout
+                                android:id="@+id/searchRecentsRow"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:clipChildren="false"
+                                android:clipToPadding="false"
+                                android:orientation="horizontal" />
+                        </HorizontalScrollView>
+                    </FrameLayout>
                 </LinearLayout>
 
                 <!-- Result-type filter: static row of season-chip lookalikes. Selection is
