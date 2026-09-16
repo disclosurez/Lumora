@@ -282,9 +282,11 @@ class LiveGuideAdapter(
             scrollView.scrollTo(sharedScrollX, 0)
             cancelPendingLoad()
 
-            val epgReady = channel.id.isNotBlank() && EpgListCache.has(channel.id)
-            if (epgReady) {
-                renderPrograms(channel, EpgListCache.get(channel.id))
+            // Peek, not get: an aged-out entry is still painted while the fetch below
+            // revalidates it, rather than blanking every row the moment its TTL expires.
+            val cached = channel.id.takeIf { it.isNotBlank() }?.let { EpgListCache.peek(it) }
+            if (cached != null) {
+                renderPrograms(channel, cached)
             } else {
                 // Render the placeholder immediately: this View is recycled and still holds
                 // the previous channel's program blocks - leaving them up through the
@@ -306,12 +308,13 @@ class LiveGuideAdapter(
                     }
                 }
             }
-            if (!epgReady && channel.id.isNotBlank()) {
+            if (channel.id.isNotBlank() && !EpgListCache.has(channel.id)) {
                 loadJob = scope.launch {
                     delay(LOAD_DEBOUNCE_MS)
                     while (current === channel) {
-                        if (EpgListCache.has(channel.id)) {
-                            renderPrograms(channel, EpgListCache.get(channel.id))
+                        val fresh = EpgListCache.get(channel.id)
+                        if (fresh != null) {
+                            renderPrograms(channel, fresh)
                             return@launch
                         }
                         if (EpgListCache.markInFlight(channel.id)) {

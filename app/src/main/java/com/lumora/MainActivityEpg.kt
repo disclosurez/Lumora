@@ -134,6 +134,46 @@ internal fun MainActivity.pruneStoredEpg() {
     }
 }
 
+// ── Guide clock ─────────────────────────────────
+
+/** Keeps the visible guide in step with wall time.
+ *
+ *  Rows are a snapshot: the currently-airing block is truncated to its remaining minutes and
+ *  the now/next line resolved, both at bind time. Nothing re-ran on a clock, so a guide left
+ *  on screen stayed frozen - the highlight never advanced, the ruler drifted away from the
+ *  programme blocks, and rows kept their minutes-ago "now" line. Rebinding the visible rows
+ *  re-runs exactly that bind-time maths, and rebuilding the ruler keeps the two in step;
+ *  both are cheap (a screenful of rows, 24 labels) and once a minute.
+ *
+ *  The rebind is also what lets [EpgListCache] entries age out: a row whose cached guide has
+ *  passed ENTRY_TTL_MS takes the fetch path again while painting the stale copy, so the guide
+ *  self-refreshes through resolveEpgPrograms without a scroll or a relaunch. */
+internal fun MainActivity.guideClockTick() {
+    if (activeTab != 0 || isPlayerVisible || showingHome || showingDiscover || showingDownloads) return
+    if (!binding.liveRow.isShown || liveAdapter.itemCount == 0) return
+    buildGuideHeader()
+    // Range change rather than notifyDataSetChanged: RecyclerView can rebind the attached
+    // rows in place and leave D-pad focus on whatever the user was on.
+    liveAdapter.notifyItemRangeChanged(0, liveAdapter.itemCount)
+}
+
+internal fun MainActivity.startGuideClock() {
+    guideClockTick()
+    scheduleNextGuideTick()
+}
+
+/** Minute-boundary aligned, like the toolbar clock, so the guide and the toolbar never
+ *  disagree about what "now" is by up to a minute. */
+internal fun MainActivity.scheduleNextGuideTick() {
+    mainHandler.removeCallbacks(guideTickRunnable)
+    val msIntoMinute = System.currentTimeMillis() % 60_000L
+    mainHandler.postDelayed(guideTickRunnable, 60_000L - msIntoMinute)
+}
+
+internal fun MainActivity.stopGuideClock() {
+    mainHandler.removeCallbacks(guideTickRunnable)
+}
+
 // ── Live TV inline preview ──────────────────────
 
 internal fun MainActivity.ensurePreviewPlayer(): PlayerManager {

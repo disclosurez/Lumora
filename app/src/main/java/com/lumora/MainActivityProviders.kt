@@ -424,6 +424,11 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
     // Raised for the cached path too: reading and re-deriving a big catalog still takes
     // a few seconds, and with no status up the app just looks frozen.
     setStatus(getString(R.string.loading), visible = true)
+    // The in-memory guide is keyed by channel id, and the reload below can rebind a channel
+    // id to a different provider entirely - its cached programmes would then paint a schedule
+    // that belongs to someone else's stream. Drop it; the disk copy still answers the first
+    // re-fetch for any channel that really is the same.
+    com.lumora.cache.EpgListCache.clear()
     xtreamProviderConfigs = IptvProviderStore.load(prefs).filter { it.enabled && it.type == "xtream" }.associateBy { it.id }
     // Every type, not just Xtream, and regardless of enabled state - a cached catalog can
     // still contain items from a provider that's since been switched off, and their chips

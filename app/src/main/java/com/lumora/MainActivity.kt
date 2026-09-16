@@ -891,6 +891,10 @@ class MainActivity : AppCompatActivity() {
     /** Toolbar clock tick - see startToolbarClock(). Re-arms itself so the next tick stays
      *  on the minute boundary even after a drifted or delayed post. */
     internal val clockTickRunnable = Runnable { updateToolbarClock(); scheduleNextClockTick() }
+    /** TV guide clock tick - see startGuideClock(). Keeps the guide's now/next line, its
+     *  highlighted programme and the time ruler moving with wall time instead of freezing at
+     *  the moment each row was bound. Re-arms itself like [clockTickRunnable]. */
+    internal val guideTickRunnable = Runnable { guideClockTick(); scheduleNextGuideTick() }
     internal val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     internal var pendingBackupManager: BackupManager? = null
     /** First-paint flag for the progressive render path (paint Live ASAP once, then surgical
@@ -1421,6 +1425,9 @@ class MainActivity : AppCompatActivity() {
         // Resync on return: the clock may have been stopped across a long background stint,
         // and the time (or the 12/24h setting) can have changed while it was.
         startToolbarClock()
+        // Same for the guide: anything it painted before the app went to background is now
+        // minutes-to-hours out of date, and its tick re-renders the visible rows immediately.
+        startGuideClock()
         if (isPlayerVisible && playerManager.playbackState == Player.STATE_READY && !userPausedPlayback) playerManager.play()
         else if (activeTab == 0) showLivePreviewPane()
     }
@@ -1431,6 +1438,7 @@ class MainActivity : AppCompatActivity() {
         // Activity that is no longer in front of the user - it falls back to headless-only.
         com.lumora.scraper.ScraperApp.setCurrentActivity(null)
         stopToolbarClock()
+        stopGuideClock()
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
         // Entering PiP also triggers onPause() - don't pause playback or we'd defeat the point of PiP.
         if (!inPip) {

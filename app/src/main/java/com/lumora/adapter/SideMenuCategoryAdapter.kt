@@ -171,7 +171,7 @@ class SideMenuCategoryAdapter(
         /** Fetches this row's guide, once, for the row the user is actually on. */
         private fun requestNowPlaying(category: CategoryFilter, channelId: String) {
             if (EpgListCache.has(channelId)) {
-                renderNow(EpgListCache.get(channelId))
+                renderNow(EpgListCache.peek(channelId))
                 return
             }
             val fetch = fetchPrograms ?: return
@@ -189,7 +189,7 @@ class SideMenuCategoryAdapter(
                         delay(EPG_POLL_DELAY_MS)
                         waits++
                     }
-                    if (current === category) renderNow(EpgListCache.get(channelId))
+                    if (current === category) renderNow(EpgListCache.peek(channelId))
                     return@launch
                 }
                 val programs = try {

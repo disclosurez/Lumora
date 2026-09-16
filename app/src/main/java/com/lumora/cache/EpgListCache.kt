@@ -5,6 +5,16 @@ import java.util.concurrent.ConcurrentHashMap
 
 private const val MAX_CACHE_SIZE = 500
 
+/** How long a fetched guide is served before the guide revalidates it through
+ *  [com.lumora.MainActivity.resolveEpgPrograms]. Without this the cache was absolute: the
+ *  first fetch for a channel was reused for the rest of the process's life - and an Android TV
+ *  stick keeps the process alive for days - so the guide never refreshed and its programmes
+ *  eventually ran out with the rows left showing a stale schedule.
+ *
+ *  Revalidation is disk-first (see resolveEpgPrograms), so expiry normally costs one Room read,
+ *  not a provider request. */
+private const val ENTRY_TTL_MS = 15 * 60 * 1000L
+
 /** In-memory cache of upcoming EPG entries per live channel, used by the guide grid. */
 object EpgListCache {
     // ConcurrentHashMap: guide fetches can put/remove from background scopes, and a plain
@@ -18,21 +28,49 @@ object EpgListCache {
     // list still makes has() true, which is what stops the guide refetching it forever.
     private val cache = ConcurrentHashMap<String, List<XtreamClient.EpgProgram>>()
     private val lastAccess = ConcurrentHashMap<String, Long>()
+
+    /** When each entry was written - the age test behind [has]/[get]/[isStale]. */
+    private val cachedAt = ConcurrentHashMap<String, Long>()
     private val inFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
+    /** True only for an entry young enough to serve without revalidating. A stale entry is
+     *  still readable through [peek] (the guide paints it while the re-fetch runs). */
+    fun has(channelId: String): Boolean = cache.containsKey(channelId) && !isStale(channelId)
+
     fun get(channelId: String): List<XtreamClient.EpgProgram>? {
+        val programs = peek(channelId) ?: return null
+        return if (isStale(channelId)) null else programs
+    }
+
+    /** Whatever is cached, stale or not - for painting a row before its revalidating fetch
+     *  lands, instead of blanking it every [ENTRY_TTL_MS]. */
+    fun peek(channelId: String): List<XtreamClient.EpgProgram>? {
         val programs = cache[channelId] ?: return null
         lastAccess[channelId] = System.currentTimeMillis()
         return programs
     }
 
-    fun has(channelId: String): Boolean = cache.containsKey(channelId)
+    /** Absent counts as stale: there is nothing current to serve. */
+    fun isStale(channelId: String): Boolean {
+        val writtenAt = cachedAt[channelId] ?: return true
+        return System.currentTimeMillis() - writtenAt >= ENTRY_TTL_MS
+    }
 
     fun put(channelId: String, programs: List<XtreamClient.EpgProgram>?) {
         cache[channelId] = programs ?: emptyList()
-        lastAccess[channelId] = System.currentTimeMillis()
+        val now = System.currentTimeMillis()
+        cachedAt[channelId] = now
+        lastAccess[channelId] = now
         inFlight.remove(channelId)
         evictIfNeeded()
+    }
+
+    /** Drops every entry - for provider reloads, where the channel ids on screen may now
+     *  belong to a different provider whose guide has nothing to do with the cached one. */
+    fun clear() {
+        cache.clear()
+        lastAccess.clear()
+        cachedAt.clear()
     }
 
     /** Least-recently-used eviction: drops the entry that has gone longest without a get/put.
@@ -48,6 +86,7 @@ object EpgListCache {
             if (lru != null) {
                 cache.remove(lru)
                 lastAccess.remove(lru)
+                cachedAt.remove(lru)
             } else break
         }
     }
