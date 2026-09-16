@@ -184,6 +184,8 @@
     <dimen name="text_title">23sp</dimen>
     <dimen name="text_display">30sp</dimen>
     <dimen name="text_hero">56sp</dimen>
+    <!-- Up Next card's countdown number - smaller than text_display, see values/dimens.xml. -->
+    <dimen name="up_next_countdown_text">19sp</dimen>
 
     <!-- 44dp, not 56dp: these hold a 24dp icon, and with the toolbar now wrap_content they
          are what makes it tall. A 56dp box around a 24dp glyph just padded the whole bar. -->
