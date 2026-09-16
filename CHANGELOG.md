@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.6.1
+
+### TV Guide
+- **The EPG keeps itself up to date, and the timeline moves with the clock.** The guide was fetched once per app run and then frozen: the in-memory cache never expired, so a guide left open kept its first schedule while the programmes under it ran out, and nothing re-checked the provider. Cached guide data now revalidates every 15 minutes - off the stored copy first, back to the provider only when that has aged out - and a once-a-minute tick advances the now/next line, the highlighted programme and the time ruler. Refreshing providers also clears the cached guide.
+
+### Continue Watching
+- **Recent viewing shows up, and survives backing out of the app.** A player stopped or failed before it started a stream no longer overwrites a saved resume point with zero, a stream whose duration the player never learns is still recorded, and the last position is written to disk the moment the player closes instead of waiting on a debounce a process kill could lose.
+- **Removing an item actually removes it.** Un-ticking a watched episode or film now clears every spelling of that mark, including ones imported from Jellyfin/Plex or pulled from Trakt. Previously one spelling could survive, so the row looked unwatched while the title still counted as watched - and the next history push sent it straight back to Trakt.
+
+### Trakt
+- **Removals reach Trakt again.** Un-ticking watched now removes the history entry and the resume point too, and removing from Continue Watching always deletes Trakt's playback entry while signed in. Both were previously gated behind toggles that default to off, so the removal was silently skipped and the title had to be cleared on trakt.tv by hand.
+
+### Playback UI
+- **The Up Next card is about half the height.** Tighter padding and margins, a one-line title, smaller buttons and a smaller countdown number.
+
 ## 4.6
 
 ### Jellyfin
