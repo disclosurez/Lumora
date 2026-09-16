@@ -68,6 +68,39 @@ internal fun episodeWatchedKey(seriesName: String?, season: Int?, episode: Int?)
     return "e|$normalized|s${season ?: 0}|e$episode"
 }
 
+/**
+ * Every stored spelling of an episode mark. The season-less flat numbering (`s0`) and the
+ * explicit season 1 name the same episode, but the two producers pick differently: a
+ * Jellyfin/Plex episode's name carries no season marker and [Channel] has nowhere to keep the
+ * server's season field, so the player's own mark lands on `s0`, while the server import and
+ * the Trakt pull both carry the real season and write `s1`. Un-ticking one spelling left the
+ * other in place - the row looked unwatched while [isItemWatched] still said true, and the
+ * next [pushWatchedToTrakt] backfill put the episode straight back on Trakt.
+ *
+ * Aliasing covers only the null/1 ambiguity: a real season 2+ has one spelling, and season 0
+ * (specials) is left alone rather than being conflated with season 1.
+ */
+internal fun episodeWatchedKeys(seriesName: String?, season: Int?, episode: Int?): List<String> {
+    val primary = episodeWatchedKey(seriesName, season, episode) ?: return emptyList()
+    val aliasSeason = when (season) {
+        null -> 1
+        1 -> 0
+        else -> return listOf(primary)
+    }
+    val parts = primary.split('|')
+    if (parts.size != 4) return listOf(primary)
+    return listOf(primary, "e|${parts[1]}|s$aliasSeason|${parts[3]}")
+}
+
+/** [watchedKeyFor] plus every alias spelling that names the same item (see [episodeWatchedKeys]). */
+internal fun MainActivity.watchedKeysFor(item: Channel): List<String> = when (item.mediaType) {
+    MediaType.LIVE -> emptyList()
+    MediaType.MOVIE -> listOfNotNull(movieWatchedKey(item.name))
+    MediaType.SERIES -> episodeWatchedKeys(
+        seriesTitleForEpisode(item), tileSeasonNumber(item), item.episodeNum
+    )
+}
+
 /** Shared watched key for a Jellyfin item, straight off the fields the server sent. */
 internal fun sharedWatchedKeyFor(item: com.lumora.data.remote.jellyfin.JellyfinProvider.JellyfinItem): String? =
     when (item.mediaType) {
@@ -76,12 +109,26 @@ internal fun sharedWatchedKeyFor(item: com.lumora.data.remote.jellyfin.JellyfinP
         else -> null
     }
 
+/** [sharedWatchedKeyFor] plus every alias spelling - the import marks all of them. */
+internal fun sharedWatchedKeysFor(item: com.lumora.data.remote.jellyfin.JellyfinProvider.JellyfinItem): List<String> =
+    when (item.mediaType) {
+        "Episode" -> episodeWatchedKeys(item.seriesName, item.seasonNumber, item.episodeNumber)
+        else -> listOfNotNull(sharedWatchedKeyFor(item))
+    }
+
 /** Shared watched key for a Plex item, straight off the fields the server sent. */
 internal fun sharedWatchedKeyFor(item: com.lumora.data.remote.plex.PlexProvider.PlexItem): String? =
     when (item.mediaType) {
         "Movie" -> movieWatchedKey(item.name)
         "Episode" -> episodeWatchedKey(item.seriesName, item.seasonNumber, item.episodeNumber)
         else -> null
+    }
+
+/** [sharedWatchedKeyFor] plus every alias spelling - the import marks all of them. */
+internal fun sharedWatchedKeysFor(item: com.lumora.data.remote.plex.PlexProvider.PlexItem): List<String> =
+    when (item.mediaType) {
+        "Episode" -> episodeWatchedKeys(item.seriesName, item.seasonNumber, item.episodeNumber)
+        else -> listOfNotNull(sharedWatchedKeyFor(item))
     }
 
 private fun normalizeForWatchedKey(title: String): String? {
@@ -120,8 +167,7 @@ private fun MainActivity.seriesTitleForEpisode(item: Channel): String? {
 internal fun MainActivity.isItemWatched(item: Channel): Boolean {
     val key = item.id.ifBlank { item.url }
     if (key.isNotBlank() && PlaybackPositionStore.get(this, key)?.isNearComplete == true) return true
-    val shared = watchedKeyFor(item) ?: return false
-    return WatchedStore.isWatched(this, shared)
+    return watchedKeysFor(item).any { WatchedStore.isWatched(this, it) }
 }
 
 /**
@@ -154,17 +200,20 @@ internal fun MainActivity.setItemWatched(
             else -> PlaybackPositionStore.clear(this, copyKey)
         }
     }
-    val shared = watchedKeyFor(item)
-    if (shared != null) {
-        WatchedStore.setWatched(this, shared, watched)
-        clearSiblingCopyPositions(item, shared)
+    val sharedKeys = watchedKeysFor(item)
+    if (sharedKeys.isNotEmpty()) {
+        for (key in sharedKeys) WatchedStore.setWatched(this, key, watched)
+        clearSiblingCopyPositions(item, sharedKeys)
     }
     if (alsoPushToServers) {
         pushWatchedToMediaServers(item, watched)
         // Trakt gets the same mark, under its own toggle. A play that went through the player
         // was already scrobbled; Trakt de-duplicates a history add against that scrobble, so
-        // the overlap costs a request rather than a duplicate entry.
+        // the overlap costs a request rather than a duplicate entry. An un-tick also drops the
+        // resume entry, which a history removal alone would leave behind for Trakt's own
+        // Continue Watching to keep offering.
         pushWatchedToTrakt(item, watched)
+        if (!watched) traktRemovePlayback(listOf(item))
     }
 }
 
@@ -176,14 +225,15 @@ internal fun MainActivity.setItemWatched(
  * in Continue Watching. Marking unwatched: a sibling's near-complete entry would out-vote the
  * cleared shared mark, because [isItemWatched] consults the per-copy entry first.
  */
-private fun MainActivity.clearSiblingCopyPositions(item: Channel, sharedKey: String) {
+private fun MainActivity.clearSiblingCopyPositions(item: Channel, sharedKeys: List<String>) {
     val ownKey = item.id.ifBlank { item.url }
+    val sharedSet = sharedKeys.toHashSet()
     for (candidate in allChannels) {
         if (candidate.mediaType != item.mediaType) continue
         val key = candidate.id.ifBlank { candidate.url }
         if (key.isBlank() || key == ownKey) continue
         if (PlaybackPositionStore.get(this, key) == null) continue
-        if (watchedKeyFor(candidate) == sharedKey) PlaybackPositionStore.clear(this, key)
+        if (watchedKeysFor(candidate).any { it in sharedSet }) PlaybackPositionStore.clear(this, key)
     }
 }
 

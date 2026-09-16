@@ -245,9 +245,10 @@ internal fun MainActivity.importPlexUserState(
                 // Also record it against the shared title key, so an episode watched in a
                 // Plex client reads as watched on the IPTV and Jellyfin copies of the same
                 // show. Keyed from the item's own fields rather than through the catalogue -
-                // this runs over a whole season at a time. No push back to the servers:
-                // this state came from one, and Plex already knows.
-                sharedWatchedKeyFor(item)?.let { WatchedStore.setWatched(this, it, true) }
+                // this runs over a whole season at a time. Every alias spelling is written
+                // too, so an un-tick clears whichever one a local copy computed. No push
+                // back to the servers: this state came from one, and Plex already knows.
+                sharedWatchedKeysFor(item).forEach { WatchedStore.setWatched(this, it, true) }
             }
             item.resumePositionMs > 0 -> {
                 val key = qualifiedMediaItemId(cfg.id, item.id)

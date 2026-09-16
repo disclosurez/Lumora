@@ -51,7 +51,11 @@ object PlaybackPositionStore {
     fun get(context: Context, key: String): PlaybackPosition? = ensureLoaded(context)[key]
 
     fun save(context: Context, key: String, positionMs: Long, durationMs: Long, channel: Channel? = null) {
-        if (key.isBlank() || durationMs <= 0) return
+        // No durationMs guard: a chunked/unseekable stream whose duration ExoPlayer never
+        // learns still has a real position, and dropping the entry kept it out of Continue
+        // Watching entirely. durationMs = 0 reads as "unknown", never as near-complete
+        // (see isNearComplete), so it stays an in-progress entry.
+        if (key.isBlank() || positionMs <= 0) return
         val map = ensureLoaded(context)
         map[key] = PlaybackPosition(positionMs, durationMs, System.currentTimeMillis(), channel)
         if (map.size > MAX_ENTRIES) {
@@ -62,6 +66,20 @@ object PlaybackPositionStore {
         val runnable = Runnable { flushToDisk(context) }
         pendingSaveRunnable = runnable
         debounceHandler.postDelayed(runnable, DEBOUNCE_MS)
+    }
+
+    /**
+     * Writes the current map now instead of waiting out the debounce.
+     *
+     * Playback saves land every ~5s, and each one re-arms the debounce to 5s out, so a long
+     * play can keep postponing the write indefinitely. Called when a session ends
+     * (hidePlayer/onPause), where the entry just written is the one Continue Watching will
+     * read after the process dies.
+     */
+    fun flush(context: Context) {
+        pendingSaveRunnable?.let { debounceHandler.removeCallbacks(it) }
+        pendingSaveRunnable = null
+        flushToDisk(context)
     }
 
     private fun flushToDisk(context: Context) {

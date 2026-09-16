@@ -220,13 +220,14 @@ private fun MainActivity.traktSend(
  * locally. Anything that doesn't resolve to a target is left alone: a delete is destructive and
  * a guessed match would remove someone else's progress on an unrelated title.
  *
- * Gated on scrobbling rather than on watched sync - the playback list is what scrobbling
- * writes, so an install that never scrobbled has nothing of its own to remove. Best effort and
- * silent, like the rest of the Trakt path.
+ * Gated on being signed in, not on the scrobble toggle: a removal is a user action and has to
+ * reach Trakt whether or not live reporting is currently switched on - entries can predate the
+ * toggle being turned off, and silently skipping the delete is what left them stuck on Trakt.
+ * Best effort and silent, like the rest of the Trakt path.
  */
 internal fun MainActivity.traktRemovePlayback(items: List<Channel>) {
     if (items.isEmpty()) return
-    if (!isTraktSignedIn() || !TraktStore.isScrobbleEnabled(prefs)) return
+    if (!isTraktSignedIn()) return
     val subjects = items.filter { it.mediaType != MediaType.LIVE }
     if (subjects.isEmpty()) return
     scope.launch {
@@ -257,12 +258,17 @@ internal fun MainActivity.traktRemovePlayback(items: List<Channel>) {
  * Mirrors a watched mark onto Trakt, for the marks the player never sees: the detail screen's
  * per-episode toggle and its whole-season tick.
  *
- * Runs only under the watched-sync toggle, not the scrobble one - see [TraktStore]. A play that
+ * Adds run under the watched-sync toggle, not the scrobble one - see [TraktStore]. A play that
  * ran through the player has already been scrobbled, and Trakt de-duplicates a history add
  * against it, so the overlap is harmless.
+ *
+ * [watched] = false is a removal, and removals run whenever signed in: an un-tick is an
+ * explicit instruction, and skipping it under a toggle that defaults to off (watched sync)
+ * left the title on Trakt with only a manual visit to trakt.tv able to clear it.
  */
 internal fun MainActivity.pushWatchedToTrakt(item: Channel, watched: Boolean) {
-    if (!isTraktSignedIn() || !TraktStore.isWatchedSyncEnabled(prefs)) return
+    if (!isTraktSignedIn()) return
+    if (watched && !TraktStore.isWatchedSyncEnabled(prefs)) return
     if (item.mediaType == MediaType.LIVE) return
     scope.launch {
         val target = traktTargetFor(item) ?: return@launch
@@ -314,8 +320,16 @@ internal fun MainActivity.pullTraktWatched(force: Boolean = false, onDone: ((Int
                 if (entry.isSeries) {
                     for ((season, numbers) in entry.episodes) {
                         for (number in numbers) {
-                            val key = episodeWatchedKey(entry.title, season, number) ?: continue
-                            if (WatchedStore.setWatched(this@pullTraktWatched, key, true)) count++
+                            // Every alias spelling (see episodeWatchedKeys): a local copy with
+                            // no season marker computes s0 while Trakt states the real season,
+                            // and marking only one of them leaves the other's un-tick stuck.
+                            val keys = episodeWatchedKeys(entry.title, season, number)
+                            if (keys.isEmpty()) continue
+                            var changed = false
+                            for (key in keys) {
+                                if (WatchedStore.setWatched(this@pullTraktWatched, key, true)) changed = true
+                            }
+                            if (changed) count++
                         }
                     }
                 } else {

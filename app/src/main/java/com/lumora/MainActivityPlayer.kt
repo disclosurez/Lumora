@@ -1911,10 +1911,12 @@ internal fun MainActivity.saveCurrentPlaybackPosition() {
     // nothing. The archive is browsable again from the Catch Up tab either way.
     if (channel.id.startsWith(CATCHUP_ID_PREFIX)) return
     if (isAdultCategory(channel.categoryName, channel.group)) return
-    val dur = playerManager.duration
+    val dur = playerManager.duration.coerceAtLeast(0L)
     val pos = playerManager.currentPosition
-    if (pos == androidx.media3.common.C.TIME_UNSET || pos < 0) return
-    if (dur <= 0) return
+    // TIME_UNSET and 0 both mean "the player has no position to report" (IDLE after a stop or
+    // a failed stream). Writing that would overwrite a real resume point with zero, which
+    // getAllInProgress then filters out - the title silently left Continue Watching.
+    if (pos == androidx.media3.common.C.TIME_UNSET || pos <= 0) return
     val key = channel.id.ifBlank { channel.url }
     // Jellyfin episodes carry no series id of their own (toChannel drops it), so stamp
     // the parent series id here - the detail page sets currentSeriesVersionContext for
@@ -1936,6 +1938,9 @@ internal fun MainActivity.saveCurrentPlaybackPosition() {
 
 internal fun MainActivity.hidePlayer() {
     saveCurrentPlaybackPosition()
+    // The debounce may still be pending; this is the last chance to get the entry on disk
+    // before the process can be killed with the player closed.
+    PlaybackPositionStore.flush(this)
     // Watched state may have moved during playback - the Home up-next memo is stale.
     clearUpNextMemo()
     // Before nowPlayingChannel is cleared: the server turns this final position into a

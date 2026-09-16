@@ -1444,6 +1444,9 @@ class MainActivity : AppCompatActivity() {
         if (!inPip) {
             if (isPlayerVisible) {
                 saveCurrentPlaybackPosition()
+                // Same reason as hidePlayer(): a backgrounded app can be killed before the
+                // debounced write lands, losing the resume point it just recorded.
+                com.lumora.cache.PlaybackPositionStore.flush(this)
                 playerManager.pause()
                 // After the pause, so it reports the paused state: the play is still open
                 // (onResume resumes it), but the server's resume point should already be
