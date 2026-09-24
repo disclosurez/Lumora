@@ -16,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat
 import android.os.Build
 import android.util.Rational
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Typeface
 import android.content.SharedPreferences
@@ -159,6 +160,10 @@ internal const val PREF_PIN_LOCKOUT_UNTIL = "pin_lockout_until"
 internal const val PREF_EXTERNAL_PLAYER_PACKAGE = "external_player_package"
 /** Whether the app may offer to hand a stream over when it cannot play it properly. */
 internal const val PREF_SUGGEST_EXTERNAL_PLAYER = "suggest_external_player"
+/** Live guide preview pane while browsing (issue #9). Default ON = existing behavior:
+ *  focusing a channel auto-plays it in the preview pane. OFF leaves the guide as a
+ *  plain list - OK plays the focused channel fullscreen straight away. */
+internal const val PREF_LIVE_PREVIEW = "live_preview"
 internal const val PREF_ASPECT_MODE = "player_aspect_mode"
 internal const val PREF_CLASSIC_CATEGORY_LAYOUT = "classic_category_layout"
 internal const val PREF_SIMPLE_MODE = "simple_mode"
@@ -897,6 +902,9 @@ class MainActivity : AppCompatActivity() {
     internal val guideTickRunnable = Runnable { guideClockTick(); scheduleNextGuideTick() }
     internal val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     internal var pendingBackupManager: BackupManager? = null
+    /** M3U URL field awaiting the system file picker's result - set when "Browse local
+     *  file" launches the picker, filled with the picked URI (or cleared) on result. */
+    internal var pendingM3uUrlTarget: EditText? = null
     /** First-paint flag for the progressive render path (paint Live ASAP once, then surgical
      *  partial re-renders) - see renderLivePartial(). */
     internal var uiPainted: Boolean = false
@@ -910,6 +918,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         internal const val REQUEST_EXPORT_BACKUP = 2001
         internal const val REQUEST_IMPORT_BACKUP = 2002
+        internal const val REQUEST_PICK_M3U = 2003
         private const val EDGE_SWIPE_ZONE_DP = 24f
         private const val EDGE_SWIPE_THRESHOLD_DP = 64f
         /** How long before an episode ends the Up Next overlay appears, and therefore what the
@@ -2176,6 +2185,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_PICK_M3U) {
+            // Local .m3u pick: keep the URI (with a persisted read permission so the
+            // playlist still opens after a restart) in the provider form's URL field -
+            // from there it saves like any other M3U source.
+            if (resultCode == RESULT_OK && data?.data != null) {
+                val uri = data.data!!
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (_: Exception) {
+                    // Not a persistable permission (some file managers) - the URI still
+                    // works for this session, just not necessarily after a restart.
+                }
+                pendingM3uUrlTarget?.setText(uri.toString())
+            }
+            pendingM3uUrlTarget = null
+            return
+        }
         if (resultCode != RESULT_OK || data?.data == null) return
         val uri = data.data!!
         when (requestCode) {

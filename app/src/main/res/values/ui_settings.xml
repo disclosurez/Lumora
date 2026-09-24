@@ -51,6 +51,8 @@
     <string name="sett_remove_jellyfin_message">Its channels will no longer appear.</string>
     <string name="sett_choose_provider_type_first">Choose a provider type first</string>
     <string name="sett_enter_m3u_url">Enter an M3U URL</string>
+    <string name="m3u_browse_local">Browse local file</string>
+    <string name="sett_no_file_picker">No file picker available on this device</string>
     <string name="sett_enter_server_url">Enter a server URL</string>
     <string name="sett_provider_saved_loading">Provider saved. Loading...</string>
 
@@ -73,6 +75,7 @@
     <string name="sett_external_player_summary">External player: %1$s</string>
     <string name="sett_suggest_external_player_on_problems">Suggest external player on problems: %1$s</string>
     <string name="sett_suggest_external_player">Suggest external player: %1$s</string>
+    <string name="sett_live_preview">Live channel preview: %1$s</string>
     <string name="sett_on">ON</string>
     <string name="sett_off">OFF</string>
     <string name="sett_playback_settings_title">Playback Settings</string>

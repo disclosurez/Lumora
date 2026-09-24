@@ -51,6 +51,8 @@
     <string name="sett_remove_jellyfin_message">Ses chaînes n\'apparaîtront plus.</string>
     <string name="sett_choose_provider_type_first">Choisissez d\'abord un type de fournisseur</string>
     <string name="sett_enter_m3u_url">Entrez une URL M3U</string>
+    <string name="m3u_browse_local">Choisir un fichier local</string>
+    <string name="sett_no_file_picker">Aucun sélecteur de fichier disponible sur cet appareil</string>
     <string name="sett_enter_server_url">Entrez une URL de serveur</string>
     <string name="sett_provider_saved_loading">Fournisseur enregistré. Chargement...</string>
 
@@ -73,6 +75,7 @@
     <string name="sett_external_player_summary">Lecteur externe : %1$s</string>
     <string name="sett_suggest_external_player_on_problems">Proposer un lecteur externe en cas de problème : %1$s</string>
     <string name="sett_suggest_external_player">Proposer un lecteur externe : %1$s</string>
+    <string name="sett_live_preview">Aperçu des chaînes en direct : %1$s</string>
     <string name="sett_on">ON</string>
     <string name="sett_off">OFF</string>
     <string name="sett_playback_settings_title">Paramètres de lecture</string>

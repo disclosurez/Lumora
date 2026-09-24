@@ -1,6 +1,8 @@
 package com.lumora.parser
 
 import android.util.Log
+import android.util.JsonReader
+import android.util.JsonToken
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.model.Provider
@@ -253,23 +255,23 @@ class XtreamClient(private val client: OkHttpClient) {
     private suspend fun fetchCategoryList(provider: Provider, type: String): List<Pair<String, String>> =
         withContext(Dispatchers.IO) {
             val url = buildApiUrl(provider, "action=get_${type}_categories")
-            val json = fetchJson(url) ?: return@withContext emptyList()
-            val arr = json.optJSONArray("categories")
-                ?: json.optJSONArray("")  // Some servers return array as root
-                ?: json.optJSONArray("items")  // Wrapped bare array
-                ?: return@withContext emptyList()
-            (0 until arr.length()).mapNotNull { i ->
-                val obj = arr.optJSONObject(i) ?: return@mapNotNull null
-                val id = obj.optString("category_id", "")
-                // Some panels pad category names with non-breaking spaces (U+00A0) that render as
-                // odd gaps and break keyword grouping; fold them to plain spaces and collapse runs.
-                val name = obj.optString("category_name", "")
-                    .replace(' ', ' ')
-                    .replace(Regex("\\s+"), " ")
-                    .trim()
-                if (id.isNotBlank()) id to name else null
-            }
+            streamBulkArray(url, "categories") { map, _ -> categoryFromMap(map) }
         }
+
+    /** Category row out of a bulk map. Internal for unit tests - the JsonReader
+     *  plumbing around it can't run on the JVM (android.util.JsonReader is a stub
+     *  there), but the mapping is where regressions against the old org.json path
+     *  would hide. */
+    internal fun categoryFromMap(map: Map<String, String?>): Pair<String, String>? {
+        val id = map["category_id"]?.takeIf { it.isNotBlank() } ?: return null
+        // Some panels pad category names with non-breaking spaces (U+00A0) that render as
+        // odd gaps and break keyword grouping; fold them to plain spaces and collapse runs.
+        val name = (map["category_name"] ?: "")
+            .replace(' ', ' ')
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return id to name
+    }
 
     private suspend fun fetchStreamList(
         provider: Provider,
@@ -280,18 +282,15 @@ class XtreamClient(private val client: OkHttpClient) {
         val params = StringBuilder("action=$action")
         if (!categoryId.isNullOrBlank()) params.append("&category_id=$categoryId")
         val url = buildApiUrl(provider, params.toString())
-        val json = fetchJson(url) ?: return@withContext emptyList()
         val key = when (action) {
             "get_live_streams" -> "live_streams"
             "get_vod_streams" -> "vod_streams"
             else -> ""
         }
         // Many Xtream servers return a bare JSON array at the root instead of
-        // {"live_streams": [...]}; fetchJson() wraps that case under "items".
-        val arr = json.optJSONArray(key) ?: json.optJSONArray("items") ?: return@withContext emptyList()
-        (0 until arr.length()).mapNotNull { i ->
-            val obj = arr.optJSONObject(i) ?: return@mapNotNull null
-            parseStream(obj, mediaType, provider)
+        // {"live_streams": [...]}; the streaming reader accepts both shapes.
+        streamBulkArray(url, key) { map, firstCategoryId ->
+            streamFromMap(map, firstCategoryId, mediaType, provider)
         }
     }
 
@@ -300,60 +299,177 @@ class XtreamClient(private val client: OkHttpClient) {
             val params = StringBuilder("action=get_series")
             if (!categoryId.isNullOrBlank()) params.append("&category_id=$categoryId")
             val url = buildApiUrl(provider, params.toString())
-            val json = fetchJson(url) ?: return@withContext emptyList()
-            val arr = json.optJSONArray("series") ?: json.optJSONArray("items") ?: return@withContext emptyList()
-            (0 until arr.length()).mapNotNull { i ->
-                val obj = arr.optJSONObject(i) ?: return@mapNotNull null
-                parseSeriesItem(obj)
+            streamBulkArray(url, "series") { map, _ -> seriesFromMap(map) }
+        }
+
+    /**
+     * Bulk-list fetch that never holds the whole response in memory at once (issue #8).
+     *
+     * A 100k-channel panel answers get_live_streams/get_vod_streams/get_series with tens
+     * of MB of JSON. The old path did body.string() (the full text as one String) and
+     * then JSONArray(body) (the whole tree on top of it) - a 3-5x transient peak that
+     * killed the process with OOM right as a large playlist finished downloading, which
+     * is exactly the reported "runs 10-15 seconds, then terminates". JsonReader pulls
+     * one object at a time off the socket stream, so the peak is one item plus the
+     * Channel list itself. Accepts both the {"key": [...]} object shape and a bare
+     * root array (plus the "items" wrap fetchJson() used to add for the latter).
+     */
+    private fun <T> streamBulkArray(
+        url: String,
+        key: String,
+        readItem: (Map<String, String?>, String?) -> T?
+    ): List<T> {
+        return try {
+            val request = Request.Builder().url(url)
+                .header("User-Agent", "Lumora/1.0")
+                .header("Accept", "application/json, text/plain, */*")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    lastFetchError = "Server returned HTTP ${response.code}"
+                    Log.w(TAG, "HTTP ${response.code} for $url")
+                    return emptyList()
+                }
+                val body = response.body ?: return emptyList()
+                body.charStream().use { stream ->
+                    JsonReader(stream).use { reader ->
+                        reader.isLenient = true
+                        readBulkArray(reader, key, readItem)
+                    }
+                }
+            }
+        } catch (e: OutOfMemoryError) {
+            // Even streamed, the Channel list itself is proportional to the catalog -
+            // fail this provider with a message instead of taking the process down.
+            lastFetchError = "Playlist too large to load"
+            Log.w(TAG, "OOM streaming $url")
+            emptyList()
+        } catch (e: Exception) {
+            lastFetchError = e.message ?: e.javaClass.simpleName
+            Log.w(TAG, "Network error fetching $url: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun <T> readBulkArray(
+        reader: JsonReader,
+        key: String,
+        readItem: (Map<String, String?>, String?) -> T?
+    ): List<T> {
+        val out = ArrayList<T>()
+        fun drainArray() {
+            reader.beginArray()
+            while (reader.hasNext()) {
+                try {
+                    readItemWithObject(reader, readItem)?.let(out::add)
+                } catch (_: Exception) {
+                    // One malformed item must not lose the tens of thousands after it -
+                    // resync past whatever structure the failed read left open.
+                    runCatching { reader.skipValue() }
+                }
+            }
+            reader.endArray()
+        }
+        when (reader.peek()) {
+            JsonToken.BEGIN_ARRAY -> drainArray()
+            JsonToken.BEGIN_OBJECT -> {
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    val name = reader.nextName()
+                    if ((name == key || name == "items") && reader.peek() == JsonToken.BEGIN_ARRAY) {
+                        drainArray()
+                    } else {
+                        reader.skipValue()
+                    }
+                }
+                reader.endObject()
+            }
+            else -> reader.skipValue()
+        }
+        return out
+    }
+
+    private fun <T> readItemWithObject(
+        reader: JsonReader,
+        readItem: (Map<String, String?>, String?) -> T?
+    ): T? {
+        if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+            reader.skipValue()
+            return null
+        }
+        val (map, firstCategoryId) = reader.readFlatObject()
+        return readItem(map, firstCategoryId)
+    }
+
+    /** One flat JSON object as string fields, plus the first element of a `category_ids`
+     *  array when present (some panels leave the singular `category_id` null and only
+     *  populate the plural form). Numbers and booleans arrive as their text form;
+     *  nested objects/arrays are skipped - bulk rows carry nothing mappable in them. */
+    private fun JsonReader.readFlatObject(): Pair<Map<String, String?>, String?> {
+        val map = HashMap<String, String?>()
+        var firstCategoryId: String? = null
+        beginObject()
+        while (hasNext()) {
+            val name = nextName()
+            when (peek()) {
+                JsonToken.BEGIN_ARRAY -> {
+                    beginArray()
+                    var first = true
+                    while (hasNext()) {
+                        val value = nextStringLenient()
+                        if (first && name == "category_ids") {
+                            firstCategoryId = value?.takeIf { it.isNotBlank() && it != "null" }
+                            first = false
+                        }
+                    }
+                    endArray()
+                }
+                JsonToken.BEGIN_OBJECT -> skipValue()
+                else -> map[name] = nextStringLenient()
             }
         }
-
-    /**
-     * The bare YouTube video id out of whatever a panel put in its trailer field. Most send the
-     * id alone, but a full watch/youtu.be/embed URL turns up too, and that can't be pasted into
-     * the embed player as-is. Anything else (an id-looking string of the wrong length, a Vimeo
-     * link) is passed through only when it has no "/" - a URL we can't read a key out of is
-     * dropped rather than played as a broken embed.
-     */
-    private fun youtubeKey(raw: String): String? {
-        val s = raw.trim()
-        if (s.isBlank()) return null
-        if ("/" !in s) return s.takeIf { "." !in it }
-        val afterHost = s.substringAfter("youtu.be/", "")
-            .ifBlank { s.substringAfter("/embed/", "") }
-            .ifBlank { s.substringAfter("v=", "") }
-        return afterHost.takeWhile { it != '&' && it != '?' && it != '/' }.takeIf { it.isNotBlank() }
+        endObject()
+        return map to firstCategoryId
     }
 
-    /**
-     * A stream's category id. Prefers the singular `category_id`, but some panels leave it null and
-     * only populate a plural `category_ids` array; fall back to the first entry there. Only the
-     * first is used because across the live providers surveyed no stream ever belonged to more than
-     * one category - the plural field is redundant, not true multi-membership.
-     */
-    private fun resolveCategoryId(obj: JSONObject): String {
-        val single = obj.optString("category_id", "")
-        if (single.isNotBlank() && single != "null") return single
-        val arr = obj.optJSONArray("category_ids") ?: return ""
-        for (i in 0 until arr.length()) {
-            val v = arr.optString(i, "")
-            if (v.isNotBlank() && v != "null") return v
+    private fun JsonReader.nextStringLenient(): String? = when (peek()) {
+        JsonToken.NULL -> {
+            nextNull()
+            null
         }
-        return ""
+        JsonToken.BOOLEAN -> nextBoolean().toString()
+        JsonToken.BEGIN_ARRAY, JsonToken.BEGIN_OBJECT -> {
+            skipValue()
+            null
+        }
+        // nextString() also stringifies NUMBER tokens, so ids sent as numbers
+        // (stream_id, category_id) land in the map as text like optString gave them.
+        else -> try {
+            nextString()
+        } catch (_: Exception) {
+            runCatching { skipValue() }
+            null
+        }
     }
 
-    private fun parseStream(obj: JSONObject, mediaType: MediaType, provider: Provider): Channel? {
-        val streamId = obj.optString("stream_id", "")
-        if (streamId.isBlank()) return null
-        val name = obj.optString("name", "Unknown")
-        val streamIcon = obj.optString("stream_icon", "")
-        val categoryId = resolveCategoryId(obj)
-        // optString returns the literal "null" for a JSON null value on Android, not "" - treat
-        // that as absent so it doesn't become a category row named "null".
-        val categoryName = obj.optString("category_name", "").let { if (it == "null") "" else it }
-        val rating = obj.optString("rating", "")
-        val year = obj.optString("year", "")
-        val container = obj.optString("container_extension", if (mediaType == MediaType.LIVE) "m3u8" else "mp4")
+    /** Same deal as [categoryFromMap]: mapping unit-testable without the JsonReader. */
+    internal fun streamFromMap(
+        obj: Map<String, String?>,
+        firstCategoryId: String?,
+        mediaType: MediaType,
+        provider: Provider
+    ): Channel? {
+        val streamId = obj["stream_id"]?.takeIf { it.isNotBlank() } ?: return null
+        val name = obj["name"]?.takeIf { it.isNotBlank() } ?: "Unknown"
+        val streamIcon = obj["stream_icon"] ?: ""
+        // optString returns the literal "null" for a JSON null value on Android, not "".
+        val single = obj["category_id"]?.takeIf { it.isNotBlank() && it != "null" }
+        val categoryId = single ?: firstCategoryId ?: ""
+        val categoryName = obj["category_name"]?.let { if (it == "null") "" else it } ?: ""
+        val rating = obj["rating"] ?: ""
+        val year = obj["year"] ?: ""
+        val container = obj["container_extension"]?.takeIf { it.isNotBlank() }
+            ?: if (mediaType == MediaType.LIVE) "m3u8" else "mp4"
         val base = provider.serverUrl?.let { normalizeServerUrl(it) }
         val streamUrl = when (mediaType) {
             MediaType.MOVIE -> "$base/movie/${provider.username}/${provider.password}/$streamId.$container"
@@ -362,11 +478,11 @@ class XtreamClient(private val client: OkHttpClient) {
         }
         // Archive/catch-up availability, live only. Panels are inconsistent about the JSON
         // type here - some send tv_archive as a number, some as the string "1" - and
-        // optInt returns 0 for a string value, so read both shapes.
-        val archiveFlag = obj.opt("tv_archive")?.toString()?.trim()
+        // optInt returns 0 for a string value, so both shapes are read as text.
+        val archiveFlag = obj["tv_archive"]?.trim()
         val hasArchive = mediaType == MediaType.LIVE && (archiveFlag == "1" || archiveFlag == "true")
         val archiveDays = if (hasArchive) {
-            obj.opt("tv_archive_duration")?.toString()?.trim()?.toIntOrNull() ?: 0
+            obj["tv_archive_duration"]?.trim()?.toIntOrNull() ?: 0
         } else 0
         return Channel(
             id = streamId,
@@ -386,25 +502,24 @@ class XtreamClient(private val client: OkHttpClient) {
             // Panels send the TMDB id and a YouTube trailer key on the bulk VOD list itself.
             // Both were being thrown away and then guessed back from the title via a TMDB
             // search - see Channel.tmdbId. "0" is how a panel spells "I don't have one".
-            tmdbId = obj.optString("tmdb", "").takeIf { it.isNotBlank() && it != "0" },
-            trailerKey = youtubeKey(obj.optString("trailer", ""))
+            tmdbId = obj["tmdb"]?.takeIf { it.isNotBlank() && it != "0" },
+            trailerKey = youtubeKey(obj["trailer"] ?: "")
         )
     }
 
-    private fun parseSeriesItem(obj: JSONObject): Channel? {
-        val seriesId = obj.optString("series_id", "")
-        if (seriesId.isBlank()) return null
-        val name = obj.optString("name", "Unknown")
-        val cover = obj.optString("cover", "")
-        val categoryId = resolveCategoryId(obj)
-        // optString returns the literal "null" for a JSON null value on Android, not "" - treat
-        // that as absent so it doesn't become a category row named "null".
-        val categoryName = obj.optString("category_name", "").let { if (it == "null") "" else it }
-        val rating = obj.optString("rating", "")
-        val year = obj.optString("year", "")
+    /** Same deal as [categoryFromMap]: mapping unit-testable without the JsonReader. */
+    internal fun seriesFromMap(obj: Map<String, String?>): Channel? {
+        val seriesId = obj["series_id"]?.takeIf { it.isNotBlank() } ?: return null
+        val name = obj["name"]?.takeIf { it.isNotBlank() } ?: "Unknown"
+        val cover = obj["cover"] ?: ""
+        val categoryId = obj["category_id"]?.takeIf { it.isNotBlank() && it != "null" } ?: ""
+        val categoryName = obj["category_name"]?.let { if (it == "null") "" else it } ?: ""
+        val rating = obj["rating"] ?: ""
+        val year = obj["year"] ?: ""
         // Bulk get_series actually carries a real release date (unlike movies, which
         // only expose one per-item) - confirmed against a live provider.
-        val releaseDate = obj.optString("releaseDate", obj.optString("release_date", ""))
+        val releaseDate = obj["releaseDate"]?.takeIf { it.isNotBlank() }
+            ?: obj["release_date"]?.takeIf { it.isNotBlank() }
         return Channel(
             id = seriesId,
             name = name,
@@ -416,13 +531,30 @@ class XtreamClient(private val client: OkHttpClient) {
             mediaType = MediaType.SERIES,
             rating = rating.ifBlank { null },
             year = year.ifBlank { null },
-            releaseDate = releaseDate.ifBlank { null },
+            releaseDate = releaseDate?.ifBlank { null },
             // Same as VOD, except the series list spells the trailer field `youtube_trailer`.
-            tmdbId = obj.optString("tmdb", "").takeIf { it.isNotBlank() && it != "0" },
+            tmdbId = obj["tmdb"]?.takeIf { it.isNotBlank() && it != "0" },
             trailerKey = youtubeKey(
-                obj.optString("youtube_trailer", "").ifBlank { obj.optString("trailer", "") }
+                obj["youtube_trailer"]?.takeIf { it.isNotBlank() } ?: obj["trailer"] ?: ""
             )
         )
+    }
+
+    /**
+     * The bare YouTube video id out of whatever a panel put in its trailer field. Most send the
+     * id alone, but a full watch/youtu.be/embed URL turns up too, and that can't be pasted into
+     * the embed player as-is. Anything else (an id-looking string of the wrong length, a Vimeo
+     * link) is passed through only when it has no "/" - a URL we can't read a key out of is
+     * dropped rather than played as a broken embed.
+     */
+    private fun youtubeKey(raw: String): String? {
+        val s = raw.trim()
+        if (s.isBlank()) return null
+        if ("/" !in s) return s.takeIf { "." !in it }
+        val afterHost = s.substringAfter("youtu.be/", "")
+            .ifBlank { s.substringAfter("/embed/", "") }
+            .ifBlank { s.substringAfter("v=", "") }
+        return afterHost.takeWhile { it != '&' && it != '?' && it != '/' }.takeIf { it.isNotBlank() }
     }
 
     private fun parseEpisode(obj: JSONObject, seriesId: String, seasonKey: String, provider: Provider): Channel {
@@ -482,12 +614,13 @@ class XtreamClient(private val client: OkHttpClient) {
                     Log.w(TAG, "Empty response body")
                     return@use null
                 }
-                // Xtream's get_live_streams/get_vod_streams/get_series return a bare JSON array
-                // at the root on most panels - large ones can be tens of MB of channels. Peeking
-                // the first non-whitespace char picks the right parser up front: JSONObject(body)
-                // on array text doesn't fail cheaply, it fully parses the array and THEN throws,
-                // with org.json's mismatch message serializing that whole parsed array back to a
-                // string just to describe the error - an OOM-sized allocation nobody ever reads.
+                // The remaining fetchJson() callers are all small payloads (auth, per-item
+                // info, EPG). The bulk lists used to come through here too, until a
+                // 100k-channel panel's tens of MB showed why they can't: JSONObject(body)
+                // on array text doesn't fail cheaply, it fully parses the array and THEN
+                // throws, with org.json's mismatch message serializing that whole parsed
+                // array back to a string just to describe the error - an OOM-sized
+                // allocation nobody ever reads. Those endpoints stream instead now.
                 val firstToken = body.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 }?.let { body[it] }
                 try {
                     if (firstToken == '[') {

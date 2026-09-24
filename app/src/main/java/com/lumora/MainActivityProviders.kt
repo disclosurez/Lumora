@@ -16,6 +16,7 @@ import com.lumora.anime.AnimeCatalogClient
 import com.lumora.parser.M3uParser
 import com.lumora.parser.XtreamClient
 import com.lumora.util.normalizeServerUrl
+import com.lumora.util.isLocalFileUrl
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.plugin.js.JsPluginContract
 import com.lumora.plugin.js.PluginScriptManager
@@ -744,9 +745,13 @@ internal fun MainActivity.fetchAnimeChannels(): List<Channel> {
 // ── M3U / Xtream channel fetch ─────────────────
 
 internal suspend fun MainActivity.fetchM3uChannels(config: IptvProviderConfig): FetchResult {
-    val url = config.url ?: return FetchResult.Failure("no URL")
+    val raw = config.url?.trim() ?: return FetchResult.Failure("no URL")
+    if (raw.isBlank()) return FetchResult.Failure("no URL")
     return try {
-        val result = withContext(Dispatchers.IO) { M3uParser.parseFromUrl(url, BaseApplication.instance.okHttpClient) }
+        val result = withContext(Dispatchers.IO) {
+            if (isLocalFileUrl(raw)) parseLocalPlaylist(raw)
+            else M3uParser.parseFromUrl(raw, BaseApplication.instance.okHttpClient)
+        }
         // Content-type gates: an M3U file lists live and VOD in one parse - drop the
         // types this provider has switched off, per mediaType.
         val channels = result.channels.filter { ch ->
@@ -762,9 +767,36 @@ internal suspend fun MainActivity.fetchM3uChannels(config: IptvProviderConfig): 
         FetchResult.Success(channels.map { it.copy(streamUserAgent = config.userAgent, sourceProviderId = config.id) })
     } catch (e: CancellationException) {
         throw e
+    } catch (e: SecurityException) {
+        // A persisted content:// permission died (backup restored on another device,
+        // permission revoked) - the user can fix it by picking the file again.
+        FetchResult.Failure("no access - pick the file again")
     } catch (e: Exception) {
         FetchResult.Failure(e.message?.take(60) ?: "error")
     }
+}
+
+/** Reads a playlist file stored on this device - the local half of fetchM3uChannels.
+ *  `content://` URIs (from the system file picker) open through the ContentResolver under
+ *  the persisted read permission taken when the file was picked; `file://` URIs and raw
+ *  absolute paths open as files, with relative stream entries resolved against the
+ *  playlist's own directory (see M3uParser.parse). */
+private fun MainActivity.parseLocalPlaylist(raw: String): M3uParser.ParseResult {
+    val trimmed = raw.trim()
+    if (trimmed.startsWith("content:", ignoreCase = true)) {
+        val uri = android.net.Uri.parse(trimmed)
+        val stream = contentResolver.openInputStream(uri) ?: throw Exception("can't open file")
+        stream.use { return M3uParser.parse(java.io.BufferedReader(java.io.InputStreamReader(it, Charsets.UTF_8))) }
+    }
+    val file = if (trimmed.startsWith("file:", ignoreCase = true)) {
+        val path = android.net.Uri.parse(trimmed).path ?: throw Exception("bad file URI")
+        File(path)
+    } else {
+        File(trimmed)
+    }
+    if (!file.exists()) throw Exception("file not found")
+    if (!file.canRead()) throw Exception("can't read file")
+    file.inputStream().bufferedReader(Charsets.UTF_8).use { return M3uParser.parse(it, file.parentFile) }
 }
 
 internal suspend fun MainActivity.fetchXtreamChannels(config: IptvProviderConfig, onExpiry: (String?) -> Unit): FetchResult {

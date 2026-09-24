@@ -176,6 +176,9 @@ internal fun MainActivity.stopGuideClock() {
 
 // ── Live TV inline preview ──────────────────────
 
+/** Issue #9: browse the channel list without auto-playing every focused channel. */
+internal fun MainActivity.isLivePreviewEnabled(): Boolean = prefs.getBoolean(PREF_LIVE_PREVIEW, true)
+
 internal fun MainActivity.ensurePreviewPlayer(): PlayerManager {
     previewPlayerManager?.let { return it }
     val manager = PlayerManager(this)
@@ -196,6 +199,7 @@ internal fun MainActivity.ensurePreviewPlayer(): PlayerManager {
 }
 
 internal fun MainActivity.showLivePreviewPane() {
+    if (!isLivePreviewEnabled()) return
     if (liveChannels.isEmpty()) return
     binding.livePreviewGutter.visibility = View.VISIBLE
     binding.livePreviewPane.visibility = View.VISIBLE
@@ -362,8 +366,13 @@ internal fun MainActivity.cancelUpNextCountdown() {
 }
 
 /** Two-press channel open: first OK opens the channel in the preview pane; a second
- *  OK on the same channel opens it fullscreen. */
+ *  OK on the same channel opens it fullscreen. With the preview disabled (issue #9)
+ *  there is no first step - OK plays fullscreen straight away. */
 internal fun MainActivity.onChannelOkPress(channel: Channel) {
+    if (!isLivePreviewEnabled()) {
+        playItem(channel)
+        return
+    }
     if (previewTargetChannel?.id == channel.id) {
         playItem(channel)
     } else {
@@ -374,6 +383,7 @@ internal fun MainActivity.onChannelOkPress(channel: Channel) {
 
 /** Debounced so fast D-pad scrolling through the list doesn't spawn a load per row. */
 internal fun MainActivity.requestPreviewLoad(channel: Channel) {
+    if (!isLivePreviewEnabled()) return
     lastFocusedLiveChannel = channel
     previewTargetChannel = channel
     if (activeTab != 0 || isPlayerVisible) return

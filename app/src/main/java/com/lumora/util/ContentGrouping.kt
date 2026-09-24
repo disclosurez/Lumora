@@ -2,6 +2,7 @@ package com.lumora.util
 
 import com.lumora.model.CategoryFilter
 import com.lumora.model.Channel
+import com.lumora.model.MediaType
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
 
@@ -269,10 +270,13 @@ private fun pickRepresentative(versions: List<Channel>): Channel {
  * no way to reach it.
  */
 fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String, List<Channel>>> {
+    // m3u_plus panels list episodes, not shows - collapse those rows first so the pass
+    // below groups show cards with show cards, not episodes with episodes.
+    val shows = collapseM3uEpisodeRows(series)
     val groups = LinkedHashMap<String, MutableList<Channel>>()
     // Same title-memo as groupDuplicateMovies - duplicates repeat the same raw title.
     val keyCache = HashMap<String, String>()
-    for (channel in series) {
+    for (channel in shows) {
         val key = keyCache.getOrPut(channel.name) { normalizeTitleForGrouping(channel.name) }.ifBlank { channel.id }
         groups.getOrPut(key) { mutableListOf() }.add(channel)
     }
@@ -285,6 +289,101 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
         if (versions.size > 1) versionsById[representative.id] = versions
     }
     return representatives to versionsById
+}
+
+// ── M3U per-episode series rows ─────────────────────────────────────────────
+// An m3u_plus panel lists every episode as its own playlist entry - "Ilusão Mortal
+// (2026) S01E02" with a direct stream URL - rather than a show with an episode
+// endpoint the way Xtream's get_series_info works. Without a collapse step each
+// episode becomes its own card in the Series tab (a quarter million of them on a
+// large panel), and opening one finds no episode list behind it, so the detail
+// screen can only offer Find Stream.
+
+/** Trailing season/episode marker the way m3u_plus panels bake it into the display
+ *  title: "Ilusão Mortal (2026) S01E02", "Uma Fortuna (2026) [L] S01E06".
+ *  Trailing-anchored on purpose: an SxxExx-shaped token mid-title is part of the
+ *  title, not the episode tag. */
+private val M3U_EPISODE_SUFFIX_REGEX = Regex("""(?i)\bS(\d{1,2})E(\d{1,3})\b\s*$""")
+
+/** (season, episode) when [name] ends in an m3u_plus episode marker, else null. */
+fun m3uEpisodeTag(name: String): Pair<Int, Int>? {
+    val m = M3U_EPISODE_SUFFIX_REGEX.find(name) ?: return null
+    val season = m.groupValues[1].toIntOrNull() ?: return null
+    val episode = m.groupValues[2].toIntOrNull() ?: return null
+    if (season <= 0 || episode <= 0) return null
+    return season to episode
+}
+
+/** Grouping key of the SHOW an m3u_plus episode row belongs to: the title minus its
+ *  trailing episode marker, through the same normalisation as everything else, so a
+ *  collapsed show card keys identically to an Xtream copy of the same show. Null when
+ *  the name carries no episode marker. */
+fun seriesShowKey(name: String): String? {
+    val m = M3U_EPISODE_SUFFIX_REGEX.find(name) ?: return null
+    return normalizeTitleForGrouping(name.substring(0, m.range.first)).ifBlank { null }
+}
+
+/** Display title of the show an episode row belongs to: marker off, everything else
+ *  (year included) kept, so withResolvedYear still finds the year downstream. */
+fun seriesShowTitle(name: String): String {
+    val m = M3U_EPISODE_SUFFIX_REGEX.find(name) ?: return name
+    return name.substring(0, m.range.first).trim()
+}
+
+/** Stable id for a collapsed M3U show card, and the categoryId its episode rows carry
+ *  (the "parent series id" slot Xtream parseEpisode fills): keyed by show, with the
+ *  provider guard applied at the match sites - Xtream series ids are likewise only
+ *  unique per provider. */
+fun m3uShowId(showKey: String): String = "m3u-show:$showKey"
+
+/** Folds m3u_plus per-episode rows into one card per show per provider, in place of
+ *  their first episode row so catalogue order is preserved. Non-episode rows (show
+ *  cards from every other backend, M3U rows without a marker) pass through untouched.
+ *  The episodes themselves stay in the catalog under their own ids - the detail screen
+ *  matches them back up by show id - so only the tab/shelf listing shrinks. */
+fun collapseM3uEpisodeRows(series: List<Channel>): List<Channel> {
+    if (series.none { it.episodeNum != null }) return series
+    // Composite key: same-name shows from different providers keep separate episode
+    // lists (the detail screen matches siblings by sourceProviderId).
+    fun groupKey(ch: Channel, showKey: String) = "${ch.sourceProviderId}\u0000$showKey"
+    // Per-index group assignment, computed once: seriesShowKey re-runs the
+    // normalisation pipeline, and derive already runs this over hundreds of thousands
+    // of rows.
+    val assignment = series.map { ch ->
+        if (ch.episodeNum != null && !ch.isOwnLibrary) {
+            seriesShowKey(ch.name)?.let { showKey -> groupKey(ch, showKey) to showKey }
+        } else null
+    }
+    if (assignment.all { it == null }) return series
+    val members = LinkedHashMap<String, MutableList<Channel>>()
+    series.forEachIndexed { i, ch ->
+        assignment[i]?.let { (gk, _) -> members.getOrPut(gk) { mutableListOf() }.add(ch) }
+    }
+    val emitted = HashSet<String>()
+    val result = ArrayList<Channel>(series.size)
+    series.forEachIndexed { i, ch ->
+        val assigned = assignment[i] ?: run { result.add(ch); return@forEachIndexed }
+        val (gk, showKey) = assigned
+        if (!emitted.add(gk)) return@forEachIndexed
+        val eps = members.getValue(gk)
+        val rep = eps.firstOrNull { !it.posterUrl.isNullOrBlank() } ?: eps.first()
+        result.add(
+            Channel(
+                id = m3uShowId(showKey),
+                name = seriesShowTitle(rep.name),
+                url = "",
+                logoUrl = rep.logoUrl,
+                posterUrl = rep.posterUrl,
+                backdropUrl = rep.backdropUrl,
+                group = rep.group,
+                mediaType = MediaType.SERIES,
+                categoryName = rep.categoryName,
+                sourceProviderId = rep.sourceProviderId,
+                streamUserAgent = rep.streamUserAgent
+            ).withResolvedYear()
+        )
+    }
+    return result
 }
 
 /** True if the title carries an explicit non-English bracket language tag, e.g. "[AR]", "[FR]". */

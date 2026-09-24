@@ -43,7 +43,7 @@ Nothing is behind a paywall — the multi-playlist support, EPG guide, recording
 ## Features
 
 ### Live TV
-- **Xtream Codes, M3U/M3U8, and Stalker Portal** provider support, any number at once
+- **Xtream Codes, M3U/M3U8, and Stalker Portal** provider support, any number at once — M3U playlists load from a remote URL or a local `.m3u`/`.m3u8` file on the device
 - **Smart channel merging** — automatically collapses duplicate channel feeds (different quality tiers, source tags, or provider re-listings of the same channel) into a single entry, auto-selecting the best available quality (4K/UHD → FHD → HD → SD), with instant manual fallback to any other version mid-playback
 - **Dynamic categories** — Sports, News, Music, and Cinema surface automatically at the top of the channel list, pulling in matching content regardless of which raw provider category it's filed under; everything else cascades below
 - **Brand/franchise clustering** — channel families (e.g. all feeds of the same sports network) group into a single expandable category automatically

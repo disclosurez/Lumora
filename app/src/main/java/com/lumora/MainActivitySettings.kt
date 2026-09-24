@@ -3,6 +3,8 @@ package com.lumora
 import android.animation.AnimatorInflater
 import android.app.AlertDialog
 import androidx.core.content.res.ResourcesCompat
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.net.Uri
 import android.graphics.Typeface
 import android.view.View
@@ -23,6 +25,8 @@ import com.lumora.data.IptvProviderStore
 import com.lumora.pairing.QrPairingManager
 import com.lumora.player.PlayerManager
 import com.lumora.util.normalizeServerUrl
+import com.lumora.util.isLocalFileUrl
+import com.lumora.util.localFileDisplayName
 import com.lumora.data.local.entity.EpgSourceEntity
 import com.lumora.data.backup.BackupManager
 import com.lumora.data.MediaServerStore
@@ -767,7 +771,8 @@ internal fun MainActivity.showProviderSettings() {
             qrStatus.text = getString(R.string.sett_provider_received)
             when (type) {
                 "m3u" -> {
-                    val url = form["m3uUrl"]?.let { normalizeServerUrl(it) } ?: return@runOnUiThread
+                    val rawM3u = form["m3uUrl"] ?: return@runOnUiThread
+                    val url = rawM3u.trim().let { if (isLocalFileUrl(it)) it else normalizeServerUrl(it) }
                     IptvProviderStore.upsert(prefs, IptvProviderConfig(
                         id = IptvProviderStore.newId(), type = "m3u", name = form["name"]?.takeIf { it.isNotBlank() } ?: "QR M3U",
                         enabled = true, url = url, userAgent = form["userAgent"]
@@ -923,6 +928,34 @@ internal fun MainActivity.showProviderSettings() {
     }
     showQrButton.setOnClickListener { currentType?.let { startQrServer(it) } }
 
+    // Local .m3u file picker - fills the M3U URL field with the picked file's URI, which
+    // then saves like any other M3U source. The SAF result lands in
+    // MainActivity.onActivityResult, which is why the target field is stashed on the
+    // activity (pendingM3uUrlTarget) rather than captured in a local.
+    dialogView.findViewById<View>(R.id.settingsM3uBrowse).setOnClickListener {
+        pendingM3uUrlTarget = m3uUrl
+        try {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(
+                    Intent.EXTRA_MIME_TYPES, arrayOf(
+                        "audio/x-mpegurl", "application/x-mpegurl",
+                        "application/vnd.apple.mpegurl", "audio/mpegurl", "text/plain"
+                    )
+                )
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            }
+            startActivityForResult(
+                Intent.createChooser(intent, getString(R.string.m3u_browse_local)),
+                MainActivity.REQUEST_PICK_M3U
+            )
+        } catch (e: ActivityNotFoundException) {
+            pendingM3uUrlTarget = null
+            Toast.makeText(this, getString(R.string.sett_no_file_picker), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun closeIptvForm() {
         editingProviderId = null
         editingMediaServerId = null
@@ -1061,7 +1094,9 @@ internal fun MainActivity.showProviderSettings() {
                 "stalker" -> getString(R.string.sett_stalker_portal)
                 else -> getString(R.string.provider_type_m3u)
             }
-            row.findViewById<TextView>(R.id.rowDetail).text = getString(R.string.sett_provider_row_detail, typeLabel, cfg.url ?: "")
+            // A picked file's content:// URI is long and says nothing - show its file name.
+            val sourceLabel = if (cfg.type == "m3u" && isLocalFileUrl(cfg.url ?: "")) localFileDisplayName(cfg.url ?: "") else cfg.url ?: ""
+            row.findViewById<TextView>(R.id.rowDetail).text = getString(R.string.sett_provider_row_detail, typeLabel, sourceLabel)
             row.findViewById<View>(R.id.rowEditButton).setOnClickListener { openIptvForm(cfg) }
             row.findViewById<View>(R.id.rowRemoveButton).setOnClickListener {
                 AlertDialog.Builder(this)
@@ -1257,6 +1292,7 @@ internal fun MainActivity.showProviderSettings() {
         val items = arrayOf(
             getString(R.string.sett_external_player_summary, externalPlayerSummary(this)),
             getString(R.string.sett_suggest_external_player_on_problems, if (prefs.getBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, true)) getString(R.string.sett_on) else getString(R.string.sett_off)),
+            getString(R.string.sett_live_preview, if (isLivePreviewEnabled()) getString(R.string.sett_on) else getString(R.string.sett_off)),
             getString(R.string.legal_notice_title)
         )
         AlertDialog.Builder(this@showProviderSettings)
@@ -1269,7 +1305,16 @@ internal fun MainActivity.showProviderSettings() {
                         prefs.edit().putBoolean(PREF_SUGGEST_EXTERNAL_PLAYER, on).apply()
                         Toast.makeText(this@showProviderSettings, getString(R.string.sett_suggest_external_player, if (on) getString(R.string.sett_on) else getString(R.string.sett_off)), Toast.LENGTH_SHORT).show()
                     }
-                    2 -> showLegalNotice()
+                    2 -> {
+                        // Issue #9: browse the guide without auto-playing every focused
+                        // channel. Turning it off also stops the preview that's playing
+                        // now, so the change takes effect without leaving the guide.
+                        val on = !isLivePreviewEnabled()
+                        prefs.edit().putBoolean(PREF_LIVE_PREVIEW, on).apply()
+                        if (!on) releaseLivePreview()
+                        Toast.makeText(this@showProviderSettings, getString(R.string.sett_live_preview, if (on) getString(R.string.sett_on) else getString(R.string.sett_off)), Toast.LENGTH_SHORT).show()
+                    }
+                    3 -> showLegalNotice()
                 }
             }
             .setPositiveButton(getString(R.string.close), null)
@@ -1666,10 +1711,13 @@ internal fun MainActivity.showProviderSettings() {
         val prevConfig = editingProviderId?.let { pid -> IptvProviderStore.load(prefs).firstOrNull { it.id == pid } }
         when (currentType) {
             "m3u" -> {
-                val url = m3uUrl.text.toString().trim().let { if (it.isBlank()) it else normalizeServerUrl(it) }
-                if (url.isBlank()) {
+                val raw = m3uUrl.text.toString().trim()
+                if (raw.isBlank()) {
                     Toast.makeText(this, getString(R.string.sett_enter_m3u_url), Toast.LENGTH_SHORT).show(); return@setOnClickListener
                 }
+                // A picked local file saves as-is - normalizeServerUrl would prepend
+                // http:// to a path or URI that is already complete.
+                val url = if (isLocalFileUrl(raw)) raw else normalizeServerUrl(raw)
                 IptvProviderStore.upsert(prefs, IptvProviderConfig(
                     id = id, type = "m3u", name = name.ifBlank { "M3U/M3U8 Playlist" }, enabled = true,
                     liveEnabled = prevConfig?.liveEnabled ?: true,

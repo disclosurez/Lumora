@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.7.0
+
+### Playback
+- **Live channel preview can be turned off (issue #9).** Playback settings has a new "Live channel preview" toggle (on by default, as before). With it off, browsing the guide never auto-plays the focused channel and OK opens it fullscreen straight away instead of the two-press preview-then-play.
+
+### Providers
+- **Very large Xtream playlists no longer kill the app (issue #8).** The bulk endpoints (live/VOD/series lists) were read as one giant string and then parsed as one giant JSON tree - a 3-5x transient memory peak that OOM-killed the process right as a 100k-channel playlist finished downloading, which read as "runs 10-15 seconds, then terminates". Those endpoints now stream one item at a time, so the peak is a single entry plus the channel list itself; if the list still doesn't fit, the provider fails with a message instead of taking the app down. (The fetch timeout was already 6 minutes - the kill was memory, not time, so no timeout change was needed.)
+- **M3U playlists load from a local file as well as a URL.** The M3U provider form has a Browse button that picks a `.m3u`/`.m3u8` file from device storage; remote-URL providers work exactly as before. Entries inside a local file can be online streams, absolute paths, or paths relative to the playlist itself.
+
+### Series
+- **Series from M3U playlists play properly.** Panels using the m3u_plus format list every episode as its own entry ("Show (2026) S01E02" with a direct stream URL) instead of exposing a show with an episode list. Each of those rows used to become its own card in the Series tab, and opening one found no episodes behind it, so the detail screen could only offer Find Stream. Episode rows now collapse into one card per show, and the detail screen lists every season/episode with its direct URL, so episodes play, auto-advance, and track watched state like any other series.
+
 ## 4.6.1
 
 ### TV Guide

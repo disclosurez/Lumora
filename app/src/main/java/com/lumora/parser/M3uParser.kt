@@ -2,12 +2,16 @@ package com.lumora.parser
 
 import com.lumora.model.Channel
 import com.lumora.model.MediaType
+import com.lumora.util.m3uEpisodeTag
+import com.lumora.util.m3uShowId
 import com.lumora.util.normalizeServerUrl
+import com.lumora.util.seriesShowKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 
 /**
@@ -60,12 +64,15 @@ object M3uParser {
             reader.use { parse(it) }
         }
 
-    /** Parse M3U content from a string. */
-    fun parse(content: String): ParseResult =
-        parse(content.lineSequence().iterator())
+    /** Parse M3U content from a string. [baseDir] resolves relative stream entries
+     *  against the playlist file's directory - a local file can list `movies/film.mp4`
+     *  next to itself, which is meaningless without the directory it was read from.
+     *  Null (remote playlists, whose entries are absolute URLs) leaves them untouched. */
+    fun parse(content: String, baseDir: File? = null): ParseResult =
+        parse(content.lineSequence().iterator(), baseDir)
 
     /** Parse M3U content from a BufferedReader (streaming). */
-    fun parse(reader: BufferedReader): ParseResult {
+    fun parse(reader: BufferedReader, baseDir: File? = null): ParseResult {
         return parse(object : Iterator<String> {
             private var nextLine: String? = reader.readLine()
             override fun hasNext(): Boolean = nextLine != null
@@ -74,7 +81,7 @@ object M3uParser {
                 nextLine = reader.readLine()
                 return current
             }
-        })
+        }, baseDir)
     }
 
     /**
@@ -113,7 +120,7 @@ object M3uParser {
         return MediaType.LIVE
     }
 
-    private fun parse(lineIterator: Iterator<String>): ParseResult {
+    private fun parse(lineIterator: Iterator<String>, baseDir: File? = null): ParseResult {
         var header: String? = null
         val channels = mutableListOf<Channel>()
         var currentExtInf: String? = null
@@ -131,7 +138,7 @@ object M3uParser {
                 }
                 line.startsWith("#") -> { /* skip other tags */ }
                 else -> {
-                    val channel = parseChannel(line, currentExtInf)
+                    val channel = parseChannel(line, currentExtInf, baseDir)
                     if (channel != null) channels.add(channel)
                     currentExtInf = null
                 }
@@ -141,11 +148,27 @@ object M3uParser {
         return ParseResult(channels = channels, header = header)
     }
 
-    private fun parseChannel(url: String, extInf: String?): Channel? {
+    private fun parseChannel(url: String, extInf: String?, baseDir: File? = null): Channel? {
         if (url.isBlank()) return null
-        val cleanUrl = url.split(" ").firstOrNull {
-            it.startsWith("http") || it.startsWith("rtmp") || it.startsWith("rtsp")
-        } ?: url
+        val trimmed = url.trim()
+        // Remote stream URLs sometimes carry trailing parameters after a space - strip those.
+        // Local file paths are kept whole instead: they legitimately contain spaces
+        // (`/storage/emulated/0/My Playlists/list item.ts`) and splitting would truncate them.
+        val cleanUrl = if (trimmed.startsWith("http", ignoreCase = true) ||
+            trimmed.startsWith("rtmp", ignoreCase = true) ||
+            trimmed.startsWith("rtsp", ignoreCase = true)
+        ) {
+            trimmed.split(" ").firstOrNull {
+                it.startsWith("http") || it.startsWith("rtmp") || it.startsWith("rtsp")
+            } ?: trimmed
+        } else if (trimmed.contains("://") || trimmed.startsWith("/")) {
+            trimmed
+        } else if (baseDir != null) {
+            // Relative entry in a local playlist - resolve against the playlist's directory.
+            File(baseDir, trimmed).absolutePath
+        } else {
+            trimmed
+        }
 
         var name = "Channel ${url.hashCode()}"
         var logoUrl: String? = null
@@ -182,6 +205,13 @@ object M3uParser {
         }
 
         val mediaType = classifyMediaType(tvgType, group, cleanUrl)
+        // m3u_plus panels list every episode as its own entry ("Show (2026) S01E02").
+        // Stamp the episode number and the parent show id (the categoryId slot Xtream
+        // parseEpisode fills) so the catalog can collapse these rows into one card per
+        // show and the detail screen can list the episodes back up. Series-only: a live
+        // channel whose name happens to contain an SxxExx-shaped token is not an episode.
+        val episodeNum = if (mediaType == MediaType.SERIES) m3uEpisodeTag(name)?.second else null
+        val parentShowId = if (episodeNum != null) seriesShowKey(name)?.let { m3uShowId(it) } else null
 
         return Channel(
             // The stream url, because an M3U has no id of its own and Channel.id defaults to
@@ -201,8 +231,10 @@ object M3uParser {
             tvgName = tvgName,
             tvgChno = tvgChno,
             mediaType = mediaType,
+            categoryId = parentShowId,
             categoryName = group,
             description = null,
+            episodeNum = episodeNum,
             year = year,
             rating = rating
         )

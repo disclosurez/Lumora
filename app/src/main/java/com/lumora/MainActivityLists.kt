@@ -29,7 +29,10 @@ import com.lumora.parser.XtreamClient
 import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
 import com.lumora.util.isUnreleasedEpisode
+import com.lumora.util.m3uEpisodeTag
+import com.lumora.util.m3uShowId
 import com.lumora.util.rawMediaItemId
+import com.lumora.util.seriesShowKey
 import com.lumora.util.versionGroupContaining
 import com.lumora.data.remote.stalker.StalkerProvider
 import com.lumora.data.remote.jellyfin.JellyfinProvider
@@ -503,8 +506,12 @@ internal suspend fun MainActivity.loadSeriesContent(
             }
         }
         else -> {
+            // An M3U panel has no episode endpoint, but its per-episode rows are already
+            // in the catalog: siblings of this card from the same provider under the
+            // same show id, each with a direct stream URL (see collapseM3uEpisodeRows).
+            m3uSeriesSeasons(item)?.let { return itemDetails to it }
             // Xtream items resolve their own provider via sourceProviderId; anything else
-            // (an M3U series, or a provider since removed) has no Xtream credentials to
+            // (a provider since removed) has no Xtream credentials to
             // query, so return the item's own metadata with no episodes rather than run
             // getSeriesFull against the wrong account.
             val xtream = xtreamProviderFor(item)
@@ -517,6 +524,39 @@ internal suspend fun MainActivity.loadSeriesContent(
             }
         }
     }
+}
+
+/** Season/episode list for an M3U show card. Xtream/Stalker/Jellyfin/Plex resolve their
+ *  own; an M3U panel has no episode endpoint, but its per-episode rows are already in
+ *  the catalog with the show's id stamped on them (see M3uParser + m3uShowId), each
+ *  carrying a direct stream URL - so episodes play directly instead of routing to
+ *  Find Stream. Null when this isn't an M3U show card, so the Xtream path still
+ *  handles everything it used to. */
+internal fun MainActivity.m3uSeriesSeasons(item: Channel): List<Pair<String, List<Channel>>>? {
+    if (item.isJellyfin || item.isPlex || item.episodeNum != null) return null
+    if (xtreamProviderFor(item) != null || stalkerConfigFor(item) != null) return null
+    val providerId = item.sourceProviderId
+    // Show cards carry the stamped id outright; an episode row opened directly (a stale
+    // Continue Watching entry, a search hit) still resolves through its own marker.
+    val wantId = when {
+        item.id.startsWith("m3u-show:") -> item.id
+        item.categoryId?.startsWith("m3u-show:") == true -> item.categoryId!!
+        else -> seriesShowKey(item.name)?.let { m3uShowId(it) } ?: return null
+    }
+    val wantKey = wantId.removePrefix("m3u-show:")
+    // categoryId equality is the fast path (stamped at parse); the name fallback covers
+    // rows cached before the stamp existed. episodeNum + provider first - both are
+    // cheap comparisons, and the regex only runs on rows that pass them.
+    val episodes = allChannels.filter { ch ->
+        ch.mediaType == MediaType.SERIES && ch.episodeNum != null &&
+            (providerId == null || ch.sourceProviderId == providerId) &&
+            (ch.categoryId == wantId ||
+                (ch.categoryId.isNullOrBlank() && seriesShowKey(ch.name) == wantKey))
+    }
+    if (episodes.isEmpty()) return null
+    return episodes.groupBy { m3uEpisodeTag(it.name)?.first ?: 1 }
+        .toSortedMap()
+        .map { (season, eps) -> "Season $season" to eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
 }
 
 /** Chip label for one version of a duplicated title: which provider it came from first,
@@ -1278,6 +1318,9 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
 /** The "S01E04 · " marker both Xtream and Jellyfin bake onto an episode name. */
 private val EPISODE_NAME_PREFIX_REGEX = Regex("""^S\d+E\d+ · """)
 private val EPISODE_SEASON_REGEX = Regex("""^S(\d+)E\d+""")
+/** Trailing form, the way m3u_plus panels bake it into the title ("Show (2026) S01E02")
+ *  - the anchored pattern above never matches those. */
+private val EPISODE_SEASON_TRAIL_REGEX = Regex("""(?i)\bS(\d+)E\d+""")
 
 /** The season an episode belongs to. A Channel has an episodeNum but no season field, so
  *  it's read back out of the "S04E01 · " marker its provider baked into the name, or out
@@ -1285,6 +1328,7 @@ private val EPISODE_SEASON_REGEX = Regex("""^S(\d+)E\d+""")
  *  season 1 from that, since "no season stated" and "season 1" are different things. */
 internal fun seasonNumberOf(episode: Channel): Int? =
     EPISODE_SEASON_REGEX.find(episode.name)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        ?: EPISODE_SEASON_TRAIL_REGEX.find(episode.name)?.groupValues?.getOrNull(1)?.toIntOrNull()
         ?: episode.id.takeIf { it.contains(":s") }
             ?.substringAfterLast(":s")?.substringBefore("e")?.toIntOrNull()
 /** What a provider with no episode titles actually sends: nothing, or the word itself

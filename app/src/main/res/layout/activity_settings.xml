@@ -669,6 +669,27 @@
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/settings_text_body" />
 
+                        <LinearLayout
+                            android:id="@+id/settingsM3uBrowse"
+                            style="@style/Widget.Lumora.SecondaryButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="@dimen/settings_row_padding_vertical"
+                            android:layout_marginTop="@dimen/settings_gap"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:stateListAnimator="@animator/focus_scale_flat">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/m3u_browse_local"
+                                android:textColor="@color/primary_light"
+                                android:textSize="@dimen/settings_text_body"
+                                android:fontFamily="@font/inter_medium" />
+                        </LinearLayout>
+
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="@dimen/settings_gap" android:text="@string/user_agent" android:textColor="@color/text_secondary" android:textSize="@dimen/settings_text_caption" />
                         <EditText
                             android:id="@+id/settingsUserAgent"
