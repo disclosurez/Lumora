@@ -305,13 +305,23 @@ fun groupDuplicateSeries(series: List<Channel>): Pair<List<Channel>, Map<String,
  *  title, not the episode tag. */
 private val M3U_EPISODE_SUFFIX_REGEX = Regex("""(?i)\bS(\d{1,2})E(\d{1,3})\b\s*$""")
 
-/** (season, episode) when [name] ends in an m3u_plus episode marker, else null. */
-fun m3uEpisodeTag(name: String): Pair<Int, Int>? {
+/** Marker match, or null when the name has none (or states S00/a zero episode). The
+ *  digit-tail gate is exact, not a heuristic: the regex can only match a name whose
+ *  last non-space character is a digit, and almost no series title ends in one - so
+ *  the regex itself only runs on rows that can possibly carry a marker. */
+private fun episodeMarkerMatch(name: String): MatchResult? {
+    if (name.lastOrNull { !it.isWhitespace() }?.isDigit() != true) return null
     val m = M3U_EPISODE_SUFFIX_REGEX.find(name) ?: return null
     val season = m.groupValues[1].toIntOrNull() ?: return null
     val episode = m.groupValues[2].toIntOrNull() ?: return null
     if (season <= 0 || episode <= 0) return null
-    return season to episode
+    return m
+}
+
+/** (season, episode) when [name] ends in an m3u_plus episode marker, else null. */
+fun m3uEpisodeTag(name: String): Pair<Int, Int>? {
+    val m = episodeMarkerMatch(name) ?: return null
+    return m.groupValues[1].toInt() to m.groupValues[2].toInt()
 }
 
 /** Grouping key of the SHOW an m3u_plus episode row belongs to: the title minus its
@@ -319,22 +329,25 @@ fun m3uEpisodeTag(name: String): Pair<Int, Int>? {
  *  collapsed show card keys identically to an Xtream copy of the same show. Null when
  *  the name carries no episode marker. */
 fun seriesShowKey(name: String): String? {
-    val m = M3U_EPISODE_SUFFIX_REGEX.find(name) ?: return null
+    val m = episodeMarkerMatch(name) ?: return null
     return normalizeTitleForGrouping(name.substring(0, m.range.first)).ifBlank { null }
 }
 
 /** Display title of the show an episode row belongs to: marker off, everything else
  *  (year included) kept, so withResolvedYear still finds the year downstream. */
 fun seriesShowTitle(name: String): String {
-    val m = M3U_EPISODE_SUFFIX_REGEX.find(name) ?: return name
+    val m = episodeMarkerMatch(name) ?: return name
     return name.substring(0, m.range.first).trim()
 }
+
+/** Prefix of a collapsed M3U show card's id (and of its episode rows' categoryId). */
+const val M3U_SHOW_ID_PREFIX = "m3u-show:"
 
 /** Stable id for a collapsed M3U show card, and the categoryId its episode rows carry
  *  (the "parent series id" slot Xtream parseEpisode fills): keyed by show, with the
  *  provider guard applied at the match sites - Xtream series ids are likewise only
  *  unique per provider. */
-fun m3uShowId(showKey: String): String = "m3u-show:$showKey"
+fun m3uShowId(showKey: String): String = "$M3U_SHOW_ID_PREFIX$showKey"
 
 /** Folds m3u_plus per-episode rows into one card per show per provider, in place of
  *  their first episode row so catalogue order is preserved. Non-episode rows (show
@@ -342,17 +355,19 @@ fun m3uShowId(showKey: String): String = "m3u-show:$showKey"
  *  The episodes themselves stay in the catalog under their own ids - the detail screen
  *  matches them back up by show id - so only the tab/shelf listing shrinks. */
 fun collapseM3uEpisodeRows(series: List<Channel>): List<Channel> {
-    if (series.none { it.episodeNum != null }) return series
     // Composite key: same-name shows from different providers keep separate episode
     // lists (the detail screen matches siblings by sourceProviderId).
     fun groupKey(ch: Channel, showKey: String) = "${ch.sourceProviderId}\u0000$showKey"
+    // The marker in the name is the only requirement - deliberately not `episodeNum != null`.
+    // A catalogue loaded from a disk cache written before those stamps existed carries
+    // neither episodeNum nor categoryId, and gating on the field left every such panel
+    // un-collapsed (tens of thousands of episode cards, each with nothing behind it).
     // Per-index group assignment, computed once: seriesShowKey re-runs the
     // normalisation pipeline, and derive already runs this over hundreds of thousands
     // of rows.
     val assignment = series.map { ch ->
-        if (ch.episodeNum != null && !ch.isOwnLibrary) {
-            seriesShowKey(ch.name)?.let { showKey -> groupKey(ch, showKey) to showKey }
-        } else null
+        if (ch.isOwnLibrary) null
+        else seriesShowKey(ch.name)?.let { showKey -> groupKey(ch, showKey) to showKey }
     }
     if (assignment.all { it == null }) return series
     val members = LinkedHashMap<String, MutableList<Channel>>()
@@ -384,6 +399,38 @@ fun collapseM3uEpisodeRows(series: List<Channel>): List<Channel> {
         )
     }
     return result
+}
+
+/**
+ * Season/episode list for an M3U show, rebuilt from the per-episode rows already in
+ * [all]. [showId] is the show card's id (`m3u-show:…`); [providerId] scopes the match
+ * to the provider the card came from.
+ *
+ * Rows are matched by the stamped parent id first, and by the episode marker in the
+ * name second - the stamp is only as old as the catalogue, and one loaded from a disk
+ * cache written before the stamps existed carries neither categoryId nor episodeNum.
+ * Without that name fallback every such show opened with no episodes and could only
+ * offer Find Stream. The episode number is recovered from the name the same way, so a
+ * legacy cache still produces numbered, playable episode rows.
+ */
+fun m3uSeasonsFrom(
+    all: List<Channel>,
+    showId: String,
+    providerId: String?
+): List<Pair<String, List<Channel>>> {
+    val wantKey = showId.removePrefix(M3U_SHOW_ID_PREFIX)
+    val tagged = ArrayList<Pair<Int, Channel>>()
+    for (ch in all) {
+        if (ch.mediaType != MediaType.SERIES || ch.isOwnLibrary) continue
+        if (providerId != null && ch.sourceProviderId != providerId) continue
+        if (ch.categoryId != showId && seriesShowKey(ch.name) != wantKey) continue
+        val tag = m3uEpisodeTag(ch.name) ?: continue
+        tagged.add(tag.first to if (ch.episodeNum != null) ch else ch.copy(episodeNum = tag.second))
+    }
+    if (tagged.isEmpty()) return emptyList()
+    return tagged.groupBy({ it.first }, { it.second })
+        .toSortedMap()
+        .map { (season, eps) -> "Season $season" to eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
 }
 
 /** True if the title carries an explicit non-English bracket language tag, e.g. "[AR]", "[FR]". */

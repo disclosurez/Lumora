@@ -5,6 +5,7 @@ import com.lumora.model.MediaType
 import com.lumora.util.collapseM3uEpisodeRows
 import com.lumora.util.groupDuplicateSeries
 import com.lumora.util.m3uEpisodeTag
+import com.lumora.util.m3uSeasonsFrom
 import com.lumora.util.m3uShowId
 import com.lumora.util.seriesShowKey
 import com.lumora.util.seriesShowTitle
@@ -158,5 +159,86 @@ class M3uSeriesGroupingTest {
         )
         assertEquals(1, grouped.size)
         assertEquals(2, versions.getValue(grouped.single().id).size)
+    }
+
+    // ── legacy catalogues: rows cached before the stamps existed ──
+    // A file written by an older build reads back with episodeNum and categoryId blank
+    // on every row. Both the collapse and the episode lookup have to work off the name
+    // alone, or an upgraded install keeps its un-collapsed episode-per-card series list
+    // (and every card still dead-ends in Find Stream).
+
+    private fun legacyEpRow(show: String, season: Int, episode: Int, provider: String = "prov-1"): Channel {
+        val s = season.toString().padStart(2, '0')
+        val e = episode.toString().padStart(2, '0')
+        return Channel(
+            id = "http://ex.com/series/u/p/$show-$s$episode.mp4",
+            name = "$show (2026) S${s}E$e",
+            url = "http://ex.com/series/u/p/$show-$s$episode.mp4",
+            mediaType = MediaType.SERIES,
+            episodeNum = null,
+            categoryId = null,
+            sourceProviderId = provider
+        )
+    }
+
+    @Test
+    fun `legacy rows without stamps still collapse by name`() {
+        val collapsed = collapseM3uEpisodeRows(
+            listOf(legacyEpRow("Ilusão Mortal", 1, 1), legacyEpRow("Ilusão Mortal", 1, 2))
+        )
+        assertEquals(1, collapsed.size)
+        assertEquals("Ilusão Mortal (2026)", collapsed.single().name)
+        assertTrue(collapsed.single().id.startsWith("m3u-show:"))
+    }
+
+    @Test
+    fun `seasons resolved from legacy rows fill episode numbers and keep urls`() {
+        val rows = listOf(
+            legacyEpRow("Ilusão Mortal", 1, 1),
+            legacyEpRow("Ilusão Mortal", 1, 2),
+            legacyEpRow("Ilusão Mortal", 2, 1)
+        )
+        val seasons = m3uSeasonsFrom(rows, m3uShowId(seriesShowKey(rows[0].name)!!), "prov-1")
+        assertEquals(listOf("Season 1", "Season 2"), seasons.map { it.first })
+        val s1 = seasons[0].second
+        assertEquals(listOf(1, 2), s1.map { it.episodeNum })
+        assertTrue(s1.all { it.url.isNotBlank() })
+    }
+
+    @Test
+    fun `seasons resolved from stamped rows use the stored episode number`() {
+        val rows = listOf(epRow("Instinto de Mãe", 3, 7), epRow("Instinto de Mãe", 3, 8))
+        val seasons = m3uSeasonsFrom(rows, rows[0].categoryId!!, "prov-1")
+        assertEquals(listOf("Season 3"), seasons.map { it.first })
+        assertEquals(listOf(7, 8), seasons[0].second.map { it.episodeNum })
+    }
+
+    @Test
+    fun `seasons do not leak across providers`() {
+        val rows = listOf(legacyEpRow("Show", 1, 1, "prov-1"), legacyEpRow("Show", 1, 1, "prov-2"))
+        val seasons = m3uSeasonsFrom(rows, m3uShowId(seriesShowKey(rows[0].name)!!), "prov-1")
+        assertEquals(1, seasons.sumOf { it.second.size })
+        assertEquals("prov-1", seasons[0].second.single().sourceProviderId)
+    }
+
+    @Test
+    fun `seasons ignore own-library rows that share a normalised name`() {
+        val jfEpisode = Channel(
+            id = "jf-ep", name = "Show (2026) S01E01", url = "http://jf/1",
+            mediaType = MediaType.SERIES, episodeNum = 1, categoryId = "jf::series-1",
+            isJellyfin = true, sourceProviderId = "jf-1"
+        )
+        val m3uRow = legacyEpRow("Show", 1, 1)
+        val seasons = m3uSeasonsFrom(listOf(jfEpisode, m3uRow), m3uShowId(seriesShowKey(m3uRow.name)!!), null)
+        assertEquals(1, seasons.sumOf { it.second.size })
+        assertEquals(m3uRow.url, seasons[0].second.single().url)
+    }
+
+    @Test
+    fun `series marker must be a real marker`() {
+        // Too many digits, mid-title token, or a zero season all mean "not an episode".
+        assertNull(m3uEpisodeTag("Show (2026) S123E45"))
+        assertNull(m3uEpisodeTag("S01E01 Origins (2026)"))
+        assertNull(m3uEpisodeTag("Show (2026) S00E05"))
     }
 }

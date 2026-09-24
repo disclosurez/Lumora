@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.7.1
+
+### Series
+- **M3U series episodes play instead of offering "Find & Play".** The 4.7.0 fix only survived within a single session: the disk catalogue cache didn't store the episode-number stamps, and the derived-cache key didn't cover them, so after a restart the app kept serving the pre-fix un-collapsed series list and every show found no episodes behind it. Episode numbers now survive the cache round trip, stale derived caches are re-derived once, and episode detection works off the SxxExx marker in the name - so a catalogue cached by an older build recovers without a manual refresh.
+
 ## 4.7.0
 
 ### Playback

@@ -63,9 +63,14 @@ object DerivedCache {
 
     /**
      * Identity of the raw catalogue for cache-keying purposes. Folds in the fields the derive
-     * passes actually read (id, name, category) rather than hashing whole objects, so a
-     * refresh that returns the same catalogue keeps the cache warm even though the Channel
-     * instances are new.
+     * passes actually read (id, name, category, episode number) rather than hashing whole
+     * objects, so a refresh that returns the same catalogue keeps the cache warm even though
+     * the Channel instances are new.
+     *
+     * episodeNum is in here because the derive's output depends on it: it is what collapses
+     * an M3U panel's per-episode rows into show cards. Hashing only the other fields left a
+     * derived file from the pre-stamp build still valid, so an upgraded install kept serving
+     * its un-collapsed episode-per-card series list and never re-ran the collapse.
      */
     fun catalogFingerprint(channels: List<Channel>, prefsPart: String): String {
         var hash = 1125899906842597L // FNV-ish seed
@@ -74,6 +79,7 @@ object DerivedCache {
             hash = hash * 31 + ch.name.hashCode()
             hash = hash * 31 + (ch.categoryId?.hashCode() ?: 0)
             hash = hash * 31 + ch.mediaType.ordinal
+            hash = hash * 31 + (ch.episodeNum ?: 0)
         }
         return "$FORMAT_VERSION|${channels.size}|${hash.toULong().toString(16)}|$prefsPart"
     }

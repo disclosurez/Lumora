@@ -16,7 +16,7 @@ private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
 private const val FIELD_SEP = ''
 /** Fields written per line. Append-only: new fields go at the end so older files stay
  *  readable. */
-private const val FIELD_COUNT = 27
+private const val FIELD_COUNT = 28
 /** Fields a line must have to be usable. Held at the pre-Catch-Up count on purpose - a
  *  cache written by an older build is still perfectly good, and every field added since
  *  is read with getOrElse. Raising this to FIELD_COUNT dropped every line of an existing
@@ -91,7 +91,14 @@ object ChannelCache {
                 // browsable from cache before any provider fetch runs, and a Plex item played
                 // without this flag would take the plain-URL path instead of negotiating a
                 // stream with the server.
-                sb.append(if (ch.isPlex) "1" else "0").append('\n')
+                sb.append(if (ch.isPlex) "1" else "0").append(FIELD_SEP)
+                // The episode number has to survive the round trip: M3U series episodes are
+                // stamped with it at parse time (and anime entries carry their total episode
+                // count in it), and both the M3U show-detail episode list and the anime
+                // episode-count fallback read it straight off the cached catalogue. Without
+                // it, a restart from cache turned every M3U episode row back into an
+                // unnumbered row and the detail screen found no episodes at all.
+                sb.append(ch.episodeNum?.toString() ?: "").append('\n')
                 out.append(sb)
             }
             }
@@ -165,7 +172,8 @@ object ChannelCache {
                             tvArchiveDays = f.getOrElse(23) { "0" }.toIntOrNull() ?: 0,
                             tmdbId = f.getOrElse(24) { "" }.ifEmpty { null },
                             trailerKey = f.getOrElse(25) { "" }.ifEmpty { null },
-                            isPlex = f.getOrElse(26) { "0" } == "1"
+                            isPlex = f.getOrElse(26) { "0" } == "1",
+                            episodeNum = f.getOrElse(27) { "" }.toIntOrNull()
                         )
                     )
                 }

@@ -26,10 +26,11 @@ import com.lumora.model.Channel
 import com.lumora.model.MediaType
 import com.lumora.anime.AnimeCatalogClient
 import com.lumora.parser.XtreamClient
+import com.lumora.util.M3U_SHOW_ID_PREFIX
 import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
 import com.lumora.util.isUnreleasedEpisode
-import com.lumora.util.m3uEpisodeTag
+import com.lumora.util.m3uSeasonsFrom
 import com.lumora.util.m3uShowId
 import com.lumora.util.rawMediaItemId
 import com.lumora.util.seriesShowKey
@@ -530,33 +531,21 @@ internal suspend fun MainActivity.loadSeriesContent(
  *  own; an M3U panel has no episode endpoint, but its per-episode rows are already in
  *  the catalog with the show's id stamped on them (see M3uParser + m3uShowId), each
  *  carrying a direct stream URL - so episodes play directly instead of routing to
- *  Find Stream. Null when this isn't an M3U show card, so the Xtream path still
- *  handles everything it used to. */
+ *  Find Stream. Null when this isn't an M3U show, so the Xtream path still handles
+ *  everything it used to. */
 internal fun MainActivity.m3uSeriesSeasons(item: Channel): List<Pair<String, List<Channel>>>? {
-    if (item.isJellyfin || item.isPlex || item.episodeNum != null) return null
+    if (item.isJellyfin || item.isPlex) return null
     if (xtreamProviderFor(item) != null || stalkerConfigFor(item) != null) return null
     val providerId = item.sourceProviderId
     // Show cards carry the stamped id outright; an episode row opened directly (a stale
-    // Continue Watching entry, a search hit) still resolves through its own marker.
+    // Continue Watching entry, a search hit, grouping switched off) still resolves through
+    // its own marker.
     val wantId = when {
-        item.id.startsWith("m3u-show:") -> item.id
-        item.categoryId?.startsWith("m3u-show:") == true -> item.categoryId!!
+        item.id.startsWith(M3U_SHOW_ID_PREFIX) -> item.id
+        item.categoryId?.startsWith(M3U_SHOW_ID_PREFIX) == true -> item.categoryId
         else -> seriesShowKey(item.name)?.let { m3uShowId(it) } ?: return null
     }
-    val wantKey = wantId.removePrefix("m3u-show:")
-    // categoryId equality is the fast path (stamped at parse); the name fallback covers
-    // rows cached before the stamp existed. episodeNum + provider first - both are
-    // cheap comparisons, and the regex only runs on rows that pass them.
-    val episodes = allChannels.filter { ch ->
-        ch.mediaType == MediaType.SERIES && ch.episodeNum != null &&
-            (providerId == null || ch.sourceProviderId == providerId) &&
-            (ch.categoryId == wantId ||
-                (ch.categoryId.isNullOrBlank() && seriesShowKey(ch.name) == wantKey))
-    }
-    if (episodes.isEmpty()) return null
-    return episodes.groupBy { m3uEpisodeTag(it.name)?.first ?: 1 }
-        .toSortedMap()
-        .map { (season, eps) -> "Season $season" to eps.sortedBy { it.episodeNum ?: Int.MAX_VALUE } }
+    return m3uSeasonsFrom(allChannels, wantId, providerId).takeIf { it.isNotEmpty() }
 }
 
 /** Chip label for one version of a duplicated title: which provider it came from first,
