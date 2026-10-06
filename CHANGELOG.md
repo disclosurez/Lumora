@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.7.2
+
+### Series
+- **A series found by search plays its episodes instead of offering "Find & Play".** The 4.7.1 fix only resolved episode rows through the show card's stamped id: a series opened from Discover/TMDB - or any card whose name carries no m3u_plus episode marker - had no id to match, so its detail screen fell back to Find Stream. The panel's episode rows are now matched by show title as well, and an episode-shaped search result opens through the same resolver the Series tab already uses.
+
+### Search
+- **Series search is lighter on large playlists.** Filtering no longer lowercases every title again for every comparison, and loading more results appends to the grid without copying the whole accumulated list on each page - on a six-figure series catalogue both were seconds of work and GC churn on a TV stick.
+- **The general search no longer crashes on portrait phones.** The portrait variant of the search overlay was missing the blinking-cursor view the default layout has, so tapping the search button on a phone in portrait threw `findViewById(...) must not be null` and closed the app. The portrait layout now matches the default, and the cursor lookup tolerates a missing view instead of crashing.
+
+### Playback
+- **TV playback can no longer get stuck as background audio.** The app entered Picture-in-Picture whenever the player was left while still playing; Android TV either does not support PiP or renders it as an unmanaged window, and onPause deliberately keeps playing while in PiP - so on a TV the picture vanished, audio kept going and only a force-stop recovered. PiP is now limited to devices that actually report the feature (never TV), and a stray PiP state on TV pauses and saves as normal.
+
+### Stalker portals
+- **Films and series play again on Stalker portals.** A Stalker film or episode carries its stream as a portal play command rather than a URL, and the detail screen decided playability from the URL alone - so Play became "Find & Play" (or Find Stream) and the command was never turned into a stream. Both are now recognised as playable and reach the create_link step. That call and the season/episode list also send the session token like every other request, accept portals that return the command as a plain string, and rewrite localhost stream URLs to the portal's own host.
+
 ## 4.7.1
 
 ### Series
