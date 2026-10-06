@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.7.3
+
+### Android Auto
+- **A rotary controller now navigates the whole app, not just the disclaimer.** On head units like the Audi MMI the knob sends no key events at all - its rotation and press arrive as generic motion events from a rotary encoder - and the app only translated those while the car warning was on screen, so every menu and list behind it was dead to the knob. Rotary motion on the car display is now translated into the same D-pad events a remote sends: rotate moves focus, press activates the focused item. Phones, TVs and touch input on car screens are unaffected, and a debug trace (`adb logcat -s CarRotary`) logs each car-display motion event so a no-key head unit can be diagnosed from logs.
+
 ## 4.7.2
 
 ### Series

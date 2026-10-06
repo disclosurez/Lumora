@@ -1184,18 +1184,15 @@ class MainActivity : AppCompatActivity() {
         mainHandler.postDelayed(autoAccept, CAR_DISCLAIMER_AUTO_ACCEPT_MS)
         // The app behind the warning has the same problem: still in touch mode, still nothing
         // focused, so the first knob press after dismissal would go nowhere too. Hand focus to
-        // the first tab that is actually on screen - Live is GONE on a setup with no live
-        // provider (Plex carries no Live TV at all), and focusing a hidden view would leave
-        // the rotary with nothing again.
+        // the first chrome target that is actually on screen, or the rotary has nothing to move
+        // from and the first knob press goes nowhere.
         dialog.setOnDismissListener {
             mainHandler.removeCallbacks(autoAccept)
             if (carDisclaimerDialog === dialog) carDisclaimerDialog = null
-            val tab = listOf(
-                binding.tabLive, binding.tabHome, binding.tabFilms,
-                binding.tabSeries, binding.tabDiscover, binding.btnSearch, binding.btnSettings,
-            ).firstOrNull { it.isShown }
-            tab?.isFocusableInTouchMode = true
-            tab?.requestFocus()
+            carFocusCandidate()?.let { target ->
+                target.isFocusableInTouchMode = true
+                target.requestFocus()
+            }
         }
         dialog.show()
     }
@@ -1293,6 +1290,48 @@ class MainActivity : AppCompatActivity() {
             isFocusableInTouchMode = true
             requestFocus()
         }
+    }
+
+    /** First visible chrome target for car navigation, in the order the disclaimer handoff
+     *  uses. Null when nothing chrome-level is on screen (e.g. the empty state). */
+    private fun carFocusCandidate(): View? = listOf(
+        binding.tabLive, binding.tabHome, binding.tabFilms,
+        binding.tabSeries, binding.tabDiscover, binding.btnSearch, binding.btnSettings,
+    ).firstOrNull { it.isShown }
+
+    /** A focused target the knob can drive. A projected car window is often in touch mode
+     *  with nothing focused, where requestFocus() on a view that is not focusable-in-touch-mode
+     *  fails - force it, the same trick the disclaimer handoff and focusCarDisclaimerButton use. */
+    private fun carEnsureFocus(): View? {
+        currentFocus?.takeIf { it.isShown && it.isFocusable }?.let { return it }
+        val target = carFocusCandidate() ?: binding.root.focusSearch(View.FOCUS_FORWARD) ?: return null
+        target.isFocusableInTouchMode = true
+        if (!target.requestFocus()) {
+            // Not laid out yet - retry on the next frame, like FullScreenOverlay.show() does.
+            target.post { if (currentFocus == null) target.requestFocus() }
+        }
+        return target
+    }
+
+    /** One focus move per rotary notch through the real key path. */
+    private fun dispatchCarRotaryStep(direction: Int): Boolean {
+        carEnsureFocus()
+        val keyCode = if (direction > 0) android.view.KeyEvent.KEYCODE_DPAD_DOWN
+        else android.view.KeyEvent.KEYCODE_DPAD_UP
+        sendSyntheticDpad(keyCode)
+        return true
+    }
+
+    /** A rotary press selects/activates whatever holds focus, exactly like a remote's center key. */
+    private fun dispatchCarRotarySelect(): Boolean {
+        carEnsureFocus()
+        sendSyntheticDpad(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        return true
+    }
+
+    private fun sendSyntheticDpad(keyCode: Int) {
+        dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
+        dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
     }
 
     /**
@@ -1795,6 +1834,20 @@ class MainActivity : AppCompatActivity() {
 
     /** Android Auto's projected rotary path injects its rotation as a generic motion event. */
     override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        // One line per car-display motion event so a no-key head unit can be diagnosed from
+        // logcat (adb logcat -s CarRotary): action/source/axes/focus tell us exactly what
+        // the knob sends. Hover moves are excluded - they would flood the log.
+        if (BuildConfig.DEBUG && isOnCarDisplay() && event.actionMasked != MotionEvent.ACTION_HOVER_MOVE) {
+            android.util.Log.d(
+                "CarRotary",
+                "action=${event.actionMasked} source=${event.source} " +
+                    "scroll=${event.getAxisValue(MotionEvent.AXIS_SCROLL)} " +
+                    "v=${event.getAxisValue(MotionEvent.AXIS_VSCROLL)} " +
+                    "h=${event.getAxisValue(MotionEvent.AXIS_HSCROLL)} " +
+                    "focus=${currentFocus?.javaClass?.simpleName} " +
+                    "windowFocus=${binding.root.hasWindowFocus()}"
+            )
+        }
         val dialog = carDisclaimerDialog
         if (dialog?.isShowing == true) {
             if (isCarRotaryScroll(event)) {
@@ -1804,6 +1857,27 @@ class MainActivity : AppCompatActivity() {
             if (isCarRotaryButtonPress(event)) {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
                 return true
+            }
+        }
+        // After the disclaimer, a rotary head unit still sends the knob as generic motion and
+        // no keys at all - translate it into the same D-pad events a remote would send, so
+        // adapter OnKeyListeners, nextFocus* wiring and the Activity's own key handling apply.
+        // Only the projected display and only a rotary-encoder source: phones, TVs and touch
+        // input on a car screen keep behaving exactly as before.
+        if (isOnCarDisplay() && event.isFromSource(android.view.InputDevice.SOURCE_ROTARY_ENCODER) &&
+            binding.root.hasWindowFocus()
+        ) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_SCROLL -> {
+                    val direction = carRotaryDirection(
+                        event.getAxisValue(MotionEvent.AXIS_SCROLL),
+                        event.getAxisValue(MotionEvent.AXIS_VSCROLL),
+                        event.getAxisValue(MotionEvent.AXIS_HSCROLL)
+                    )
+                    if (direction != 0) return dispatchCarRotaryStep(direction)
+                }
+                MotionEvent.ACTION_BUTTON_PRESS -> return dispatchCarRotarySelect()
+                MotionEvent.ACTION_BUTTON_RELEASE -> return true
             }
         }
         return super.dispatchGenericMotionEvent(event)
@@ -2321,4 +2395,14 @@ class MainActivity : AppCompatActivity() {
 internal sealed class FetchResult {
     data class Success(val channels: List<Channel>) : FetchResult()
     data class Failure(val message: String) : FetchResult()
+}
+
+/** Rotary notch direction: +1 = next (down), -1 = previous (up), 0 = no usable delta.
+ *  AXIS_SCROLL is what Android Auto projection sends; OEM head units expose the knob as
+ *  vertical or horizontal scroll axes instead, so fall back to those in order. */
+internal fun carRotaryDirection(scroll: Float, vscroll: Float, hscroll: Float): Int = when {
+    scroll != 0f -> if (scroll > 0f) 1 else -1
+    vscroll != 0f -> if (vscroll > 0f) 1 else -1
+    hscroll != 0f -> if (hscroll > 0f) 1 else -1
+    else -> 0
 }
