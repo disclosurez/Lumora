@@ -1448,8 +1448,11 @@ class MainActivity : AppCompatActivity() {
         com.lumora.scraper.ScraperApp.setCurrentActivity(null)
         stopToolbarClock()
         stopGuideClock()
-        val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
-        // Entering PiP also triggers onPause() - don't pause playback or we'd defeat the point of PiP.
+        val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        // Entering PiP also triggers onPause() - don't pause playback or we'd defeat the point of
+        // PiP, but only where the feature actually exists: on a TV a stray PiP state must still
+        // pause, save and flush so we never strand background audio.
         if (!inPip) {
             if (isPlayerVisible) {
                 saveCurrentPlaybackPosition()
@@ -1468,6 +1471,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // PiP is a handheld convenience. Android TV/Fire TV either does not support it or
+        // renders it as an unmanaged window: entering it there left audio playing with no
+        // usable picture, and onPause() deliberately keeps playing while in PiP, so the
+        // only recovery was a force-stop. Gate it on a device that can actually show it.
+        if (isTv || !packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
         if (isPlayerVisible && playerManager.isPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             runCatching {
                 val aspectRatio = if (lastVideoWidth > 0 && lastVideoHeight > 0) {
