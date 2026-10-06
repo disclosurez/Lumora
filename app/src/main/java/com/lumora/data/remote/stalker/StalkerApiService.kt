@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import com.lumora.model.MediaType
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -300,7 +301,8 @@ class StalkerApiService(private val client: OkHttpClient) {
      *  [type] is "vod" for a film, "series" for an episode. */
     suspend fun createLink(cmd: String, episode: Int? = null): String? {
         val base = serverBase?.trimEnd('/') ?: return null
-        authToken ?: return null
+        // Capture to a local: authToken is a mutable property, so Kotlin cannot smart-cast it.
+        val token = authToken ?: return null
         val path = endpoint ?: return null
         // type=vod resolves both films and series episodes; a series episode adds &series=N
         // (the number within its season) - the season's own cmd is shared across its episodes.
@@ -308,9 +310,16 @@ class StalkerApiService(private val client: OkHttpClient) {
                 "&cmd=${URLEncoder.encode(cmd, "UTF-8")}" +
                 (episode?.let { "&series=$it" } ?: "") +
                 "&mac=${URLEncoder.encode(deviceMac ?: "", "UTF-8")}" +
+                "&token=${URLEncoder.encode(token, "UTF-8")}" +
                 "&forced_storage=undefined&disable_ad=0&JsHttpRequest=1-xml"
         val json = fetchJson(url, jsToken) ?: return null
-        val resolved = json.optJSONObject("js")?.optString("cmd")?.ifBlank { null } ?: return null
+        // Most portals answer {"js":{"cmd":"ffmpeg http://…"}}; some hand back {"js":"ffmpeg http://…"}.
+        val js = json.opt("js")
+        val resolved = when (js) {
+            is JSONObject -> js.optString("cmd")
+            is String -> js
+            else -> null
+        }?.ifBlank { null } ?: return null
         return buildStreamUrl(base, resolved)
     }
 
@@ -327,7 +336,8 @@ class StalkerApiService(private val client: OkHttpClient) {
      *  the same get_ordered_list, filtered to the series' [movieId]; each returned row's
      *  `series` array holds its episode numbers. Returns (episodeNumber, playCmd) pairs. */
     suspend fun getSeriesEpisodes(movieId: String, categoryId: String?, mac: String): List<StalkerSeason> {
-        authToken ?: return emptyList()
+        // Capture to a local: authToken is a mutable property, so Kotlin cannot smart-cast it.
+        val token = authToken ?: return emptyList()
         val base = serverBase?.trimEnd('/') ?: return emptyList()
         val path = endpoint ?: return emptyList()
         val out = ArrayList<StalkerSeason>()
@@ -337,7 +347,8 @@ class StalkerApiService(private val client: OkHttpClient) {
             val url = "$base$path?type=series&action=get_ordered_list" +
                     "&movie_id=${URLEncoder.encode(movieId, "UTF-8")}" +
                     (categoryId?.let { "&category=${URLEncoder.encode(it, "UTF-8")}" } ?: "") +
-                    "&genre=*&p=$page&mac=${URLEncoder.encode(mac, "UTF-8")}&JsHttpRequest=1-xml"
+                    "&genre=*&p=$page&mac=${URLEncoder.encode(mac, "UTF-8")}" +
+                    "&token=${URLEncoder.encode(token, "UTF-8")}&JsHttpRequest=1-xml"
             val json = fetchJson(url, jsToken) ?: break
             val js = json.optJSONObject("js") ?: break
             if (page == 1) total = js.optInt("total_items", 0).takeIf { it > 0 } ?: Int.MAX_VALUE
@@ -409,7 +420,24 @@ class StalkerApiService(private val client: OkHttpClient) {
             val sp = c.indexOf(' ')
             if (sp in 1 until 12 && !c.startsWith("http")) c.substring(sp + 1).trim() else c
         }
-        if (stripped.startsWith("http")) return stripped
+        if (stripped.startsWith("http")) {
+            // Some portals hand back "http://localhost/…" or "http://127.0.0.1/…", meaning the
+            // portal host itself; replaying that from a TV would target the TV. Rewrite the
+            // authority to the portal's own.
+            val absolute = stripped.toHttpUrlOrNull()
+            if (absolute != null && (absolute.host == "localhost" || absolute.host == "127.0.0.1")) {
+                val portal = base.toHttpUrlOrNull()
+                if (portal != null) {
+                    return absolute.newBuilder()
+                        .scheme(portal.scheme)
+                        .host(portal.host)
+                        .port(portal.port)
+                        .build()
+                        .toString()
+                }
+            }
+            return stripped
+        }
         return "$base/${stripped.trimStart('/')}"
     }
 

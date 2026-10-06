@@ -31,6 +31,7 @@ import com.lumora.util.cleanVodTitle
 import com.lumora.util.extractLeadingTag
 import com.lumora.util.isUnreleasedEpisode
 import com.lumora.util.m3uSeasonsFrom
+import com.lumora.util.m3uSeasonsForSeriesTitle
 import com.lumora.util.m3uShowId
 import com.lumora.util.rawMediaItemId
 import com.lumora.util.seriesShowKey
@@ -510,7 +511,10 @@ internal suspend fun MainActivity.loadSeriesContent(
             // An M3U panel has no episode endpoint, but its per-episode rows are already
             // in the catalog: siblings of this card from the same provider under the
             // same show id, each with a direct stream URL (see collapseM3uEpisodeRows).
-            m3uSeriesSeasons(item)?.let { return itemDetails to it }
+            // The scan is O(allChannels) and this runs on a Main-dispatcher scope, so it
+            // is pushed off the main thread.
+            val m3u = withContext(Dispatchers.Default) { m3uSeriesSeasons(item) }
+            if (m3u != null) return itemDetails to m3u
             // Xtream items resolve their own provider via sourceProviderId; anything else
             // (a provider since removed) has no Xtream credentials to
             // query, so return the item's own metadata with no episodes rather than run
@@ -531,8 +535,10 @@ internal suspend fun MainActivity.loadSeriesContent(
  *  own; an M3U panel has no episode endpoint, but its per-episode rows are already in
  *  the catalog with the show's id stamped on them (see M3uParser + m3uShowId), each
  *  carrying a direct stream URL - so episodes play directly instead of routing to
- *  Find Stream. Null when this isn't an M3U show, so the Xtream path still handles
- *  everything it used to. */
+ *  Find Stream. A series opened without that stamp - a Discover/TMDB entry, or any card
+ *  whose name carries no m3u_plus marker - is matched by show title instead, so it too
+ *  reaches the panel's episodes. Null when this isn't an M3U show, so the Xtream path
+ *  still handles everything it used to. */
 internal fun MainActivity.m3uSeriesSeasons(item: Channel): List<Pair<String, List<Channel>>>? {
     if (item.isJellyfin || item.isPlex) return null
     if (xtreamProviderFor(item) != null || stalkerConfigFor(item) != null) return null
@@ -543,9 +549,15 @@ internal fun MainActivity.m3uSeriesSeasons(item: Channel): List<Pair<String, Lis
     val wantId = when {
         item.id.startsWith(M3U_SHOW_ID_PREFIX) -> item.id
         item.categoryId?.startsWith(M3U_SHOW_ID_PREFIX) == true -> item.categoryId
-        else -> seriesShowKey(item.name)?.let { m3uShowId(it) } ?: return null
+        else -> seriesShowKey(item.name)?.let { m3uShowId(it) }
     }
-    return m3uSeasonsFrom(allChannels, wantId, providerId).takeIf { it.isNotEmpty() }
+    if (wantId != null) {
+        m3uSeasonsFrom(allChannels, wantId, providerId).takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    // A series opened from Discover/TMDB (or any entry carrying no m3u marker) has no id
+    // to match; the panel's episode rows are found by show title instead, so Play works
+    // instead of falling through to Find Stream.
+    return m3uSeasonsForSeriesTitle(allChannels, item.name, providerId)?.takeIf { it.isNotEmpty() }
 }
 
 /** Chip label for one version of a duplicated title: which provider it came from first,
@@ -790,9 +802,11 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 if (plugin != null) {
                     showStreamSearchDialog(plugin, item, season = null, episode = chosen.episodeNum)
                 }
-            } else if (chosen.url.isBlank()) {
+            } else if (chosen.url.isBlank() && chosen.stalkerCmd.isNullOrBlank()) {
                 // A TMDB-built episode placeholder (see tmdbSeasonsFor) - there is no stream
-                // until one is found for this specific episode.
+                // until one is found for this specific episode. A blank URL *with* a Stalker
+                // command is not a placeholder: the stream lives in the cmd and the player
+                // resolves it via create_link, so it falls through to the play branch.
                 val season = chosen.id.substringAfterLast(":s").substringBefore("e").toIntOrNull()
                 showFindStreamDialog(item, season, chosen.episodeNum)
             } else {
@@ -1050,8 +1064,10 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
         // A TMDB-built placeholder (see tmdbSeasonsFor / mergeMissingEpisodesFromTmdb) has no
         // stream behind it. Saying "Play" there promises something the button cannot do - it
         // opened the player on a blank URL and failed - so it says what it will actually do:
-        // search the sources first, then play what comes back.
-        val mustFind = target.url.isBlank() && !item.id.startsWith(AnimeCatalogClient.ID_PREFIX)
+        // search the sources first, then play what comes back. A Stalker episode carries its
+        // stream as a cmd rather than a URL, so it is not a placeholder and must play directly.
+        val mustFind = target.url.isBlank() && target.stalkerCmd.isNullOrBlank() &&
+            !item.id.startsWith(AnimeCatalogClient.ID_PREFIX)
         val verb = when {
             mustFind -> R.string.list_find_and_play
             selection.isResume -> R.string.list_resume
@@ -1232,12 +1248,16 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
                 val filmProgress = filmKey.takeIf { it.isNotBlank() }
                     ?.let { PlaybackPositionStore.get(this@showContentDetail, it) }
                     ?.takeIf { !it.isNearComplete && it.positionMs > 0 }
-                // A title opened from Discover that no library carries has no URL to play. The
-                // button is still the one thing anyone presses on this screen, so it stays and
-                // says what it will do - search the sources, then play what resolves - instead
-                // of hiding and leaving the screen with no obvious action. Hidden only when
-                // there is no way to find anything either (no plugin, no scrapers enabled).
-                val playable = item.url.isNotBlank() || versions.any { it.url.isNotBlank() }
+                // A title opened from Discover that no library carries has no URL to play. A
+                // Stalker film is the exception: its stream is a cmd, not a URL, and the player
+                // resolves it via create_link, so it is playable even with a blank url. The
+                // button is still the one thing anyone presses on this screen, so when nothing
+                // is playable it stays and says what it will do - search the sources, then play
+                // what resolves - instead of hiding and leaving the screen with no obvious
+                // action. Hidden only when there is no way to find anything either (no plugin,
+                // no scrapers enabled).
+                val playable = item.url.isNotBlank() || !item.stalkerCmd.isNullOrBlank() ||
+                    versions.any { it.url.isNotBlank() || !it.stalkerCmd.isNullOrBlank() }
                 val mustFind = !playable && canFindStream(item)
                 playButtonLabel.text = when {
                     mustFind -> getString(R.string.list_find_and_play)

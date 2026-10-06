@@ -5,6 +5,7 @@ import com.lumora.model.MediaType
 import com.lumora.util.collapseM3uEpisodeRows
 import com.lumora.util.groupDuplicateSeries
 import com.lumora.util.m3uEpisodeTag
+import com.lumora.util.m3uSeasonsForSeriesTitle
 import com.lumora.util.m3uSeasonsFrom
 import com.lumora.util.m3uShowId
 import com.lumora.util.seriesShowKey
@@ -240,5 +241,55 @@ class M3uSeriesGroupingTest {
         assertNull(m3uEpisodeTag("Show (2026) S123E45"))
         assertNull(m3uEpisodeTag("S01E01 Origins (2026)"))
         assertNull(m3uEpisodeTag("Show (2026) S00E05"))
+    }
+
+    // ── title matcher: a series opened without the m3u show id ──
+    // A TMDB/Discover entry (or any card whose name carries no m3u_plus marker) has no
+    // `m3u-show:` id to match, so its episodes are found by show title instead.
+
+    @Test
+    fun `title matcher resolves panel rows for a series without a stamped id`() {
+        val rows = listOf(
+            seriesEntry("Show (2026) S01E01", "http://ex.com/1.mp4").copy(sourceProviderId = "p1"),
+            seriesEntry("Show (2026) S01E02", "http://ex.com/2.mp4").copy(sourceProviderId = "p1")
+        )
+        val seasons = m3uSeasonsForSeriesTitle(rows, "Show", "p1")
+        assertNotNull(seasons)
+        assertEquals(listOf("Season 1"), seasons!!.map { it.first })
+        val eps = seasons.single().second
+        assertEquals(listOf(1, 2), eps.map { it.episodeNum })
+        assertTrue(eps.all { it.url.isNotBlank() })
+    }
+
+    @Test
+    fun `title matcher prefers the requested provider`() {
+        val p1 = (1..3).map {
+            seriesEntry("Show (2026) S01E0$it", "http://ex.com/p1-$it.mp4").copy(sourceProviderId = "p1")
+        }
+        val p2 = (1..2).map {
+            seriesEntry("Show (2026) S01E0$it", "http://ex.com/p2-$it.mp4").copy(sourceProviderId = "p2")
+        }
+        val seasons = m3uSeasonsForSeriesTitle(p1 + p2, "Show", "p2")
+        assertNotNull(seasons)
+        val eps = seasons!!.single().second
+        assertEquals(2, eps.size)
+        assertTrue(eps.all { it.url.startsWith("http://ex.com/p2-") })
+    }
+
+    @Test
+    fun `title matcher returns null when no episode rows match`() {
+        val show = seriesEntry("Show (2026)", "http://ex.com/show.mp4").copy(sourceProviderId = "p1")
+        assertNull(m3uSeasonsForSeriesTitle(listOf(show), "Show", "p1"))
+        assertNull(m3uSeasonsForSeriesTitle(emptyList(), "Show", "p1"))
+    }
+
+    @Test
+    fun `title matcher ignores a trailing year on either side`() {
+        val rows = listOf(
+            seriesEntry("Show (2026) S01E01", "http://ex.com/1.mp4").copy(sourceProviderId = "p1"),
+            seriesEntry("Show (2026) S01E02", "http://ex.com/2.mp4").copy(sourceProviderId = "p1")
+        )
+        assertNotNull(m3uSeasonsForSeriesTitle(rows, "Show", "p1"))
+        assertNotNull(m3uSeasonsForSeriesTitle(rows, "Show (2026)", "p1"))
     }
 }

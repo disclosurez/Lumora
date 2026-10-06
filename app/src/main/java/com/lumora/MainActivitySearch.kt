@@ -33,7 +33,7 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
     activeSettingsOverlay?.dismiss()
     val searchView = layoutInflater.inflate(R.layout.dialog_search, null)
     val input = searchView.findViewById<EditText>(R.id.searchInput)
-    attachBlinkingCursor(input, searchView.findViewById(R.id.searchCursor))
+    searchView.findViewById<View>(R.id.searchCursor)?.let { attachBlinkingCursor(input, it) }
     val statusText = searchView.findViewById<TextView>(R.id.searchStatus)
     val resultsList = searchView.findViewById<RecyclerView>(R.id.searchResults)
     val recentsBlock = searchView.findViewById<View>(R.id.searchRecentsBlock)
@@ -71,8 +71,15 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
         pendingSearchRestore = input.text.toString()
         activeSearchOverlay?.dismiss()
         when (item) {
-            is SearchResultItem.Media ->
-                if (item.channel.mediaType == MediaType.LIVE) playItem(item.channel) else showContentDetail(item.channel)
+            is SearchResultItem.Media -> when {
+                item.channel.mediaType == MediaType.LIVE -> playItem(item.channel)
+                // An episode row (an un-collapsed M3U panel, a legacy catalogue) must resolve
+                // through its series the same way the tab does - opening the row's detail screen
+                // directly found no episodes behind it and could only offer Find Stream.
+                item.channel.mediaType == MediaType.SERIES && item.channel.episodeNum != null ->
+                    onHomeItemClick(item.channel)
+                else -> showContentDetail(item.channel)
+            }
             is SearchResultItem.Epg -> playItem(item.program.channel)
         }
     }
@@ -268,15 +275,15 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
  *  "starts with", then matching at a word boundary ("man" hits "Iron Man" but not
  *  "Batman"), plain substring last. Word-boundary keeps a query like "man" usable on
  *  a catalog with thousands of vaguely-matching substrings instead of it being buried. */
-internal fun MainActivity.searchRank(name: String, query: String, boundaryRegex: Regex): Int {
-    val lower = name.lowercase()
-    return when {
-        lower == query -> 0
-        lower.startsWith(query) -> 1
-        boundaryRegex.containsMatchIn(lower) -> 2
-        else -> 3
-    }
+internal fun MainActivity.searchRankLower(lowerName: String, query: String, boundaryRegex: Regex): Int = when {
+    lowerName == query -> 0
+    lowerName.startsWith(query) -> 1
+    boundaryRegex.containsMatchIn(lowerName) -> 2
+    else -> 3
 }
+
+internal fun MainActivity.searchRank(name: String, query: String, boundaryRegex: Regex): Int =
+    searchRankLower(name.lowercase(), query, boundaryRegex)
 
 internal fun MainActivity.runSearch(query: String, runId: Int, adapter: SearchResultsAdapter, statusText: TextView, resultsList: RecyclerView) {
     statusText.text = getString(R.string.search_status_searching)
@@ -298,10 +305,16 @@ internal fun MainActivity.runSearch(query: String, runId: Int, adapter: SearchRe
                 MainActivity.SearchFilter.MOVIE -> filmList
                 MainActivity.SearchFilter.SERIES -> seriesList
             }
-            source
-                .filter { it.name.lowercase().contains(lower) }
-                .sortedWith(compareBy({ searchRank(it.name, lower, boundaryRegex) }, { it.name.lowercase() }))
-                .map { SearchResultItem.Media(it) }
+            // Lowercase each title once: the comparator used to call searchRank (and lowercase)
+            // per comparison, allocating a fresh String per element per compare - on a
+            // six-figure series list that is seconds of GC churn for a single query.
+            val ranked = ArrayList<Pair<Channel, String>>(minOf(source.size, 4096))
+            for (channel in source) {
+                val name = channel.name.lowercase()
+                if (name.contains(lower)) ranked.add(channel to name)
+            }
+            ranked.sortWith(compareBy({ searchRankLower(it.second, lower, boundaryRegex) }, { it.second }))
+            ranked.map { SearchResultItem.Media(it.first) }
         }
         // Stale run (query changed or overlay dismissed while this was in flight) - the
         // EPG fetches make runs long enough that publishing late would clobber newer
@@ -415,10 +428,11 @@ internal fun MainActivity.loadMoreSearchResults(adapter: SearchResultsAdapter, s
     val remaining = searchAllResults.size - searchDisplayedCount
     if (remaining <= 0) return
     val batchSize = 50.coerceAtMost(remaining)
-    val currentList = adapter.currentList.toMutableList()
-    currentList.addAll(searchAllResults.subList(searchDisplayedCount, searchDisplayedCount + batchSize))
     searchDisplayedCount += batchSize
-    adapter.submitList(currentList)
+    // A subList view, not a full toMutableList()+addAll copy: the old form copied every
+    // already-shown result on every scroll page, which on a six-figure series result set
+    // was an O(n^2) pile-up behind the grid.
+    adapter.submitList(searchAllResults.subList(0, searchDisplayedCount))
     statusText.text = getString(R.string.search_status_count, searchDisplayedCount, searchAllResults.size)
 }
 
