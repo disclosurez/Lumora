@@ -1615,6 +1615,10 @@ class MainActivity : AppCompatActivity() {
         if (activeSettingsOverlay != null && openPluginId != null) closeOpenPluginPage?.invoke()
         else if (activeSettingsOverlay != null) activeSettingsOverlay?.dismiss()
         else if (activeSearchOverlay != null) activeSearchOverlay?.dismiss()
+        // Up Next: Back dismisses the prompt (the same outcome as its Cancel button) and
+        // leaves playback running - it must not fall through to hidePlayer(), which would
+        // stop the episode the card is offering to continue from.
+        else if (isPlayerVisible && upNextActive) { cancelUpNext() }
         else if (isPlayerVisible && isPlayerSideMenuOpen()) { closeSideMenu() }
         else if (isPlayerVisible) { hidePlayer(); restoreSearchIfPending() }
         else if (isContentDetailVisible) { hideContentDetail(); restoreSearchIfPending() }
@@ -2094,7 +2098,13 @@ class MainActivity : AppCompatActivity() {
         // is flown out (and dismisses the whole menu otherwise), and UP/DOWN/CENTER fall
         // through to the framework to navigate/activate rows. LEFT back out of the column
         // is the adapter's job - the focused row sees the key before this runs.
-        if (isPlayerVisible) {
+        // Up Next owns the D-pad while its card is up: the card's Play Now / Cancel are the
+        // only actionable controls on screen, and both of these shortcuts used to eat the key
+        // before focus could reach them - RIGHT fast-forwarded instead of moving to Cancel,
+        // LEFT rewound (VOD) or flew the side menu out (Live). The card's buttons carry their
+        // own nextFocusLeft/Right/Down/Up links (see activity_main.xml), so directional keys
+        // fall through to the framework's focus search here and stay inside the card.
+        if (isPlayerVisible && !upNextActive) {
             if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT && !isPlayerSideMenuOpen()) {
                 // Only from the bare video. With the controls bar up and focus inside it,
                 // LEFT belongs to the button row, and at its left end there is nowhere to
@@ -2139,6 +2149,8 @@ class MainActivity : AppCompatActivity() {
                 showControls(takeFocus = false)
                 return true
             }
+        }
+        if (isPlayerVisible) {
             if (isPlayerSideMenuOpen()) {
                 when (keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> return true

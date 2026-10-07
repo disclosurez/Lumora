@@ -2010,7 +2010,10 @@ internal fun MainActivity.hidePlayer() {
     mainHandler.removeCallbacks(longStallCheckRunnable)
     mainHandler.removeCallbacks(blackFrameCheckRunnable)
     mainHandler.removeCallbacks(vodQualityCheckRunnable)
-    mainHandler.removeCallbacks(upNextTickRunnable)
+    // Full cancel, not just the tick: leaving upNextActive set with the card gone made the
+    // next player session's D-pad guards think an offer was on screen when none was, and
+    // suppressed STATE_ENDED's auto-advance for it.
+    cancelUpNext()
     // A "Resume playback?" prompt left up from the stream just closing is non-cancelable -
     // it would own the window (Back dead) and either answer would seek a stream that's gone.
     resumePromptDialog?.dismiss()

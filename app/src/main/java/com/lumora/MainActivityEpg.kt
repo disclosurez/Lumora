@@ -326,8 +326,17 @@ internal fun MainActivity.showUpNextOverlay() {
     upNextCountdown = MainActivity.UP_NEXT_COUNTDOWN_SECONDS
     binding.upNextTitle.text = upNextEpisode?.name ?: ""
     binding.upNextCountdown.text = upNextCountdown.toString()
+    // The card shares the bottom-right corner with the controls bar's track buttons, and
+    // showControls()/hideControls() treat the two as mutually exclusive - but at episode end
+    // the bar can still be up. Take it down here or both render and its buttons compete with
+    // Play Now / Cancel for the D-pad.
+    binding.controlsOverlay.visibility = View.GONE
+    mainHandler.removeCallbacks(hideControlsRunnable)
     binding.upNextOverlay.visibility = View.VISIBLE
-    binding.upNextPlayNow.requestFocus()
+    // Focus only lands reliably once the card is laid out; a same-frame requestFocus after
+    // flipping visibility can silently no-op, leaving focus on a control-bar button that is
+    // now GONE (or on the video), which is what made DOWN/UP walk the wrong tree.
+    binding.upNextPlayNow.post { binding.upNextPlayNow.requestFocus() }
     mainHandler.post(upNextTickRunnable)
 }
 
@@ -443,12 +452,12 @@ internal fun MainActivity.showControls(takeFocus: Boolean = true) {
     // rather than stacking the bar over it.
     if (isPlayerSideMenuOpen()) closeSideMenu()
     // Up Next shares the bottom-right corner with the controls bar's track buttons -
-    // don't let both render at once. The countdown is paused too: a card hidden under
-    // the bar must not keep ticking down to an auto-advance the user can't see.
-    if (upNextActive) {
-        binding.upNextOverlay.visibility = View.GONE
-        mainHandler.removeCallbacks(upNextTickRunnable)
-    }
+    // don't let both render at once. Showing the bar is a deliberate "I'm taking over"
+    // act, so it dismisses the offer outright rather than only hiding the card: leaving
+    // upNextActive set with the card gone kept every upNextActive guard in onKeyDown
+    // active (the bar's keys dead), parked the countdown and suppressed STATE_ENDED's
+    // auto-advance.
+    if (upNextActive) cancelUpNext()
     binding.controlsOverlay.visibility = View.VISIBLE
     // Cheap re-link (~10 children) each reveal, so the row is never navigated with a chain
     // left stale by a button that changed visibility since setup.
