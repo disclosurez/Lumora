@@ -12,6 +12,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 class JsPluginEngineTest {
 
@@ -178,6 +179,57 @@ class JsPluginEngineTest {
             assertEquals(1, results.size)
             assertEquals("Found Some Title", results[0].title)
             assertEquals(12, results[0].seeders)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `httpGet honours a per-request timeoutMs`() = runBlocking {
+        // A discovery script probing many dead providers can pass a deadline instead of waiting
+        // out the shared client's 30s connect / 60s read timeouts for each one. The untimed call
+        // against the same delayed endpoint is the control: it must still succeed.
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("late").setBodyDelay(3, TimeUnit.SECONDS))
+        server.enqueue(MockResponse().setBody("late").setBodyDelay(3, TimeUnit.SECONDS))
+        server.start()
+        try {
+            val engine = JsPluginEngine(OkHttpClient())
+            val script = """
+                function search(host, query, year, season, episode) {
+                    const timed = host.httpGet("${server.url("/slow")}", {}, 500);
+                    const untimed = host.httpGet("${server.url("/slow")}");
+                    return "timed=" + timed.status + " untimed=" + untimed.status;
+                }
+            """.trimIndent()
+            val outcome = engine.runSearch(script, "q", null, null, null)
+            assertTrue(outcome is SearchResult.Finished)
+            assertEquals("timed=0 untimed=200", (outcome as SearchResult.Finished).message)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `httpGetAll honours per-request timeoutMs and keeps input order`() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("ok"))
+        server.enqueue(MockResponse().setBody("late").setBodyDelay(3, TimeUnit.SECONDS))
+        server.start()
+        try {
+            val engine = JsPluginEngine(OkHttpClient())
+            val script = """
+                function search(host, query, year, season, episode) {
+                    const rs = host.httpGetAll([
+                        { url: "${server.url("/fast")}" },
+                        { url: "${server.url("/slow")}", timeoutMs: 500 },
+                    ]);
+                    return rs[0].status + "," + rs[1].status;
+                }
+            """.trimIndent()
+            val outcome = engine.runSearch(script, "q", null, null, null)
+            assertTrue(outcome is SearchResult.Finished)
+            assertEquals("200,0", (outcome as SearchResult.Finished).message)
         } finally {
             server.shutdown()
         }

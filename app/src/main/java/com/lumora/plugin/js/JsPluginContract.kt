@@ -49,6 +49,12 @@ package com.lumora.plugin.js
  * Kotlin exception thrown inside a host function does not unwind through a script's own
  * `try/catch` (see [com.lumora.plugin.js.JsHostImpl.execute]'s kdoc). Check `resp.status` instead
  * of wrapping `host.httpGet` calls in `try/catch` to handle a source being unreachable.
+ *
+ * Both also take an optional trailing `timeoutMs` argument, and each `host.httpGetAll` request
+ * object an optional `timeoutMs` property. It is a total per-request deadline (connect + read):
+ * [com.lumora.plugin.js.JsHostImpl] applies it with OkHttp's `callTimeout`, so a discovery script
+ * live-testing many providers can fail a dead host fast instead of waiting out the shared
+ * client's 30s connect / 60s read timeouts on every one. Omitted, the client defaults apply.
  */
 object JsPluginContract {
 
@@ -93,8 +99,12 @@ object JsPluginContract {
     const val MAX_RESULTS = 200
     const val MAX_TEXT_LENGTH = 200
 
-    /** A discovery run is aborted after this long with no terminal outcome. */
-    const val DISCOVERY_TIMEOUT_MS = 180_000L
+    /** A discovery run is aborted after this long with no terminal outcome. 5 minutes rather than
+     *  the original 3: a discovery script that live-tests discovered providers (the Reddit IPTV
+     *  scanner) spends the bulk of a run waiting on the slow/dead ones, and 3 minutes reliably
+     *  killed it mid-test on a TV stick - see JsHostImpl's per-request timeoutMs, which lets such
+     *  a script bound each probe instead. */
+    const val DISCOVERY_TIMEOUT_MS = 300_000L
     /** Search phase timeout - same idea as discovery. */
     const val SEARCH_TIMEOUT_MS = 120_000L
     /** Resolving a result to a stream (fetch metadata, first-episode lookup, ...) is slow. */

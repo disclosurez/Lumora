@@ -1105,9 +1105,10 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
                             is PluginScriptManager.InstallResult.Installed -> {
                                 installLabel.text = if (alreadyInstalled) getString(R.string.plug_updated) else getString(R.string.plug_installed)
                                 installButton.isEnabled = true
-                                // A first install switches itself on (see
-                                // PluginScriptManager.installScript); a re-install/update
-                                // leaves whatever the user had chosen alone.
+                                // installScript() leaves the stored enabled state alone (see its
+                                // kdoc), so the toast has to say which of the two outcomes this
+                                // install landed on: off and waiting to be enabled, or already
+                                // on because the user had switched it on before.
                                 Toast.makeText(
                                     this@wirePluginStoresSection,
                                     if (outcome.script.enabled) getString(R.string.plug_installed_label, storeScript.label)
@@ -1125,9 +1126,11 @@ internal fun MainActivity.wirePluginStoresSection(dialogView: View, manager: Plu
                     }
                 }
                 installButton.setOnClickListener {
-                    // A first install switches itself on, which for one of these capabilities
-                    // means it starts reaching out to public sites the moment it lands - the
-                    // disclaimer has to clear before that happens, not after.
+                    // Public-content scripts get the disclaimer before they are installed.
+                    // installScript() itself no longer switches them on (see its kdoc) - the
+                    // plugin page's enable toggle is what starts the network calls, and it is
+                    // gated by the same disclaimer. Accepting here just moves that prompt to
+                    // the first moment the user reaches for a public-content script.
                     val isPublicContent = !alreadyInstalled && (
                         JsPluginContract.CAPABILITY_STREAM_SEARCH in storeScript.capabilities ||
                             JsPluginContract.CAPABILITY_SCRAPER_SITES in storeScript.capabilities

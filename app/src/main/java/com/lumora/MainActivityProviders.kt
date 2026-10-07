@@ -886,9 +886,11 @@ internal fun MainActivity.wireStartupChooser() {
 
 /** Downloads and installs every stream_search/scraper_sites script the default plugin
  *  store lists - "public streaming content" is torrent/site-scraper plugins, not a
- *  traditional provider. installScript() switches a first install on by itself, so
- *  nothing here has to enable them separately. Runs [onDone] whether or not anything
- *  actually installed - a store outage must not strand the user on a dead button. */
+ *  traditional provider. This is the one path that enables what it installs:
+ *  [PluginScriptManager.installScript] itself never flips the switch (see its kdoc), and
+ *  the user explicitly chose public streaming content here, so the scripts are the point.
+ *  Runs [onDone] whether or not anything actually installed - a store outage must not
+ *  strand the user on a dead button. */
 internal fun MainActivity.installPublicStreamingPlugins(onDone: () -> Unit) {
     ensurePublicContentDisclaimerAccepted { doInstallPublicStreamingPlugins(onDone) }
 }
@@ -908,7 +910,14 @@ private fun MainActivity.doInstallPublicStreamingPlugins(onDone: () -> Unit) {
             for (storeScript in catalog) {
                 if (wanted.none { it in storeScript.capabilities }) continue
                 val text = pluginStoreManager.fetchScriptText(storeScript.fileUrl) ?: continue
-                if (pluginScriptManager.installScript(text) is PluginScriptManager.InstallResult.Installed) installed++
+                val result = pluginScriptManager.installScript(text)
+                if (result is PluginScriptManager.InstallResult.Installed) {
+                    // Keyed on the manifest id the install actually wrote, not the catalog's
+                    // (a store is free to list an id its script's PLUGIN manifest spells
+                    // differently), so the switch lands on the script that was installed.
+                    pluginScriptManager.setEnabled(result.script.id, true)
+                    installed++
+                }
             }
         }
         binding.emptyChooseProvider.isEnabled = true

@@ -956,7 +956,7 @@ internal fun MainActivity.showProviderSettings() {
         }
     }
 
-    fun closeIptvForm() {
+    fun closeIptvForm(focusAddButton: Boolean = true) {
         editingProviderId = null
         editingMediaServerId = null
         currentType = null
@@ -969,7 +969,10 @@ internal fun MainActivity.showProviderSettings() {
         iptvListSection.visibility = View.VISIBLE
         if (serverRunning) stopQrServer()
         // Cancel (or whatever field was focused) is inside the section just hidden.
-        focusWhenReady(addIptvProviderButton)
+        // A caller that is about to move focus elsewhere itself (the plugin-add jump to the
+        // Providers pane) passes false, so the posted focus here can't yank it back a frame
+        // later onto the Add button.
+        if (focusAddButton) focusWhenReady(addIptvProviderButton)
     }
 
     // Adding new (existing == null) always starts on the type picker with every
@@ -1564,7 +1567,14 @@ internal fun MainActivity.showProviderSettings() {
     }
     refreshDownloadsList()
 
-    wirePluginsPane(dialogView) { selectSection(1) }
+    // The add-provider form is auto-opened on a fresh install (no providers at all), which
+    // hides the provider list. A plugin candidate added from the Plugins pane refreshes that
+    // list and jumps here - close the form first, or the list (with the new row in it) stays
+    // hidden behind it and the provider looks like it was never added.
+    wirePluginsPane(dialogView) {
+        closeIptvForm(focusAddButton = false)
+        selectSection(1)
+    }
     // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
     // with the plugin list itself left at its previous section.
     wirePluginNavRows(dialogView) { selectSection(7) }

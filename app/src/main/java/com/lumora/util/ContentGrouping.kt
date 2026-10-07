@@ -473,7 +473,13 @@ fun isNonEnglishTitle(name: String): Boolean = nonEnglishTitleMemo.memoize(name)
 
 // "adults?" (not just "adult") because real provider data files this under "FOR ADULTS"
 // (plural) - \b word-boundary matching means the singular-only pattern never matched it.
-private val ADULT_KEYWORD_REGEX = Regex("""(?i)\b(xxx|adults?|porn|hentai|erotica?|18\+)\b""")
+//
+// xxx/porn/hentai/erotica match as plain substrings, not on word boundaries: providers file
+// adult content under brand-style names where the token has no boundary to match on
+// ("OnexxxPlay", "Pornhub", "HentaiUncensored"), and those were exactly the categories that
+// slipped past parental control and the Adult dynamic bucket. "adults?" keeps its boundaries so
+// ordinary words like "adulting" don't trip the filter.
+private val ADULT_KEYWORD_REGEX = Regex("""(?i)(?:xxx|porn|hentai|erotica?|18\+|\badults?\b)""")
 
 // "Adult Swim" is a late-night animation block, not adult content, but "adult" matches it on
 // a word boundary either side of the hyphen. Categories named after it were sorted to the

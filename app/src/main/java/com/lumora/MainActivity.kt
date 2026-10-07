@@ -256,7 +256,13 @@ internal const val ANIME_CATEGORY_ID = "__anime__"
  *  the long tail of near-empty categories costs one line instead of a dozen. Expandable -
  *  the categories themselves are its children. */
 internal const val OTHER_CATEGORY_ID = "__other__"
-// Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema),
+/** The synthetic Adult bucket's label/id suffix. Its members are matched with
+ *  [com.lumora.util.isAdultCategory] rather than keywords (so ADULT SWIM stays out), and it is
+ *  checked before every other bucket - an "Adult Movies" category would otherwise be swallowed
+ *  by Cinema's "movie" keyword. When the hide-adult pref is on, adult channels never reach the
+ *  list, so the bucket has no members and the row simply doesn't render. */
+internal const val ADULT_BUCKET_LABEL = "Adult"
+// Live TV sidebar leads with these dynamic buckets (Sports/News/Music/Cinema/Adult),
 // each vacuuming up every matching provider category *and* brand cluster
 // regardless of where it lives in the raw catalog; everything left over cascades
 // below in the usual priority/alpha order, same as before this existed.
@@ -264,7 +270,8 @@ internal val LIVE_DYNAMIC_BUCKETS = listOf(
     "Sports" to listOf("sport"),
     "News" to listOf("news"),
     "Music" to listOf("music"),
-    "Cinema" to listOf("cinema", "movie", "film")
+    "Cinema" to listOf("cinema", "movie", "film"),
+    ADULT_BUCKET_LABEL to emptyList()
 )
 
 // The same idea for Films/Series, where the equivalent of a channel genre is the genre a
@@ -281,7 +288,8 @@ internal val VOD_DYNAMIC_BUCKETS = listOf(
     "Crime & Mystery" to listOf("crime", "mystery", "detective"),
     "Documentary" to listOf("documentar", "docu"),
     "Romance" to listOf("romance", "romantic"),
-    "Drama" to listOf("drama")
+    "Drama" to listOf("drama"),
+    ADULT_BUCKET_LABEL to emptyList()
 )
 // Auto-failover to the next quality/source version of a live channel triggers on
 // either a single long stall or several shorter stalls close together - a lone

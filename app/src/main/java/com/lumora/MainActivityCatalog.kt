@@ -132,7 +132,12 @@ internal suspend fun MainActivity.classifyAndShow(preserveUi: Boolean = false) {
                             val hasFavourites = com.lumora.cache.FavoritesStore.getFavoriteChannelIds(this@classifyAndShow).isNotEmpty()
                             val target = categories.firstOrNull { it.id == FAVOURITES_CATEGORY_ID }?.takeIf { hasFavourites }
                                 ?: categories.firstOrNull { it.pinned }
-                                ?: categories.firstOrNull { it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true }
+                                // Never auto-land on Adult - an adult-only catalog would open the
+                                // app straight onto it. It is reachable by picking it, which is
+                                // also what the hide-adult gate expects of explicit content.
+                                ?: categories.firstOrNull {
+                                    it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true && it.name != ADULT_BUCKET_LABEL
+                                }
                             if (target != null) {
                                 selectedRowId = target.id
                                 selectedCategoryLabel = target.name

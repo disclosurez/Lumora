@@ -320,7 +320,10 @@ internal fun MainActivity.selectTab(index: Int) {
             val hasFavourites = com.lumora.cache.FavoritesStore.getFavoriteChannelIds(this@selectTab).isNotEmpty()
             val target = categories.firstOrNull { it.id == FAVOURITES_CATEGORY_ID }?.takeIf { hasFavourites }
                 ?: categories.firstOrNull { it.pinned }
-                ?: categories.firstOrNull { it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true }
+                // Never auto-land on Adult - see the same guard in classifyAndShow.
+                ?: categories.firstOrNull {
+                    it.id?.startsWith(DYNAMIC_BUCKET_ID_PREFIX) == true && it.name != ADULT_BUCKET_LABEL
+                }
             if (target != null) {
                 selectedRowId = target.id
                 selectedCategoryLabel = target.name

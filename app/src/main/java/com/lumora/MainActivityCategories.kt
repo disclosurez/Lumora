@@ -812,8 +812,14 @@ internal fun MainActivity.buildCategoryRows(
         val promotedToBucket = mutableSetOf<String>()
         val (bucketRows, allUnitsEnhanced) = if (!useClassicLayout && categorize) {
             fun bucketFor(name: String): String? {
+                // Adult first: a category mixing the two ("Adult Movies") must land in Adult,
+                // not Cinema, and user content matching the regex is authoritative where a
+                // plain keyword scan would mis-file ADULT SWIM or miss XXX-only names.
+                if (isAdultCategory(name)) return ADULT_BUCKET_LABEL
                 val lower = name.lowercase()
-                return dynamicBuckets.firstOrNull { (_, keywords) -> keywords.any { lower.contains(it) } }?.first
+                return dynamicBuckets.firstOrNull { (label, keywords) ->
+                    label != ADULT_BUCKET_LABEL && keywords.any { lower.contains(it) }
+                }?.first
             }
             val bucketed = LinkedHashMap<String, MutableList<Pair<CategoryFilter, List<CategoryFilter>>>>()
             // Pinned categories are exempt. A pin is an explicit "keep this one where I
@@ -2115,7 +2121,7 @@ internal fun MainActivity.formatTime(ms: Long): String {
  *  7: quality tiers merge before clustering, cluster children feed the genre buckets, a
  *     bucket over one category promotes it instead of wrapping it, and the thin tail
  *     folds into one "Other" row. */
-private const val CATEGORY_ROWS_LOGIC_VERSION = 10
+private const val CATEGORY_ROWS_LOGIC_VERSION = 12
 
 /** Films/Series rail: a category with fewer titles than this sorts below the full ones.
  *  Counts are per-row, so a merged/clustered parent is judged on its members' total. */
