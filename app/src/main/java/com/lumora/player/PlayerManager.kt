@@ -595,6 +595,10 @@ class PlayerManager(
      * only way the car session can show a picture (see auto/CarPlayback.kt).
      */
     fun setVideoSurface(surface: android.view.Surface?) {
+        // Called from the Activity's SurfaceHolder callbacks, which can fire after the
+        // Activity is destroyed (and the player released) - calling into a released
+        // ExoPlayer throws. Refuse rather than crash.
+        if (released) return
         if (surface == null) player.clearVideoSurface() else player.setVideoSurface(surface)
     }
 

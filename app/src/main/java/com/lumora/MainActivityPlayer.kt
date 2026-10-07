@@ -9,6 +9,7 @@ import android.view.PixelCopy
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -89,6 +90,28 @@ internal fun MainActivity.reloadCurrentProvider() {
 // ── Player ─────────────────────────────────────
 
 internal fun MainActivity.setupPlayerControls() {
+    // The SurfaceView's Surface is destroyed and recreated whenever its host window is
+    // hidden - a dialog window taking the foreground (the point every control-bar button
+    // opens one), the app backgrounding, an HDMI input switch. PlayerManager hands the
+    // player a surface once per play (setSurfaceView), and ExoPlayer does not re-attach a
+    // surface it was given: with no callback here, the first destroy left audio playing
+    // over a permanently black picture with the whole on-screen experience gone, and only
+    // starting a new stream recovered it. That is the "freezes when I touch the controls"
+    // report - worst on TV firmware that destroys the surface for dialogs. Re-arm on every
+    // (re)creation; clear on destruction so the player never holds a dead Surface.
+    binding.playerSurface.holder.addCallback(object : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder) {
+            playerManager.setVideoSurface(holder.surface)
+        }
+
+        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+            playerManager.setVideoSurface(holder.surface)
+        }
+
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+            playerManager.setVideoSurface(null)
+        }
+    })
     // showControls() here restarts the 4s auto-hide: this button consumes the OK press
     // itself, so the Activity-level timer refresh in onKeyDown never sees it, and the
     // bar would otherwise vanish right after the press that paused.
@@ -1721,7 +1744,7 @@ internal fun MainActivity.checkForBlackFrame() {
         return
     }
     val surfaceView = binding.playerSurface
-    if (surfaceView.width <= 0 || surfaceView.height <= 0) {
+    if (surfaceView.width <= 0 || surfaceView.height <= 0 || !surfaceView.holder.surface.isValid) {
         mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
         return
     }

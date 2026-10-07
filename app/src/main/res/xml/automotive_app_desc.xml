@@ -1,17 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android Auto's app validator requires this, and refuses the app without it:
+<!-- Android Auto's app validator reads this and refuses a package whose declared car
+     components have no matching entry:
 
          W/CAR.VALIDATOR: Package DENIED; Uses for TEMPLATE not defined [com.lumora]
 
-         is what the host logs for a template app whose descriptor is missing. Two entries
-         are deliberately absent, because each one hands the app to a different Android Auto
-         surface and neither is what Lumora is:
+     "template" names the Car App Library service (auto/LumoraCarAppService.kt) - the
+     interactive host-drawn car UI with the video surface. A package declaring a
+     CarAppService is denied outright without this entry.
 
-           media        - classifies the app as audio-only, which is how 3.8 ended up with
-                          a car listing that could never show a picture.
-           notification - classifies it as a messaging app. With that entry the tile opens
-                          GH.MessagingCarAppSrvc and the car screen reads "no messages during
-                          this drive", the app itself never being launched at all. -->
-<automotiveApp>
+     "service" and "projection" are the legacy projection pair (auto/legacy/): projection is
+     what lets a sideloaded package draw its own Activity on the head unit, and it is the
+     entry that makes the host list Lumora in Customise Launcher on Android 14 and below,
+     where the parked-app path (CAR_LAUNCHER + appCategory) is not supported. Lint only knows
+     the four AOSP names (media/notification/sms/template), so those two entries carry
+     InvalidUsesTagAttribute suppressions - the host accepts them, the lint schema does not
+     list them.
+
+     "media" names the browse service (auto/LumoraMediaService.kt), the category Android Auto
+     has always honoured for sideloaded apps - it is what guarantees the tile is listed even
+     on a host that declines the other faces.
+
+     "notification" is absent deliberately: it hands the app to the messaging surface, where
+     the tile opens GH.MessagingCarAppSrvc and the screen reads "no messages during this
+     drive". -->
+<automotiveApp xmlns:tools="http://schemas.android.com/tools">
     <uses name="template" />
+    <uses
+        name="service"
+        tools:ignore="InvalidUsesTagAttribute" />
+    <uses
+        name="projection"
+        tools:ignore="InvalidUsesTagAttribute" />
+    <uses name="media" />
 </automotiveApp>

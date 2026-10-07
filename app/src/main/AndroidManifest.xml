@@ -141,45 +141,86 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- No MediaBrowserService is declared, and no class implements one. Advertising one
-             is what made Android Auto file Lumora as a media app - listed, but audio-only,
-             with the car service never bound. The undeclared implementation that used to sit
-             in auto/ was unreachable code and is gone; a future Assistant/Wear integration
-             would need its own service anyway. -->
+        <!-- Lumora as a media app (auto/LumoraMediaService.kt): the browse tree Android Auto
+             reads, and the entry that guarantees the host lists a sideloaded install in
+             Customise Launcher on hosts that cannot list the other faces. -->
+        <service
+            android:name=".auto.LumoraMediaService"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback"
+            android:label="@string/ui_car_media_label"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+                <!-- Voice search ("play BBC News on Lumora") - LibraryCallback.onSearch
+                     answers it; without the action declared, the system never asks. -->
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+            </intent-filter>
+        </service>
 
-        <!-- Android Auto. minCarApiLevel and the service below are the entire car
-             registration - deliberately no com.google.android.gms.car.application descriptor,
-             which is how a *media* app announces itself and got Lumora listed as audio-only.
-             Both POI and NAVIGATION are declared because a host launches only the categories
-             its version knows: current hosts list a sideloaded POI app, while an older one
-             (Android Auto 14 and before) shows no launcher tile for POI at all and lists only
-             navigation apps. Either category is handed the same drawing surface, which is all
-             the video path needs (see auto/CarPlayerScreen.kt). -->
+        <!-- Interactive car UI: the Car App Library template app (auto/LumoraCarAppService.kt,
+             CarBrowseScreen/CarPlayerScreen). Host-drawn list sections with paging, plus the
+             video surface for parked playback. This is the face that works on hosts which
+             cannot project the real MainActivity (Android 14 and below); projecting the full
+             UI is a parked-app feature of Android 15+ hosts only. -->
+        <service
+            android:name=".auto.LumoraCarAppService"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
+            </intent-filter>
+        </service>
+
+        <!-- Keep-alive for the projected car screen (auto/CarForegroundService.kt), started by
+             LegacyCarActivity; without it the process can be killed behind the driver and the
+             head unit goes black. -->
+        <service
+            android:name=".auto.CarForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Re-applies the car-face component state after install/reboot without needing the
+             app to be launched (see CarFaceUpdateReceiver). -->
+        <receiver android:name=".auto.CarFaceUpdateReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Android Auto registration, fcaronte/AABrowser shape: the media browse service and
+             the legacy projection service above are the two car faces. MainActivity still
+             carries CAR_LAUNCHER + appCategory=game for hosts that project parked immersive
+             apps (Android 15+); on Android 14 the host offers only the two services above. -->
         <meta-data
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
 
-        <!-- Required, not optional: CAR.VALIDATOR denies any package that declares a
-             CarAppService without a descriptor naming the template surface, and a denied
-             package never reaches the car launcher. The descriptor names template and
-             notification, never media - media is the entry that made Lumora audio-only. -->
+        <!-- Required, not optional: CAR.VALIDATOR denies a package whose declared car
+             components have no matching descriptor entry. The entries are service,
+             projection and media - see res/xml/automotive_app_desc.xml for why template and
+             notification are absent. -->
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
-        <!-- The template car app (auto/LumoraCarAppService.kt) is deliberately NOT declared.
-             Android Auto treats a template CarAppService and a projected Activity as mutually
-             exclusive, and prefers the template one:
-
-               GH.AvailableAppFinder: Skipping ProjectionApp(ComponentInfo{com.lumora/
-               com.lumora.MainActivity}, appCategory=OTHER, isParkedOnly=true,
-               isImmersiveApp=true, isNativeApp=true) due to a conflicting driving optimized app
-
-             Declaring the service therefore replaces the whole app with a six-row list and a
-             bare video surface. Leaving it out lets the host project MainActivity itself -
-             the real UI, parked only - which is the point of running Lumora in a car at all.
-             The classes under auto/ are kept for the day a driving-optimised mode is wanted
-             back; nothing binds them while this declaration is absent. -->
+        <!-- The template car app (auto/LumoraCarAppService.kt) is declared above: on hosts
+             that cannot project the real MainActivity (Android 14 and below) it is the only
+             interactive face, and it draws the channel list and video surface itself. On a
+             host that also offers immersive projection, Android Auto prefers the template
+             face - the trade the earlier "project the real app" attempt accepted the other
+             way round. -->
 
         <!-- No TV Input Framework service. Lumora advertised one, but nothing ever wrote a
              row into TvContract.Channels, so the system input selector had an empty Lumora

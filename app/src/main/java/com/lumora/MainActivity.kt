@@ -2171,8 +2171,9 @@ class MainActivity : AppCompatActivity() {
         // they're showing, UP/DOWN needs to navigate between buttons (transport row ->
         // seek bar -> Speed/Sleep/Cast/...) instead of surfing channels out from under
         // whatever the user's trying to select. Skipped entirely while the side menu is
-        // open so UP from the first menu row doesn't surf channels under the drawer.
-        if (isPlayerVisible && !isPlayerSideMenuOpen() && nowPlayingChannel?.mediaType == MediaType.LIVE && binding.controlsOverlay.visibility != View.VISIBLE) {
+        // open so UP from the first menu row doesn't surf channels under the drawer -
+        // and while the Up Next card is up, whose own two buttons own the D-pad.
+        if (isPlayerVisible && !isPlayerSideMenuOpen() && !upNextActive && nowPlayingChannel?.mediaType == MediaType.LIVE && binding.controlsOverlay.visibility != View.VISIBLE) {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP -> { navigateChannel(-1); return true }
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { navigateChannel(1); return true }
@@ -2184,13 +2185,15 @@ class MainActivity : AppCompatActivity() {
         // also perform whatever that direction would otherwise do, same as it not also
         // clicking the button it lands focus on. Skipped while the side menu is open -
         // the drawer is the only chrome on screen and it must not pop the bottom bar
-        // over itself.
+        // over itself - and while the Up Next card is up: showControls() hides that card
+        // (they share the corner), so consuming the key here stole the D-pad before it
+        // could reach Play Now / Cancel and made Cancel unselectable.
         val isDirectionalKey = keyCode in intArrayOf(
             android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
             android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
             android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER
         )
-        if (isPlayerVisible && !isPlayerSideMenuOpen() && isDirectionalKey) {
+        if (isPlayerVisible && !isPlayerSideMenuOpen() && !upNextActive && isDirectionalKey) {
             if (binding.controlsOverlay.visibility != View.VISIBLE) {
                 showControls()
                 return true

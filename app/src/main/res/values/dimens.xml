@@ -174,7 +174,7 @@
     <dimen name="text_hero">48sp</dimen>
     <!-- Up Next card's countdown number. Deliberately smaller than text_display: the card
          is a corner overlay over live video, not a headline. -->
-    <dimen name="up_next_countdown_text">16sp</dimen>
+    <dimen name="up_next_countdown_text">13sp</dimen>
 
     <!-- Square icon buttons in the toolbar (settings/refresh/back). These are the tallest
          thing in the toolbar, so they set its (wrap_content) height. 48dp here is the
