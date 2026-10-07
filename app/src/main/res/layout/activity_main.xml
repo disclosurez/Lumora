@@ -2599,7 +2599,7 @@
                 android:focusable="true"
                 android:gravity="center_vertical"
                 android:nextFocusUp="@id/navFilms"
-                android:nextFocusDown="@id/navDownloads"
+                android:nextFocusDown="@id/navSearch"
                 android:orientation="horizontal"
                 android:paddingHorizontal="10dp"
                 android:stateListAnimator="@animator/focus_scale">
@@ -2623,8 +2623,44 @@
                     android:textSize="@dimen/side_menu_text" />
             </LinearLayout>
 
+            <!-- Search: the browse screen's magnifier is behind the player, so this is the
+                 way to search for something else without backing out of playback first. -->
+            <LinearLayout
+                android:id="@+id/navSearch"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/side_menu_row_height"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_select_item"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:nextFocusUp="@id/navDiscover"
+                android:nextFocusDown="@id/navDownloads"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <ImageView
+                    android:layout_width="@dimen/side_menu_icon"
+                    android:layout_height="@dimen/side_menu_icon"
+                    android:src="@drawable/ic_search"
+                    android:tint="@color/text_secondary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/inter_medium"
+                    android:maxLines="1"
+                    android:text="@string/search"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/side_menu_text" />
+            </LinearLayout>
+
             <!-- Downloads is a mobile-only section (mirrors tabDownloads; stays GONE on TV).
-                 While gone, Discover's nextFocusDown is retargeted to Settings in Kotlin. -->
+                 While gone, Discover's nextFocusDown is retargeted to Search in Kotlin. -->
             <LinearLayout
                 android:id="@+id/navDownloads"
                 android:layout_width="match_parent"
@@ -2634,7 +2670,7 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_vertical"
-                android:nextFocusUp="@id/navDiscover"
+                android:nextFocusUp="@id/navSearch"
                 android:nextFocusDown="@id/navSettings"
                 android:orientation="horizontal"
                 android:paddingHorizontal="10dp"

@@ -333,6 +333,11 @@ class TmdbClient {
                     backdropUrl = backdrop,
                     mediaType = mediaType,
                     year = year,
+                    // The id Discover matched by is stamped on the tile so a library copy can
+                    // be found by id rather than by name - a Jellyfin library naming the film
+                    // in another language, or with metadata the name comparison can't bridge,
+                    // is otherwise invisible to the tile badge (see findCatalogMatches).
+                    tmdbId = id.toString(),
                     description = o.optString("overview").takeIf { it.isNotBlank() },
                     rating = o.optDouble("vote_average", 0.0).takeIf { it > 0 }?.let { "%.1f".format(it) }
                 )

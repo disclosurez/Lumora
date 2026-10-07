@@ -1153,8 +1153,10 @@ class MainActivity : AppCompatActivity() {
             // the press - stop it there instead of wrapping into a hidden tab.
             binding.tabLive.nextFocusLeftId = View.NO_ID
             // Same in the side menu: Discover's DOWN would land on the GONE Downloads row
-            // and stop the walk short of Settings.
-            binding.navDiscover.nextFocusDownId = R.id.navSettings
+            // and stop the walk short of Settings. Search sits between them and keeps its
+            // own link into Settings for the same reason.
+            binding.navDiscover.nextFocusDownId = R.id.navSearch
+            binding.navSearch.nextFocusDownId = R.id.navSettings
         }
 
         onBackPressedDispatcher.addCallback(this, backCallback)

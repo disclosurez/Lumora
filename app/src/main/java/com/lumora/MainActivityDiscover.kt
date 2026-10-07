@@ -478,6 +478,18 @@ internal fun MainActivity.startDiscoverStreamSearch(item: Channel) {
 internal fun MainActivity.findCatalogMatches(item: Channel): List<Channel> {
     val target = normalizeMatchTitle(item.name)
     if (target.isBlank()) return emptyList()
+    // A TMDB id on both sides is authoritative, so it skips the whole name/year pipeline.
+    // That pipeline can't bridge a library that names a film differently - a localized
+    // Jellyfin title, a working title, metadata drift in the year - which is exactly when a
+    // title the user owns showed no "Jellyfin" badge on its Discover tile. The id is stamped
+    // on Discover tiles by TmdbClient and read from the server's ProviderIds (see
+    // JellyfinProvider), and the panel's own `tmdb` field feeds it for Xtream copies too.
+    if (item.tmdbId != null) {
+        val byId = allChannels.filter { it.mediaType == item.mediaType && it.tmdbId == item.tmdbId }
+        if (byId.isNotEmpty()) {
+            return byId.sortedBy { if (it.isOwnLibrary) 0 else 1 }.distinctBy { it.id.ifBlank { it.url } }
+        }
+    }
     // Cheap gate before the expensive one. Normalising and cleaning a title runs the best
     // part of a dozen regexes, and a merged catalogue runs to six figures of channels -
     // doing that for every candidate of every result is minutes of work, which is what left

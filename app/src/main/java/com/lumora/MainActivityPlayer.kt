@@ -137,6 +137,11 @@ internal fun MainActivity.setupPlayerControls() {
     binding.navSeries.setOnClickListener { onSideMenuSectionRowClicked(1) }
     binding.navFilms.setOnClickListener { onSideMenuSectionRowClicked(2) }
     binding.navDiscover.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; selectDiscover() }
+    // The browse screen's magnifier is behind the player, so this is the only way to search
+    // for something else without backing out of playback first. Same hand-off as the other
+    // section rows: drop the player (the search overlay renders in the content slot the
+    // player covers), then open search on the browse screen.
+    binding.navSearch.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; showSearchDialog() }
     binding.navDownloads.setOnClickListener { closeSideMenu(); hidePlayer(); showingHome = false; selectDownloads() }
     // Settings lives behind the browse screen's gear button, which the player covers -
     // this is the only way into it without backing out of playback by hand.
