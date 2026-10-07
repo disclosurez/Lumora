@@ -396,11 +396,17 @@ internal fun MainActivity.showStreamSearchDialog(
 
     val source = pluginScriptManager.readSource(plugin)
     val results = mutableListOf<TorrentResult>()
+    /** The in-flight resolve, so cancelling the dialog can actually stop it - see
+     *  setOnCancelListener below. */
+    var resolveJob: Job? = null
 
     fun playResult(result: TorrentResult) {
+        // A pick made while a previous resolve is still running supersedes it; two resolves
+        // racing would let the older one win the player with a stale URL.
+        resolveJob?.cancel()
         status.text = getString(R.string.plug_loading_title, result.title)
         resultsHost.removeAllViews()
-        scope.launch {
+        resolveJob = scope.launch {
             val resolved = if (plugin.resolvesNatively) {
                 // TorrentEngine.start calls onProgress from its IO thread, so the TextView
                 // update has to hop to the main thread.
@@ -410,6 +416,10 @@ internal fun MainActivity.showStreamSearchDialog(
             } else {
                 jsPluginEngine.resolve(source, result.token, season, episode)
             }
+            // Backed out while resolve ran (its own Cancel/Back path cancelled this job, but
+            // a resolve that completes in the same tick can still get here): starting
+            // playback now would pop a player over whatever the user moved on to.
+            if (!dialog.isShowing) return@launch
             when (resolved) {
                 is ResolveResult.Ready -> {
                     dialog.dismiss()
@@ -498,6 +508,10 @@ internal fun MainActivity.showStreamSearchDialog(
     }
     dialog.setOnCancelListener {
         searchJob.cancel()
+        // A JS resolve is a suspend call up to its own 5-minute timeout; cancelling it here
+        // is what stops it dismissing this dialog and starting playback after the user
+        // backed out (the dialog.isShowing guard in playResult covers the losing race).
+        resolveJob?.cancel()
         // A native-torrent resolve in progress won't stop on its own past this point (see
         // resolveTorrentStream's kdoc) - only reachable while it hasn't succeeded yet, since
         // a successful resolve already dismissed this dialog before the user could cancel it.
@@ -592,16 +606,10 @@ internal fun MainActivity.wirePluginsPane(dialogView: View) {
             return
         }
         scope.launch {
-            val text: String? = try {
-                withContext(Dispatchers.IO) {
-                    val request = Request.Builder().url(url).build()
-                    OkHttpClient().newCall(request).execute().use { resp ->
-                        if (resp.isSuccessful) resp.body?.string() else null
-                    }
-                }
-            } catch (e: Exception) {
-                null
-            }
+            // Through the store manager, so this shares the app-wide OkHttp client and its
+            // 8 MB response cap - the local OkHttpClient() this used to build gave each
+            // install its own connection pool and read the body unbounded.
+            val text: String? = pluginStoreManager.fetchScriptText(url)
             if (text.isNullOrBlank()) {
                 Toast.makeText(this@wirePluginsPane, getString(R.string.plug_couldnt_fetch_script), Toast.LENGTH_SHORT).show()
                 return@launch

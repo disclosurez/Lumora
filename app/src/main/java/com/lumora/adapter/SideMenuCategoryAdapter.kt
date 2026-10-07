@@ -192,11 +192,16 @@ class SideMenuCategoryAdapter(
                     if (current === category) renderNow(EpgListCache.peek(channelId))
                     return@launch
                 }
+                val generation = EpgListCache.generation
                 val programs = try {
                     fetch(channelId)
                 } catch (e: Exception) {
                     EpgListCache.clearInFlight(channelId)
                     throw e
+                }
+                if (generation != EpgListCache.generation) {
+                    EpgListCache.clearInFlight(channelId)
+                    return@launch
                 }
                 // Only a real result is cached. Caching an empty/failed fetch would mark the
                 // channel "no EPG" for the rest of the session - for the guide as well,

@@ -280,7 +280,15 @@ internal fun MainActivity.setupPlayerControls() {
             onCastSessionConnected = { _ ->
                 val channel = nowPlayingChannel
                 if (channel != null) {
-                    if (castChannel(channel, channel.name)) {
+                    // The catalog URL is stale for plugin/scraper streams (the real URL is
+                    // resolved at play time) and blank for Stalker VOD - casting it loads a
+                    // dead URL even though local playback is fine. Prefer what the player was
+                    // actually handed.
+                    val resolvedUrl = playerManager.lastResolvedStream?.url
+                    val castable = if (!resolvedUrl.isNullOrBlank() && resolvedUrl != channel.url) {
+                        channel.copy(url = resolvedUrl)
+                    } else channel
+                    if (castChannel(castable, channel.name)) {
                         playerManager.pause()
                     } else {
                         Toast.makeText(this@setupPlayerControls, getString(R.string.play_cast_failed), Toast.LENGTH_LONG).show()
@@ -683,6 +691,9 @@ internal fun MainActivity.showPlayerFor(
             RecentlyPlayedStore.recordPlayed(this, channel.id)
         }
         speedController.resetSpeed()
+        // The button label is otherwise only ever written by the speed dialog, so it kept
+        // showing a stale rate ("2.0x") while playback had been reset to 1x.
+        binding.btnSpeed.text = getString(R.string.play_speed_label, speedController.currentSpeed)
     }
 
     // Live channels get a square logo tile (fitCenter, so a wide/odd-aspect logo
@@ -797,10 +808,13 @@ internal fun MainActivity.showPlayerFor(
                     resolved,
                     STREAM_USER_AGENT,
                     audio = audio,
+                    // Seek-before-prepare, the same as every other resume path: seeking after
+                    // play() buffers from 0 first and then jumps, which is a visible stutter
+                    // and a wasted load for a Stalker resume.
+                    startPositionMs = resumeFromMs ?: 0L,
                     preferAudioLanguage = startVersion.mediaType != MediaType.LIVE
                 )
             }
-            resumeFromMs?.let { playerManager.seekTo(it) }
         }
         // Jellyfin VOD/episodes ask the server how to play them rather than assuming the
         // file is directly playable: `?static=true` hands the raw file over untouched, so
@@ -956,6 +970,10 @@ internal fun MainActivity.showPlayerFor(
                 subtitles = externalSubtitles,
                 headers = startVersion.streamHeaders,
                 audio = audio,
+                // Seek-before-prepare: a resume used to buffer from 0 and then seek once
+                // play() started, which stutters and re-loads the opening seconds for
+                // Xtream/M3U/Stalker copies (Jellyfin/Plex already pass this).
+                startPositionMs = resumeFromMs ?: 0L,
                 preferAudioLanguage = startVersion.mediaType != MediaType.LIVE,
                 maintainTokenQuery = maintainTokenQuery,
                 mimeType = mimeType,
@@ -965,7 +983,6 @@ internal fun MainActivity.showPlayerFor(
                     ?.takeIf { it == startVersion.id }
                     ?.let { HlsDownloads.offlineDataSourceFactory(this) }
             )
-            resumeFromMs?.let { playerManager.seekTo(it) }
         }
     }
 
@@ -1489,6 +1506,11 @@ internal suspend fun MainActivity.switchToSeriesVersion(
     val episodeNum = playing.episodeNum
     val seasonNum = seasonNumberOf(playing)
     val (_, seasons) = runCatching { loadSeriesContent(target) }.getOrElse { null to emptyList() }
+    // The fetch above is a real network round trip for a provider not yet loaded. If the
+    // user backed out of the player, or something else started playing, while it ran, this
+    // switch no longer has a stream to replace - unconditional showPlayerFor would resurrect
+    // playback of an episode the user left. Same stale-request guard every async play path uses.
+    if (!isPlayerVisible || nowPlayingChannel?.id != playing.id) return false
     // The target's own season number, taken from its episodes first (they carry the same
     // "S04E01" marker) and from the season label as the fallback, since a provider may label a
     // season anything ("Series 4", a Jellyfin custom name).
@@ -1739,6 +1761,10 @@ internal fun MainActivity.startBlackFrameWatch() {
     if (isDestroyed) return
     blackFrameStreak = 0
     lastBlackFrameLuma = null
+    // Per-stream latch: without this, a channel already dead when it starts never gets its
+    // "channel offline" toast, because the flag is still set from the previous dead stream
+    // and is only cleared by a frame that isn't black.
+    blackFrameOfflineNotified = false
     mainHandler.removeCallbacks(blackFrameCheckRunnable)
     mainHandler.postDelayed(blackFrameCheckRunnable, BLACK_FRAME_INITIAL_DELAY_MS)
 }
@@ -1879,7 +1905,15 @@ internal fun MainActivity.checkForPreviewBlackFrame() {
     previewVersionGroup.getOrNull(previewVersionIndex)?.let { markStreamDead(it) }
     var nextIndex = previewVersionIndex + 1
     while (nextIndex < previewVersionGroup.size && isStreamDead(previewVersionGroup[nextIndex])) nextIndex++
-    if (nextIndex >= previewVersionGroup.size) return // nothing else to try - leave it, stop watching
+    if (nextIndex >= previewVersionGroup.size) {
+        // Every version is dead. Clear the "which channel is loaded" latch so a later focus
+        // (or a re-entry into the pane) retries from the top once dead marks expire - leaving
+        // it set made requestPreviewLoad early-return for the same channel, so the pane sat
+        // black forever. Keep sampling so a version that recovers is still noticed.
+        previewChannelId = null
+        mainHandler.postDelayed(previewBlackFrameCheckRunnable, BLACK_FRAME_CHECK_INTERVAL_MS)
+        return
+    }
     previewVersionIndex = nextIndex
     val next = previewVersionGroup[nextIndex]
     ensurePreviewPlayer().playUrl(next.url, next.streamUserAgent)
@@ -2014,6 +2048,10 @@ internal fun MainActivity.hidePlayer() {
     // next player session's D-pad guards think an offer was on screen when none was, and
     // suppressed STATE_ENDED's auto-advance for it.
     cancelUpNext()
+    // A numeric entry still pending when the player closes would resolve ~1.5s later and
+    // re-open playback (resolveDigitInput -> playItem) over whatever the user moved to.
+    clearDigitBuffer()
+    hideNumericOverlay()
     // A "Resume playback?" prompt left up from the stream just closing is non-cancelable -
     // it would own the window (Back dead) and either answer would seek a stream that's gone.
     resumePromptDialog?.dismiss()

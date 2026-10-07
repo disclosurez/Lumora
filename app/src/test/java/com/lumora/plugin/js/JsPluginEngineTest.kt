@@ -213,8 +213,18 @@ class JsPluginEngineTest {
     @Test
     fun `httpGetAll honours per-request timeoutMs and keeps input order`() = runBlocking {
         val server = MockWebServer()
-        server.enqueue(MockResponse().setBody("ok"))
-        server.enqueue(MockResponse().setBody("late").setBodyDelay(3, TimeUnit.SECONDS))
+        // Dispatcher, not enqueue order: the two requests are submitted concurrently, and
+        // MockWebServer serves queued responses in arrival order - whichever request won the
+        // race would get the fast response, so the timed probe sometimes saw "ok" and passed
+        // or failed depending on scheduling. Path decides the response here.
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse =
+                if (request.path?.contains("slow") == true) {
+                    MockResponse().setBody("late").setBodyDelay(3, TimeUnit.SECONDS)
+                } else {
+                    MockResponse().setBody("ok")
+                }
+        }
         server.start()
         try {
             val engine = JsPluginEngine(OkHttpClient())

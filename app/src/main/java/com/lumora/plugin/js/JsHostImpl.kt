@@ -422,10 +422,19 @@ class JsHostImpl(
         Jsoup.parse(html)
     }
 
+    /**
+     * Every argument is read with `as?` rather than a hard cast: a script passing null,
+     * undefined or the result of a previous failed lookup (a common `selectText(selectFirst(...), ...)`
+     * chain) used to throw out of the host function, and a Kotlin exception there aborts the
+     * whole script run instead of surfacing as a JS-catchable error - the same contract the
+     * HTTP and crypto primitives follow. Missing/invalid arguments return null (empty array
+     * for [selectAll]), which scripts already null-check.
+     */
+
     /** Outer HTML of every element matching [selector], as a JS array of strings. */
     private fun selectAll(context: QuickJSContext, args: Array<out Any?>): JSArray {
-        val html = args[0] as String
-        val selector = args[1] as String
+        val html = (args.getOrNull(0) as? String).orEmpty()
+        val selector = args.getOrNull(1) as? String ?: return context.createNewJSArray()
         val elements = parseFragment(html).select(selector)
         val array = context.createNewJSArray()
         elements.forEachIndexed { i, el -> array.set(el.outerHtml(), i) }
@@ -433,41 +442,46 @@ class JsHostImpl(
     }
 
     private fun selectFirst(args: Array<out Any?>): String? {
-        val html = args[0] as String
-        val selector = args[1] as String
+        val html = args.getOrNull(0) as? String ?: return null
+        val selector = args.getOrNull(1) as? String ?: return null
         return parseFragment(html).select(selector).firstOrNull()?.outerHtml()
     }
 
     private fun selectText(args: Array<out Any?>): String? {
-        val html = args[0] as String
-        val selector = args[1] as String
+        val html = args.getOrNull(0) as? String ?: return null
+        val selector = args.getOrNull(1) as? String ?: return null
         return parseFragment(html).select(selector).firstOrNull()?.text()?.trim()
     }
 
     private fun selectAttr(args: Array<out Any?>): String? {
-        val html = args[0] as String
-        val selector = args[1] as String
-        val attr = args[2] as String
+        val html = args.getOrNull(0) as? String ?: return null
+        val selector = args.getOrNull(1) as? String ?: return null
+        val attr = args.getOrNull(2) as? String ?: return null
         return parseFragment(html).select(selector).firstOrNull()?.attr(attr)?.takeIf { it.isNotBlank() }
     }
 
     private fun selectTextAt(args: Array<out Any?>): String? {
-        val html = args[0] as String
-        val selector = args[1] as String
-        val index = (args[2] as Number).toInt()
+        val html = args.getOrNull(0) as? String ?: return null
+        val selector = args.getOrNull(1) as? String ?: return null
+        val index = (args.getOrNull(2) as? Number)?.toInt() ?: return null
         return parseFragment(html).select(selector).getOrNull(index)?.text()?.trim()
     }
 
     private fun selectAttrAt(args: Array<out Any?>): String? {
-        val html = args[0] as String
-        val selector = args[1] as String
-        val index = (args[2] as Number).toInt()
-        val attr = args[3] as String
+        val html = args.getOrNull(0) as? String ?: return null
+        val selector = args.getOrNull(1) as? String ?: return null
+        val index = (args.getOrNull(2) as? Number)?.toInt() ?: return null
+        val attr = args.getOrNull(3) as? String ?: return null
         return parseFragment(html).select(selector).getOrNull(index)?.attr(attr)?.takeIf { it.isNotBlank() }
     }
 
-    /** Text content of a whole HTML fragment (e.g. a single `<td>...</td>` pulled out via selectAll). */
-    private fun textOf(args: Array<out Any?>): String = Jsoup.parse(args[0] as String).text().trim()
+    /** Text content of a whole HTML fragment (e.g. a single `<td>...</td>` pulled out via selectAll).
+     *  parseFragment, not a bare Jsoup.parse: a `<td>`/`<tr>` fragment is exactly the
+     *  foster-parenting case that loses its text in a plain HTML5 parse (see [parseFragment]). */
+    private fun textOf(args: Array<out Any?>): String? {
+        val html = args.getOrNull(0) as? String ?: return null
+        return parseFragment(html).text().trim()
+    }
 
     companion object {
         private const val TAG = "PluginEngine"

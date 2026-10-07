@@ -189,6 +189,29 @@ internal fun MainActivity.isTypeAllowed(
     }
 }
 
+/** Every gate a cached catalog has to pass before it is shown: enabled owner (a disabled
+ *  provider's items must not survive in the cache), the global VOD switch, the per-provider
+ *  content types, and the plugin-content drop. The cache is saved unfiltered, so every read
+ *  of it - cold start and the failed-refresh fallback - applies this, or a provider/type
+ *  switched off since the cache was written resurrects until the next successful fetch.
+ *  Items with no owner (media-server/anime channels) skip the id check; [isTypeAllowed]
+ *  still validates their account. */
+internal fun MainActivity.filterCachedCatalog(
+    channels: List<Channel>,
+    typeGates: List<IptvProviderConfig> = IptvProviderStore.load(prefs),
+    serverGates: List<MediaServerConfig> = mediaServers()
+): List<Channel> {
+    val enabledIds = typeGates.filter { it.enabled }.map { it.id }.toSet()
+    val vodDisabled = isVodDisabled()
+    return dropDisabledPluginContent(
+        channels.filter { ch ->
+            (ch.sourceProviderId == null || ch.sourceProviderId in enabledIds) &&
+                (!vodDisabled || ch.mediaType == MediaType.LIVE) &&
+                isTypeAllowed(ch, typeGates, serverGates)
+        }
+    )
+}
+
 internal fun MainActivity.applySimpleModeUi() {
     val simple = isSimpleMode()
     // Chrome up = something to browse, so the tab bar would be showing in normal mode.
@@ -463,14 +486,11 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
                 // otherwise resurrect here (a cache saved with VOD on, for example).
                 // Both lists are read once, not per channel: each is a JSON parse, and this
                 // filter runs across a catalogue of tens of thousands of items.
-                val typeGates = IptvProviderStore.load(prefs)
-                val serverGates = mediaServers()
-                cached = if (isVodDisabled()) {
-                    cached.filter { it.mediaType == MediaType.LIVE && isTypeAllowed(it, typeGates, serverGates) }
-                } else {
-                    cached.filter { isTypeAllowed(it, typeGates, serverGates) }
-                }
-                cached = dropDisabledPluginContent(cached)
+                cached = filterCachedCatalog(
+                    cached,
+                    typeGates = IptvProviderStore.load(prefs),
+                    serverGates = mediaServers()
+                )
                 // Paint the cached catalog immediately (Live first, films/series in background),
                 // then only hit the network when the cache is stale - a non-stale cache returns
                 // here; a stale one falls through and refreshes silently under the content.
@@ -617,8 +637,11 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
         // whose fetches all failed - forceRefresh never loads `cached` up front, so fall back
         // to reading the disk cache here.
         if (combined.isEmpty()) {
+            // The disk fallback has to pass the same gates the cached cold start above does -
+            // the cache is saved unfiltered, so without them a total-failure refresh
+            // resurrected providers the user had switched off and VOD types they had gated.
             val fallback = (cached ?: withContext(Dispatchers.IO) { ChannelCache.load(this@loadAllConfiguredProviders) })
-                ?.let { dropDisabledPluginContent(it) }
+                ?.let { filterCachedCatalog(it) }
             if (!fallback.isNullOrEmpty()) {
                 allChannels = fallback
                 filmsSeriesDeriveJob?.cancel()
@@ -929,6 +952,10 @@ private fun MainActivity.doInstallPublicStreamingPlugins(onDone: () -> Unit) {
             return@launch
         }
         pluginScriptManager.discoverScripts()
+        // A scraper_sites script just installed is the gate on every built-in scraper site,
+        // and the manifest is only read at startup otherwise - without this the sites stay
+        // inactive for the rest of the session.
+        loadScraperSiteManifest()
         // The empty state was showing because there was nothing to browse - there is now,
         // so take the chrome (tab bar/search) out of its "nothing configured" hide before
         // handing off to the caller's destination.

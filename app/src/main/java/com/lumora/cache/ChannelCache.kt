@@ -12,6 +12,9 @@ private val FIELD_CLEAN_REGEX = Regex("[\n\r\u0001]")
 
 private const val TAG = "ChannelCache"
 private const val CACHE_FILE = "channels_cache.txt"
+
+/** Serializes [ChannelCache.save]; see the comment there. */
+private val SAVE_LOCK = Any()
 private const val LEGACY_JSON_CACHE_FILE = "channels_cache.json"
 private const val FIELD_SEP = ''
 /** Fields written per line. Append-only: new fields go at the end so older files stay
@@ -46,6 +49,10 @@ object ChannelCache {
      * A BufferedWriter holds only its buffer, whatever the catalogue's size.
      */
     fun save(context: Context, channels: List<Channel>) {
+        // Serialized: two persistCatalog callers (a provider load and a provider toggle) can
+        // run concurrently, and both write the same ".tmp" before renaming over the cache -
+        // interleaved, one's rename could swap in the other's half-written file.
+        synchronized(SAVE_LOCK) {
         try {
             val target = File(context.filesDir, CACHE_FILE)
             val tempFile = File(target.absolutePath + ".tmp")
@@ -108,6 +115,7 @@ object ChannelCache {
             runCatching { File(context.filesDir, LEGACY_JSON_CACHE_FILE).delete() }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save cache: ${e.message}")
+        }
         }
     }
 

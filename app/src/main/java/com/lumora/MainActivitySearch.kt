@@ -416,7 +416,11 @@ internal suspend fun MainActivity.buildEpgSearchResults(query: String, filter: M
         .toList()
     for (ch in toFetch) {
         if (results.size >= MAX_EPG_SEARCH_RESULTS) break
+        val generation = EpgListCache.generation
         val programs = resolveEpgPrograms(ch.id) ?: continue
+        // A provider reload while the fetch ran bumps the cache's generation: writing now
+        // would put the old provider's schedule into the fresh cache.
+        if (generation != EpgListCache.generation) continue
         // Share with the guide: the next time this row scrolls into view it's a cache hit.
         EpgListCache.put(ch.id, programs)
         addPrograms(ch, programs)

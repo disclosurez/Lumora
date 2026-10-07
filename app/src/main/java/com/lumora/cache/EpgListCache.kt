@@ -71,7 +71,18 @@ object EpgListCache {
         cache.clear()
         lastAccess.clear()
         cachedAt.clear()
+        // In-flight claims belong to fetches started before the reload; leaving them set made
+        // a suspended fetch resume and put() the old provider's schedule back after the clear.
+        // Callers also compare [generation] before their put() for the same reason.
+        inFlight.clear()
+        generation++
     }
+
+    /** Bumped by [clear]. A caller that starts a fetch outside the cache captures this before
+     *  fetching and skips its put() when it moved - see LiveGuideAdapter/SideMenuCategoryAdapter. */
+    @Volatile
+    var generation: Int = 0
+        private set
 
     /** Least-recently-used eviction: drops the entry that has gone longest without a get/put.
      *  Evicting by next-program start was evicting exactly the live channel the guide needs

@@ -856,6 +856,10 @@ class MainActivity : AppCompatActivity() {
     internal val digitInputBuffer = StringBuilder(6)
     internal var isDigitEntryActive = false
     internal val digitInputTimeoutRunnable = Runnable { resolveDigitInput() }
+    /** The "channel not found" flash's dismiss runnable. Tracked so a digit typed inside its
+     *  800 ms window cancels it - as an anonymous post it used to fire anyway and wipe the
+     *  new entry / hide the overlay mid-typing. */
+    internal var digitNotFoundRunnable: Runnable? = null
 
     // ── Up Next / Auto-Advance ──────────────────
     internal var upNextEpisode: Channel? = null

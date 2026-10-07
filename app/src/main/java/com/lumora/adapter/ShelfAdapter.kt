@@ -73,6 +73,10 @@ class ShelfAdapter(
             itemsList.layoutManager = LinearLayoutManager(itemView.context, LinearLayoutManager.HORIZONTAL, false)
             itemsList.setRecycledViewPool(sharedPosterPool)
             itemsList.adapter = posterAdapter
+            // Read live at key-press time, not set from bind(): a DiffUtil move can promote
+            // this shelf to position 0 without rebinding it, and a bind-time flag then left
+            // its posters' D-pad UP dead-ending (see the listener below).
+            posterAdapter.isTopShelfProvider = { bindingAdapterPosition == 0 }
             seeAllButton.setOnClickListener { current?.let(onSeeAllClick) }
             pinButton.setOnClickListener { current?.let(onPinClick) }
             hideButton.setOnClickListener { current?.let(onHideClick) }
@@ -98,7 +102,6 @@ class ShelfAdapter(
                 pinButton.visibility = View.GONE
             }
             posterAdapter.topRowFocusUpTargetId = topRowFocusUpTargetId
-            posterAdapter.isTopShelf = bindingAdapterPosition == 0
             posterAdapter.submitList(shelf.items)
         }
     }
@@ -115,7 +118,10 @@ private class ShelfPosterAdapter(
 ) : ListAdapter<Channel, ShelfPosterAdapter.ViewHolder>(DiffCallback()) {
 
     var topRowFocusUpTargetId: Int = View.NO_ID
-    var isTopShelf: Boolean = false
+    /** Whether this shelf currently sits at the top of the outer list, resolved live by the
+     *  owning shelf holder - a DiffUtil move does not rebind the moved shelf, so a value
+     *  captured at bind time goes stale and swallows UP. */
+    var isTopShelfProvider: () -> Boolean = { false }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -156,7 +162,7 @@ private class ShelfPosterAdapter(
             itemView.setOnKeyListener { v, keyCode, event ->
                 if (event.action == android.view.KeyEvent.ACTION_DOWN &&
                     keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
-                    isTopShelf
+                    isTopShelfProvider()
                 ) {
                     val root = v.rootView
                     // Home's search bar sits directly above the shelves when visible -

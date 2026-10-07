@@ -263,6 +263,10 @@ internal fun MainActivity.releaseLivePreview() {
 // ── Numeric Remote Input ──────────────────────
 internal fun MainActivity.handleDigitInput(digit: Int) {
     if (digitInputBuffer.length >= 6) return
+    // A running "not found" flash is about the previous entry - cancel it before the new
+    // digit lands, or it fires mid-typing and wipes what the user just pressed.
+    digitNotFoundRunnable?.let { mainHandler.removeCallbacks(it) }
+    digitNotFoundRunnable = null
     digitInputBuffer.append(digit)
     isDigitEntryActive = true
     showNumericOverlay()
@@ -283,10 +287,19 @@ internal fun MainActivity.resolveDigitInput() {
         clearDigitBuffer()
         playItem(match)
     } else {
-        // Flash "not found" briefly on the overlay, then dismiss
+        // Flash "not found" briefly on the overlay, then dismiss. Held in a field so a new
+        // digit (or closing the player) can cancel it rather than let it fire against a
+        // buffer it no longer owns.
         binding.numericInputChannelName.text = getString(R.string.play_not_found)
         binding.numericInputChannelName.visibility = View.VISIBLE
-        mainHandler.postDelayed({ hideNumericOverlay(); clearDigitBuffer() }, 800)
+        val dismiss = Runnable {
+            digitNotFoundRunnable = null
+            hideNumericOverlay()
+            clearDigitBuffer()
+        }
+        digitNotFoundRunnable?.let { mainHandler.removeCallbacks(it) }
+        digitNotFoundRunnable = dismiss
+        mainHandler.postDelayed(dismiss, 800)
     }
 }
 
@@ -305,6 +318,8 @@ internal fun MainActivity.clearDigitBuffer() {
     digitInputBuffer.clear()
     isDigitEntryActive = false
     mainHandler.removeCallbacks(digitInputTimeoutRunnable)
+    digitNotFoundRunnable?.let { mainHandler.removeCallbacks(it) }
+    digitNotFoundRunnable = null
 }
 
 // ── Up Next / Auto-Advance ────────────────────
