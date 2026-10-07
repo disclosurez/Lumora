@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.8
+
+### Playback
+- **TV playback no longer freezes with audio only after using the player controls (issue #12).** The fullscreen player handed its `SurfaceView` surface to the player once per stream, and Media3 never re-attaches a surface it was given. On TV firmware that destroys and recreates the surface - a control dialog taking the foreground, backgrounding, an HDMI input switch - the picture stayed gone while audio kept playing, and only starting another stream (or force-stopping) recovered it. The surface is now re-armed on every recreation and cleared on destruction, and the black-frame watchdog skips an invalid surface instead of silently ending its own checks.
+- **The Up Next card is navigable again.** While the card was showing, any D-pad press was consumed by the controls reveal, which also hides the card - so DOWN opened the play/pause bar and Cancel could never be selected. The card now owns the D-pad while it is up, DOWN/UP move between Play Now and Cancel, and the card is smaller (240dp, tighter padding and type).
+- **Favourites in the player's left menu lists the actual favourites.** The Live rail's Favourites row is store-backed and carries no category ids, so the flyout resolved it to nothing and closed the player instead of showing what was in it. It now resolves from the favourites store like the main screen does.
+
+### Plugins
+- **Plugin networking works on Android 7.1 and other pre-Android-13 devices.** The plugin host read response bodies with an API 33 method, so on older Android every plugin HTTP call failed - which is what made the Reddit scanner report "No paste links found" with OAuth status 0. Bodies are decoded by charset name now.
+- **Discovery runs finish instead of being killed mid-test.** `host.httpGet`/`httpPost`/`httpGetAll` accept a per-request timeout, the Reddit scanner's credential probes use it to fail dead hosts fast, and a discovery run is allowed five minutes rather than three.
+- **The PBKDF2-SHA512 primitive works below Android 8**, where the platform has no such algorithm; the host derives it manually with HMAC-SHA512.
+- **Installing or updating a plugin no longer switches it on.** The "first install enables" branch decided that from an in-memory cache that is empty until discovery runs and stale after any change, so store installs, updates and add-from-URL could silently re-enable a plugin the user had switched off (the anime plugin kept reappearing). Enabling is the plugin page's toggle; the public-content onboarding, an explicit choice, enables the scripts it installs itself.
+- **Adding a provider from a discovery plugin keeps you on the plugin page** so more candidates can be added, with focus moving to the next Add button.
+
+### Discover
+- **Source badges match by TMDB id, not just title and year.** A Jellyfin library that names a film differently - a localized title, a working title, metadata year drift - was never matched, so a title the user owns showed no "Jellyfin" badge. Discover tiles stamp the id they were fetched by, Jellyfin items carry their server's `ProviderIds.Tmdb`, and the title/year scan is now only the fallback.
+
 ## 4.7.3
 
 ### Android Auto
