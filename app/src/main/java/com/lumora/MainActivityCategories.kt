@@ -2067,6 +2067,17 @@ internal fun MainActivity.onSideMenuCategoryClicked(category: CategoryFilter) {
 internal fun MainActivity.resolveSideMenuCategoryItems(tab: Int, category: CategoryFilter): List<Channel> {
     val source = fullListForTab(tab)
     if (category.id == null) return source
+    // Favourites is store-backed, not id-backed: the Live rail builds that synthetic row
+    // with no channelIds and no matchIds (the main screen's applyCategoryFilter has its own
+    // FAVOURITES_CATEGORY_ID branch), so the generic branches below resolved it to nothing.
+    // The player's flyout then fell through to the "nothing resolved" path, which closed the
+    // player and left the user unable to see what was in Favourites at all. Resolve it from
+    // the favourites store, the same way the main screen does, so the column lists them.
+    if (category.id == FAVOURITES_CATEGORY_ID) {
+        val favIds = if (tab == 0) FavoritesStore.getFavoriteChannelIds(this)
+        else FavoritesStore.getFavoriteSeriesIds(this)
+        return source.filter { it.id in favIds }
+    }
     return if (category.channelIds.isNotEmpty()) {
         source.filter { it.id in category.channelIds }
     } else {
