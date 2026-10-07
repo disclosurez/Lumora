@@ -46,7 +46,7 @@ class LumoraMediaService : MediaLibraryService() {
 
     private lateinit var player: ExoPlayer
     private lateinit var session: MediaLibrarySession
-    private lateinit var catalog: CarPlayback
+    private val catalog by lazy { CarPlayback(this) }
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** mediaId -> channel, filled as the tree is browsed so playback can resolve an id back
@@ -72,13 +72,6 @@ class LumoraMediaService : MediaLibraryService() {
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
             .build()
-
-        // Constructed on the service main thread, not lazily from a browse callback:
-        // CarPlayback builds an ExoPlayer, and ExoPlayer refuses to be created or driven
-        // off the thread that owns it. The lazy initializer this replaced ran inside
-        // asyncIo (Dispatchers.IO) on the first onGetLibraryRoot and threw
-        // "Player is accessed on the wrong thread", failing the whole browse connection.
-        catalog = CarPlayback(this)
 
         session = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
     }
@@ -150,7 +143,7 @@ class LumoraMediaService : MediaLibraryService() {
                     parentId == RECENT -> catalog.recents().map(::playableItem)
                     parentId.startsWith(CATEGORY_PREFIX) -> {
                         val name = parentId.removePrefix(CATEGORY_PREFIX)
-                        catalog.categories(catalog.live)[name].orEmpty().map(::playableItem)
+                        catalog.categories()[name].orEmpty().map(::playableItem)
                     }
                     else -> emptyList()
                 }
@@ -226,14 +219,14 @@ class LumoraMediaService : MediaLibraryService() {
     private fun matches(query: String): List<Channel> {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) return emptyList()
-        return catalog.live.filter { it.name.lowercase().contains(needle) }.take(50)
+        return catalog.channels.filter { it.name.lowercase().contains(needle) }.take(50)
     }
 
     private fun rootChildren(): List<MediaItem> {
         val items = mutableListOf<MediaItem>()
         if (catalog.favourites().isNotEmpty()) items += browsableItem(FAVOURITES, "Favourites")
         if (catalog.recents().isNotEmpty()) items += browsableItem(RECENT, "Recent")
-        for (category in catalog.categories(catalog.live).keys) {
+        for (category in catalog.categories().keys) {
             items += browsableItem(CATEGORY_PREFIX + category, category)
         }
         return items

@@ -956,7 +956,7 @@ internal fun MainActivity.showProviderSettings() {
         }
     }
 
-    fun closeIptvForm(focusAddButton: Boolean = true) {
+    fun closeIptvForm() {
         editingProviderId = null
         editingMediaServerId = null
         currentType = null
@@ -969,10 +969,7 @@ internal fun MainActivity.showProviderSettings() {
         iptvListSection.visibility = View.VISIBLE
         if (serverRunning) stopQrServer()
         // Cancel (or whatever field was focused) is inside the section just hidden.
-        // A caller that is about to move focus elsewhere itself (the plugin-add jump to the
-        // Providers pane) passes false, so the posted focus here can't yank it back a frame
-        // later onto the Add button.
-        if (focusAddButton) focusWhenReady(addIptvProviderButton)
+        focusWhenReady(addIptvProviderButton)
     }
 
     // Adding new (existing == null) always starts on the type picker with every
@@ -1511,10 +1508,11 @@ internal fun MainActivity.showProviderSettings() {
         // rail's own listener, which opens either the list or a specific plugin's page.
         openPluginId = null
         dialogView.findViewById<View>(R.id.panePluginDetail)?.visibility = View.GONE
-        // Reachable from code, not just a rail click (e.g. onProviderAdded() jumping here
-        // after a plugin candidate is added) - without this the D-pad's focus is left on
-        // whatever view triggered the jump, which has often just been removed from the
-        // tree by the same re-render, leaving nothing focused and the remote stuck.
+        // Reachable from code, not just a rail click (e.g. the nav rail's plugin dropdown
+        // opening a plugin's page, or the first-run chooser landing on Providers) - without
+        // this the D-pad's focus is left on whatever view triggered the jump, which has
+        // often just been removed from the tree by the same re-render, leaving nothing
+        // focused and the remote stuck.
         // With the rail collapsed the row is gone - leave focus where it is (the expand
         // pill) rather than requesting focus on a GONE view, which silently does nothing.
         if (!isSettingsRailCollapsed()) navRows[index].first.requestFocus()
@@ -1567,14 +1565,10 @@ internal fun MainActivity.showProviderSettings() {
     }
     refreshDownloadsList()
 
-    // The add-provider form is auto-opened on a fresh install (no providers at all), which
-    // hides the provider list. A plugin candidate added from the Plugins pane refreshes that
-    // list and jumps here - close the form first, or the list (with the new row in it) stays
-    // hidden behind it and the provider looks like it was never added.
-    wirePluginsPane(dialogView) {
-        closeIptvForm(focusAddButton = false)
-        selectSection(1)
-    }
+    // Adding a plugin candidate no longer jumps to the Providers pane (a scan can propose
+    // several working providers and the user adds them one after another from the plugin
+    // page), so the auto-opened add-provider form is left as it is.
+    wirePluginsPane(dialogView)
     // After wirePluginsPane: the child rows drive the pane through revealPluginInPane,
     // with the plugin list itself left at its previous section.
     wirePluginNavRows(dialogView) { selectSection(7) }

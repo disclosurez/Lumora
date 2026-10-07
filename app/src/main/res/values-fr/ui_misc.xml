@@ -2,9 +2,6 @@
 <resources>
     <!-- Android Auto / car screens -->
     <string name="ui_car_no_channels">Aucune chaîne en cache. Ouvrez Lumora une fois sur votre téléphone pour charger vos fournisseurs.</string>
-    <string name="ui_car_media_label">Lumora Média</string>
-    <string name="ui_car_item_count">%1$d éléments</string>
-    <string name="ui_car_tab_empty">Rien ici pour le moment</string>
     <!-- Car keep-alive foreground service (auto/CarForegroundService.kt) -->
     <string name="ui_car_keep_alive_channel">Connexion voiture</string>
     <string name="ui_car_keep_alive_channel_desc">Maintient Lumora actif pendant que l\'écran de la voiture est connecté</string>

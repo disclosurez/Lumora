@@ -25,7 +25,6 @@ class CarPlayback(private val context: Context) {
 
     private val player = PlayerManager(context)
 
-    /** Everything cached that the car session can play, of every media type. */
     var channels: List<Channel> = emptyList()
         private set
 
@@ -34,26 +33,21 @@ class CarPlayback(private val context: Context) {
 
     val isPlaying: Boolean get() = player.isPlaying
 
-    /** The three shelves the car home is built from. */
-    val live: List<Channel> get() = channels.filter { it.mediaType == MediaType.LIVE }
-    val movies: List<Channel> get() = channels.filter { it.mediaType == MediaType.MOVIE }
-    val series: List<Channel> get() = channels.filter { it.mediaType == MediaType.SERIES }
-
     /**
-     * Live channels, films and series episodes that can be played from a URL alone. Stalker
-     * commands, plugin tokens and the media servers' negotiated streams (Jellyfin, Plex) all
-     * need a round trip through code that lives in the Activity, so they are left out rather
-     * than offered as rows that fail on tap.
+     * Live channels that can be played from a URL alone. Stalker commands, plugin tokens and
+     * the media servers' negotiated streams (Jellyfin, Plex) all need a round trip through
+     * code that lives in the Activity, so they are left out rather than offered as rows that
+     * fail on tap. Plex additionally has no live channels at all - see MainActivityPlex.
      *
-     * Synchronized: Media-browse callbacks load this on background threads, and concurrent
+     * Synchronized: Media-browse callbacks now load this on background threads, and concurrent
      * calls must not double-read the disk cache or interleave writes to [channels].
      */
     @Synchronized
     fun loadCatalog(): List<Channel> {
         val cached = ChannelCache.load(context).orEmpty()
         channels = cached.filter {
-            it.url.isNotBlank() && it.stalkerCmd.isNullOrBlank() &&
-                it.pluginToken.isNullOrBlank() && !it.isJellyfin && !it.isPlex
+            it.mediaType == MediaType.LIVE && it.url.isNotBlank() &&
+                it.stalkerCmd.isNullOrBlank() && it.pluginToken.isNullOrBlank()
         }
         return channels
     }
@@ -70,10 +64,10 @@ class CarPlayback(private val context: Context) {
         return ids.mapNotNull { byId[it] }.take(limit)
     }
 
-    /** Category name -> channels, for the browse lists. Uncategorised channels are grouped
+    /** Category name -> channels, for the browse list. Uncategorised channels are grouped
      *  under one heading rather than dropped. */
-    fun categories(items: List<Channel> = channels): Map<String, List<Channel>> =
-        items.groupBy { it.categoryName?.takeIf { name -> name.isNotBlank() } ?: context.getString(com.lumora.R.string.ui_other) }
+    fun categories(): Map<String, List<Channel>> =
+        channels.groupBy { it.categoryName?.takeIf { name -> name.isNotBlank() } ?: context.getString(com.lumora.R.string.ui_other) }
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
 
     fun play(channel: Channel) {

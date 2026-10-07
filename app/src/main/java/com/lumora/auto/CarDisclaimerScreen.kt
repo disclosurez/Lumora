@@ -25,7 +25,7 @@ class CarDisclaimerScreen(
     override fun onGetTemplate(): Template =
         disclaimerTemplate(carContext) {
             session.disclaimerAccepted = true
-            screenManager.push(CarHomeScreen(carContext, session))
+            screenManager.push(CarBrowseScreen(carContext, session))
         }
 }
 

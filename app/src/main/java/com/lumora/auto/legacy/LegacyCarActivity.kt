@@ -137,11 +137,10 @@ class LegacyCarActivity : CarActivity() {
 
     private fun loadCatalog() {
         Thread {
-            playback.loadCatalog()
-            val live = playback.live
+            val loaded = playback.loadCatalog()
             mainHandler.post {
                 channels.clear()
-                channels.addAll(live)
+                channels.addAll(loaded)
                 if (channels.isEmpty()) {
                     emptyView.setText(R.string.ui_car_no_channels)
                     emptyView.visibility = View.VISIBLE

@@ -520,8 +520,12 @@ internal fun MainActivity.showStreamSearchDialog(
  * and credentials to point this app at: no proposal is written to the provider list without
  * a per-item confirmation naming which plugin it came from. [com.lumora.plugin.js.JsHostImpl]
  * does the field validation before any of this sees a candidate.
+ *
+ * Adding a candidate keeps the user on the plugin's page - a scan usually proposes several
+ * working providers, and the page is the only place its remaining results exist - so nothing
+ * here navigates away.
  */
-internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () -> Unit = {}) {
+internal fun MainActivity.wirePluginsPane(dialogView: View) {
     val listContainer = dialogView.findViewById<LinearLayout>(R.id.settingsPluginList)
     val listEmpty = dialogView.findViewById<View>(R.id.settingsPluginListEmpty)
     val manager = pluginScriptManager
@@ -700,12 +704,19 @@ internal fun MainActivity.wirePluginsPane(dialogView: View, onProviderAdded: () 
                     } catch (_: Exception) {
                         // A malformed candidate (blank URL, missing credentials) can crash
                         // the provider load. The upsert already succeeded; don't let the
-                        // crash abort the UI navigation that shows the user where it landed.
+                        // crash abort the rest of the page.
                     }
-                    // The user was on this plugin's page when they tapped Add; the providers
-                    // list they actually want to see is in the Providers pane, so jump there
-                    // rather than leaving them staring at the now-empty "Added" button.
-                    onProviderAdded()
+                    // Deliberately stay on this page - the whole point of a scan that finds
+                    // several working providers is adding more than one, and jumping to the
+                    // Providers pane after every tap made the rest unreachable without
+                    // navigating back. Keep the D-pad alive instead: this row's Add button
+                    // was just taken out of focus, so hand focus to the next row that still
+                    // has an actionable Add, or to Back when this was the last one.
+                    val rowIndex = candidateList.indexOfChild(row)
+                    val nextAdd = (rowIndex + 1 until candidateList.childCount)
+                        .map { candidateList.getChildAt(it).findViewById<View>(R.id.candidateAddButton) }
+                        .firstOrNull { it != null && it.isEnabled && it.isFocusable }
+                    (nextAdd ?: detailBack)?.requestFocus()
                 }
                 .setNegativeButton(getString(R.string.cancel), null)
                 .show()

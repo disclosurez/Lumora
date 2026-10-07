@@ -2,14 +2,6 @@
 <resources>
     <!-- Android Auto / car screens -->
     <string name="ui_car_no_channels">No channels cached yet. Open Lumora on your phone once so it can load your providers.</string>
-    <!-- Label of the media-browse car face (auto/LumoraMediaService.kt). Deliberately distinct
-         from app_name: the car launcher shows the media service and the legacy projection
-         service as two tiles, and identical labels made the IPTV player tile impossible to
-         tell from the empty media one. -->
-    <string name="ui_car_media_label">Lumora Media</string>
-    <!-- Car home tabs (auto/CarHomeScreen.kt) -->
-    <string name="ui_car_item_count">%1$d items</string>
-    <string name="ui_car_tab_empty">Nothing here yet</string>
     <!-- Car keep-alive foreground service (auto/CarForegroundService.kt) -->
     <string name="ui_car_keep_alive_channel">Car connection</string>
     <string name="ui_car_keep_alive_channel_desc">Keeps Lumora running while the car screen is connected</string>
