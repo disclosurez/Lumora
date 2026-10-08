@@ -467,18 +467,28 @@ button:active{background:#1565c0}
 </form>
 </main>
 <script>
+/* Inactive groups are hidden with display:none, and a required control inside
+   one is unfocusable: the browser aborts the submit with no visible message
+   ("An invalid form control ... is not focusable"), which silently broke every
+   type except Silo once the Silo fields gained required. Disabling an inactive
+   group's controls clears them from constraint validation and keeps them out
+   of the POST; the active type's own required fields still validate normally. */
+function syncEnabledFields(){document.querySelectorAll('.field-group').forEach(function(g){
+var on=g.classList.contains('active')&&!g.parentElement.closest('.field-group:not(.active)');
+g.querySelectorAll('input,select,textarea').forEach(function(i){i.disabled=!on;});});}
 function updateType(){const t=document.getElementById('type').value;
 document.getElementById('m3uFields').classList.toggle('active',t==='m3u');
 document.getElementById('xtreamFields').classList.toggle('active',t==='xtream');
 document.getElementById('stalkerFields').classList.toggle('active',t==='stalker');
 document.getElementById('jellyfinFields').classList.toggle('active',t==='jellyfin');
 document.getElementById('siloFields').classList.toggle('active',t==='silo');
-document.getElementById('plexFields').classList.toggle('active',t==='plex');}
+document.getElementById('plexFields').classList.toggle('active',t==='plex');syncEnabledFields();}
 function genMac(){function o(){return('0'+Math.floor(Math.random()*256).toString(16).toUpperCase()).slice(-2);}
 document.getElementById('stalkerMac').value='00:1A:79:'+o()+':'+o()+':'+o();}
 function updateAuthMethod(){const m=document.getElementById('authMethod').value;
 document.getElementById('jellyfinPasswordFields').classList.toggle('active',m==='password');
-document.getElementById('jellyfinQuickConnectHint').classList.toggle('active',m==='quickconnect');}
+document.getElementById('jellyfinQuickConnectHint').classList.toggle('active',m==='quickconnect');syncEnabledFields();}
+syncEnabledFields();
 </script>
 </body></html>
 """.trimIndent()
