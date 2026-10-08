@@ -70,6 +70,14 @@ android {
         //   tmdbApiKeys=key1,key2,key3
         // or TMDB_API_KEYS in the environment.
         buildConfigField("String", "TMDB_API_KEYS", credentialField("tmdbApiKeys", "TMDB_API_KEYS"))
+
+        // Simkl app client id, used as both the OAuth public client and the simkl-api-key
+        // header. Simkl's PIN flow is a public-client flow, so there is no secret to carry;
+        // the id alone is enough. Same graceful absence as Trakt: without it the Simkl pane
+        // reports the build as unconfigured and every call no-ops.
+        //   simklClientId=...
+        // or SIMKL_CLIENT_ID in the environment.
+        buildConfigField("String", "SIMKL_CLIENT_ID", credentialField("simklClientId", "SIMKL_CLIENT_ID"))
     }
 
     signingConfigs {

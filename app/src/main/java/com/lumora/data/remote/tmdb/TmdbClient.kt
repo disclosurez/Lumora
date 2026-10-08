@@ -176,9 +176,26 @@ class TmdbClient {
             parse(body, forcedType = if (isSeries) "tv" else "movie")
         }
 
+    /**
+     * The title's IMDb id (`tt...`), from TMDB's external_ids endpoint - the key the Stremio
+     * subtitle addon is queried with. Cached per title for the process, same as the other
+     * per-title lookups; null when TMDB has no IMDb id or the request fails.
+     */
+    suspend fun imdbId(tmdbId: Int, isSeries: Boolean): String? {
+        if (tmdbId <= 0) return null
+        val cacheKey = "imdb:$tmdbId:$isSeries"
+        imdbCache[cacheKey]?.let { return it.value }
+        val parsed = withContext(Dispatchers.IO) {
+            val path = if (isSeries) "/tv/$tmdbId/external_ids" else "/movie/$tmdbId/external_ids"
+            val body = fetchBody(path, "") ?: return@withContext null
+            JSONObject(body).optStringOrNull("imdb_id")
+        }
+        imdbCache[cacheKey] = BoxedImdb(parsed)
+        return parsed
+    }
+
     /** Seasons of a TV show (season 0 / specials dropped), for the episode picker. */
-    suspend fun tvSeasons(tvId: Int): List<TvSeason> = withContext(Dispatchers.IO) {
-        val body = fetchBody("/tv/$tvId", "language=$languageTag") ?: return@withContext emptyList()
+    suspend fun tvSeasons(tvId: Int): List<TvSeason> = withContext(Dispatchers.IO) {        val body = fetchBody("/tv/$tvId", "language=$languageTag") ?: return@withContext emptyList()
         val arr = JSONObject(body).optJSONArray("seasons") ?: return@withContext emptyList()
         val out = ArrayList<TvSeason>(arr.length())
         for (i in 0 until arr.length()) {
@@ -384,8 +401,12 @@ class TmdbClient {
      *  has to be wrapped to be cacheable at all. */
     private class Boxed(val value: TitleDetails?)
 
+    /** Same wrapping for the nullable IMDb-id cache. */
+    private class BoxedImdb(val value: String?)
+
     private val episodeCache = java.util.concurrent.ConcurrentHashMap<String, Map<Int, TvEpisode>>()
     private val titleCache = java.util.concurrent.ConcurrentHashMap<String, Boxed>()
+    private val imdbCache = java.util.concurrent.ConcurrentHashMap<String, BoxedImdb>()
 
     companion object {
         /**

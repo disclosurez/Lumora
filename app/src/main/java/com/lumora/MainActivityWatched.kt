@@ -215,6 +215,8 @@ internal fun MainActivity.setItemWatched(
         // Continue Watching to keep offering.
         pushWatchedToTrakt(item, watched)
         if (!watched) traktRemovePlayback(listOf(item))
+        // Simkl gets the same mark under its own toggle (and un-ticks whenever signed in).
+        pushWatchedToSimkl(item, watched)
     }
 }
 

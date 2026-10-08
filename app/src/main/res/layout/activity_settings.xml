@@ -145,6 +145,21 @@
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/trakt" />
                 </LinearLayout>
 
+                <LinearLayout android:id="@+id/navDebrid" style="@style/Widget.Lumora.SettingsNavRow" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_downloads" android:tint="@color/nav_icon_tint" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/debrid" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/navSimkl" style="@style/Widget.Lumora.SettingsNavRow" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_about" android:tint="@color/nav_icon_tint" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/simkl" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/navDiagnostics" style="@style/Widget.Lumora.SettingsNavRow" android:background="@drawable/nav_rail_item_glass">
+                    <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_privacy" android:tint="@color/nav_icon_tint" />
+                    <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/diagnostics" />
+                </LinearLayout>
+
                 <LinearLayout android:id="@+id/navSites" style="@style/Widget.Lumora.SettingsNavRow" android:background="@drawable/nav_rail_item_glass">
                     <ImageView android:layout_width="@dimen/settings_nav_icon_size" android:layout_height="@dimen/settings_nav_icon_size" android:src="@drawable/ic_providers" android:tint="@color/nav_icon_tint" />
                     <TextView style="@style/Widget.Lumora.SettingsNavLabel" android:text="@string/scraper_settings_title" />
@@ -1609,6 +1624,318 @@
                     android:stateListAnimator="@animator/focus_scale_flat"
                     android:visibility="gone">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/trakt_sign_out" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Pane: Debrid. One service at a time, one key - see DebridStore. The key is
+                 pasted from the service's own account page; it is only ever sent to that
+                 service, and the pane says whether verification reached it. -->
+            <LinearLayout
+                android:id="@+id/paneDebrid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/debrid" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap_s"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:text="@string/debrid_pane_caption"
+                    style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <TextView
+                    android:id="@+id/debridStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_regular" />
+
+                <LinearLayout
+                    android:id="@+id/debridServiceRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+                    <TextView
+                        android:id="@+id/debridServiceLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/debrid_none"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/settings_text_body"
+                        android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/debridApiKey"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:background="@drawable/bg_input"
+                    android:hint="@string/debrid_key_hint"
+                    android:imeOptions="actionDone"
+                    android:importantForAutofill="no"
+                    android:inputType="textNoSuggestions"
+                    android:padding="@dimen/settings_gap_l"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_tertiary"
+                    android:textSize="@dimen/settings_text_body" />
+
+                <LinearLayout
+                    android:id="@+id/debridSaveRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/debrid_save" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/debridClearRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/debrid_clear" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Pane: Simkl. Same three states as the Trakt pane next to it (unconfigured
+                 build / signed out / connected); the PIN flow and toggles mirror Trakt's. -->
+            <LinearLayout
+                android:id="@+id/paneSimkl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/simkl" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap_s"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:text="@string/simkl_pane_caption"
+                    style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <TextView
+                    android:id="@+id/simklStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_regular" />
+
+                <TextView
+                    android:id="@+id/simklCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:gravity="center"
+                    android:letterSpacing="0.25"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_title"
+                    android:fontFamily="@font/inter_medium"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/simklQr"
+                    android:layout_width="200dp"
+                    android:layout_height="200dp"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:contentDescription="@null"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/simklSignInRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/simkl_connect" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+
+                <CheckBox
+                    android:id="@+id/simklScrobbleCheck"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/simkl_scrobble"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium"
+                    android:visibility="gone" />
+
+                <CheckBox
+                    android:id="@+id/simklWatchedSyncCheck"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/simkl_watched_sync"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/simklSyncNowRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/simkl_sync_now" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/simklSignOutRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/simkl_sign_out" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Pane: Diagnostics. Crash reports + session log, both local-only, shared to a
+                 phone by QR (see MainActivityDiagnostics). -->
+            <LinearLayout
+                android:id="@+id/paneDiagnostics"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/diagnostics" style="@style/TextAppearance.Lumora.SettingsTitle" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/settings_gap_s"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:text="@string/diag_caption"
+                    style="@style/TextAppearance.Lumora.SettingsSubtitle" />
+
+                <TextView
+                    android:id="@+id/diagStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_regular" />
+
+                <CheckBox
+                    android:id="@+id/diagCrashCheck"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/diag_save_crashes"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
+
+                <CheckBox
+                    android:id="@+id/diagLogCheck"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_l"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:stateListAnimator="@animator/focus_scale_flat"
+                    android:text="@string/diag_record_log"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/settings_text_body"
+                    android:fontFamily="@font/inter_medium" />
+
+                <LinearLayout
+                    android:id="@+id/diagQrRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/settings_gap_s"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/diag_share" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/diagClearRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingVertical="@dimen/settings_row_padding_vertical"
+                    android:background="@drawable/card_surface_background"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:stateListAnimator="@animator/focus_scale_flat">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/diag_clear" android:textColor="@color/text_primary" android:textSize="@dimen/settings_text_body" android:fontFamily="@font/inter_medium" />
                 </LinearLayout>
             </LinearLayout>
 

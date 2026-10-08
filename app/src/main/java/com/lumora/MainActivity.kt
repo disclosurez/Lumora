@@ -93,6 +93,23 @@ internal const val PREF_SUBTITLES_WITH_DUB = "subtitles_with_dub"
 // Sidecar subtitles are opt-in: off by default, and PlayerManager reads this to decide
 // whether DEFAULT-flagged subtitle tracks auto-select on playback.
 internal const val PREF_SUBTITLES_ENABLED = "subtitles_enabled"
+/** IntroDB skip segments (intro/recap/credits). [PREF_SKIP_SEGMENTS] shows the skip button
+ *  at all; [PREF_SKIP_AUTO] additionally seeks past intros/recaps automatically. Manual
+ *  button on, auto-skip off: skipping an intro moves the stream, and an automatic seek a
+ *  viewer didn't ask for is the kind of surprise a preference has to gate. */
+internal const val PREF_SKIP_SEGMENTS = "skip_segments_enabled"
+internal const val PREF_SKIP_AUTO = "skip_segments_auto"
+/** Subtitle text size for the player: 0 small, 1 medium (default), 2 large. */
+internal const val PREF_SUBTITLE_SIZE = "subtitle_text_size"
+/** Optional API keys for the name-keyed subtitle providers (see SubtitleSearch). Empty/absent
+ *  means that provider is simply not asked; OpenSubtitles needs no key at all. */
+internal const val PREF_SUBDL_KEY = "subtitle_subdl_key"
+internal const val PREF_WYZIE_KEY = "subtitle_wyzie_key"
+/** How many releases behind the latest an install may fall before the app blocks itself
+ *  behind a mandatory-update screen (see MainActivity.showForceUpdateBlock). A build that
+ *  isn't a published release at all is blocked by the same screen regardless of distance;
+ *  only a check that couldn't read the release list (offline) blocks nothing. */
+private const val FORCE_UPDATE_RELEASES_BEHIND = 50
 /** Preferred subtitle language, as an ISO 639-1 code. Drives which track is picked when
  *  subtitles are on, and which forced track is allowed through when they're off. Read by
  *  PlayerManager straight from the same prefs file. */
@@ -550,6 +567,20 @@ class MainActivity : AppCompatActivity() {
     internal val pluginScriptManager by lazy { PluginScriptManager(this, prefs) }
     internal val pluginStoreManager by lazy { PluginStoreManager(prefs) }
     internal val jsPluginEngine by lazy { JsPluginEngine() }
+    /** IntroDB client for skip segments (intro/recap/credits) - see MainActivitySkip.kt. */
+    internal val introDbClient by lazy { com.lumora.skip.IntroDbClient(BaseApplication.instance.okHttpClient) }
+    /** Debrid resolver (Real-Debrid & co) for torrent results - see
+     *  com.lumora.debrid.DebridManager. Consulted before the local torrent engine. */
+    internal val debridManager by lazy { com.lumora.debrid.DebridManager(BaseApplication.instance.okHttpClient) }
+    /** Online subtitle search (OpenSubtitles/Subdl/Wyzie) for the player's subtitle button -
+     *  see MainActivitySubs.kt. */
+    internal val subtitleSearch by lazy { com.lumora.subtitles.SubtitleSearch(BaseApplication.instance.okHttpClient) }
+    /** The downloaded subtitle pinned to the current playback, if any. Cleared when a
+     *  different title starts; what the sync/size picker entries act on. */
+    internal var downloadedSubtitle: DownloadedSubtitle? = null
+    /** The LAN server behind the Diagnostics pane's QR, alive only while its dialog is up
+     *  (see MainActivityDiagnostics). Stopped on dialog dismiss and in onDestroy. */
+    internal var diagnosticsShareServer: com.lumora.diagnostics.DiagnosticsShareServer? = null
     /** Backs whatever's currently playing via a resolvesNatively plugin - the
      *  local HTTP server it owns must stay alive for the life of playback. See showStreamSearchDialog. */
     internal var activeTorrentSession: TorrentEngine? = null
@@ -799,6 +830,38 @@ class MainActivity : AppCompatActivity() {
     internal var traktResolveJob: Job? = null
     /** The running device-code sign-in, cancelled when its dialog closes. */
     internal var traktSignInJob: Job? = null
+
+    // ── Simkl ───────────────────────────────────
+    /** Second tracker, same shape as Trakt: one client, one stored token, scrobble +
+     *  watched-sync hooks. See MainActivitySimkl.kt. */
+    internal val simklClient by lazy {
+        com.lumora.data.remote.simkl.SimklClient(BaseApplication.instance.okHttpClient)
+    }
+    internal var simklScrobbleTarget: com.lumora.data.remote.simkl.SimklClient.ScrobbleTarget? = null
+    internal var simklScrobbleForKey: String? = null
+    internal var simklLastReportedPaused: Boolean? = null
+    internal var simklResolveJob: Job? = null
+    internal var simklSignInJob: Job? = null
+
+    // ── Skip segments (IntroDB) ─────────────────
+    /** The timestamps the last lookup produced for the play in progress (see
+     *  MainActivitySkip.kt). Empty until the lookup lands, and until then the skip button
+     *  simply doesn't exist. */
+    internal var currentSkipSegments: List<com.lumora.skip.SkipSegment> = emptyList()
+    /** The segment playback is inside right now, from the once-a-second updateSkipSegmentUi
+     *  tick. What the skip button acts on. */
+    internal var activeSkipSegment: com.lumora.skip.SkipSegment? = null
+    /** Which play [currentSkipSegments] were fetched for, so a result that lands after the
+     *  user surfed on is discarded rather than shown over the wrong title. */
+    internal var skipSegmentsForKey: String? = null
+    /** Segments already skipped, keyed by SkipSegment.key. An automatic skip is never
+     *  re-offered; a manual skip that the user then rewound past is not either, which is
+     *  the conventional behaviour and stops the button flickering back into view mid-rewind. */
+    internal var dismissedSkipSegmentKey: String? = null
+    /** Last segment the button was labelled for, so the label is only rewritten when the
+     *  active segment actually changes rather than on every tick. */
+    internal var lastShownSkipSegmentKey: String? = null
+
     /** The negotiated stream for whatever Jellyfin item is playing (see
      *  JellyfinProvider.resolveStream). Its PlaySessionId is what ties every progress report
      *  to this play, and what lets the server tear a transcode down when it ends. */
@@ -1026,6 +1089,9 @@ class MainActivity : AppCompatActivity() {
                 checkUpNextTrigger()
                 mainHandler.postDelayed(this, 1000)
             }
+            // Runs even on the tick where playback just stopped (a pause press mid-segment
+            // should hide the skip button immediately), but only while the player is up.
+            if (isPlayerVisible) updateSkipSegmentUi()
         }
     }
     // Phone touch gestures on the player. TV sends no touch events, so these are inert there -
@@ -1059,6 +1125,13 @@ class MainActivity : AppCompatActivity() {
         applySystemBarInsets()
 
         prefs = getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
+        // Seed the skip-button pref on first run so its settings row (a plain boolean
+        // checkbox, default false when absent) agrees with the player's read of the same
+        // key (default true - a feature that does nothing until the database has an entry
+        // for the title might as well be on). Only ever written once.
+        if (!prefs.contains(PREF_SKIP_SEGMENTS)) {
+            prefs.edit().putBoolean(PREF_SKIP_SEGMENTS, true).apply()
+        }
         // Re-apply the persisted UI language before any views inflate (AppCompatDelegate has
         // its own storage, but the pref is the source of truth for the audio/subtitle/TMDB
         // cascade, and the override here also covers fresh installs and restored backups).
@@ -1145,6 +1218,8 @@ class MainActivity : AppCompatActivity() {
         // every other case. Writes only to WatchedStore, which is keyed by title rather than
         // by catalogue id - it does not need the catalogue to have loaded.
         pullTraktWatched()
+        // Simkl's pull runs beside Trakt's; both no-op unless signed in with watched sync on.
+        pullSimklWatched()
 
         // Downloads are a mobile-only affordance - a TV box has nowhere meaningful to
         // browse a downloaded file, and it's not what "download for offline" means there.
@@ -1397,9 +1472,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** True while the mandatory-update block is up (see showForceUpdateBlock). Back is
+     *  swallowed and the overlay owns the screen until the update is installed. */
+    internal var isForceUpdateBlocked = false
+
     /** Checked once per launch, straight off GitHub Releases - not tucked inside Settings.
      *
-     *  Never on the car screen: the prompt would open on top of the driving warning, where a
+     *  Shown as the out-of-date line above the tab bar (see [showUpdateBanner]) rather than
+     *  as a modal dialog: the notice only says "this build is out of date", and a line keeps
+     *  the app usable underneath instead of claiming the whole screen for it.
+     *
+     *  Never on the car screen: the banner would sit on top of the driving warning, where a
      *  rotary head unit has one focused button and it is "Update" - and that route ends in the
      *  system package installer, which cannot be driven from a projected display at all. Same
      *  reasoning as [requestNotificationPermissionIfNeeded]: the next launch off the car asks. */
@@ -1408,14 +1491,70 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             val updater = AppUpdateChecker(this@MainActivity)
             val info = withContext(Dispatchers.IO) { updater.checkForUpdate() } ?: return@launch
-            if (!info.isUpdateAvailable || info.downloadUrl.isBlank()) return@launch
-            AlertDialog.Builder(this@MainActivity)
-                .setTitle(getString(R.string.plug_update_available))
-                .setMessage(getString(R.string.plug_update_available_message, info.latestVersion, info.currentVersion, info.releaseNotes.take(200)))
-                .setPositiveButton(getString(R.string.update)) { _, _ -> downloadAndInstallUpdate(info.downloadUrl, info.latestVersion) }
-                .setNegativeButton(getString(R.string.plug_later), null)
-                .show()
+            com.lumora.diagnostics.SessionLog.event(
+                "update",
+                if (!info.isUpdateAvailable) "up to date (${info.currentVersion})"
+                else "available ${info.latestVersion} from ${info.currentVersion}" +
+                    (if (info.isUnrecognisedBuild) " [unrecognised build]" else " (behind=${info.releasesBehind})")
+            )
+            // Nowhere to send them without a download link - both blocks are dead ends then.
+            if (info.downloadUrl.isBlank()) return@launch
+            val behind = info.releasesBehind
+            when {
+                // A build that isn't any published release: blocked whether or not a newer
+                // version exists (a fork can carry a "newer" number and still be unofficial).
+                info.isUnrecognisedBuild -> showForceUpdateBlock(info, unrecognised = true)
+                !info.isUpdateAvailable -> return@launch
+                behind != null && behind >= FORCE_UPDATE_RELEASES_BEHIND -> showForceUpdateBlock(info)
+                else -> showUpdateBanner(info)
+            }
         }
+    }
+
+    /**
+     * The hard block: an opaque, focus-owning screen shown when the installed version is
+     * [FORCE_UPDATE_RELEASES_BEHIND] or more releases behind the latest, or is not a
+     * published release at all ([unrecognised]). Nothing underneath is reachable - the
+     * Update button (the only control, with the D-pad chained to itself) starts the same
+     * download/install flow the banner uses, and Back is swallowed while it is up (see
+     * [backCallback]). If the download fails the button stays for a retry; if the installer
+     * is cancelled the block is still there on the next launch, which is the point.
+     *
+     * Shown only when the release list could actually be read - an offline launch never
+     * reaches this, so a bad connection can't brick the app. Car displays skip it entirely
+     * (see checkAndPromptUpdate), because the system package installer cannot be driven from
+     * a projected screen.
+     */
+    private fun showForceUpdateBlock(info: AppUpdateChecker.UpdateInfo, unrecognised: Boolean = false) {
+        isForceUpdateBlocked = true
+        binding.updateBlockText.text = if (unrecognised) {
+            getString(R.string.plug_force_update_unrecognised_message, info.currentVersion, info.latestVersion)
+        } else {
+            getString(
+                R.string.plug_force_update_message,
+                info.currentVersion,
+                info.latestVersion,
+                info.releasesBehind ?: FORCE_UPDATE_RELEASES_BEHIND
+            )
+        }
+        binding.updateBlockButton.setOnClickListener {
+            downloadAndInstallUpdate(info.downloadUrl, info.latestVersion)
+        }
+        binding.updateBlockOverlay.visibility = View.VISIBLE
+        binding.updateBlockButton.requestFocus()
+    }
+
+    /** Fills in and reveals the chrome's out-of-date banner. The Update button hides the
+     *  banner and starts the download/install right away; there is deliberately no dismiss:
+     *  the release is required, so the line stays until the update is taken. */
+    private fun showUpdateBanner(info: AppUpdateChecker.UpdateInfo) {
+        binding.updateBannerText.text =
+            getString(R.string.plug_update_required_message, info.latestVersion, info.currentVersion)
+        binding.updateBannerButton.setOnClickListener {
+            binding.updateBanner.visibility = View.GONE
+            downloadAndInstallUpdate(info.downloadUrl, info.latestVersion)
+        }
+        binding.updateBanner.visibility = View.VISIBLE
     }
 
     /** Downloads the release APK via DownloadManager, then hands it to the system package
@@ -1600,6 +1739,8 @@ class MainActivity : AppCompatActivity() {
         activeTorrentSession?.let { engine -> Thread { runCatching { engine.stop() } }.start() }
         activeTorrentSession = null
         TorrentForegroundService.stop(this)
+        diagnosticsShareServer?.stopSharing()
+        diagnosticsShareServer = null
         releaseLivePreview()
         if (!isTv) runCatching { unregisterReceiver(downloadCompleteReceiver) }
     }
@@ -1611,6 +1752,10 @@ class MainActivity : AppCompatActivity() {
      *  remotes still went through the old path, which is why it only misbehaved on phones. */
     private val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
+            // The mandatory-update block owns the screen - there is nothing behind it a
+            // press should reach, and letting Back fall through to the system would just
+            // finish the Activity on top of a block the next launch would show again.
+            if (isForceUpdateBlocked) return
             if (handleBackNavigation()) return
             // Nothing left to unwind - hand this press back to the system (finishing the
             // Activity, or running the predictive-back animation) by standing down for the

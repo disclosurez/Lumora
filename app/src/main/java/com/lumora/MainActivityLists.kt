@@ -1552,12 +1552,17 @@ internal fun MainActivity.showTrackPicker(isAudio: Boolean) {
         }
     }
 
-    if (tracks.isEmpty()) {
-        Toast.makeText(
-            this,
-            if (isAudio) getString(R.string.list_no_alt_audio) else getString(R.string.list_no_subtitles),
-            Toast.LENGTH_SHORT
-        ).show()
+    // Subtitles get the online-search entry (and, once a downloaded subtitle is pinned, the
+    // sync and size controls) appended after the stream's own tracks - see MainActivitySubs.
+    // The picker is therefore never empty for subtitles, whatever the stream carries.
+    if (!isAudio) {
+        val (extraLabels, extraActions) = subtitlePickerExtras()
+        labels.addAll(extraLabels)
+        actions.addAll(extraActions)
+    }
+
+    if (tracks.isEmpty() && isAudio) {
+        Toast.makeText(this, getString(R.string.list_no_alt_audio), Toast.LENGTH_SHORT).show()
         return
     }
 

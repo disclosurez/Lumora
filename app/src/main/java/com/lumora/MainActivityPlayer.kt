@@ -164,7 +164,11 @@ internal fun MainActivity.setupPlayerControls() {
     binding.sideMenuCategoryList.adapter = sideMenuCategoryAdapter
     binding.btnAudioTrack.setOnClickListener { showTrackPicker(isAudio = true) }
     binding.btnSubtitleTrack.setOnClickListener { showTrackPicker(isAudio = false) }
+    binding.btnSkipSegment.setOnClickListener { skipActiveSegment() }
     binding.btnChapters.setOnClickListener { showChapterPicker() }
+    // Persisted subtitle text size (Small/Medium/Large, see MainActivitySubs) - applied at
+    // setup so the very first subtitle this session renders at the chosen size.
+    applySubtitleStyle()
     binding.btnLiveVersions.setOnClickListener { showVersionPicker() }
     binding.btnRewind.setOnClickListener { playerManager.seekBy(-15_000); showControls() }
     binding.btnFastForward.setOnClickListener { playerManager.seekBy(30_000); showControls() }
@@ -524,6 +528,10 @@ internal fun MainActivity.setupPlayerControls() {
                 "LumoraPlayer",
                 "Playback error ${error.errorCodeName} on ${nowPlayingChannel?.name}: ${error.cause?.message ?: error.message}"
             )
+            com.lumora.diagnostics.SessionLog.event(
+                "error",
+                "${error.errorCodeName} on ${nowPlayingChannel?.name}: ${error.cause?.message ?: error.message}"
+            )
             binding.bufferingSpinner.visibility = View.GONE
             resetStallTracking()
             blackFrameStreak = 0
@@ -649,6 +657,10 @@ internal fun MainActivity.showPlayerFor(
 ) {
     // Reset Up Next state on any new playback
     cancelUpNext()
+    // A new title starts with no pinned subtitle and no sync/size context from the last one;
+    // a retry of the same title (replayLast) deliberately keeps them.
+    playerManager.clearPinnedSubtitles()
+    downloadedSubtitle = null
     // Never run the preview decode and the fullscreen decode at once.
     releaseLivePreview()
     // Cleared unconditionally - callers that want episode tracking (Next/Prev,
@@ -660,10 +672,18 @@ internal fun MainActivity.showPlayerFor(
     // A fresh playback session is never a continuation of a user pause.
     userPausedPlayback = false
     nowPlayingChannel = channel
+    // Diagnostics breadcrumb: the title only, never the URL - see SessionLog's redaction
+    // rules for why stream URLs must not be quoted.
+    com.lumora.diagnostics.SessionLog.event("play", "${channel.mediaType} ${channel.name}")
     // Trakt's `start`. Deliberately after nowPlayingChannel is set - the TMDB lookup that
     // identifies the title runs in the background and checks what is playing when it lands,
     // so a quick surf past a title doesn't scrobble it.
     traktReportStart(channel)
+    // IntroDB skip segments for this title, fetched off the same background path - the
+    // button appears when (and if) the timestamps land, never blocking the picture.
+    startSkipSegmentLookup(channel)
+    // Simkl's `start`, beside Trakt's - same background resolve, same surf guard.
+    simklReportStart(channel)
     // Cleared unconditionally, same as the episode queue above - the series version
     // context only applies to playback started from a series detail screen, which re-sets
     // it right after this call.
@@ -1193,6 +1213,7 @@ internal fun MainActivity.retryCurrentVodStream(channel: Channel, error: Playbac
     if (scheme == null || scheme == "file" || scheme == "content") return false
     val delayMs = VOD_RETRY_DELAYS_MS[vodRetryAttempt]
     vodRetryAttempt++
+    com.lumora.diagnostics.SessionLog.event("retry", "VOD retry $vodRetryAttempt for ${channel.name}")
     // Resume where it died. currentPosition still reports the failed position at this point;
     // the saved store entry is the fallback for an error thrown before playback ever started.
     val resumeMs = playerManager.currentPosition.takeIf { it > 0 }
@@ -1265,6 +1286,7 @@ internal fun MainActivity.tryNextVodVersion(): Boolean {
     val group = versionGroupContaining(filmVersions, playing.id) ?: return false
     markStreamDead(playing)
     val next = group.firstOrNull { it.id != playing.id && !isStreamDead(it) } ?: return false
+    com.lumora.diagnostics.SessionLog.event("failover", "next source for ${playing.name}")
     Toast.makeText(this, getString(R.string.play_switching_source), Toast.LENGTH_SHORT).show()
     showPlayerFor(next, resumeFromMs = resumeMs)
     return true
@@ -1284,6 +1306,7 @@ internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = nu
     if (index !in currentVersionGroup.indices) return
     currentVersionIndex = index
     val next = currentVersionGroup[index]
+    com.lumora.diagnostics.SessionLog.event("failover", "switching to ${next.name}")
     resetStallTracking()
     beginStreamAttempt()
     startBlackFrameWatch()
@@ -2017,6 +2040,7 @@ internal fun MainActivity.hidePlayer() {
     // The debounce may still be pending; this is the last chance to get the entry on disk
     // before the process can be killed with the player closed.
     PlaybackPositionStore.flush(this)
+    com.lumora.diagnostics.SessionLog.event("play", "stopped ${nowPlayingChannel?.name ?: ""}".trim())
     // Watched state may have moved during playback - the Home up-next memo is stale.
     clearUpNextMemo()
     // Before nowPlayingChannel is cleared: the server turns this final position into a
@@ -2027,6 +2051,11 @@ internal fun MainActivity.hidePlayer() {
     // into either a watched mark (>=80%) or a resume point, so it has to read the real
     // position before the player is torn down.
     traktReportStopped()
+    // Same ordering constraint as Trakt's: the stop report needs the real position.
+    simklReportStopped()
+    // The next play gets its own timestamps; without this a segment from the title just
+    // closed could still be "active" for a moment over the one opening next.
+    resetSkipSegments()
     hideTrickplayPreview()
     // What was playing is the best preview target when nothing in the guide was ever
     // focused - a launch that resumes straight into the player never fires a focus

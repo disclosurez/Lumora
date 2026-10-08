@@ -193,6 +193,25 @@ class PlayerManager(
     )
 
     /**
+     * Sidecar subtitles pinned for the current playback session - a downloaded subtitle the
+     * user picked from the subtitle button (see MainActivitySubs). Kept apart from each
+     * playUrl call's own [subtitles] list because those are rebuilt by every caller, while a
+     * pinned track has to survive retries, failovers and version switches until a different
+     * title starts. [playUrl] merges the two; [setPinnedSubtitles] is followed by a
+     * [replayLast] to hand the player the new list.
+     */
+    private val pinnedExtraSubtitles = mutableListOf<ExternalSubtitle>()
+
+    fun setPinnedSubtitles(subtitles: List<ExternalSubtitle>) {
+        pinnedExtraSubtitles.clear()
+        pinnedExtraSubtitles.addAll(subtitles)
+    }
+
+    fun clearPinnedSubtitles() {
+        pinnedExtraSubtitles.clear()
+    }
+
+    /**
      * Prepare and start playing a stream URL.
      *
      * [startPositionMs] seeks *before* prepare rather than after, so a resumed title buffers
@@ -243,6 +262,9 @@ class PlayerManager(
         // original start position for any later replay.
         @Suppress("NAME_SHADOWING")
         val startPositionMs = pendingReplayPositionMs?.also { pendingReplayPositionMs = null } ?: startPositionMs
+        // Sidecar tracks pinned for this session ride along with every playUrl - including
+        // the replay a pin itself triggers - without any call site having to know about them.
+        val effectiveSubtitles = subtitles + pinnedExtraSubtitles
         val dataSourceFactory = dataSourceOverride
             ?: buildDataSourceFactory(userAgent, headers, maintainTokenQuery)
 
@@ -260,9 +282,9 @@ class PlayerManager(
         // leaves non-default text tracks unselected, so off means nothing auto-selects.
         val subtitlesEnabled = context.getSharedPreferences("iptv_prefs", Context.MODE_PRIVATE)
             .getBoolean("subtitles_enabled", false)
-        if (subtitles.isNotEmpty()) {
+        if (effectiveSubtitles.isNotEmpty()) {
             mediaItemBuilder.setSubtitleConfigurations(
-                subtitles.map { subtitle ->
+                effectiveSubtitles.map { subtitle ->
                     MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle.uri))
                         .setMimeType(subtitle.mimeType)
                         .setLanguage(subtitle.language)
@@ -353,10 +375,10 @@ class PlayerManager(
         // keeps Media3's defaults (with no DEFAULT-flagged sidecar track above, no text track
         // auto-selects). When ON, force text tracks on and point the selector at the sidecar's
         // language (including the subtitles.first() fallback) so opt-in users get their subs.
-        if (subtitlesEnabled && subtitles.isNotEmpty() && (audio?.equals("dub", ignoreCase = true) != true || subtitlesWithDub)) {
+        if (subtitlesEnabled && effectiveSubtitles.isNotEmpty() && (audio?.equals("dub", ignoreCase = true) != true || subtitlesWithDub)) {
             // The user's chosen language wins; the sidecar's own tag is the fallback for a
             // source that only ships one subtitle track and doesn't tag it usefully.
-            val preferred = subtitles.firstOrNull { it.isDefault } ?: subtitles.first()
+            val preferred = effectiveSubtitles.firstOrNull { it.isDefault } ?: effectiveSubtitles.first()
             val wanted = preferredSubtitleLanguage()
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)

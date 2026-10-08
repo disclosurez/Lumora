@@ -2169,6 +2169,8 @@ internal fun MainActivity.updateProgress() {
         // Trakt is not a heartbeat API - it wants transitions, so this only sends anything
         // when the play/pause state has actually moved since the last report.
         traktReportProgress()
+        // Simkl, same contract.
+        simklReportProgress()
     }
 }
 

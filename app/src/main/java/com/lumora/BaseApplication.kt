@@ -38,6 +38,16 @@ class BaseApplication : Application() {
         // measured from here, so the number matches what someone counting out loud sees.
         processStartedAt = System.currentTimeMillis()
 
+        // Diagnostics, first: the crash handler and the session log have to be in place
+        // before any other startup code that could crash or produce log-worthy events.
+        com.lumora.diagnostics.CrashReporter.install(this)
+        com.lumora.diagnostics.SessionLog.init(this)
+        com.lumora.diagnostics.SessionLog.event(
+            "app",
+            "started ${packageName} v${runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"}" +
+                " on Android ${android.os.Build.VERSION.RELEASE} (${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL})"
+        )
+
         // Initialize Google Cast framework (required before any Cast calls)
         try {
             com.google.android.gms.cast.framework.CastContext.getSharedInstance(this)

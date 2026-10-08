@@ -1473,6 +1473,21 @@ internal fun MainActivity.showProviderSettings() {
         PREF_SUBTITLES_ENABLED
     ))
 
+    // Playback pane: skip-intro rows. Appended in code because the pane's own rows are
+    // declared in XML and this keeps the IntroDB feature self-contained - one place that
+    // knows its two prefs.
+    val playbackPane = dialogView.findViewById<LinearLayout>(R.id.panePlayback)
+    playbackPane.addView(dubCheckBoxRow(
+        getString(R.string.sett_skip_segments),
+        getString(R.string.sett_skip_segments_caption),
+        PREF_SKIP_SEGMENTS
+    ))
+    playbackPane.addView(dubCheckBoxRow(
+        getString(R.string.sett_skip_auto),
+        getString(R.string.sett_skip_auto_caption),
+        PREF_SKIP_AUTO
+    ))
+
     // General pane: Simple mode + Disable VOD live here, not under Filters - they shape
     // the whole app (which tabs exist, what gets fetched), not the catalogue filters.
     val generalPane = dialogView.findViewById<LinearLayout>(R.id.paneGeneral)
@@ -1537,9 +1552,16 @@ internal fun MainActivity.showProviderSettings() {
         // section below it - including the hardcoded selectSection(7) the plugin rail rows use.
         R.id.navSites to R.id.paneSites,
         // Same reason - appended, not slotted in above Sites where the rail shows it.
-        R.id.navTrakt to R.id.paneTrakt
+        R.id.navTrakt to R.id.paneTrakt,
+        // Appended for the same index-stability reason as Trakt/Sites above.
+        R.id.navDebrid to R.id.paneDebrid,
+        R.id.navSimkl to R.id.paneSimkl,
+        R.id.navDiagnostics to R.id.paneDiagnostics
     ).map { (navId, paneId) -> dialogView.findViewById<View>(navId) to dialogView.findViewById<View>(paneId) }
     wireTraktPane(dialogView)
+    wireDebridPane(dialogView)
+    wireSimklPane(dialogView)
+    wireDiagnosticsPane(dialogView)
     // Last section chosen - the rail's re-expand pill refocuses it (mirrors the category
     // rail refocusing the previously selected row).
     var activeSection = 0

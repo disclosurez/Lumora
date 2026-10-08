@@ -102,6 +102,11 @@
     <!-- Update & backup toasts (MainActivity) -->
     <string name="plug_update_available">Update available</string>
     <string name="plug_update_available_message">Lumora v%1$s is available.\nCurrent: v%2$s\n\n%3$s</string>
+    <string name="plug_update_required_message">This app is out of date and requires updating. Lumora v%1$s is available (you have v%2$s).</string>
+    <string name="plug_force_update_title">Update required</string>
+    <string name="plug_force_update_message">Lumora v%1$s is %3$d versions behind the latest release (v%2$s). The app can\'t be used until it\'s updated - tap Update now to install it.</string>
+    <string name="plug_force_update_unrecognised_message">This build (v%1$s) isn\'t a published Lumora release. Install the official release (v%2$s) to keep using the app.</string>
+    <string name="plug_update_now">Update now</string>
     <string name="plug_later">Later</string>
     <string name="plug_downloading_update">Downloading update…</string>
     <string name="plug_update_download_failed">Update download failed</string>

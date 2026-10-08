@@ -20,7 +20,25 @@ class AppUpdateChecker(private val context: Context) {
         val currentVersion: String,
         val downloadUrl: String,
         val releaseNotes: String,
-        val isUpdateAvailable: Boolean
+        val isUpdateAvailable: Boolean,
+        /**
+         * How many published releases sit between the installed version and the latest one -
+         * the literal "versions behind" count, read off the release list (newest first) by
+         * finding the installed version's own tag. 0 when up to date.
+         *
+         * Null when the distance can't be measured: either the list couldn't be read, or
+         * the installed version isn't among the published releases - [isUnrecognisedBuild]
+         * tells those apart.
+         */
+        val releasesBehind: Int? = null,
+        /**
+         * True when the release list was read and the installed version is not one of its
+         * tags: a build that is not a published Lumora release (a fork, a repackaged APK, a
+         * source build carrying a version nobody published). Deliberately distinct from an
+         * unreadable list, which proves nothing about the build and therefore blocks
+         * nothing.
+         */
+        val isUnrecognisedBuild: Boolean = false
     )
 
     /**
@@ -69,18 +87,71 @@ class AppUpdateChecker(private val context: Context) {
 
                 val isUpdate = latestTag != null && isNewerVersion(latestTag, currentVersion)
 
+                // Always read: an unrecognised build has to be caught whether or not a newer
+                // version exists (a fork can carry a "newer" number and still be unofficial).
+                val distance = readReleaseDistance(currentVersion)
+
                 UpdateInfo(
                     latestVersion = latestTag ?: currentVersion,
                     currentVersion = currentVersion,
                     downloadUrl = downloadUrl,
                     releaseNotes = releaseNotes.take(500),
-                    isUpdateAvailable = isUpdate
+                    isUpdateAvailable = isUpdate,
+                    releasesBehind = (distance as? ReleaseDistance.Behind)?.count,
+                    isUnrecognisedBuild = distance is ReleaseDistance.Unrecognised
                 )
             }
         } catch (e: Exception) {
             Log.w(TAG, "Update check failed: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Where the installed version sits relative to the published release list.
+     *
+     * GET /releases returns newest-first, so the index of the release whose tag is the
+     * installed version is exactly how many releases have shipped since it. The three
+     * outcomes are deliberately distinct: [Behind] can trigger the distance block,
+     * [Unrecognised] the unofficial-build block, and [Unknown] (list unreadable) never
+     * blocks anything - an offline check proves nothing about the build.
+     */
+    private sealed interface ReleaseDistance {
+        data class Behind(val count: Int) : ReleaseDistance
+        data object Unrecognised : ReleaseDistance
+        data object Unknown : ReleaseDistance
+    }
+
+    private fun readReleaseDistance(currentVersion: String): ReleaseDistance = try {
+        val url = "https://api.github.com/repos/$GITHUB_REPO/releases?per_page=100"
+        val request = Request.Builder().url(url)
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("User-Agent", "Lumora/2.0")
+            .build()
+        BaseApplication.instance.okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                Log.w(TAG, "Release list: HTTP ${response.code}")
+                ReleaseDistance.Unknown
+            } else {
+                val releases = org.json.JSONArray(response.body?.string().orEmpty())
+                var found: Int? = null
+                for (i in 0 until releases.length()) {
+                    val tag = releases.optJSONObject(i)?.optString("tag_name").orEmpty().removePrefix("v")
+                    if (tag == currentVersion) {
+                        found = i
+                        break
+                    }
+                }
+                if (found != null) ReleaseDistance.Behind(found)
+                else {
+                    Log.w(TAG, "Installed version $currentVersion is not a published release")
+                    ReleaseDistance.Unrecognised
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Release list failed: ${e.message}")
+        ReleaseDistance.Unknown
     }
 
     /** Numeric, part-by-part comparison - a plain string ">" breaks past single digits

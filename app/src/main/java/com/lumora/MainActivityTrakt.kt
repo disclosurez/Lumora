@@ -531,8 +531,9 @@ internal fun MainActivity.traktSyncBothWays(onStatus: ((String) -> Unit)? = null
     }
 }
 
-/** A real title to hand TMDB, recovered from a normalised watched key. */
-private data class WatchedTitle(val title: String, val year: String?)
+/** A real title to hand TMDB, recovered from a normalised watched key. Shared with the
+ *  Simkl sync - the index is TMDB resolution work, not Trakt-specific. */
+internal data class WatchedTitle(val title: String, val year: String?)
 
 /**
  * Indexes every title this install knows about by the key prefix a watched mark would carry:
@@ -544,7 +545,7 @@ private data class WatchedTitle(val title: String, val year: String?)
  * to search with. Existing entries win: a live catalogue name is better than a months-old
  * snapshot of one.
  */
-private fun MainActivity.buildWatchedTitleIndex(): Map<String, WatchedTitle> {
+internal fun MainActivity.buildWatchedTitleIndex(): Map<String, WatchedTitle> {
     val index = HashMap<String, WatchedTitle>()
     fun put(prefix: String, rawTitle: String, year: String?) {
         val cleaned = cleanVodTitle(rawTitle)

@@ -295,6 +295,26 @@ internal suspend fun MainActivity.resolveTorrentStream(
     episode: Int?,
     onProgress: (String) -> Unit
 ): ResolveResult {
+    // Debrid first, when configured: an account turns the same magnet into an ordinary
+    // https URL in seconds instead of a local peer-to-peer session, which is the difference
+    // between instant seeking and "connecting to peers" on a TV stick. Any failure at all
+    // falls through to the local engine below - the account is an optimisation, never a
+    // requirement for a stream the app could otherwise play.
+    val debridService = com.lumora.debrid.DebridStore.service(prefs)
+    if (debridService != null) {
+        val key = com.lumora.debrid.DebridStore.apiKey(prefs, debridService)
+        if (!key.isNullOrBlank()) {
+            // A previous resolve's session must not outlive this pick - whichever path
+            // serves it, nothing is left holding a torrent open.
+            activeTorrentSession?.let { old -> Thread { runCatching { old.stop() } }.start() }
+            activeTorrentSession = null
+            onProgress(getString(R.string.debrid_resolving, debridService.label))
+            val url = debridManager.resolve(debridService, key, magnet, onProgress)
+            if (url != null) return ResolveResult.Ready(url)
+            com.lumora.diagnostics.SessionLog.event("debrid", "${debridService.label} resolve failed - using local engine")
+            onProgress(getString(R.string.debrid_falling_back))
+        }
+    }
     activeTorrentSession?.let { old -> Thread { runCatching { old.stop() } }.start() }
     TorrentForegroundService.start(this)
     val engine = TorrentEngine(this)
@@ -306,6 +326,7 @@ internal suspend fun MainActivity.resolveTorrentStream(
         if (activeTorrentSession === engine) activeTorrentSession = null
         withContext(Dispatchers.IO) { runCatching { engine.stop() } }
         TorrentForegroundService.stop(this)
+        com.lumora.diagnostics.SessionLog.event("torrent", "resolve failed: ${e.message}")
         ResolveResult.Failed(e.message ?: getString(R.string.plug_could_not_resolve_stream))
     }
 }

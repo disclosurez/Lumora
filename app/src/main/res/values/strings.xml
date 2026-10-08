@@ -325,4 +325,100 @@
     <string name="ui_not_driving_continue">I\'m not driving - continue</string>
     <string name="list_find_and_play">Find &amp; Play</string>
     <string name="list_season_number">Season %1$d</string>
+
+    <!-- MainActivitySkip / IntroDB skip segments -->
+    <string name="skip_intro">Skip Intro</string>
+    <string name="skip_recap">Skip Recap</string>
+    <string name="skip_credits">Skip Credits</string>
+    <string name="skip_preview">Skip Preview</string>
+    <string name="skip_segment">Skip</string>
+    <string name="skip_skipped">Skipped %1$s</string>
+    <string name="sett_skip_segments">Skip intro button</string>
+    <string name="sett_skip_segments_caption">Shows a Skip button when IntroDB has intro/recap/credits timestamps for the title</string>
+    <string name="sett_skip_auto">Auto-skip intros</string>
+    <string name="sett_skip_auto_caption">Seeks past intros and recaps automatically, without waiting for the button</string>
+
+    <!-- Debrid (MainActivityDebrid / DebridStore / DebridManager) -->
+    <string name="debrid">Debrid</string>
+    <string name="debrid_pane_caption">Optional. With a debrid account, torrent results play from the service\'s own cloud as a direct link instead of streaming peer-to-peer - instant seeking, no waiting for peers. Anything the service can\'t resolve falls back to the built-in engine.</string>
+    <string name="debrid_none">Choose a service</string>
+    <string name="debrid_key_hint">API key</string>
+    <string name="debrid_save">Save key</string>
+    <string name="debrid_clear">Remove account</string>
+    <string name="debrid_not_configured">No debrid account configured. Torrent results use the built-in engine.</string>
+    <string name="debrid_no_key">%1$s selected - paste its API key below.</string>
+    <string name="debrid_configured">%1$s configured. Torrent results try it first.</string>
+    <string name="debrid_pick_service_first">Pick a service first</string>
+    <string name="debrid_paste_key">Paste the API key first</string>
+    <string name="debrid_verifying">Checking the key\u2026</string>
+    <string name="debrid_connected_as">Connected to %1$s as %2$s</string>
+    <string name="debrid_saved_unverified">Key saved for %1$s - could not verify it right now</string>
+    <string name="debrid_cleared">Debrid account removed</string>
+    <string name="debrid_resolving">Resolving on %1$s\u2026</string>
+    <string name="debrid_falling_back">Debrid didn\'t have it - using the built-in engine\u2026</string>
+
+    <!-- Simkl (MainActivitySimkl) -->
+    <string name="simkl">Simkl</string>
+    <string name="simkl_pane_caption">Optional second tracker, alongside Trakt. Connect with the PIN shown below - no password typed on a remote - and plays are scrobbled as you watch.</string>
+    <string name="simkl_connect">Connect to Simkl</string>
+    <string name="simkl_scrobble">Scrobble while watching</string>
+    <string name="simkl_watched_sync">Sync watched history</string>
+    <string name="simkl_sync_now">Sync watched history now</string>
+    <string name="simkl_sign_out">Disconnect Simkl</string>
+    <string name="simkl_not_configured">This build has no Simkl client id - the feature is switched off</string>
+    <string name="simkl_not_connected">Not connected</string>
+    <string name="simkl_signed_in">Connected to Simkl</string>
+    <string name="simkl_signed_in_as">Connected to Simkl as %1$s</string>
+    <string name="simkl_signed_out">Disconnected from Simkl</string>
+    <string name="simkl_starting">Starting Simkl sign-in\u2026</string>
+    <string name="simkl_couldnt_start">Couldn\'t start Simkl sign-in - try again</string>
+    <string name="simkl_enter_code_at">Enter the code at %1$s</string>
+    <string name="simkl_timed_out">Simkl sign-in timed out - try again</string>
+    <string name="simkl_syncing">Syncing with Simkl\u2026</string>
+    <string name="simkl_pushing">Sending local watched marks to Simkl\u2026</string>
+    <string name="simkl_synced_both">Simkl sync: %1$d pulled, %2$d pushed</string>
+    <string name="simkl_synced_both_partial">Simkl sync: %1$d pulled, %2$d pushed (%3$d titles not matched on TMDB)</string>
+
+    <!-- Diagnostics (MainActivityDiagnostics / CrashReporter / SessionLog / DiagnosticsShareServer) -->
+    <string name="diagnostics">Diagnostics</string>
+    <string name="diag_caption">Saved on this device only, never uploaded. Reproduce the issue, then scan the QR with your phone to download the session log and crash reports.</string>
+    <string name="diag_status">%1$d crash reports \u00b7 session log %2$d KB</string>
+    <string name="diag_save_crashes">Save crash reports</string>
+    <string name="diag_record_log">Record session log</string>
+    <string name="diag_share">Download to phone (QR)</string>
+    <string name="diag_clear">Clear diagnostics</string>
+    <string name="diag_cleared">Diagnostics cleared</string>
+    <string name="diag_qr_title">Download to phone</string>
+    <string name="diag_qr_hint">Scan with your phone camera - the phone must be on the same Wi-Fi. The page lists the session log and every crash report.</string>
+    <string name="diag_share_failed">Couldn\'t start sharing - check the Wi-Fi connection</string>
+    <string name="diag_nothing">Nothing recorded yet</string>
+
+    <!-- Downloaded subtitles (MainActivitySubs / SubtitleSearch / SubtitleFiles) -->
+    <string name="subs_search_online">Download subtitles\u2026</string>
+    <string name="subs_search_title">Subtitles</string>
+    <string name="subs_searching">Searching for subtitles\u2026</string>
+    <string name="subs_none_found">No subtitles found for this title. Adding a Subdl or Wyzie key under Providers can find more.</string>
+    <string name="subs_providers">Providers\u2026</string>
+    <string name="subs_providers_caption">OpenSubtitles is always searched and needs no key. Subdl and Wyzie need a free API key from their websites; leave a field empty to skip that provider.</string>
+    <string name="subs_provider_subdl">Subdl API key</string>
+    <string name="subs_provider_wyzie">Wyzie API key</string>
+    <string name="subs_providers_saved">Subtitle provider keys saved</string>
+    <string name="subs_pick_language">Language</string>
+    <string name="subs_pick_variant">Which subtitle</string>
+    <string name="subs_language_count">%1$s (%2$d)</string>
+    <string name="subs_downloading">Downloading subtitle\u2026</string>
+    <string name="subs_download_failed">Couldn\'t download that subtitle</string>
+    <string name="subs_applied">Subtitles: %1$s</string>
+    <string name="subs_apply_failed">Couldn\'t apply the subtitle to this stream</string>
+    <string name="subs_vod_only">Subtitles can only be downloaded for films and episodes</string>
+    <string name="subs_sync">Subtitle delay</string>
+    <string name="subs_sync_title">Subtitle delay</string>
+    <string name="subs_sync_applied">Subtitle delay %1$s ms</string>
+    <string name="subs_sync_unsupported">This subtitle format can\'t be re-timed</string>
+    <string name="subs_offset_off">Off (0 ms)</string>
+    <string name="subs_offset_label">%1$s ms</string>
+    <string name="subs_text_size">Subtitle text size</string>
+    <string name="subs_size_small">Small</string>
+    <string name="subs_size_medium">Medium</string>
+    <string name="subs_size_large">Large</string>
 </resources>

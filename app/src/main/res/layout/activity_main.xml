@@ -18,6 +18,61 @@
         android:clipToPadding="false"
         android:orientation="vertical">
 
+        <!-- Update required: one chrome line above the tab bar, not a modal dialog. Filled
+             and revealed by showUpdateBanner() when checkAndPromptUpdate() finds a newer
+             release; the Update button hands straight off to the package installer. A modal
+             popup took the whole screen (and, on the car display, opened on top of the
+             driving warning) for something that only has to say "this build is out of
+             date" - as a line it stays readable while the app underneath remains usable. -->
+        <LinearLayout
+            android:id="@+id/updateBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_input"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/updateBannerText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="@font/inter_medium"
+                android:maxLines="2"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/text_body_s" />
+
+            <LinearLayout
+                android:id="@+id/updateBannerButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/bg_play_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:paddingHorizontal="24dp"
+                android:stateListAnimator="@animator/focus_scale">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter_semibold"
+                    android:text="@string/update"
+                    android:textAllCaps="true"
+                    android:textColor="@android:color/white"
+                    android:textSize="@dimen/text_body" />
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- One chrome row: brand + a single scroller holding every chrome item - the tabs,
              Search, then Settings/Refresh at the end.
              Height is wrap_content, not a fixed toolbar_height: the tallest child (the
@@ -1788,6 +1843,29 @@
             android:clickable="false"
             android:focusable="false" />
 
+        <!-- Skip Intro/Recap/Credits: shown only while playback sits inside a segment
+             IntroDB reported (see MainActivitySkip). Bottom-end corner, above the controls
+             bar - clear of the subtitles (bottom-center) and the channel card (top-start).
+             Focusable so a remote can reach it; hidden (GONE) the rest of the time, which
+             also takes it out of the D-pad chain. -->
+        <Button
+            android:id="@+id/btnSkipSegment"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="104dp"
+            android:background="@drawable/bg_outline_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingHorizontal="24dp"
+            android:stateListAnimator="@animator/focus_scale"
+            android:text="@string/skip_intro"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/settings_text_body"
+            android:visibility="gone" />
+
         <ProgressBar
             android:id="@+id/bufferingSpinner"
             android:layout_width="48dp"
@@ -2880,4 +2958,58 @@
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
+
+    <!-- Mandatory-update block: an opaque, focus-owning screen shown only when the installed
+         version is far enough behind the latest release (see MainActivity.showForceUpdateBlock).
+         Last child of the root, so it covers every layer including the player. The button's
+         D-pad links are chained to itself - focus has nowhere else to go while it is up. -->
+    <LinearLayout
+        android:id="@+id/updateBlockOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_app_gradient"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="48dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/plug_force_update_title"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_hero"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/updateBlockText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_subhead" />
+
+        <Button
+            android:id="@+id/updateBlockButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:background="@drawable/bg_play_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:nextFocusDown="@id/updateBlockButton"
+            android:nextFocusLeft="@id/updateBlockButton"
+            android:nextFocusRight="@id/updateBlockButton"
+            android:nextFocusUp="@id/updateBlockButton"
+            android:paddingHorizontal="32dp"
+            android:paddingVertical="12dp"
+            android:stateListAnimator="@animator/focus_scale"
+            android:text="@string/plug_update_now"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/settings_text_body" />
+    </LinearLayout>
 </FrameLayout>
