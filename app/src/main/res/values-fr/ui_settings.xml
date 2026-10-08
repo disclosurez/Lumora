@@ -54,6 +54,7 @@
     <string name="m3u_browse_local">Choisir un fichier local</string>
     <string name="sett_no_file_picker">Aucun sélecteur de fichier disponible sur cet appareil</string>
     <string name="sett_enter_server_url">Entrez une URL de serveur</string>
+    <string name="sett_enter_username_password">Saisissez un nom d\'utilisateur et un mot de passe</string>
     <string name="sett_provider_saved_loading">Fournisseur enregistré. Chargement...</string>
 
     <!-- MainActivitySettings.kt - serveur de jumelage QR -->

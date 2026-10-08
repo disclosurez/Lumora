@@ -83,7 +83,7 @@ class BackupManager(private val context: Context) {
         val userAgent: String?
     )
 
-    /** One MediaServerConfig (Jellyfin/Plex session), round-tripped through the JSON backup. */
+    /** One MediaServerConfig (Jellyfin/Silo/Plex session), round-tripped through the JSON backup. */
     data class MediaServerBackup(
         val id: String, val type: String, val name: String,
         val enabled: Boolean, val url: String?, val altUrls: List<String> = emptyList(),

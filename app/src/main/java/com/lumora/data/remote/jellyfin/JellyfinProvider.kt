@@ -250,8 +250,17 @@ class JellyfinProvider(baseClient: OkHttpClient) {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                val detail = response.body?.string()?.take(160)?.takeIf { it.isNotBlank() }
-                return Result.failure(Exception("Auth failed: HTTP ${response.code}" + (detail?.let { ": $it" } ?: "")))
+                val detail = response.body?.string()?.take(300)?.takeIf { it.isNotBlank() }
+                // A Jellyfin 401 carries no body; Silo's compat layer answers with
+                // {"Error":"...","Message":"..."} where Message is the actionable part
+                // ("profile not found", "profile is PIN protected: use password#pin",
+                // "Local password login is disabled"). Surface that rather than the raw
+                // JSON envelope, which also doesn't survive downstream truncation.
+                val parsed = detail?.let {
+                    runCatching { JSONObject(it).optString("Message", null) }.getOrNull()
+                }
+                val text = parsed?.takeIf { it.isNotBlank() } ?: detail
+                return Result.failure(Exception("Auth failed: HTTP ${response.code}" + (text?.let { ": $it" } ?: "")))
             }
 
             val body = response.body?.string() ?: return Result.failure(Exception("Empty response"))

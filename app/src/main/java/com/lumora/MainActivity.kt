@@ -247,6 +247,10 @@ internal const val JELLYFIN_CATEGORY_ID = "__jellyfin__"
  *  can be configured at once, and "my Plex library" and "my Jellyfin library" are two
  *  different shelves to the person browsing, not one merged "own library". */
 internal const val PLEX_CATEGORY_ID = "__plex__"
+/** Films/Series sidebar row that filters the tab down to Silo-sourced items only. Its own row
+ *  rather than folded into the Jellyfin one: Silo speaks the Jellyfin protocol but is a
+ *  separate server, and "my Silo library" reads wrong under a "Jellyfin" heading. */
+internal const val SILO_CATEGORY_ID = "__silo__"
 /** Series sidebar row for the plugin-gated anime catalog. Expandable: its children are the
  *  catalog's sections (Trending Now, Currently Airing, one per genre, ...). Built explicitly
  *  rather than derived from the channels' own category name, because anime titles carry a
@@ -1158,9 +1162,11 @@ class MainActivity : AppCompatActivity() {
             binding.tabLive.nextFocusLeftId = View.NO_ID
             // Same in the side menu: Discover's DOWN would land on the GONE Downloads row
             // and stop the walk short of Settings. Search sits between them and keeps its
-            // own link into Settings for the same reason.
+            // own link into Settings for the same reason - and Settings' UP has to skip the
+            // GONE Downloads row on the way back, or UP from Settings dead-ends.
             binding.navDiscover.nextFocusDownId = R.id.navSearch
             binding.navSearch.nextFocusDownId = R.id.navSettings
+            binding.navSettings.nextFocusUpId = R.id.navSearch
         }
 
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -1491,7 +1497,10 @@ class MainActivity : AppCompatActivity() {
         // minutes-to-hours out of date, and its tick re-renders the visible rows immediately.
         startGuideClock()
         if (isPlayerVisible && playerManager.playbackState == Player.STATE_READY && !userPausedPlayback) playerManager.play()
-        else if (activeTab == 0) showLivePreviewPane()
+        // Never while the fullscreen player is up: a player that was buffering when the app
+        // was backgrounded falls into this branch, and starting the inline preview then ran a
+        // second player behind the fullscreen one - two surfaces and two audio sources.
+        else if (activeTab == 0 && !isPlayerVisible) showLivePreviewPane()
     }
 
     override fun onPause() {
@@ -1651,7 +1660,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** The list filling the content area of whatever section is on screen. */
-    private fun activeContentList(): RecyclerView = when {
+    internal fun activeContentList(): RecyclerView = when {
         showingCatchup -> binding.catchupCategoryList
         showingDiscover -> binding.discoverGrid
         showingDownloads -> binding.downloadsContent
@@ -2028,7 +2037,10 @@ class MainActivity : AppCompatActivity() {
                                 // Not laid out yet (long season scrolled far from the
                                 // viewport) - scroll it in, then focus once it exists.
                                 list.scrollToPosition(target)
-                                list.post { list.layoutManager?.findViewByPosition(target)?.requestFocus() }
+                                // Double-post: one post can land before RecyclerView's
+                                // layout pass has produced the row, leaving the key a no-op
+                                // (same pattern as focusFirstItemWhenReady).
+                                list.post { list.post { list.layoutManager?.findViewByPosition(target)?.requestFocus() } }
                             }
                             return true
                         }

@@ -398,6 +398,10 @@ internal fun MainActivity.loadDiscoverLibraryBadges(items: List<Channel>) {
  *  catalogue once per tile. */
 internal suspend fun MainActivity.discoverBadgesFor(items: List<Channel>): Map<String, String> =
     withContext(Dispatchers.Default) {
+        // Hoisted: mediaServers() re-parses its JSON pref on every call, and the owner lookup
+        // below runs per version per tile. The badge names the account's server family, so a
+        // Silo library reads "Silo" even though its items carry the Jellyfin-protocol flag.
+        val owned = mediaServers()
         items.mapNotNull { item ->
             val versions = catalogVersionsFor(findCatalogMatches(item))
             if (versions.isEmpty()) return@mapNotNull null
@@ -405,7 +409,8 @@ internal suspend fun MainActivity.discoverBadgesFor(items: List<Channel>): Map<S
             // a worse badge than the server's name when both are configured and only one
             // has the title.
             val servers = listOfNotNull(
-                "Jellyfin".takeIf { versions.any { v -> v.isJellyfin } },
+                "Jellyfin".takeIf { versions.any { v -> mediaServerOwner(v, owned)?.isJellyfin == true } },
+                "Silo".takeIf { versions.any { v -> mediaServerOwner(v, owned)?.isSilo == true } },
                 "Plex".takeIf { versions.any { v -> v.isPlex } }
             )
             val iptv = versions.any { !it.isOwnLibrary }
@@ -439,8 +444,15 @@ internal fun MainActivity.onDiscoverItemClick(item: Channel) {
     // Every copy, not the best one: the detail screen needs the whole set for its version chips.
     val versions = catalogVersionsFor(findCatalogMatches(item))
     val match = versions.firstOrNull()
-    if (match != null) showContentDetail(match, versions.takeIf { it.size > 1 })
-    else showContentDetail(item)
+    if (match != null) {
+        showContentDetail(match, versions.takeIf { it.size > 1 })
+        // The Discover tile is tagged with the TMDB id, but showContentDetail stamped
+        // detailReturnItemId with the library copy's id - Back then found no tile with that
+        // tag and fell back to the tab. Re-point the return id at the tile the user tapped.
+        detailReturnItemId = item.id
+    } else {
+        showContentDetail(item)
+    }
 }
 
 internal fun MainActivity.startDiscoverStreamSearch(item: Channel) {
@@ -578,8 +590,6 @@ internal fun MainActivity.showSeriesEpisodePicker(
     item: Channel,
     onPick: (season: Int?, episode: Int?) -> Unit,
 ) {
-    val tvId = item.id.substringAfterLast(':').toIntOrNull()
-    if (tvId == null) { onPick(null, null); return }
     // Set by the loading dialog's Cancel. The fetch keeps running either way, so the
     // result below must check this rather than popping the season chooser nobody asked for.
     var cancelled = false
@@ -590,6 +600,16 @@ internal fun MainActivity.showSeriesEpisodePicker(
         .create()
     loading.show()
     scope.launch {
+        // tmdbTvIdFor, not "the trailing number in the id": for a library series that
+        // number is the panel's own primary key, and TMDB answers it with an unrelated
+        // show's season list - the exact trap documented on tmdbTvIdFor. It resolves a
+        // declared TMDB id directly and matches by title/year otherwise.
+        val tvId = tmdbTvIdFor(item)
+        if (tvId == null) {
+            loading.dismiss()
+            onPick(null, null)
+            return@launch
+        }
         val seasons = tmdbClient.tvSeasons(tvId)
         // Cancel (button or Back) only removed the loading dialog - without this bail-out
         // the season chooser still appeared seconds later, floating over nothing.
@@ -740,7 +760,11 @@ internal fun MainActivity.toggleHiddenHomeShelf(title: String) {
     val hidden = getHiddenHomeShelves()
     if (!hidden.remove(title)) hidden.add(title)
     prefs.edit().putStringSet("hidden_home_shelves", hidden).apply()
-    homeShelfAdapter.submitList(buildHomeShelves())
+    homeShelfAdapter.submitList(buildHomeShelves()) {
+        // The ✕ that ran this lives in the shelf that just left the list (or moved), so the
+        // focused view is gone with it - claim focus again or Home has no D-pad start point.
+        focusFirstItemWhenReady(binding.homeContent)
+    }
 }
 
 /** X on the "Continue Watching" shelf clears the resume data itself, not just hides the

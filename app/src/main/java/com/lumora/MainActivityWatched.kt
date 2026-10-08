@@ -238,7 +238,7 @@ private fun MainActivity.clearSiblingCopyPositions(item: Channel, sharedKeys: Li
 }
 
 /**
- * Marks the equivalent item played on every configured Jellyfin and Plex server.
+ * Marks the equivalent item played on every configured Jellyfin-protocol and Plex server.
  *
  * A film resolves straight out of the catalogue - the server's own copy is already a Channel
  * there. An episode does not: the catalogue holds media-server *series*, and their episode

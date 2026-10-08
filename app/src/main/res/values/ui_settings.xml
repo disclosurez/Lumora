@@ -54,6 +54,7 @@
     <string name="m3u_browse_local">Browse local file</string>
     <string name="sett_no_file_picker">No file picker available on this device</string>
     <string name="sett_enter_server_url">Enter a server URL</string>
+    <string name="sett_enter_username_password">Enter a username and password</string>
     <string name="sett_provider_saved_loading">Provider saved. Loading...</string>
 
     <!-- MainActivitySettings.kt - QR pairing server -->

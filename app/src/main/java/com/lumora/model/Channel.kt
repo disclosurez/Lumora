@@ -32,12 +32,16 @@ data class Channel(
     // impractical to fetch for the whole catalog just to sort it). Null means fall back
     // to year for ordering.
     val releaseDate: String? = null,
-    // Any number of IPTV providers (Xtream/M3U/Stalker) plus Jellyfin can be configured and
-    // active at once now, merged into one catalog - playback URL construction and detail
-    // fetching need very different handling per source, and with several providers live
-    // simultaneously that can no longer be answered by checking a single global `provider`
-    // field (there isn't one active provider anymore). Per-item is the only thing that's
-    // actually reliable.
+    // Any number of IPTV providers (Xtream/M3U/Stalker) plus any number of personal media
+    // servers (Jellyfin/Silo/Plex) can be configured and active at once now, merged into one
+    // catalog - playback URL construction and detail fetching need very different handling per
+    // source, and with several providers live simultaneously that can no longer be answered by
+    // checking a single global `provider` field (there isn't one active provider anymore).
+    // Per-item is the only thing that's actually reliable.
+    //
+    // True for Jellyfin-protocol items: Jellyfin itself *and* Silo, which speaks the same
+    // wire protocol and is served by the same client. The account behind an item is resolved
+    // through sourceProviderId -> MediaServerConfig, never from this flag alone.
     val isJellyfin: Boolean = false,
     // Same role as isJellyfin, for the Plex slot. Kept as its own flag rather than folded
     // into a shared "own library" enum because the two servers' item ids, playback
@@ -52,8 +56,8 @@ data class Channel(
     // hotlink-protects its playlist behind a Referer. Applied by PlayerManager alongside the UA.
     val streamHeaders: Map<String, String>? = null,
     // Which configured source this item came from: an IptvProviderConfig.id for Xtream, or a
-    // MediaServerConfig.id for a Jellyfin/Plex item (isJellyfin/isPlex say which store to look
-    // it up in). Detail/EPG calls (get_series_info, get_short_epg, get_vod_info) and every
+    // MediaServerConfig.id for a Jellyfin/Silo/Plex item (isJellyfin/isPlex say which store to
+    // look it up in). Detail/EPG calls (get_series_info, get_short_epg, get_vod_info) and every
     // media-server call (episodes, playback negotiation, progress reporting) need the
     // *matching* server/credentials - with any number of providers and any number of media
     // servers active at once, there is no single "current" one to fall back on. Null for M3U

@@ -134,6 +134,7 @@
     <string name="provider_type_stalker">Stalker</string>
     <string name="mac_address">Adresse MAC</string>
     <string name="provider_type_jellyfin">Jellyfin</string>
+    <string name="provider_type_silo">Silo</string>
     <string name="provider_type_plex">Plex</string>
     <string name="media_server">Serveur multimédia</string>
     <string name="change">Modifier</string>
@@ -311,4 +312,5 @@
     <string name="server_url_hint">http://example.com:8080</string>
     <string name="jellyfin_url_hint">http://192.168.1.100:8096</string>
     <string name="jellyfin_username_hint">Nom d\'utilisateur Jellyfin</string>
+    <string name="silo_username_hint">sam#Alex</string>
 </resources>

@@ -43,8 +43,11 @@ internal fun MainActivity.hasIptvConfigured(): Boolean = IptvProviderStore.load(
 internal fun MainActivity.mediaServers(): List<MediaServerConfig> =
     MediaServerStore.load(prefs).filter { it.isComplete }
 
+/** Jellyfin-protocol accounts: Jellyfin itself and Silo (which speaks the same protocol), all
+ *  reached through [JellyfinProvider]. Kept as one list - the client code cannot tell them
+ *  apart, only the labels and the sign-in flow can. */
 internal fun MainActivity.jellyfinServers(): List<MediaServerConfig> =
-    mediaServers().filter { it.isJellyfin }
+    mediaServers().filter { it.usesJellyfinProtocol }
 
 /** Plex accounts. Complete means signed in *and* bound to a reachable server endpoint - both
  *  halves are written together at the end of the sign-in flow, so either one alone means the
@@ -154,8 +157,9 @@ internal fun MainActivity.plexAllowsSeries(cfg: MediaServerConfig): Boolean =
  *  it is, so it resolves rather than disappearing until the next refresh re-stamps it. */
 internal fun MainActivity.mediaServerOwner(ch: Channel, servers: List<MediaServerConfig>): MediaServerConfig? {
     if (!ch.isOwnLibrary) return null
-    val type = if (ch.isJellyfin) "jellyfin" else "plex"
-    val ofType = servers.filter { it.type == type }
+    // isJellyfin covers every Jellyfin-protocol item, Silo included (its client *is* the
+    // Jellyfin client), so the lookup matches both account types rather than the raw string.
+    val ofType = servers.filter { if (ch.isJellyfin) it.usesJellyfinProtocol else it.isPlex }
     return ofType.firstOrNull { it.id == ch.sourceProviderId }
         ?: if (ch.sourceProviderId == null) ofType.singleOrNull() else null
 }
@@ -382,9 +386,11 @@ internal suspend fun MainActivity.persistCatalog(channels: List<Channel>) = with
     val servers = mediaServers()
     val configuredIds = configs.map { it.id }.toSet()
     // Fast path: no content-type gate is active (per-provider flags fold the global VOD
-    // gate in via isVodDisabled), so the cache can be saved unfiltered.
+    // gate in via isVodDisabled), so the cache can be saved unfiltered. Silo's live flag is
+    // exempt: it defaults off and can never produce live channels, so treating it as a gate
+    // would push every persist through the slow resurrect path for nothing.
     val anyGateOff = configs.any { !providerAllowsLive(it) || !providerAllowsMovies(it) || !providerAllowsSeries(it) } ||
-        servers.any { !jellyfinAllowsLive(it) || !jellyfinAllowsMovies(it) || !jellyfinAllowsSeries(it) }
+        servers.any { (!it.isSilo && !jellyfinAllowsLive(it)) || !jellyfinAllowsMovies(it) || !jellyfinAllowsSeries(it) }
     if (!anyGateOff) {
         ChannelCache.save(this@persistCatalog, channels)
         return@withContext
@@ -615,7 +621,11 @@ internal fun MainActivity.loadAllConfiguredProviders(forceRefresh: Boolean = fal
             if (!uiPainted) {
                 setStatus(
                     getString(
-                        if (server.isPlex) R.string.plug_connecting_to_plex else R.string.plug_connecting_to_jellyfin
+                        when {
+                            server.isPlex -> R.string.plug_connecting_to_plex
+                            server.isSilo -> R.string.plug_connecting_to_silo
+                            else -> R.string.plug_connecting_to_jellyfin
+                        }
                     ),
                     visible = true
                 )

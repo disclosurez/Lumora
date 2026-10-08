@@ -174,7 +174,7 @@ internal suspend fun MainActivity.fetchPlexChannels(cfg: MediaServerConfig): Fet
             ?: connectPlex(cfg)
                 .onSuccess { plexClients[cfg.id] = it }
                 .getOrElse { return FetchResult.Failure(it.message ?: "Plex: couldn't connect") }
-        val stub = plexProviderStub(url)
+        val stub = plexProviderStub(plex.connectedServerUrl ?: url)
         val items: List<Channel> = withContext(Dispatchers.IO) {
             // Both crawls run together rather than one after the other: each is a paginated
             // walk of a whole library, so serially they cost the sum of the two. Each gate is

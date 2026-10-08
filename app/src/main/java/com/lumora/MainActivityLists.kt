@@ -184,6 +184,12 @@ private fun MainActivity.playOfflineHls(record: DownloadRecord, sourceUrl: Strin
 }
 
 internal fun MainActivity.deleteDownload(record: DownloadRecord) {
+    // Where focus was, so the list can put it back after the row is deleted: the dialog's
+    // OK removes the focused delete button's whole row, which otherwise left the pane with
+    // nothing focused (Continue Watching removals already restore focus this way).
+    val focusedPosition = currentFocus
+        ?.let { binding.downloadsContent.findContainingViewHolder(it)?.bindingAdapterPosition }
+        ?: RecyclerView.NO_POSITION
     AlertDialog.Builder(this)
         .setTitle(getString(R.string.list_delete_download))
         .setMessage(getString(R.string.list_delete_download_message, record.title))
@@ -196,13 +202,13 @@ internal fun MainActivity.deleteDownload(record: DownloadRecord) {
             } else {
                 VodDownloader.delete(this, record)
             }
-            refreshDownloadsList()
+            refreshDownloadsList(focusPosition = focusedPosition)
         }
         .setNegativeButton(getString(R.string.cancel), null)
         .show()
 }
 
-internal fun MainActivity.refreshDownloadsList() {
+internal fun MainActivity.refreshDownloadsList(focusPosition: Int? = null) {
     scope.launch {
         val records = withContext(Dispatchers.IO) {
             DownloadStore.getAll(this@refreshDownloadsList).map { rec ->
@@ -216,7 +222,17 @@ internal fun MainActivity.refreshDownloadsList() {
                 }
             }
         }
-        downloadAdapter.submitList(records)
+        downloadAdapter.submitList(records) {
+            if (focusPosition != null) {
+                // submitList's commit callback; the ViewHolder exists on the next layout,
+                // which focusItemWhenReady waits for.
+                when {
+                    records.isEmpty() -> binding.tabDownloads.requestFocus()
+                    focusPosition >= 0 -> focusItemWhenReady(binding.downloadsContent, focusPosition.coerceAtMost(records.size - 1))
+                    else -> focusFirstItemWhenReady(binding.downloadsContent)
+                }
+            }
+        }
         binding.downloadsEmptyText.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
         binding.downloadsContent.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
     }
@@ -657,7 +673,12 @@ internal fun MainActivity.showContentDetail(item: Channel, versionGroup: List<Ch
     statusText.text = getString(R.string.loading)
     statusText.visibility = View.VISIBLE
     playButton.setOnClickListener(null)
-    binding.detailBackButton.setOnClickListener { hideContentDetail() }
+    binding.detailBackButton.setOnClickListener {
+        hideContentDetail()
+        // The detail screen may have been opened from a search result; without this the
+        // pending-query flag survived and a later Back re-opened the stale search.
+        restoreSearchIfPending()
+    }
     // Nothing requests focus just because contentDetailLayout became visible - without
     // this the D-pad has no reliable starting point on this screen (same class of bug
     // fixed elsewhere via restoreTabFocus()). Landing on Play once it loads is more

@@ -262,8 +262,23 @@ internal fun MainActivity.showSearchDialog(initialQuery: String? = null) {
         focusFirstResultOnNextPublish = false
         activeSearchOverlay = null
         if (tabBarWasVisible) binding.tabBar.visibility = View.VISIBLE
+        when {
+            showingHome -> selectHome()
+            showingDiscover -> selectDiscover()
+            showingDownloads -> selectDownloads()
+            // Back to the pane the overlay covered, WITHOUT re-running selectTab: that
+            // clears the whole selection state and, on Live, re-picks the default category -
+            // so merely closing search silently dropped the category/file the user was
+            // browsing. The overlay only made the content slot invisible; making it visible
+            // again restores exactly what was there (Catch Up included - it lives inside
+            // contentRow). Focus has to be claimed explicitly: the keyboard that held it is
+            // detached with the overlay, and without this the D-pad had nothing focused.
+            else -> {
+                binding.contentRow.visibility = View.VISIBLE
+                focusFirstItemWhenReady(activeContentList())
+            }
+        }
         applyStatus()
-        if (showingHome) selectHome() else if (showingDiscover) selectDiscover() else if (showingDownloads) selectDownloads() else selectTab(activeTab)
     }
     activeSearchOverlay = overlay
     applyStatus()

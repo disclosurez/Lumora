@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Providers
+- **Silo (siloserver.org) can now be added as its own provider type.** Silo speaks the Jellyfin protocol on `:8096`, so a Silo account reuses the Jellyfin client for browsing, playback negotiation, progress reporting and favourites. Its sign-in is username/password with the profile after `#` (`user#profile`), phone QR pairing supports it, its library gets its own Films/Series sidebar row and Discover badge, and - like Plex - Live TV is left out (Silo's Jellyfin-compatible layer is movies/series only).
+
 ## 4.8
 
 ### Playback

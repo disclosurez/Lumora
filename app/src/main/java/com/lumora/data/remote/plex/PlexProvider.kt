@@ -95,6 +95,12 @@ class PlexProvider(baseClient: OkHttpClient, private val clientIdentifier: Strin
     @Volatile
     private var serverBase: String? = null
 
+    /** The address the live session actually connected to. connectPlex can promote an
+     *  alternate endpoint into the store, so callers that build channel/stub URLs from the
+     *  pre-connect config value would otherwise carry the old, dead address. */
+    val connectedServerUrl: String?
+        get() = serverBase
+
     /** Set by [startPinLogin]/[fetchServers] on failure so callers can show *why* instead of
      *  a generic message - "couldn't reach plex.tv" and "this account has no servers" look
      *  identical from a null return alone. */

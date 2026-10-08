@@ -29,11 +29,11 @@ import okhttp3.Request
 internal fun MainActivity.jellyfinServerUrl(cfg: MediaServerConfig): String? =
     cfg.url?.takeIf { it.isNotBlank() }?.let { normalizeServerUrl(it, defaultScheme = "https") }
 
-/** The Jellyfin account a channel came from, or null when it isn't a Jellyfin item (or its
- *  account has since been removed). */
+/** The Jellyfin-protocol account a channel came from (Jellyfin or Silo), or null when it
+ *  isn't a Jellyfin-protocol item (or its account has since been removed). */
 internal fun MainActivity.jellyfinConfigFor(channel: Channel): MediaServerConfig? =
     if (!channel.isJellyfin) null
-    else MediaServerStore.get(prefs, channel.sourceProviderId)?.takeIf { it.isJellyfin }
+    else MediaServerStore.get(prefs, channel.sourceProviderId)?.takeIf { it.usesJellyfinProtocol }
         // A catalogue written before media servers became a list carries no source id; with
         // exactly one Jellyfin account configured there is no ambiguity about which it is,
         // so it still plays instead of failing until the next refresh re-stamps it.
@@ -46,25 +46,34 @@ internal fun MainActivity.jellyfinConfigFor(channel: Channel): MediaServerConfig
 internal fun MainActivity.jellyfinProviderStub(url: String?): Provider =
     Provider(name = "Jellyfin", type = ProviderType.M3U, serverUrl = url)
 
-/** Authenticates (or restores) a session for one configured Jellyfin account. Failure
- *  message is already user-facing. */
+/** Authenticates (or restores) a session for one configured Jellyfin-protocol account
+ *  (Jellyfin or Silo). Failure message is already user-facing. */
 internal suspend fun MainActivity.connectJellyfin(cfg: MediaServerConfig): Result<JellyfinProvider> {
-    val url = jellyfinServerUrl(cfg) ?: return Result.failure(Exception("Jellyfin: no server URL"))
+    val label = cfg.errorLabel()
+    val url = jellyfinServerUrl(cfg) ?: return Result.failure(Exception("$label: no server URL"))
     val jellyfin = JellyfinProvider(BaseApplication.instance.okHttpClient)
     if (!cfg.token.isNullOrBlank() && !cfg.userId.isNullOrBlank()) {
         // Quick Connect never yields a password to re-authenticate with later -
         // reuse the session it already gave us instead.
         jellyfin.restoreSession(url, cfg.token, cfg.userId)
     } else {
-        val username = cfg.username ?: return Result.failure(Exception("Jellyfin: no username"))
+        val username = cfg.username ?: return Result.failure(Exception("$label: no username"))
         val password = cfg.password.orEmpty()
         val authResult = withContext(Dispatchers.IO) { jellyfin.authenticate(url, username, password) }
         if (authResult.isFailure) {
-            return Result.failure(Exception("Jellyfin: ${authResult.exceptionOrNull()?.message?.take(60)}"))
+            // 140, not the usual 60: Silo's actionable refusals ("profile is PIN protected:
+            // use password#pin format...") run past 60 and the point is that the user reads
+            // what to fix, not just that auth failed.
+            return Result.failure(Exception("$label: ${authResult.exceptionOrNull()?.message?.take(140)}"))
         }
     }
     return Result.success(jellyfin)
 }
+
+/** "Jellyfin"/"Silo" for provider-failure messages, preferring the account's own name so a
+ *  multi-account setup says which server failed. */
+internal fun MediaServerConfig.errorLabel(): String =
+    name.takeIf { it.isNotBlank() } ?: if (isSilo) "Silo" else "Jellyfin"
 
 /** The live session for one Jellyfin account, reconnecting on demand. A cold start that hits
  *  the channel cache returns from loadAllConfiguredProviders() before any Jellyfin fetch runs,
@@ -94,7 +103,8 @@ internal suspend fun MainActivity.jellyfinClientFor(channel: Channel): JellyfinP
 /** Kept alive post-load for fetching a Jellyfin series' episodes when its detail page
  *  opens - that has no Xtream equivalent path to fall back to. */
 internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig): FetchResult {
-    val url = jellyfinServerUrl(cfg) ?: return FetchResult.Failure("Jellyfin: no server URL")
+    val label = cfg.errorLabel()
+    val url = jellyfinServerUrl(cfg) ?: return FetchResult.Failure("$label: no server URL")
     return try {
         // Reuse the live session when one is already cached - a password-login account
         // would otherwise re-authenticate over the network on every catalog load.
@@ -106,7 +116,7 @@ internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig):
         val jellyfin = jellyfinCachedClient(cfg)
             ?: connectJellyfin(cfg)
                 .onSuccess { jellyfinClients[cfg.id] = it }
-                .getOrElse { return FetchResult.Failure(it.message ?: "Jellyfin: auth failed") }
+                .getOrElse { return FetchResult.Failure(it.message ?: "$label: auth failed") }
         val stub = jellyfinProviderStub(url)
         val items: List<Channel> = withContext(Dispatchers.IO) {
             // The three crawls run together rather than one after another. Each is a
@@ -117,9 +127,11 @@ internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig):
             // series libraries have both answered.
             //
             // Each gate is still checked before anything is started: an off type is not
-            // crawled at all, and never was.
+            // crawled at all, and never was. Silo never crawls Live TV even when the flag
+            // is on - its 1.0 scope is movies and series, the Jellyfin compatibility layer
+            // doesn't serve /LiveTv, and a 404 there would otherwise fail the whole fetch.
             coroutineScope {
-                val liveDeferred = if (jellyfinAllowsLive(cfg)) async { jellyfin.getLiveTvChannels() } else null
+                val liveDeferred = if (!cfg.isSilo && jellyfinAllowsLive(cfg)) async { jellyfin.getLiveTvChannels() } else null
                 val moviesDeferred = if (jellyfinAllowsMovies(cfg)) async { jellyfin.getMovies() } else null
                 val seriesDeferred = if (jellyfinAllowsSeries(cfg)) async { jellyfin.getSeries() } else null
                 val liveItems = liveDeferred?.await().orEmpty()
@@ -137,12 +149,12 @@ internal suspend fun MainActivity.fetchJellyfinChannels(cfg: MediaServerConfig):
         FetchResult.Success(items)
     } catch (e: CancellationException) {
         // Not a fetch failure - the loader was cancelled (provider toggled, a newer load
-        // started, the timeout fired). Swallowing it here would both report "Jellyfin: Job
+        // started, the timeout fired). Swallowing it here would both report "<server>: Job
         // was cancelled" as a provider error and leave this coroutine looking like it
         // completed normally while its parent is cancelled.
         throw e
     } catch (e: Exception) {
-        FetchResult.Failure("Jellyfin: ${e.message?.take(60)}")
+        FetchResult.Failure("$label: ${e.message?.take(60)}")
     }
 }
 

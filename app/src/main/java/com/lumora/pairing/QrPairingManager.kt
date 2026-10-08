@@ -405,6 +405,7 @@ button:active{background:#1565c0}
   <option value="xtream" ${if (presetType == "xtream") "selected" else ""}>Xtream Codes</option>
   <option value="stalker" ${if (presetType == "stalker") "selected" else ""}>Stalker Portal</option>
   <option value="jellyfin" ${if (presetType == "jellyfin") "selected" else ""}>Jellyfin</option>
+  <option value="silo" ${if (presetType == "silo") "selected" else ""}>Silo</option>
   <option value="plex" ${if (presetType == "plex") "selected" else ""}>Plex</option>
 </select>
 <label>Name (optional)</label>
@@ -450,6 +451,15 @@ button:active{background:#1565c0}
     <div class="hint">After sending, a code appears here and on your TV - enter it on your Jellyfin server's Quick Connect page to finish signing in.</div>
   </div>
 </div>
+<div id="siloFields" class="field-group ${if (presetType == "silo") "active" else ""}">
+  <label>Server URL</label>
+  <input name="siloServerUrl" placeholder="http://192.168.1.100:8096" required>
+  <label>Username</label>
+  <input name="siloUsername" placeholder="user#profile" required>
+  <div class="hint">Your Silo username, then # and the profile name - for example sam#Alex. Profiles with a PIN take it after the password, also separated by #.</div>
+  <label>Password</label>
+  <input name="siloPassword" type="password" required>
+</div>
 <div id="plexFields" class="field-group ${if (presetType == "plex") "active" else ""}">
   <div class="hint">Nothing to fill in - Plex signs in with your account, and your account is what tells the TV which servers you have. Tap Send to TV and finish signing in on the next page.</div>
 </div>
@@ -462,6 +472,7 @@ document.getElementById('m3uFields').classList.toggle('active',t==='m3u');
 document.getElementById('xtreamFields').classList.toggle('active',t==='xtream');
 document.getElementById('stalkerFields').classList.toggle('active',t==='stalker');
 document.getElementById('jellyfinFields').classList.toggle('active',t==='jellyfin');
+document.getElementById('siloFields').classList.toggle('active',t==='silo');
 document.getElementById('plexFields').classList.toggle('active',t==='plex');}
 function genMac(){function o(){return('0'+Math.floor(Math.random()*256).toString(16).toUpperCase()).slice(-2);}
 document.getElementById('stalkerMac').value='00:1A:79:'+o()+':'+o()+':'+o();}

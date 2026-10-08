@@ -121,7 +121,23 @@ internal fun MainActivity.togglePinCategory(category: CategoryFilter, tab: Int =
         else getString(R.string.plug_unpinned, category.name),
         Toast.LENGTH_SHORT
     ).show()
-    scope.launch { rebuildCategoriesForActiveTab() }
+    // Rebuilds move the row (pin) or remove it (hide) - the context menu closed onto that
+    // row and it is gone or elsewhere afterwards, so focus has to be claimed again or the
+    // whole rail has nothing focused. Prefer the row that was acted on; the first row when
+    // it no longer exists (hidden).
+    scope.launch {
+        rebuildCategoriesForActiveTab()
+        focusSidebarRow(id)
+    }
+}
+
+/** Focuses the sidebar row [id], or the first row when it is no longer part of the list
+ *  (a hide removed it). Waits for layout - submitList is async, and a single post can land
+ *  before the new items exist. */
+internal fun MainActivity.focusSidebarRow(id: String?) {
+    val position = id?.let { categoryAdapter.currentList.indexOfFirst { row -> row.id == it } } ?: -1
+    if (position >= 0) focusItemWhenReady(binding.categorySidebar, position)
+    else focusFirstItemWhenReady(binding.categorySidebar)
 }
 
 /** Hides a sidebar category row - a merged "group:" parent hides every raw category
@@ -133,7 +149,11 @@ internal fun MainActivity.toggleHiddenSidebarCategory(category: CategoryFilter, 
     if (hidingNow) hidden.addAll(ids) else hidden.removeAll(ids)
     prefs.edit().putStringSet(hiddenCategoriesPrefsKey(tab), hidden).apply()
     Toast.makeText(this, if (hidingNow) getString(R.string.plug_hidden, category.name) else getString(R.string.plug_unhidden, category.name), Toast.LENGTH_SHORT).show()
-    scope.launch { rebuildCategoriesForActiveTab() }
+    scope.launch {
+        rebuildCategoriesForActiveTab()
+        // The acted-on row is gone when hiding; unhiding re-adds it, so it is found again.
+        focusSidebarRow(category.id)
+    }
 }
 
 /** Films/Series long-press menu - sidebar row is a single TextView with no room for
@@ -188,7 +208,7 @@ internal fun MainActivity.showCategoryContextMenu(category: CategoryFilter) {
             .show()
         return
     }
-    if (id == JELLYFIN_CATEGORY_ID || id == PLEX_CATEGORY_ID || id == NEWEST_CATEGORY_ID ||
+    if (id == JELLYFIN_CATEGORY_ID || id == SILO_CATEGORY_ID || id == PLEX_CATEGORY_ID || id == NEWEST_CATEGORY_ID ||
         id == UP_NEXT_CATEGORY_ID || id == FAVOURITES_CATEGORY_ID
     ) {
         AlertDialog.Builder(this)
@@ -263,7 +283,12 @@ internal fun MainActivity.toggleFavoriteVodItem(item: Channel) {
     // Series poster - favourites are folded into it now - picks the change up without a tab
     // switch. Only worth doing on those tabs: Home is handled above, and Live TV has no VOD
     // shelf to redraw.
-    if (!showingHome && activeTab != 0) scope.launch { classifyAndShow() }
+    // preserveUi, not a full first-paint: the plain classifyAndShow() dispatches through
+    // selectTab, which clears the selection and resets the pane to its shelves - so un-starring
+    // one poster from an open Favourites grid threw the user back to the top level.
+    // The preserved path re-runs applyCategoryFilter, whose Favourites branch re-reads the
+    // store, so the grid updates in place.
+    if (!showingHome && activeTab != 0) scope.launch { classifyAndShow(preserveUi = true) }
 }
 
 /** Home is built once, in [selectHome] - anything that changes what belongs on a shelf
@@ -1076,15 +1101,26 @@ internal fun MainActivity.buildCategoryRows(
         // IPTV providers' categories it gets merged into. Carries explicit channelIds
         // (same mechanism as a brand row) because provenance is per-Channel, not a
         // provider category anything is filed under.
+        //
+        // Ownership is resolved through mediaServerOwner() rather than the Channel's own
+        // isJellyfin flag: Silo speaks the same protocol and carries the same flag, so the
+        // flag alone would file every Silo library under this "Jellyfin" heading. One
+        // servers list, hoisted - mediaServers() re-parses its JSON pref on every call and
+        // this decision runs per channel across the whole tab.
+        val servers = mediaServers()
+        fun ownedByJellyfin(ch: Channel): Boolean =
+            mediaServerOwner(ch, servers)?.isJellyfin == true ||
+                versionsById[ch.id]?.any { mediaServerOwner(it, servers)?.isJellyfin == true } == true
+        fun ownedBySilo(ch: Channel): Boolean =
+            mediaServerOwner(ch, servers)?.isSilo == true ||
+                versionsById[ch.id]?.any { mediaServerOwner(it, servers)?.isSilo == true } == true
         if (tab != 0 && JELLYFIN_CATEGORY_ID !in hiddenIds) {
             // A title the Jellyfin library *and* an IPTV provider both carry is one
             // deduped card, and the representative that wins the card is whichever copy
             // had a poster - often the IPTV one. Matching on the representative's own
-            // isJellyfin flag alone dropped those titles out of the Jellyfin row even
-            // though the library has them, so match on any version in the group.
-            val jellyfinIds = list.filter { ch ->
-                ch.isJellyfin || versionsById[ch.id]?.any { it.isJellyfin } == true
-            }.map { it.id }.toSet()
+            // flag alone dropped those titles out of the Jellyfin row even though the
+            // library has them, so match on any version in the group.
+            val jellyfinIds = list.filter(::ownedByJellyfin).map { it.id }.toSet()
             if (jellyfinIds.isNotEmpty()) {
                 result.add(
                     CategoryFilter(
@@ -1092,6 +1128,22 @@ internal fun MainActivity.buildCategoryRows(
                         name = "Jellyfin",
                         count = jellyfinIds.size,
                         channelIds = jellyfinIds,
+                        isDynamic = true
+                    )
+                )
+            }
+        }
+        // Silo's own row, on exactly the same terms - it is a separate server reached over
+        // the Jellyfin protocol, and its library is its own shelf to the person browsing.
+        if (tab != 0 && SILO_CATEGORY_ID !in hiddenIds) {
+            val siloIds = list.filter(::ownedBySilo).map { it.id }.toSet()
+            if (siloIds.isNotEmpty()) {
+                result.add(
+                    CategoryFilter(
+                        id = SILO_CATEGORY_ID,
+                        name = "Silo",
+                        count = siloIds.size,
+                        channelIds = siloIds,
                         isDynamic = true
                     )
                 )

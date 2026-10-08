@@ -588,6 +588,10 @@ internal fun MainActivity.wirePluginsPane(dialogView: View) {
     }
 
     fun closePluginPage() {
+        // Hand the page's plugin id to the list render, which focuses that plugin's row (or
+        // the first row when Remove deleted it) - without this, focus stayed on the detail
+        // pane's now-GONE Back button and the D-pad had nowhere to start.
+        pluginFocusRequestId = openPluginId
         openPluginId = null
         detailPane.visibility = View.GONE
         listPane.visibility = View.VISIBLE
@@ -791,6 +795,7 @@ internal fun MainActivity.wirePluginsPane(dialogView: View) {
             val plugins = manager.discoverScripts()
             listContainer.removeAllViews()
             listEmpty.visibility = if (plugins.isEmpty()) View.VISIBLE else View.GONE
+            var focusRestored = false
             for (plugin in plugins) {
                 val row = layoutInflater.inflate(R.layout.item_plugin_row, listContainer, false)
                 row.findViewById<TextView>(R.id.pluginName).text = plugin.label
@@ -804,7 +809,24 @@ internal fun MainActivity.wirePluginsPane(dialogView: View) {
                 if (plugin.id == pluginFocusRequestId) {
                     pluginFocusRequestId = null
                     pluginFocusRequestViewId = View.NO_ID
+                    focusRestored = true
                     row.post { row.requestFocus() }
+                }
+            }
+            // Backing out of a plugin page asks for that plugin's row - but Remove deletes
+            // the very plugin the page was opened on. With nothing matching, focus stayed on
+            // the now-GONE back button and the D-pad had no starting point; land on the first
+            // row (or the install control when the list is empty) instead. Only when a
+            // restore was actually requested - a plain re-render must not steal focus from
+            // wherever the user is.
+            if (!focusRestored && pluginFocusRequestId != null) {
+                pluginFocusRequestId = null
+                if (listContainer.childCount > 0) {
+                    val first = listContainer.getChildAt(0)
+                    first.post { if (first.isShown) first.requestFocus() }
+                } else {
+                    val installButton = dialogView.findViewById<View>(R.id.settingsPluginInstallUrl)
+                    installButton?.post { if (installButton.isShown) installButton.requestFocus() }
                 }
             }
         }

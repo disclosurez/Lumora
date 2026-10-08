@@ -195,7 +195,7 @@ internal fun MainActivity.setupPlayerControls() {
                 dialog.dismiss()
             }
             .setNegativeButton(getString(R.string.cancel), null)
-            .show()
+            .let(::showControlsDialog)
     }
 
     // Audio offset control - see AvOffsetRenderersFactory for how the shift is actually
@@ -223,7 +223,7 @@ internal fun MainActivity.setupPlayerControls() {
                 dialog.dismiss()
             }
             .setNegativeButton(getString(R.string.cancel), null)
-            .show()
+            .let(::showControlsDialog)
     }
 
     // Sleep timer
@@ -258,7 +258,7 @@ internal fun MainActivity.setupPlayerControls() {
                 dialog.dismiss()
             }
             .setNegativeButton(getString(R.string.cancel), null)
-            .show()
+            .let(::showControlsDialog)
     }
 
     // Up Next - Play Now / Cancel buttons
@@ -383,6 +383,11 @@ internal fun MainActivity.setupPlayerControls() {
             if (s?.isPressed != true) {
                 playerManager.seekTo(target)
                 resetStallTracking()
+                // AbsSeekBar consumes the D-pad press, so Activity.onKeyDown's auto-hide
+                // refresh never runs for it - a scrub held past the 4s timer hid the bar
+                // (and the focused seek bar) mid-seek. Refresh the timer here instead.
+                mainHandler.removeCallbacks(hideControlsRunnable)
+                mainHandler.postDelayed(hideControlsRunnable, 4000)
             }
         }
         override fun onStartTrackingTouch(s: SeekBar?) { tracking = true }
@@ -1314,6 +1319,14 @@ internal fun MainActivity.switchToVersionIndex(index: Int, message: String? = nu
  *  The explicit nextFocus link is tried first and resolved against the overlay only; the
  *  geometric fallback is fenced to the overlay too, since focusSearch runs over the whole
  *  window and the browse screen behind the player is still focusable. */
+/** Shows a controls-bar picker dialog with the bar's 4s auto-hide suspended: left running,
+ *  the timer hid the bar (and the focused button) while the picker was still open, and on
+ *  dismiss the D-pad had nothing to return to. Dismissing re-shows the bar. */
+internal fun MainActivity.showControlsDialog(builder: AlertDialog.Builder) {
+    mainHandler.removeCallbacks(hideControlsRunnable)
+    builder.setOnDismissListener { if (isPlayerVisible) showControls() }.show()
+}
+
 internal fun MainActivity.focusOverlayNeighbour(direction: Int): Boolean {
     val focused = currentFocus ?: return false
     val linkId = if (direction == View.FOCUS_LEFT) focused.nextFocusLeftId else focused.nextFocusRightId
