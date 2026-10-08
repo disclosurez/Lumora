@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0
+
+### Phone pairing
+- **"Send to TV" sends again for every provider type.** The Silo fields added in 4.9 are `required`, and a required control inside a hidden group is unfocusable - the browser aborted the submit with no visible message, so after scanning the QR, tapping Send to TV did nothing for M3U, Xtream, Stalker, Jellyfin and Plex alike. Inactive groups' controls are now disabled, taking them out of form validation and out of the POST body, while the selected type still validates its own required fields.
+
 ## 4.9
 
 ### Providers
