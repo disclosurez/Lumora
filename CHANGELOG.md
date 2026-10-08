@@ -1,9 +1,31 @@
 # Changelog
 
-## Unreleased
+## 4.9
 
 ### Providers
 - **Silo (siloserver.org) can now be added as its own provider type.** Silo speaks the Jellyfin protocol on `:8096`, so a Silo account reuses the Jellyfin client for browsing, playback negotiation, progress reporting and favourites. Its sign-in is username/password with the profile after `#` (`user#profile`), phone QR pairing supports it, its library gets its own Films/Series sidebar row and Discover badge, and - like Plex - Live TV is left out (Silo's Jellyfin-compatible layer is movies/series only).
+
+### Player
+- **The Up Next card now works with the whole D-pad.** LEFT/RIGHT and UP/DOWN move between Play Now and Cancel (LEFT used to rewind or open the side menu, RIGHT fast-forwarded), Back cancels the card without stopping playback, and a stale "card is showing" flag could previously leave the controls unresponsive - it is cleared when the bar opens or the player closes. The card also sits lower in the corner.
+- **Closing the player cancels a half-typed channel number.** A numeric entry still pending when the player closed used to resolve ~1.5s later and re-open playback; the "channel not found" flash is also cancelled by the next digit instead of wiping it.
+- **Controls-bar pickers no longer hide the bar behind them.** Speed, A/V offset and sleep-timer dialogs suspend the 4s auto-hide while open and restore the bar on dismiss; scrubbing with the D-pad refreshes the timer (a held scrub used to hide the bar mid-seek).
+- **More playback fixes from the audit:** a series version switch no longer resurrects playback after backing out, resumes seek before preparing the stream on Stalker/plain paths (no rebuffer from 0), the speed button label follows a live reset, casting uses the resolved stream URL instead of a possibly-stale catalog one, the inline preview watchdog recovers after every version died, and the "channel offline" toast shows once per dead stream.
+
+### Plugins
+- **Cancelling a stream search cancels its resolve.** The JS resolve ran to its own 5-minute timeout and could start playback after the dialog was closed.
+- **Store and script downloads share the app's HTTP client and an 8 MB body cap**, and script host selectors take arguments safely (a null argument no longer aborts the whole run). `host.textOf` parses fragments the same way the other selectors do.
+- **Malformed plugin-store entries are skipped** instead of failing the whole catalog, relative script URLs resolve correctly even for a store at the bare origin, and a failing script can no longer take the process down. The public-content onboarding reloads the scraper-site manifest immediately.
+
+### EPG and metadata
+- **JSON `null` fields no longer become literal "null" text or `…/w342null` artwork URLs** in Discover/TMDB data.
+- **The guide caches only real programme data.** An empty or failed fetch clears its in-flight claim instead of marking the channel "no EPG" for the session, a provider reload bumps a generation so an old fetch can't write its schedule back, and the XMLTV sync worker stops retrying forever when the catalog has no tvg-ids (and only retries WorkManager when every source failed).
+
+### Catalog
+- **The same enabled-provider/content-type gates now apply to every read of the cached catalog** - a failed refresh could previously resurrect providers the user had switched off and VOD types they had gated. Cache writes are serialized so two saves can't interleave.
+
+### Navigation
+- **Closing search keeps the category/file you were on** (it used to reset the tab to its default) and returns focus; Back from a Discover-opened detail goes back to its tile; un-starring a title in an open Favourites grid updates in place instead of dumping you back to the shelves.
+- **Focus is restored after rows disappear**: deleting a download, removing a plugin, hiding a shelf or category, and search results now carry the tile tag Back needs to return to them. Settings' side-menu UP path skips the hidden Downloads row.
 
 ## 4.8
 
